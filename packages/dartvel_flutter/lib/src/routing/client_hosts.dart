@@ -97,20 +97,9 @@ String dvLocationToPlatform(String location) {
 /// host that does otherwise. [location] itself without hosts.
 String dvPublicLocation(String location) {
   final DVHostMatch? current = _current;
-  if (current == null) return location;
-  final (String path, String rest) = _split(location);
-  final DVHostMatch owner = _hosts.owner(path);
-  if (owner.origin == current.origin) {
-    return '${current.hostPath(path) ?? path}$rest';
-  }
-  final int hash = rest.indexOf('#');
-  final String query = hash < 0 ? rest : rest.substring(0, hash);
-  final String fragment = hash < 0 ? '' : rest.substring(hash);
-  final String url = _hosts.publicUrl(
-    path,
-    query: query.isEmpty ? null : query.substring(1),
-  );
-  return '$url$fragment';
+  // The server's rule for the document it serves, so a link reads the same
+  // before and after the app takes the page over.
+  return current == null ? location : _hosts.linkFrom(current, location);
 }
 
 /// Whether [location] is an absolute URL: a link [dvPublicLocation] sent to

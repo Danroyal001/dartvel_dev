@@ -440,4 +440,140 @@ void main() {
       expect(r.siteUrl, 'https://example.com');
     });
   });
+
+  group('links on a host', () {
+    test('a route this host owns is a path on it, without the mount', () {
+      final DVHosts hosts = example();
+      final DVHostMatch docs = hosts.match('docs.example.com')!;
+      expect(hosts.linkFrom(docs, '/docs/x'), '/x');
+      expect(hosts.linkFrom(docs, '/docs'), '/');
+      expect(hosts.linkFrom(docs, '/docs/x?tab=1#top'), '/x?tab=1#top');
+      expect(hosts.linkFrom(hosts.primaryMatch, '/pricing'), '/pricing');
+    });
+
+    test('a route outside a mounted host is a URL on the host that owns it', () {
+      final DVHosts hosts = example();
+      final DVHostMatch docs = hosts.match('docs.example.com')!;
+      final DVHostMatch foo = hosts.match('foo.apps.example.com')!;
+      expect(hosts.linkFrom(docs, '/pricing'), 'https://example.com/pricing');
+      expect(hosts.linkFrom(docs, '/'), 'https://example.com');
+      expect(
+        hosts.linkFrom(foo, '/pricing?plan=pro#faq'),
+        'https://example.com/pricing?plan=pro#faq',
+      );
+      expect(hosts.linkFrom(foo, '/docs/x'), 'https://docs.example.com/x');
+      expect(
+        hosts.linkFrom(foo, '/apps/bar/settings'),
+        'https://bar.apps.example.com/settings',
+      );
+    });
+
+    test('a mounted route linked from the primary host goes straight there', () {
+      final DVHosts hosts = example();
+      expect(
+        hosts.linkFrom(hosts.primaryMatch, '/docs/x'),
+        'https://docs.example.com/x',
+      );
+      expect(
+        hosts.linkFrom(hosts.primaryMatch, '/apps/foo'),
+        'https://foo.apps.example.com',
+      );
+    });
+  });
+
+  group('the links of a document served on a host', () {
+    DVHostedRequest on(String host, String rawPath) => dvHostedRequest(
+      example(),
+      host: host,
+      rawPath: rawPath,
+      isRoute: _isRoute,
+    );
+
+    // What the build captures: it reads every page on the primary host, so a
+    // primary route is a path and a mounted one is already its public URL.
+    const String captured =
+        '<nav><a href="/">Home</a> <a class="x" href="/pricing">Pricing</a> '
+        '<a href="/pricing?plan=pro&amp;from=docs#faq">Pro</a> '
+        '<a href="https://docs.example.com/x">X</a> '
+        '<a href="/docs/x">X again</a> '
+        '<a href="/files/guide.pdf">Guide</a> '
+        '<a href="mailto:hi@example.com">Mail</a> '
+        '<a href="#top">Top</a></nav>'
+        '<link rel="stylesheet" href="/pricing">';
+
+    test('on a mounted host no relative link points outside its mount', () {
+      final String html = on('docs.example.com', '/x').withLinks(
+        captured,
+        isRoute: _isRoute,
+      );
+      expect(html, contains('<a href="https://example.com">Home</a>'));
+      expect(
+        html,
+        contains('<a class="x" href="https://example.com/pricing">Pricing</a>'),
+      );
+      expect(
+        html,
+        contains(
+          '<a href="https://example.com/pricing?plan=pro&amp;from=docs#faq">Pro</a>',
+        ),
+      );
+      // Its own pages stay on it.
+      expect(html, contains('<a href="https://docs.example.com/x">X</a>'));
+      expect(html, contains('<a href="/x">X again</a>'));
+      // Not routes: a file every host serves, mail, a fragment, and a tag
+      // that is not a link a reader follows.
+      expect(html, contains('<a href="/files/guide.pdf">Guide</a>'));
+      expect(html, contains('<a href="mailto:hi@example.com">Mail</a>'));
+      expect(html, contains('<a href="#top">Top</a>'));
+      expect(html, contains('<link rel="stylesheet" href="/pricing">'));
+      // The rule the audit asked for: every relative link left that is a
+      // route is one this host shows.
+      final DVHostMatch docs = example().match('docs.example.com')!;
+      for (final RegExpMatch m in RegExp(r'<a [^>]*href="(/[^"#?]*)').allMatches(html)) {
+        expect(_isRoute(m[1]!) && !docs.covers(m[1]!), isFalse, reason: m[1]);
+      }
+    });
+
+    test('a wildcard host sends them to the primary and to other hosts', () {
+      final String html = on('foo.apps.example.com', '/settings').withLinks(
+        '<a href="/pricing">Pricing</a><a href="/docs">Docs</a>'
+        '<a href="/apps/foo">Foo</a><a href="/apps/foo/settings">Settings</a>',
+        isRoute: _isRoute,
+      );
+      expect(
+        html,
+        '<a href="https://example.com/pricing">Pricing</a>'
+        '<a href="https://docs.example.com">Docs</a>'
+        '<a href="/">Foo</a><a href="/settings">Settings</a>',
+      );
+    });
+
+    test('on the primary host a mounted route skips the redirect', () {
+      final String html = on('example.com', '/pricing').withLinks(
+        '<a href="/pricing">Pricing</a><a href="/docs/x">X</a>',
+        isRoute: _isRoute,
+      );
+      expect(
+        html,
+        '<a href="/pricing">Pricing</a><a href="https://docs.example.com/x">X</a>',
+      );
+    });
+
+    test('a document with nothing to change is the same string', () {
+      const String html = '<p>No links.</p><a href="/pricing">Pricing</a>';
+      expect(
+        identical(on('example.com', '/').withLinks(html, isRoute: _isRoute), html),
+        isTrue,
+      );
+    });
+  });
 }
+
+bool _isRoute(String path) => const <String>{
+  '/',
+  '/docs',
+  '/docs/x',
+  '/apps/foo',
+  '/apps/foo/settings',
+  '/pricing',
+}.contains(path);

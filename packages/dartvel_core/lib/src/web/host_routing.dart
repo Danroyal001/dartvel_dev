@@ -426,6 +426,27 @@ final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRed
     if (trimmed.isEmpty) return q.isEmpty ? m.origin : '${m.origin}/$q';
     return '${m.origin}$trimmed$q';
   }
+
+  /// Where a link to the internal [location] (a path, with any query and
+  /// fragment) points when it is followed on [from]: a path on that host,
+  /// its mount stripped, when it owns the route; the route's public URL on
+  /// the host that does otherwise.
+  ///
+  /// The one rule for every link Dartvel writes, in the served document and
+  /// in the running app. A mounted host shows only its mount, so a path left
+  /// relative there for a route outside it names a page that host does not
+  /// have.
+  String linkFrom(DVHostMatch from, String location) {
+    final int at = location.indexOf(RegExp('[?#]'));
+    final String path = at < 0 ? location : location.substring(0, at);
+    final String rest = at < 0 ? '' : location.substring(at);
+    final DVHostMatch m = owner(path);
+    if (m.origin == from.origin) return '${from.hostPath(path) ?? path}$rest';
+    final int hash = rest.indexOf('#');
+    final String query = hash < 0 ? rest : rest.substring(0, hash);
+    final String fragment = hash < 0 ? '' : rest.substring(hash);
+    return '${publicUrl(path, query: query.isEmpty ? null : query.substring(1))}$fragment';
+  }
 }
 
 /// A host matched to its entry, with the label a wildcard matched.
@@ -513,7 +534,43 @@ final class const DVHostedRequest({
   /// [internalPath] as a public URL, on whichever host owns it.
   String publicUrl(String internalPath, {String? query}) =>
       hosts.publicUrl(internalPath, query: query);
+
+  /// [html], a page about to be answered on the host asked, with every
+  /// anchor that names a route by its path pointing where that route is
+  /// ([DVHosts.linkFrom]).
+  ///
+  /// The build reads each page once, on the primary host, so the document it
+  /// captured links a primary route by its path. Served as it is on a mounted
+  /// host, `/about` is that host's `/about`, which is not a page: the link
+  /// has to say `https://example.com/about`. Only anchors are touched, and
+  /// only paths [isRoute] says are routes: a file every host serves, a
+  /// fragment and an address that is already a URL are left as written.
+  /// The same string when nothing changes.
+  String withLinks(
+    String html, {
+    required bool Function(String internalPath) isRoute,
+  }) {
+    if (!html.contains('<a ')) return html;
+    bool changed = false;
+    final String linked = html.replaceAllMapped(_anchorPath, (Match m) {
+      final String href = m[2]!;
+      final int at = href.indexOf(RegExp('[?#]'));
+      final String path = at < 0 ? href : href.substring(0, at);
+      if (!isRoute(path == '/' ? path : path.replaceAll(RegExp(r'/+$'), ''))) {
+        return m[0]!;
+      }
+      final String link = hosts.linkFrom(requested, href);
+      if (link == href) return m[0]!;
+      changed = true;
+      return '${m[1]}$link"';
+    });
+    return changed ? linked : html;
+  }
 }
+
+/// An anchor's opening tag up to a double-quoted href that is a path on this
+/// origin (`/x`, never `//host`).
+final RegExp _anchorPath = RegExp(r'(<a\s(?:[^>]*?\s)?href=")(/(?!/)[^"]*)"');
 
 /// [rawPath], asked for on [host], against [hosts].
 ///
