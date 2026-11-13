@@ -1,4 +1,4 @@
-## Unreleased
+## 0.13.48 — 2026-11-13
 
 - A contact card (`.vcf`, `.vcard`) is served as `text/vcard` and a calendar invite (`.ics`) as `text/calendar`, so a phone offers to add them instead of saving an unknown file.
 
