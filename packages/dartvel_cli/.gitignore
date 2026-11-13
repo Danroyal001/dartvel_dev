@@ -2,3 +2,5 @@
 /.dartvel/
 /.dart_tool/dartvel_backend.g.dart
 /.dart_tool/dartvel_backend_routes.g.dart
+# Generated when a test runs the generator inside this package; never published.
+/lib/dartvel_client/
