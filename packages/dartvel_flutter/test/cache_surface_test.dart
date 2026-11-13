@@ -138,7 +138,15 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 
 Type get machinery => $name;
 ''');
-      expect(output, contains('undefined_identifier'));
+      // The diagnostic's name: undefined_identifier on Dart 3.13 and 3.14,
+      // undefined_unqualified_name_read on 3.15, for the same error.
+      expect(
+        output,
+        anyOf(
+          contains('undefined_identifier'),
+          contains('undefined_unqualified_name_read'),
+        ),
+      );
     }, timeout: const Timeout(Duration(minutes: 3)));
   }
 }

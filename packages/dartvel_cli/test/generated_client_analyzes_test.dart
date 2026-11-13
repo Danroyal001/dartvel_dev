@@ -756,7 +756,11 @@ List<Type> get machinery => <Type>[
     final String output = '${probe.stdout}${probe.stderr}';
     final List<String> undefined = const LineSplitter()
         .convert(output)
-        .where((String l) => l.contains('undefined_identifier'))
+        // The diagnostic's name for an undefined name: undefined_identifier on
+        // Dart 3.13 and 3.14, undefined_unqualified_name_read on 3.15.
+        .where((String l) =>
+            l.contains('undefined_identifier') ||
+            l.contains('undefined_unqualified_name_read'))
         .toList();
     expect(undefined, hasLength(4), reason: output);
     // The control: DV.Cache and the adapters resolve, so the four are hidden
