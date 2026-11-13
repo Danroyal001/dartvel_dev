@@ -158,7 +158,12 @@ class DVPageSitemap {
 
 /// Annotation for a functional widget Page
 class DVFunctionalWidget {
-  const DVFunctionalWidget();
+  const DVFunctionalWidget({this.pageScroll = false});
+
+  /// A round "To the bottom / Back to top" button at the bottom right of a
+  /// long page, for the scroll view this widget builds (its layout, usually).
+  /// The same as `pageScroll` on a DVClassWidget or DartvelLayout.
+  final bool pageScroll;
 }
 
 /// How a generated `Model.Page(...)` resolves the data it renders.
