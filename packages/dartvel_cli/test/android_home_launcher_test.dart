@@ -272,6 +272,11 @@ class MainActivity : FlutterActivity() {
       expect(source, contains('KEYCODE_APP_SWITCH'));
       expect(source, contains('config_recentsComponentName'), reason: 'the phone names its own Recents; nothing is guessed per brand');
       expect(source, contains('"dev.dartvel.recentsFrom"'));
+      // The system's Recents stays drawn over a home app that is brought
+      // forward under it (Android 12 emulator: the home app got the intent
+      // and the Recents cards stayed on screen). Home closes it first.
+      expect(source, contains('performGlobalAction(GLOBAL_ACTION_HOME)'));
+      expect(source.indexOf('performGlobalAction(GLOBAL_ACTION_HOME)'), lessThan(source.indexOf('startActivity(')), reason: 'Home first, then the app\'s Recents');
     });
 
     test('the MainActivity hears the service and the other Recents signals', () {
