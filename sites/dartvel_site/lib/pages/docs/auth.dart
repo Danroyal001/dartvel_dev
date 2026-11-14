@@ -179,6 +179,8 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
               'DV.Auth.restoring is true until the answer arrives, so a page '
                   'can show neither state rather than flash "Sign in".',
               'Guarded pages wait for it before sending anyone to sign in.',
+              'It runs by itself. You do not call it, and calling '
+                  'DV.Auth.restore() from boot code is harmless.',
               'A provider you configured yourself is not asked.',
             ]),
           ],

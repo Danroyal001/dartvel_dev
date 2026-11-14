@@ -1,6 +1,6 @@
 ## Unreleased
 
-- `DV.Auth.restore()`, `DV.Auth.restored`, `DV.Auth.restoring` and `DV.Auth.user` (a signal with `watch(context)`): the signed-in person after a reload, from one request, signed out quietly on 401. Guards wait for it.
+- `DV.Auth.restore()`, `DV.Auth.restored`, `DV.Auth.restoring` and `DV.Auth.user` (a signal with `watch(context)`): the signed-in person after a reload, from one request, signed out quietly on 401. Guards wait for it. It runs by itself at start and does not depend on boot order: called from `@DVBoot`, before the session client exists, it no longer leaves the app signed out; a failure other than 401 is logged as a warning.
 
 ## 0.13.51 — 2026-11-13
 

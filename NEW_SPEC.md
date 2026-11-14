@@ -3249,7 +3249,13 @@ a device. `DV.Auth.user` is the same as a read-only signal
 `DV.Auth.restoring` says it is still on its way. A 401, or a server that cannot
 be reached, leaves the app signed out without an error. The generated guards
 wait for it, so a signed-in person reloading a guarded page is not sent to sign
-in. A provider the application configured itself is not asked.
+in. A provider the application configured itself is not asked. It does not
+depend on boot order: an application's `@DVBoot` runs before the session client
+exists, and a `DV.Auth.restore()` called there is answered "nobody yet" without
+that answer being kept, so the runtime's own call still asks the server. A
+failure other than 401 is logged as a warning. The server-rendered HTML does
+not yet reflect the signed-in state: until the answer arrives a page reads
+`DV.Auth.restoring` to show neither state.
 
 **Rotation is not optional.** The session identifier is reissued on sign-in, on
 privilege change, and on second-factor completion. Fixation is the attack that
