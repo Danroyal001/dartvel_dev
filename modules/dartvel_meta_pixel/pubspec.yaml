@@ -1,6 +1,6 @@
 name: dartvel_meta_pixel
 description: Meta (Facebook) Pixel for Dartvel apps — page views and events in the browser, the Conversions API from the backend, de-duplicated, consent-aware.
-version: 0.13.51
+version: 3.47.0
 repository: https://github.com/Danroyal001/dartvel_dev
 homepage: https://dartvel.dev
 topics:
@@ -23,7 +23,7 @@ platforms:
   windows:
 
 dependencies:
-  dartvel_core: ^0.13.51
+  dartvel_core: ^3.47.0
   crypto: ^3.0.7
 
 dev_dependencies:
