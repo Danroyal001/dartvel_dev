@@ -8,7 +8,7 @@ Flutter GPU on native targets and Flutter Scene's WebGL2 backend in a browser.
 ```yaml
 # pubspec.yaml
 dependencies:
-  dartvel_scene: ^0.11.5
+  dartvel_scene: ^3.47.0
 
 dartvel:
   scene3d:

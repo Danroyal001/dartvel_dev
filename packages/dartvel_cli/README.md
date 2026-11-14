@@ -81,7 +81,7 @@ dependencies. `dartvel create` already writes this:
 
 ```yaml
 dev_dependencies:
-  dartvel_cli: ^0.11.5
+  dartvel_cli: ^3.47.0
 ```
 
 ```sh

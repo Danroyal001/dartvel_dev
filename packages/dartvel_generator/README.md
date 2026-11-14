@@ -24,7 +24,7 @@ Then drop both packages from the project:
 dev_dependencies:
   build_runner: ^2.5.4      # remove
   dartvel_generator: ^1.2.0 # remove
-  dartvel_cli: ^0.4.1       # keep: it is the generator now
+  dartvel_cli: ^3.47.0      # keep: it is the generator now
 ```
 
 Keep `build_runner` only if some *other* package's builders need it — a

@@ -347,7 +347,7 @@ package. Everything you interact with is called `dartvel`.
 
 ```yaml
 dependencies:
-  dartvel_dev: ^0.11.2
+  dartvel_dev: ^3.47.0
 ```
 
 Or the pieces directly, where you want only some of them:
