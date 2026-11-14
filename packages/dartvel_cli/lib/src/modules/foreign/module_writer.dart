@@ -22,6 +22,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dartvel_core/dartvel.dart'
     show DVModuleEnvironment, DVModuleOutcome;
 
+import '../../templates/project_templates.dart' show dartvelPackageVersion;
 import '../described_api.dart';
 import 'dart_surface.dart';
 import 'rpc_codec.dart';
@@ -256,9 +257,11 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('  sdk: ">=3.13.0 <4.0.0"')
     ..writeln()
     ..writeln('dependencies:')
-    // The first release with DVModuleRpc, which a call carried to the
-    // backend needs.
-    ..writeln('  dartvel_core: ^0.9.0');
+    // The release of the CLI that generated it, as `dartvel create`
+    // writes. It was ^0.9.0, which stopped below 0.10.0 and so admitted
+    // no Dartvel released since. A refresh rewrites it with the rest of the
+    // wrapper, and the lock pins the new hash.
+    ..writeln('  dartvel_core: ^$dartvelPackageVersion');
   for (final MapEntry<String, String> dep in spec.dependencies.entries) {
     out.writeln('  ${dep.key}: ${dep.value}');
   }
