@@ -182,9 +182,24 @@ class MainActivity : FlutterActivity()
       expect(out, contains('android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS'));
       expect(out, contains('"recentapps"'));
       expect(out, contains('"dev.dartvel.recentsPressedAt"'));
-      expect(out, contains('override fun onStart()'), reason: 'registered while visible');
+      expect(out, contains('override fun onCreate('), reason: 'heard for as long as the app runs, in front or not');
       expect(out, contains('unregisterReceiver('), reason: 'and unregistered, or the activity leaks');
       expect(out, contains('RECEIVER_NOT_EXPORTED'), reason: 'Android 13+ wants the flag; a system broadcast still arrives');
+    });
+    test('Home and Recents are told to the app as they happen, not left for a resume that never comes', () {
+      // Android 10+ gives a home app already in front the new intent and no
+      // pause or resume (seen on an Android 12 emulator with the app as the
+      // default home), so a stamp read on resume never closed the drawer.
+      final String out = dvAndroidHomeLauncherActivity(activity, enabled: true)!;
+      expect(out, contains('"dev.dartvel/system_keys"'), reason: 'the channel DVApps listens on');
+      expect(out, contains('io.flutter.plugin.common.StringCodec.INSTANCE'));
+      expect(out, contains('dartvelSystemKey("home", pressedAt)'));
+      expect(out, contains('dartvelSystemKey("recents", pressedAt)'));
+    });
+    test('an activity written by Dartvel 0.13.51 is brought up to date', () {
+      final String? out = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\n${dvAndroidHomeLauncherActivity01351ForTest}\n', enabled: true);
+      expect(out, isNotNull);
+      expect(out, contains('"dev.dartvel/system_keys"'));
     });
     test('an activity written by an earlier Dartvel is brought up to date, not reported as edited', () {
       const String earlier = '''package com.example.home
@@ -217,6 +232,55 @@ class MainActivity : FlutterActivity() {
 ''';
       expect(dvAndroidHomeLauncherActivity(edited, enabled: true), isNull);
       expect(dvAndroidHomeLauncherActivity(edited, enabled: false), edited, reason: 'off, there is nothing of ours to remove');
+    });
+  });
+
+  group('the opt-in Recents service (dartvel.android.recentsService: true)', () {
+    // A home app can never be the phone's Recents. An accessibility service
+    // the person turns on once can see the system's Recents open (or the
+    // Recents key) and bring the home app's own Recents instead.
+    test('read from dartvel.android.recentsService, and only with the launcher on', () {
+      expect(dvAndroidRecentsServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'launcher': true, 'recentsService': true}}), isTrue);
+      expect(dvAndroidRecentsServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'recentsService': true}}), isFalse);
+      expect(dvAndroidRecentsServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'launcher': true}}), isFalse);
+    });
+
+    test('the manifest declares the service, bound only by the system, and turning it off removes it', () {
+      final String launcher = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+      final String out = dvAndroidRecentsServiceManifest(launcher, enabled: true);
+      expect(out, contains('android:name=".DartvelRecentsService"'));
+      expect(out, contains('android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"'));
+      expect(out, contains('android.accessibilityservice.AccessibilityService'));
+      expect(out, contains('@xml/dartvel_recents_service'));
+      expect(out.indexOf('DartvelRecentsService'), lessThan(out.indexOf('</application>')));
+      expect(dvAndroidRecentsServiceManifest(out, enabled: true), out);
+      expect(dvAndroidRecentsServiceManifest(out, enabled: false), launcher);
+    });
+
+    test('the service watches window changes, clicks and keys, and says what it is for', () {
+      expect(dvAndroidRecentsServiceConfig, contains('typeWindowStateChanged'));
+      expect(dvAndroidRecentsServiceConfig, contains('typeViewClicked'));
+      expect(dvAndroidRecentsServiceConfig, contains('android:canRequestFilterKeyEvents="true"'));
+      expect(dvAndroidRecentsServiceConfig, contains('@string/dartvel_recents_service_description'));
+    });
+
+    test('the service source is in the app\'s package and reports to the MainActivity', () {
+      final String source = dvAndroidRecentsServiceSource('com.example.home');
+      expect(source, startsWith('package com.example.home\n'));
+      expect(source, contains('class DartvelRecentsService : android.accessibilityservice.AccessibilityService()'));
+      expect(source, contains('MainActivity.dartvelCurrent'));
+      expect(source, contains('KEYCODE_APP_SWITCH'));
+      expect(source, contains('config_recentsComponentName'), reason: 'the phone names its own Recents; nothing is guessed per brand');
+      expect(source, contains('"dev.dartvel.recentsFrom"'));
+    });
+
+    test('the MainActivity hears the service and the other Recents signals', () {
+      final String out = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\nclass MainActivity : FlutterActivity()\n', enabled: true)!;
+      expect(out, contains('var dartvelCurrent: MainActivity?'));
+      expect(out, contains('"dev.dartvel.recentsFrom"'));
+      for (final String signal in <String>['"back"', '"pause"', '"stop"', '"userLeaveHint"', '"focus"', '"closeSystemDialogs"']) {
+        expect(out, contains(signal), reason: signal);
+      }
     });
   });
 }

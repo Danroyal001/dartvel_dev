@@ -6,6 +6,7 @@
 // application sees from whatever the binding hands back, and what it sends.
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart' show ByteData, StringCodec;
 import 'package:flutter/widgets.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -147,9 +148,8 @@ void main() {
   });
 
   group('Home pressed on a home app', () {
-    // Android hands Home to the home app that is already in front as a new
-    // intent, with the activity paused and resumed around it; the build's
-    // MainActivity stamps that intent and the binding reads the stamp.
+    // Home from another app: a new intent, then a resume. The stamp read on
+    // resume catches a press the channel did not deliver.
     testWidgets('each press of Home that lands on the app is one event; resuming from elsewhere is none', (WidgetTester tester) async {
       int stamp = 0;
       DVNativeBridge.register('apps.homePressedAt', (Object? _) => stamp);
@@ -198,53 +198,130 @@ void main() {
     });
   });
 
-  group('Recents pressed on a home app the system shows nothing over', () {
-    // Phones whose own launcher hosts Recents can show nothing when another
-    // app is the home app. The press still reaches the app (the build's
-    // MainActivity stamps the "recentapps" broadcast); it is an event only
-    // when the app is still in front a moment later, i.e. nothing opened.
-    testWidgets('a press with nothing shown over the app is one event', (WidgetTester tester) async {
+  group('the system keys a home app hears as they happen', () {
+    // Android 10 and later hand Home to a home app that is already in front
+    // as a new intent and nothing else: no pause, no resume (checked on an
+    // Android 12 emulator with the app as the default home). So the build's
+    // MainActivity tells the app at once, over the dev.dartvel/system_keys
+    // channel, with the same stamp it puts on the intent.
+    Future<void> systemKey(WidgetTester tester, String message) async {
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage('dev.dartvel/system_keys', const StringCodec().encodeMessage(message), (ByteData? _) {});
+      await tester.pump();
+    }
+
+    testWidgets('Home pressed while the app is in front, with no pause or resume, is one event', (WidgetTester tester) async {
       int stamp = 0;
-      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => stamp);
+      DVNativeBridge.register('apps.homePressedAt', (Object? _) => stamp);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().homePresses.listen((_) => presses.add(1));
+      addTearDown(subscription.cancel);
+      await tester.pump();
+
+      stamp = 1000;
+      await systemKey(tester, 'home:1000');
+      expect(presses.length, 1, reason: 'the drawer closes while the launcher stays in front');
+
+      // Home from another app: the new intent, then a resume. One press, not two.
+      stamp = 2000;
+      await systemKey(tester, 'home:2000');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      expect(presses.length, 2);
+    });
+
+    testWidgets('Recents heard while the app stays in front is one event, without polling the binding', (WidgetTester tester) async {
+      int looks = 0;
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) {
+        looks++;
+        return 0;
+      });
       final List<int> presses = <int>[];
       final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
-      // Cancelled in the test body: the poll is a timer the test must not leave behind.
       await tester.pump(const Duration(seconds: 1));
-      expect(presses, isEmpty);
 
-      stamp = 100;
+      await systemKey(tester, 'recents:100');
       await tester.pump(const Duration(seconds: 2));
       expect(presses.length, 1);
+      await systemKey(tester, 'recents:100');
       await tester.pump(const Duration(seconds: 2));
       expect(presses.length, 1, reason: 'the same stamp is the same press');
-      // Not awaited: cancel() answers with a future from the root zone, which a
-      // widget test's fake clock never runs, and the test would hang.
+
+      await tester.pump(const Duration(seconds: 10));
+      expect(looks, lessThanOrEqualTo(1), reason: 'a home app is in front all day: no JNI call four times a second');
       subscription.cancel();
       await tester.pump(const Duration(seconds: 1));
     });
 
-    testWidgets('a press that opened the system\'s Recents over the app is none', (WidgetTester tester) async {
-      int stamp = 0;
-      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => stamp);
+    test('where no home app can be, the Recents stream is empty', () async {
+      expect(await const DVApps().recentsPresses.isEmpty, isTrue);
+    });
+
+    testWidgets('Recents that opened the system\'s Recents over the app is none', (WidgetTester tester) async {
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => 0);
       final List<int> presses = <int>[];
       final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
-      // Cancelled in the test body: the poll is a timer the test must not leave behind.
       await tester.pump(const Duration(seconds: 1));
-      stamp = 100;
-      // The system's Recents covers the app straight away.
+      await systemKey(tester, 'recents:100');
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump(const Duration(seconds: 2));
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump(const Duration(seconds: 2));
       expect(presses, isEmpty);
-      // Not awaited: cancel() answers with a future from the root zone, which a
-      // widget test's fake clock never runs, and the test would hang.
       subscription.cancel();
       await tester.pump(const Duration(seconds: 1));
     });
 
-    test('where no home app can be, the stream is empty', () async {
-      expect(await const DVApps().recentsPresses.isEmpty, isTrue);
+    testWidgets('the Recents service bringing the app forward is a Recents press at once', (WidgetTester tester) async {
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => 0);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
+      await tester.pump(const Duration(seconds: 1));
+      // The app was behind the system's Recents when the service replaced it.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await systemKey(tester, 'recentsReplaced:700:window');
+      expect(presses.length, 1);
+      await systemKey(tester, 'recentsReplaced:700:window');
+      expect(presses.length, 1, reason: 'the same stamp is the same press');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      subscription.cancel();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('every signal reaches homeAppSignals with its name, time and detail', (WidgetTester tester) async {
+      DVNativeBridge.register('apps.homePressedAt', (Object? _) => 0);
+      final List<DVHomeAppSignal> heard = <DVHomeAppSignal>[];
+      final subscription = const DVApps().homeAppSignals.listen(heard.add);
+      addTearDown(subscription.cancel);
+      await systemKey(tester, 'closeSystemDialogs:1200:recentapps');
+      await systemKey(tester, 'window:1500:com.android.launcher3/com.android.quickstep.RecentsActivity');
+      await systemKey(tester, 'pause:1600');
+      expect(heard.map((DVHomeAppSignal signal) => '${signal.name}@${signal.at}[${signal.detail}]'), <String>[
+        'closeSystemDialogs@1200[recentapps]',
+        'window@1500[com.android.launcher3/com.android.quickstep.RecentsActivity]',
+        'pause@1600[]',
+      ]);
+    });
+
+    testWidgets('the Recents service: on or off is asked of the activity; nothing answering is off', (WidgetTester tester) async {
+      DVNativeBridge.register('apps.homePressedAt', (Object? _) => 0);
+      // Platform channels answer on the real event loop.
+      expect(await tester.runAsync(() => const DVApps().isRecentsServiceOn), isFalse);
+      Object? refused;
+      await tester.runAsync(() => const DVApps().openRecentsServiceSettings().catchError((Object error) {
+            refused = error;
+          }));
+      expect(refused, isA<UnsupportedError>());
+      final List<String?> asked = <String?>[];
+      tester.binding.defaultBinaryMessenger.setMockMessageHandler('dev.dartvel/home_app', (ByteData? message) async {
+        asked.add(const StringCodec().decodeMessage(message));
+        return const StringCodec().encodeMessage('true');
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMessageHandler('dev.dartvel/home_app', null));
+      expect(await tester.runAsync(() => const DVApps().isRecentsServiceOn), isTrue);
+      await tester.runAsync(() => const DVApps().openRecentsServiceSettings());
+      expect(asked, <String?>['recentsService.isOn', 'recentsService.settings']);
     });
   });
 }
