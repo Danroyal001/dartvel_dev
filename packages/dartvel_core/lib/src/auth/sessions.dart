@@ -25,6 +25,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import '../database/adapter.dart';
 import '../database/framework_tables.dart';
 import '../tenancy/tenants.dart';
+import 'session_scope.dart';
 
 /// A signed-in device.
 ///
@@ -735,6 +736,13 @@ class DVSessions {
 /// and a `__Host-` name outside development, `SameSite=Lax` or `Strict`. A
 /// cross-site session (`SameSite=None`) is a configuration error naming the
 /// setting (`DV-SESSION-003`) rather than a quietly weaker cookie.
+///
+/// With a [scope] that spans the application's hosts, a host it covers gets
+/// `__Secure-dv_session` with `Domain=<scope.domain>` instead -- the one
+/// cookie a browser shares between sibling hosts -- and every other host
+/// keeps its `__Host-` cookie. The old `__Host-` cookie is still read on a
+/// covered host, and [migration] moves the person to the new one without
+/// signing them out.
 class DVSessionCookie {
   final String name;
   final String sameSite;
@@ -742,10 +750,15 @@ class DVSessionCookie {
   /// How long the browser keeps the cookie, or null for the browser session.
   final Duration? maxAge;
 
+  /// Which hosts share the session. Host-only unless the application's
+  /// `dartvel.hosts` and `dartvel.auth` say otherwise.
+  final DVSessionScope scope;
+
   const DVSessionCookie({
     this.name = 'dv_session',
     this.sameSite = 'Lax',
     this.maxAge,
+    this.scope = const DVSessionScope.host(),
   });
 
   static final RegExp _cookieSafe = RegExp(r'^[A-Za-z0-9_\-]+$');
@@ -784,21 +797,32 @@ class DVSessionCookie {
     return bare == 'localhost' || bare == '127.0.0.1' || bare == '::1';
   }
 
+  /// Whether a request on [host] gets the domain cookie. Never in
+  /// development, whose cookie cannot be Secure.
+  bool spans({required bool development, String? host}) =>
+      !development && scope.covers(host);
+
   /// The name the cookie is set under. `__Host-` requires `Secure`, which
   /// plain-HTTP development cannot have, so development drops both rather
-  /// than setting a cookie the browser silently refuses.
-  String cookieName({required bool development}) =>
-      development ? name : '__Host-$name';
+  /// than setting a cookie the browser silently refuses. A host the [scope]
+  /// spans uses `__Secure-`, the prefix a cookie with a Domain may carry.
+  String cookieName({required bool development, String? host}) => development
+      ? name
+      : spans(development: false, host: host)
+          ? '__Secure-$name'
+          : '__Host-$name';
 
-  /// A `Set-Cookie` value carrying [token].
-  String header(String token, {required bool development}) {
+  /// A `Set-Cookie` value carrying [token], for a request on [host].
+  String header(String token, {required bool development, String? host}) {
     final String site = _validatedSameSite();
     if (!_cookieSafe.hasMatch(token)) {
       throw ArgumentError('A session token is URL-safe base64.');
     }
     final Duration? age = maxAge;
+    final bool domain = spans(development: development, host: host);
     return <String>[
-      '${cookieName(development: development)}=$token',
+      '${cookieName(development: development, host: host)}=$token',
+      if (domain) 'Domain=${scope.domain}',
       'Path=/',
       'HttpOnly',
       if (!development) 'Secure',
@@ -807,8 +831,7 @@ class DVSessionCookie {
     ].join('; ');
   }
 
-  /// A `Set-Cookie` value that removes the cookie, for sign-out and
-  /// revocation.
+  /// A `Set-Cookie` value that removes the host-only cookie.
   String clearHeader({required bool development}) => <String>[
         '${cookieName(development: development)}=',
         'Path=/',
@@ -818,10 +841,75 @@ class DVSessionCookie {
         'Max-Age=0',
       ].join('; ');
 
+  /// Every `Set-Cookie` value sign-out, revocation and account deletion
+  /// send on [host]: the domain cookie when the [scope] spans the host, and
+  /// the host-only `__Host-` cookie always -- an old one left behind would
+  /// keep this host signed in.
+  List<String> clearHeaders({required bool development, String? host}) =>
+      <String>[
+        if (spans(development: development, host: host))
+          <String>[
+            '__Secure-$name=',
+            'Domain=${scope.domain}',
+            'Path=/',
+            'HttpOnly',
+            'Secure',
+            'SameSite=${_validatedSameSite()}',
+            'Max-Age=0',
+          ].join('; '),
+        clearHeader(development: development),
+      ];
+
   /// The token in a request's `Cookie` header, or null.
-  String? read(String? cookieHeader, {required bool development}) {
+  String? read(String? cookieHeader,
+          {required bool development, String? host}) =>
+      carried(cookieHeader, development: development, host: host)?.token;
+
+  /// The token in a request's `Cookie` header and whether it came under the
+  /// old `__Host-` name on a host the [scope] now spans, or null.
+  ///
+  /// Read under the name this host sets first and, on a spanned host, the
+  /// old name second. Never under the bare development name outside
+  /// development: a cookie under it is one a sibling could have set.
+  ({String token, bool legacy})? carried(String? cookieHeader,
+      {required bool development, String? host}) {
     if (cookieHeader == null) return null;
-    final String wanted = cookieName(development: development);
+    final String wanted = cookieName(development: development, host: host);
+    final String? current = _value(cookieHeader, wanted);
+    if (current != null) return (token: current, legacy: false);
+    if (!spans(development: development, host: host)) return null;
+    final String? old = _value(cookieHeader, '__Host-$name');
+    return old == null ? null : (token: old, legacy: true);
+  }
+
+  /// What a response on [host] sets to move a person from the old `__Host-`
+  /// cookie to the domain one: the same token under the new name and the old
+  /// one cleared, or only the old one cleared when the new one is already
+  /// there. Empty when there is nothing to move.
+  List<String> migration(String? cookieHeader,
+      {required bool development, String? host}) {
+    if (!spans(development: development, host: host)) return const <String>[];
+    final ({String token, bool legacy})? found =
+        carried(cookieHeader, development: development, host: host);
+    if (found == null) return const <String>[];
+    if (found.legacy) {
+      return <String>[
+        header(found.token, development: development, host: host),
+        clearHeader(development: development),
+      ];
+    }
+    return _value(cookieHeader!, '__Host-$name') == null
+        ? const <String>[]
+        : <String>[clearHeader(development: development)];
+  }
+
+  /// Whether a `Cookie` header carries a session under any of its names.
+  bool presentIn(String? cookieHeader) =>
+      cookieHeader != null &&
+      <String>[name, '__Host-$name', '__Secure-$name']
+          .any((String n) => _value(cookieHeader, n) != null);
+
+  static String? _value(String cookieHeader, String wanted) {
     for (final String part in cookieHeader.split(';')) {
       final int equals = part.indexOf('=');
       if (equals < 0) continue;

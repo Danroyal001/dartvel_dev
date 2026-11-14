@@ -86,26 +86,30 @@ class DVSessionAuthenticationResult {
     this.message,
     this.challenge,
     this.clearCookie,
-  });
+    List<String>? setCookies,
+  }) : _setCookies = setCookies;
 
   /// The request presented no session: it is someone else's to judge.
   static const DVSessionAuthenticationResult none =
       DVSessionAuthenticationResult._();
 
   const DVSessionAuthenticationResult.authenticated(
-      DVSessionPrincipal principal)
-      : this._(principal: principal);
+    DVSessionPrincipal principal, {
+    List<String> setCookies = const <String>[],
+  }) : this._(principal: principal, setCookies: setCookies);
 
   const DVSessionAuthenticationResult.refused(
     int status,
     String message, {
     String? challenge,
     String? clearCookie,
+    List<String>? setCookies,
   }) : this._(
           status: status,
           message: message,
           challenge: challenge,
           clearCookie: clearCookie,
+          setCookies: setCookies,
         );
 
   final DVSessionPrincipal? principal;
@@ -124,6 +128,16 @@ class DVSessionAuthenticationResult {
   /// clear, so without this a browser would present it, and be refused, on
   /// every request including the sign-in that would replace it.
   final String? clearCookie;
+
+  /// Every `Set-Cookie` value the response must carry: on a refusal, the
+  /// session cookie cleared under each name it may have been set under; on
+  /// a success, the move from the old `__Host-` cookie to the domain one
+  /// when the application's hosts share a session. Empty for anything else.
+  List<String> get setCookies =>
+      _setCookies ??
+      (clearCookie == null ? const <String>[] : <String>[clearCookie!]);
+
+  final List<String>? _setCookies;
 
   bool get refused => status != null;
 }
@@ -149,8 +163,9 @@ class DVSessionAuthentication {
   final DVSessionCookie cookie;
 
   /// Whether the cookie is read under its development name. Outside
-  /// development only the `__Host-` name is the session: a cookie under the
-  /// bare name is one a sibling subdomain could have set.
+  /// development only the `__Host-` name is the session -- or, on a host
+  /// the cookie's scope spans, `__Secure-` with the old `__Host-` as well: a
+  /// cookie under the bare name is one a sibling subdomain could have set.
   final bool development;
 
   static const String _challenge = 'Bearer error="invalid_token"';
@@ -174,13 +189,18 @@ class DVSessionAuthentication {
     FutureOr<Object?> Function(DVSession session)? resolveUser,
     DVSessionCookie cookie = const DVSessionCookie(),
     bool development = false,
-  }) =>
-      _installed = DVSessionAuthentication(
+  }) {
+    // A scope built by hand -- or a generated one somebody edited -- is
+    // checked where it takes effect: a public suffix or a domain covering
+    // none of the hosts refuses the start (DV-SESSION-003).
+    cookie.scope.validate();
+    return _installed = DVSessionAuthentication(
         sessions: sessions,
         resolveUser: resolveUser,
         cookie: cookie,
         development: development,
       );
+  }
 
   /// Takes the installed stage away, for a test.
   static void uninstall() => _installed = null;
@@ -221,10 +241,14 @@ class DVSessionAuthentication {
   /// [plainLocal] says the request arrived over plain http at a loopback
   /// host, where the cookie could not be Secure and so carries the bare
   /// name. `DVSessionCookie.plainLocal` answers it from the request.
+  ///
+  /// [host] is the host the request was made for, which decides whether the
+  /// session cookie is the one the application's hosts share.
   static Future<DVSessionAuthenticationResult> authenticateRequest({
     String? authorization,
     String? cookie,
     bool plainLocal = false,
+    String? host,
   }) async {
     final DVSessionAuthentication? stage = _installed;
     if (stage != null) {
@@ -232,12 +256,12 @@ class DVSessionAuthentication {
         authorization: authorization,
         cookie: cookie,
         plainLocal: plainLocal,
+        host: host,
       );
     }
     const DVSessionCookie defaults = DVSessionCookie();
-    final bool presented = credentialOf(authorization) != null ||
-        defaults.read(cookie, development: false) != null ||
-        defaults.read(cookie, development: true) != null;
+    final bool presented =
+        credentialOf(authorization) != null || defaults.presentIn(cookie);
     return presented
         ? const DVSessionAuthenticationResult.refused(
             503, 'Service Unavailable')
@@ -251,14 +275,16 @@ class DVSessionAuthentication {
     String? cookie,
     String? tenant,
     bool plainLocal = false,
+    String? host,
   }) async {
     final String? bearer = credentialOf(authorization);
-    // The name this deployment sets, and -- on this machine only -- the
-    // bare name a browser keeps when the cookie could not be Secure. A
-    // request from anywhere else is read under one name, so a cookie set on
-    // a neighbouring subdomain is not a session here.
+    // The name this deployment sets on this host (and, where the
+    // application's hosts share a session, the old __Host- name it is
+    // moving away from), and -- on this machine only -- the bare name a
+    // browser keeps when the cookie could not be Secure. A cookie set on a
+    // neighbouring subdomain under any other name is not a session here.
     final String? carried = bearer == null
-        ? (this.cookie.read(cookie, development: development) ??
+        ? (this.cookie.read(cookie, development: development, host: host) ??
             (plainLocal ? this.cookie.read(cookie, development: true) : null))
         : null;
     final String? token = bearer ?? carried;
@@ -274,7 +300,7 @@ class DVSessionAuthentication {
           DVObservability.logger
               .info('$code: a revoked session was presented and refused.');
         }
-        return _refused(fromCookie);
+        return _refused(fromCookie, host);
       }
       if (session.mfaPending) {
         // A password was right and the second factor has not been presented:
@@ -291,12 +317,17 @@ class DVSessionAuthentication {
       final FutureOr<Object?> Function(DVSession)? resolve = resolveUser;
       if (resolve != null) {
         user = await resolve(session);
-        if (user == null) return _refused(fromCookie);
+        if (user == null) return _refused(fromCookie, host);
       }
-      return DVSessionAuthenticationResult.authenticated(DVSessionPrincipal(
-        session: session,
-        user: user,
-      ));
+      return DVSessionAuthenticationResult.authenticated(
+        DVSessionPrincipal(session: session, user: user),
+        // A person still on the old __Host- cookie, on a host the session
+        // now spans, moves to the shared cookie on this response -- the same
+        // token, so nobody is signed out by the upgrade.
+        setCookies: fromCookie
+            ? this.cookie.migration(cookie, development: development, host: host)
+            : const <String>[],
+      );
     } on Object catch (error) {
       // The type only. A store's or a resolver's message can quote what it
       // was given.
@@ -309,12 +340,16 @@ class DVSessionAuthentication {
     }
   }
 
-  DVSessionAuthenticationResult _refused(bool fromCookie) =>
-      DVSessionAuthenticationResult.refused(
-        401,
-        'Unauthorized',
-        challenge: _challenge,
-        clearCookie:
-            fromCookie ? cookie.clearHeader(development: development) : null,
-      );
+  DVSessionAuthenticationResult _refused(bool fromCookie, String? host) {
+    final List<String> clear = fromCookie
+        ? cookie.clearHeaders(development: development, host: host)
+        : const <String>[];
+    return DVSessionAuthenticationResult.refused(
+      401,
+      'Unauthorized',
+      challenge: _challenge,
+      clearCookie: clear.isEmpty ? null : clear.last,
+      setCookies: clear,
+    );
+  }
 }

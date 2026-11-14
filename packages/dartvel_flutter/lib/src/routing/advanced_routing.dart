@@ -115,6 +115,9 @@ class RouteGuards {
   static Future<bool> _isAuthenticated(BuildContext context) async {
     final configured = isAuthenticated;
     if (configured != null) return configured(context);
+    // A signed-in person reloading a guarded page is not sent to sign in
+    // while the start-up check is still on its way.
+    await DV.Auth.restored;
     return DV.Auth.currentUser != null;
   }
 

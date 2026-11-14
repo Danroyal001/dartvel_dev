@@ -8,6 +8,10 @@ import 'package:dartvel_core/dartvel.dart'
         DVCacheConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
+        DVHosts,
+        DVHostsParse,
+        DVSessionScope,
+        DVSessionScopeResolution,
         DVLogConfig,
         DVPlatformApiConfig,
         DVWebhooksConfig,
@@ -1024,6 +1028,10 @@ $openApiJson\'\'\';
       );
     }
     final bool authenticates = platformApi != null;
+    // dartvel.hosts and dartvel.auth: which of the application's hosts share
+    // one browser session. A domain that is a public suffix, or not a parent
+    // of every host, is refused here, before anything is built.
+    final String sessionScopeSource = _dvSessionScopeSource(root);
     final bool studioOff = _dvStudioDeclaredOff(root);
     final String? corsSource = server.corsSource;
     final String corsConstant = corsSource ?? 'null';
@@ -1266,10 +1274,22 @@ Future<Map<String, Object?>> _parseMultipart(
 }
 
 bool _dvValidateCsrf(dv.Request req, Object? body) {
-  return const core.DVCSRF().validateRequest(
+  final bool tokenValid = const core.DVCSRF().validateRequest(
     method: req.method,
     headerToken: req.headers.get(core.DVCSRF.headerName),
     bodyToken: body is Map ? body[core.DVCSRF.fieldName]?.toString() : null,
+  );
+  if (!tokenValid) return false;
+  if (!const core.DVCSRF().requiresValidation(req.method)) return true;
+  // Where dartvel.hosts declares the application's hosts, a state-changing
+  // request from any other origin is refused -- a sibling somebody else runs
+  // under the same domain is same-site, and SameSite does not stop it. The
+  // origins dartvel.server.cors names are the application's to allow.
+  return dartvelSessionScope.allowsOrigin(
+    req.headers.get('origin'),
+    host: core.DVSessionScope.requestHost(req),
+    secure: core.DVSessionScope.requestSecure(req),
+    alsoAllowed: dartvelConfiguredCors?.origins ?? const <String>[],
   );
 }
 
@@ -1340,20 +1360,31 @@ Future<dv.Response> _dvAuthenticated(
           cookie: cookies ? req.headers.get('cookie') : null,
           plainLocal: core.DVSessionCookie.plainLocal(req.url,
               forwardedProto: req.headers.get('x-forwarded-proto'),
-              host: req.headers.get('host')));
+              host: req.headers.get('host')),
+          host: core.DVSessionScope.requestHost(req));
   if (session.refused) {
     return dv.Response(session.status!,
         headers: dv.Headers({
           'content-type': 'text/plain; charset=utf-8',
           'cache-control': 'no-store',
           if (session.challenge != null) 'www-authenticate': session.challenge!,
-          if (session.clearCookie != null) 'set-cookie': session.clearCookie!,
+          if (session.setCookies.isNotEmpty) 'set-cookie': session.setCookies,
         }),
         body: Stream<List<int>>.value(conv.utf8.encode(session.message!)));
   }
   final core.DVSessionPrincipal? signedIn = session.principal;
   if (signedIn == null) return run();
-  return core.DVSessionPrincipal.actingAs(signedIn, run);
+  final dv.Response response = await core.DVSessionPrincipal.actingAs(signedIn, run);
+  // A person on the old __Host- cookie, on a host whose session is now
+  // shared, moves to the shared cookie with this response.
+  if (session.setCookies.isNotEmpty) {
+    for (final String moved in session.setCookies) {
+      response.headers.append('set-cookie', moved);
+    }
+    // The response now carries the session token: no cache may keep it.
+    response.headers.set('cache-control', 'no-store');
+  }
+  return response;
 }
 
 /// The tenant scope, the request's privacy signal and the authentication
@@ -1957,6 +1988,13 @@ final core.DVPageDataResolver dartvelPageData = ${pageHooksImport == null ? '' :
 /// application that never thought about the question.
 const dv.CorsOptions? dartvelConfiguredCors = $corsConstant;
 
+/// Which of this application's hosts share one browser session, from
+/// `dartvel.hosts` and `dartvel.auth`: hosts on one registrable domain share
+/// `__Secure-dv_session` for that domain unless `sessionScope: host` says
+/// otherwise, and every other host keeps its own `__Host-` cookie. A
+/// state-changing request from a host not listed here is refused.
+const core.DVSessionScope dartvelSessionScope = $sessionScopeSource;
+
 /// Whether responses are compressed, from `dartvel.server.compression`.
 const bool dartvelCompression = $compressionLiteral;
 
@@ -2123,6 +2161,7 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
     core.DVSessionAuthentication.install(
       sessions: core.DVSessions(store: dartvelDatabase == null ? core.DVMemorySessionStore() : core.DVDatabaseSessionStore(dartvelDatabase)),
       development: Platform.environment['DARTVEL_ENVIRONMENT'] == 'development',
+      cookie: const core.DVSessionCookie(scope: dartvelSessionScope),
     );
   }
   // Who may open Studio: a person granted Studio.access with `dartvel admin
@@ -5391,4 +5430,40 @@ String? _dvSeoFavicon(String root) {
   if (favicon == null) return null;
   final String value = '$favicon'.trim();
   return value.isEmpty ? null : value;
+}
+
+/// The `DVSessionScope` constant the generated backend installs, from
+/// `dartvel.hosts` and `dartvel.auth` in [root]'s pubspec.
+///
+/// Throws [FormatException] naming every problem -- a session domain that is
+/// a public suffix, one that is not a parent of every host, a scope that is
+/// not one -- because each would otherwise be a cookie a browser drops
+/// silently or one that reaches hosts the application does not serve.
+/// Problems in `dartvel.hosts` itself are reported where the hosts are
+/// read, and leave the session host-only here.
+String _dvSessionScopeSource(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return 'core.DVSessionScope.host()';
+  final Object? doc = loadYaml(pubspec.readAsStringSync());
+  final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+  if (dartvel is! Map) return 'core.DVSessionScope.host()';
+  final Object? seo = dartvel['seo'];
+  final Object? siteUrl = seo is Map ? seo['siteUrl'] : null;
+  final DVHostsParse hosts = DVHosts.parse(dartvel['hosts'],
+      defaultSiteUrl: siteUrl is String ? siteUrl : null);
+  if (hosts.problems.isNotEmpty) return 'core.DVSessionScope.host()';
+  final DVSessionScopeResolution resolution =
+      DVSessionScope.resolve(hosts: hosts.hosts, auth: dartvel['auth']);
+  if (resolution.problems.isNotEmpty) {
+    throw FormatException(resolution.problems.join('\n'));
+  }
+  final DVSessionScope scope = resolution.scope;
+  // Host names are validated labels: nothing in one needs escaping.
+  String literal(String value) => "'$value'";
+  final String hostList =
+      '<String>[${scope.hosts.map(literal).join(', ')}]';
+  final String? domain = scope.domain;
+  return domain == null
+      ? 'core.DVSessionScope.host(hosts: $hostList)'
+      : 'core.DVSessionScope.site(domain: ${literal(domain)}, hosts: $hostList)';
 }

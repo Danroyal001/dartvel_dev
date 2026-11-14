@@ -9,7 +9,9 @@
 /// * credentials go through [DVCredentialGuard] -- one refusal and one floor
 ///   of time whether or not the account exists, velocity limits per account
 ///   and per source, and the breach check at sign-up;
-/// * a browser gets the session in an `HttpOnly` `__Host-` cookie and never
+/// * a browser gets the session in an `HttpOnly` cookie -- `__Host-`, or
+///   `__Secure-` with the registrable domain when the application's hosts
+///   share a session (`DVSessionScope`) -- and never
 ///   in the body, where a script could read it. Only a request carrying none
 ///   of the headers a browser sends and a script cannot suppress, and asking
 ///   for the token with [deliveryHeader], gets it in the body -- and then no
@@ -55,6 +57,7 @@ import 'auth.dart';
 import 'first_run_owner.dart';
 import 'second_factor.dart';
 import 'session_authentication.dart';
+import 'session_scope.dart';
 import 'sessions.dart';
 import 'tokens.dart'
     show DVAuthTokenFailure, DVAuthTokenRecord, DVAuthTokenResult, DVAuthTokens;
@@ -581,8 +584,12 @@ class DVAuthEndpoints {
           204,
           headers: Headers(<String, Object?>{
             ..._noStore,
-            'set-cookie':
-                cookie.clearHeader(development: _plainCookie(request, stage)),
+            // Every name the session may be under on this host: the cookie
+            // the application's hosts share and any old __Host- one, so
+            // signing out here signs out on every sibling.
+            'set-cookie': cookie.clearHeaders(
+                development: _plainCookie(request, stage),
+                host: DVSessionScope.requestHost(request)),
           }),
         );
       });
@@ -598,6 +605,9 @@ class DVAuthEndpoints {
             ...principal.session.toJson(),
             'isCurrent': true,
           },
+          // Who the session belongs to, so a client restoring itself at
+          // start learns the signed-in person in this one request.
+          'user': await _userJson(principal),
         });
       });
 
@@ -643,8 +653,7 @@ class DVAuthEndpoints {
             ..._noStore,
             // Revoking this session is signing this device out.
             if (target.id == principal.session.id)
-              'set-cookie': stage.cookie
-                  .clearHeader(development: _plainCookie(request, stage)),
+              'set-cookie': _clearCookies(request, stage),
           }),
         );
       });
@@ -1165,9 +1174,8 @@ class DVAuthEndpoints {
               'scheduled': true,
               'erasesAt': dueAt.toIso8601String(),
             },
-            headers: <String, String>{
-              'set-cookie': stage.cookie
-                  .clearHeader(development: _plainCookie(request, stage)),
+            headers: <String, Object>{
+              'set-cookie': _clearCookies(request, stage),
             },
           );
         }
@@ -1200,9 +1208,8 @@ class DVAuthEndpoints {
               'codes': erasure.codes,
             },
           },
-          headers: <String, String>{
-            'set-cookie': stage.cookie
-                  .clearHeader(development: _plainCookie(request, stage)),
+          headers: <String, Object>{
+            'set-cookie': _clearCookies(request, stage),
           },
         );
       });
@@ -1305,6 +1312,17 @@ class DVAuthEndpoints {
           'revoked': revoked,
         }, bearer: rotated.bearer);
       });
+
+  /// The signed-in person as `GET /auth/session` describes them: the
+  /// account's id, address and name, and nothing waiting to change.
+  static Future<Map<String, Object?>> _userJson(
+      DVSessionPrincipal principal) async {
+    final Map<String, Object?> account = await _accountJson(principal);
+    return <String, Object?>{
+      for (final MapEntry<String, Object?> entry in account.entries)
+        if (entry.key != 'pendingEmail') entry.key: entry.value,
+    };
+  }
 
   static Future<Map<String, Object?>> _accountJson(
       DVSessionPrincipal principal) async {
@@ -1423,11 +1441,8 @@ class DVAuthEndpoints {
         'session': issued.session.toJson(),
         if (inBody) 'token': issued.token,
       },
-      headers: <String, String>{
-        if (!inBody)
-          'set-cookie':
-              stage.cookie.header(issued.token,
-                  development: _plainCookie(request, stage)),
+      headers: <String, Object>{
+        if (!inBody) 'set-cookie': _sessionCookies(request, stage, issued.token),
       },
     );
   }
@@ -1453,6 +1468,30 @@ class DVAuthEndpoints {
         host: request.headers.get('host'),
       );
 
+  /// The `Set-Cookie` values that end this request's browser session on
+  /// its host: the shared cookie where the application's hosts share one,
+  /// and the host-only `__Host-` cookie always.
+  static List<String> _clearCookies(
+          Request request, DVSessionAuthentication stage) =>
+      stage.cookie.clearHeaders(
+        development: _plainCookie(request, stage),
+        host: DVSessionScope.requestHost(request),
+      );
+
+  /// The `Set-Cookie` values a new session is delivered in on this host:
+  /// the cookie, and -- on a host whose session is shared -- the old
+  /// `__Host-` cookie cleared, so it cannot outlive a later sign-out.
+  static List<String> _sessionCookies(
+      Request request, DVSessionAuthentication stage, String token) {
+    final bool plain = _plainCookie(request, stage);
+    final String? host = DVSessionScope.requestHost(request);
+    return <String>[
+      stage.cookie.header(token, development: plain, host: host),
+      if (stage.cookie.spans(development: plain, host: host))
+        stage.cookie.clearHeader(development: plain),
+    ];
+  }
+
   static DVSessionAuthentication _stage() =>
       DVSessionAuthentication.installed ??
       (throw StateError('No session authentication is installed.'));
@@ -1461,9 +1500,9 @@ class DVAuthEndpoints {
     final String? bearer =
         DVSessionAuthentication.credentialOf(request.headers.get('authorization'));
     if (bearer != null) return _Presented(bearer, fromCookie: false);
-    final String? carried = stage.cookie
-        .read(request.headers.get('cookie'),
-            development: _plainCookie(request, stage));
+    final String? carried = stage.cookie.read(request.headers.get('cookie'),
+        development: _plainCookie(request, stage),
+        host: DVSessionScope.requestHost(request));
     return carried == null ? null : _Presented(carried, fromCookie: true);
   }
 
@@ -1563,10 +1602,9 @@ class DVAuthEndpoints {
           'www-authenticate': 'Bearer error="invalid_token"',
           ..._noStore,
           if (presented.fromCookie)
-            'set-cookie': stage.cookie.clearHeader(
-                development: request == null
-                    ? stage.development
-                    : _plainCookie(request, stage)),
+            'set-cookie': request == null
+                ? stage.cookie.clearHeaders(development: stage.development)
+                : _clearCookies(request, stage),
         }),
         body: Stream<List<int>>.value(utf8.encode('Unauthorized')),
       );
@@ -1577,7 +1615,7 @@ class DVAuthEndpoints {
   static Response _json(
     int status,
     Map<String, Object?> body, {
-    Map<String, String> headers = const <String, String>{},
+    Map<String, Object> headers = const <String, Object>{},
   }) =>
       Response(
         status,

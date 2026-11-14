@@ -8201,6 +8201,49 @@ class DVLocalAuthProvider implements DVAuthProvider {
       '$prefix-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(0x10000)}${math.Random().nextInt(0x10000)}';
 }
 
+/// `DV.Auth.user`: the signed-in person, as a read-only signal.
+///
+/// Only `DV.Auth` changes it -- a sign-in, the start-up restore, a sign-out,
+/// a session that ended elsewhere.
+class DVAuthUserSignal implements DVLifecycleSignal<DVAuthUser?> {
+  const DVAuthUserSignal();
+
+  static final Expando<StreamSubscription<DVAuthUser?>> _watchers =
+      Expando<StreamSubscription<DVAuthUser?>>('DV.Auth.user watchers');
+
+  /// The signed-in person, rebuilding the widget [context] belongs to when
+  /// it changes. One subscription per element, however often it rebuilds;
+  /// the first change after the element went away ends it.
+  DVAuthUser? watch(BuildContext context) {
+    final Element element = context as Element;
+    _watchers[element] ??= DVAuth._user.changes.listen((DVAuthUser? _) {
+      if (element.mounted) {
+        element.markNeedsBuild();
+        return;
+      }
+      final StreamSubscription<DVAuthUser?>? subscription = _watchers[element];
+      _watchers[element] = null;
+      unawaited(subscription?.cancel());
+    });
+    return DVAuth._user.value;
+  }
+
+  @override
+  DVAuthUser? get value => DVAuth._user.value;
+
+  @override
+  DVAuthUser? read() => DVAuth._user.read();
+
+  @override
+  Stream<DVAuthUser?> get changes => DVAuth._user.changes;
+
+  @override
+  StreamSubscription<DVAuthUser?> listen(
+    FutureOr<void> Function(DVAuthUser? state) onState,
+  ) =>
+      DVAuth._user.listen(onState);
+}
+
 class DVAuth {
   const DVAuth();
   static DVAuthAppearance _appearance = const DVAuthAppearance();
@@ -8230,14 +8273,94 @@ class DVAuth {
   }
 
   static DVAuthProvider? _provider;
-  static DVAuthUser? _currentUser;
   static DVAuthProvider? _defaultProvider;
+
+  /// The signed-in person, as a signal: [user] hands out the read-only half.
+  static final DVMutableLifecycleSignal<DVAuthUser?> _user =
+      DVMutableLifecycleSignal<DVAuthUser?>(null);
+  static DVAuthUser? get _currentUser => _user.value;
+  static set _currentUser(DVAuthUser? value) => _user.set(value);
+
+  static Future<DVAuthUser?>? _restoring;
+  static bool _restoreRunning = false;
+  static final Expando<bool> _watchedClients = Expando<bool>('DV.Auth clients');
+
+  /// The signed-in person as a read-only signal -- `DV.Auth.user.watch(context)`
+  /// in a build rebuilds on sign-in, on the start-up [restore], on sign-out
+  /// and when the session ends elsewhere. [currentUser] is its value.
+  DVAuthUserSignal get user => const DVAuthUserSignal();
+
+  /// Asks the application's own server who is signed in, once, at start.
+  ///
+  /// The generated runtime calls it as the app starts, on every target: in a
+  /// browser the `HttpOnly` session cookie outlives a reload, and on a device
+  /// the stored token does, but neither tells the page who the person is.
+  /// One `GET /auth/session` answers both; a 401 leaves the person signed
+  /// out without an error, and so does a server that cannot be reached.
+  /// Calling it again returns the same answer without another request. A
+  /// provider the application configured itself is not asked anything.
+  ///
+  /// It does not depend on when it is called. Asked before the generated
+  /// runtime has installed the session client -- from an application's
+  /// `@DVBoot`, which runs first -- there is nobody to ask yet, and that
+  /// empty answer is not kept: the runtime's own call, made as soon as the
+  /// client exists, is the one that counts. A failure other than "nobody is
+  /// signed in" is logged as a warning, never swallowed.
+  Future<DVAuthUser?> restore() {
+    final Future<DVAuthUser?>? asked = _restoring;
+    if (asked != null) return asked;
+    if (_activeProvider is! DVSessionAuthProvider) {
+      return Future<DVAuthUser?>.value(_currentUser);
+    }
+    return _restoring = _restore();
+  }
+
+  /// The start-up [restore]'s answer, or [currentUser] when none was asked
+  /// for: what a guard awaits so a signed-in person is not sent to sign in
+  /// while the answer is on its way.
+  Future<DVAuthUser?> get restored =>
+      _restoring ?? Future<DVAuthUser?>.value(_currentUser);
+
+  /// Whether the start-up [restore] is still waiting for the server: a page
+  /// can show neither the signed-in nor the signed-out state until it ends.
+  bool get restoring => _restoreRunning;
+
+  static Future<DVAuthUser?> _restore() async {
+    final DVAuthProvider? provider = _activeProvider;
+    if (provider is! DVSessionAuthProvider) return _currentUser;
+    final DVSessionClient client = provider.client;
+    if (_watchedClients[client] != true) {
+      _watchedClients[client] = true;
+      // A session that ends -- revoked elsewhere, refused on its next
+      // request -- is the person signed out here too.
+      client.session.changes.listen((DVSession? session) {
+        if (session == null) _currentUser = null;
+      });
+    }
+    _restoreRunning = true;
+    try {
+      final DVSession? session = await client.restore();
+      // A sign-in that finished while this was on its way wins.
+      if (session != null && _currentUser == null) _currentUser = client.user;
+    } on Object catch (error) {
+      DV.log(
+        'The signed-in person could not be restored ($error); the app '
+        'starts signed out.',
+        level: DVLogLevel.warn,
+      );
+    } finally {
+      _restoreRunning = false;
+    }
+    return _currentUser;
+  }
 
   /// The provider `DV.Auth` uses when the application configured none. The
   /// generated runtime installs one signing in through the application's own
   /// backend; [configure] replaces it.
   static void installDefaultProvider(DVAuthProvider? provider) {
     _defaultProvider = provider;
+    // Whatever was asked of an earlier provider is not this one's answer.
+    _restoring = null;
   }
 
   /// Whether this build is served by its own generated server, which signs
@@ -8324,6 +8447,7 @@ class DVAuth {
   void configure(DVAuthProvider provider) {
     _provider = provider;
     _currentUser = null;
+    _restoring = null;
   }
 
   void registerPolicy<TUser, TResource>(
@@ -8913,10 +9037,12 @@ extension DVFlutterTestHarness on DVTestHarness {
 
   void resetAuth() {
     DVAuth._currentUser = null;
+    DVAuth._restoring = null;
   }
 
   void resetAuthProvider() {
     DVAuth._currentUser = null;
+    DVAuth._restoring = null;
     DVAuth._provider = null;
     DVAuth._defaultProvider = null;
     DVAuth.servedByOwnServer =

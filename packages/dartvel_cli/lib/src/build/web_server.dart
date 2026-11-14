@@ -791,6 +791,7 @@ Future<bool> _signedIn(Request request) async {
     ),
     authorization: request.headers['authorization'],
     cookie: request.headers['cookie'],
+    host: _shelfRequestHost(request),
   );
   return !result.refused && result.principal != null;
 }

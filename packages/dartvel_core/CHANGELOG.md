@@ -1,3 +1,9 @@
+## Unreleased
+
+- `DVSessionScope` (from `dartvel.hosts` and `dartvel.auth.sessionScope`/`sessionDomain`) and `DVSessionCookie(scope:)`: a host the scope covers gets `__Secure-dv_session; Domain=<registrable domain>`, every other host keeps `__Host-`. `clearHeaders`, `carried` and `migration` clear both names and move a person from the old `__Host-` cookie without signing them out; `DVSessionAuthenticationResult.setCookies` carries them. `DVSessionScope.allowsOrigin` accepts the application's own hosts and nothing else.
+- `dvRegistrableDomain` and `dvIsPublicSuffix`, over a bundled copy of the Public Suffix List (both sections; `dart tool/update_public_suffix_list.dart` refreshes it).
+- `GET /auth/session` answers the signed-in `user` (id, email, name) with the session.
+
 ## 0.13.51 — 2026-11-13
 
 - `pageScroll` is now `pageScrollToTop` on `@DVFunctionalWidget`, DVClassWidget and DartvelLayout (a clearer name; 0.13.50 shipped the old one).

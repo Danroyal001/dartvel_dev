@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization, DVAuthEndpoints;
+import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/auth.dart' show DVAccountDirectory;
 import '../auth/first_run_owner.dart';
 import '../auth/session_authentication.dart';
@@ -173,6 +174,7 @@ Future<bool> dvAdminAuthorized(Request request) => dvWithRequestTenant(
           ),
           authorization: request.headers.get('authorization'),
           cookie: request.headers.get('cookie'),
+          host: DVSessionScope.requestHost(request),
         );
     final DVSessionPrincipal? principal = result.principal;
     if (result.refused || principal == null) return false;
