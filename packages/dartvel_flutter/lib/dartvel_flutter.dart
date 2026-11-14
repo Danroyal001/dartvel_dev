@@ -6258,7 +6258,9 @@ enum DVAppRole { phone, messages, browser, camera, email, maps }
 /// Something the system told a home app, as it happened: which signal, when
 /// (elapsed realtime, in milliseconds), and what came with it.
 ///
-/// The names: `home` (Home reached the app), `recents` (the system's
+/// The names: `home` (Home reached the app), `homeByService` (the Recents
+/// service pressed Home to close the system's Recents; not a Home press),
+/// `back` (Back reached the activity), `recents` (the system's
 /// "recentapps" broadcast), `recentsReplaced` (the opt-in Recents service
 /// brought the app forward; [detail] is what it saw: `key`, `button` or
 /// `window`), `closeSystemDialogs` ([detail] is the broadcast's reason),

@@ -277,6 +277,13 @@ class MainActivity : FlutterActivity() {
       // and the Recents cards stayed on screen). Home closes it first.
       expect(source, contains('performGlobalAction(GLOBAL_ACTION_HOME)'));
       expect(source.indexOf('performGlobalAction(GLOBAL_ACTION_HOME)'), lessThan(source.indexOf('startActivity(')), reason: 'Home first, then the app\'s Recents');
+      // That Home is the service's, not the person's: the app must not hear
+      // it as a Home press (it would close the Recents it is about to show;
+      // on a slow phone the two arrive in either order).
+      expect(source, contains('MainActivity.dartvelHomeFromServiceUntil ='));
+      final String activityOut = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\nclass MainActivity : FlutterActivity()\n', enabled: true)!;
+      expect(activityOut, contains('var dartvelHomeFromServiceUntil'));
+      expect(activityOut, contains('dartvelSystemKey("homeByService", pressedAt)'));
     });
 
     test('the MainActivity hears the service and the other Recents signals', () {
