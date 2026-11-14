@@ -1,0 +1,22 @@
+library;
+import self as self;
+import "dart:async" as asy;
+import "dart:core" as core;
+
+import "dart:async";
+
+static field (asy::Future<core::int>) → asy::Future<Null> asyncInFieldInitializer;
+static method foo() → asy::Future<core::int> async 
+  ;
+static method simpleAsyncAwait(asy::Future<core::int> a, asy::Future<core::int> b) → asy::Future<core::int> async 
+  ;
+static method loops(core::List<core::int> list) → asy::Future<core::int> async 
+  ;
+static method tryCatchRethrow(asy::Future<core::int> a, asy::Future<core::int> b, asy::Future<core::int> c) → asy::Future<core::int> async 
+  ;
+static method closure(asy::Future<core::int> a) → dynamic
+  ;
+static method testAssert(asy::Future<core::int> a) → asy::Future<core::int> async 
+  ;
+static method main() → dynamic
+  ;

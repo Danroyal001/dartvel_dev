@@ -1,0 +1,20 @@
+name: oracles
+description: >-
+  Oracle harness for the Dart and Flutter stack in Rust side effort: records
+  what the original Dart formatter and analyzer produce for a corpus,
+  deterministically, so a port can be checked against it byte for byte. Not
+  published, not in the workspace.
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+dependencies:
+  analyzer: 14.7.0
+  crypto: ^3.0.6
+  dart_style: 3.1.14
+  path: ^1.9.0
+  pub_semver: ^2.1.4
+  yaml: ^3.1.2
+dev_dependencies:
+  lints: ^6.1.0
+  test: ^1.33.0

@@ -1,0 +1,18 @@
+>>> (indent 2)
+  final aaaaaaaaaaaaaaaaaaaa = new Bbbbbbbbbbbbbbbbbbbbbbbb<
+      Cccccccc>((Cccccccc cc) =>
+      'ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd');
+<<< 3.7
+  final aaaaaaaaaaaaaaaaaaaa = new Bbbbbbbbbbbbbbbbbbbbbbbb<Cccccccc>(
+    (Cccccccc cc) =>
+        'ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+  );
+>>> (indent 2)
+  final aaaaaaaaaaaaaaaaaaaa = new Bbbbbbbbbbbbbbbbbbbbbbbb<
+      Cccccccc>((Cccccccc cc) =>
+      'ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd');
+<<< 3.7
+  final aaaaaaaaaaaaaaaaaaaa = new Bbbbbbbbbbbbbbbbbbbbbbbb<Cccccccc>(
+    (Cccccccc cc) =>
+        'ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+  );

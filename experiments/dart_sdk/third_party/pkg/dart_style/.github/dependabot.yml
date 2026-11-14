@@ -1,0 +1,30 @@
+# Dependabot configuration file.
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    labels:
+      - autosubmit
+      - infrastructure
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # We check daily for major version dependency updates to capture releases of
+  # package:analyzer.
+  - package-ecosystem: pub
+    directory: "/"
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+    labels:
+      - infrastructure
+    versioning-strategy: increase-if-necessary

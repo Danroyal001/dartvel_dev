@@ -1,0 +1,8995 @@
+// Copyright (c) 2014, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:collection';
+
+import 'package:_fe_analyzer_shared/src/flow_analysis/flow_analysis.dart';
+import 'package:_fe_analyzer_shared/src/parser/util.dart' as shared;
+import 'package:_fe_analyzer_shared/src/scanner/scanner.dart';
+import 'package:_fe_analyzer_shared/src/types/shared_type.dart';
+import 'package:analyzer/dart/analysis/analysis_options.dart';
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/diagnostic/diagnostic.dart';
+import 'package:analyzer/source/source_range.dart';
+import 'package:analyzer/src/analysis_options/analysis_options.dart';
+import 'package:analyzer/src/dart/analysis/file_state.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/dart/element/class_hierarchy.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/extensions.dart';
+import 'package:analyzer/src/dart/element/inheritance_manager3.dart';
+import 'package:analyzer/src/dart/element/non_covariant_type_parameter_position.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/dart/element/type_provider.dart';
+import 'package:analyzer/src/dart/element/type_system.dart';
+import 'package:analyzer/src/dart/element/well_bounded.dart';
+import 'package:analyzer/src/dart/resolver/assignment_expression_resolver.dart';
+import 'package:analyzer/src/dart/resolver/flow_analysis_visitor.dart';
+import 'package:analyzer/src/dart/resolver/scope.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart'
+    show DiagnosticMessage, DiagnosticMessageImpl;
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/diagnostic/diagnostic_data.dart';
+import 'package:analyzer/src/diagnostic/diagnostic_factory.dart';
+import 'package:analyzer/src/error/async_return_visitor.dart';
+import 'package:analyzer/src/error/codes.dart';
+import 'package:analyzer/src/error/const_argument_verifier.dart';
+import 'package:analyzer/src/error/constructor_fields_verifier.dart';
+import 'package:analyzer/src/error/correct_override.dart';
+import 'package:analyzer/src/error/duplicate_definition_verifier.dart';
+import 'package:analyzer/src/error/getter_setter_types_verifier.dart';
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/error/literal_element_verifier.dart';
+import 'package:analyzer/src/error/member_duplicate_definition_verifier.dart';
+import 'package:analyzer/src/error/required_parameters_verifier.dart';
+import 'package:analyzer/src/error/return_type_verifier.dart';
+import 'package:analyzer/src/error/super_formal_parameters_verifier.dart';
+import 'package:analyzer/src/error/type_arguments_verifier.dart';
+import 'package:analyzer/src/error/use_result_verifier.dart';
+import 'package:analyzer/src/generated/error_detection_helpers.dart';
+import 'package:analyzer/src/generated/java_core.dart';
+import 'package:analyzer/src/util/collection.dart';
+import 'package:analyzer/src/utilities/extensions/element.dart';
+import 'package:analyzer/src/utilities/extensions/object.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+import 'package:collection/collection.dart';
+
+/// Check that none of the type [parameters] references itself in its bound.
+///
+/// See [diag.typeParameterSupertypeOfItsBound].
+void checkForTypeParameterBoundRecursion(
+  DiagnosticReporter diagnosticReporter,
+  List<TypeParameter> parameters,
+) {
+  Map<TypeParameterElement, TypeParameter>? elementToNode;
+  for (var parameter in parameters) {
+    var element = parameter.declaredFragment!.element;
+
+    if (parameter.bound != null) {
+      if (elementToNode == null) {
+        elementToNode = {};
+        for (var candidateParameter in parameters) {
+          var candidateElement = candidateParameter.declaredFragment!.element;
+
+          elementToNode[candidateElement] = candidateParameter;
+        }
+      }
+
+      TypeParameter? current = parameter;
+      for (var step = 0; current != null; step++) {
+        var boundNode = current.bound;
+        if (boundNode is NamedType) {
+          var boundType = boundNode.typeOrThrow;
+          boundType = boundType.extensionTypeErasure;
+          current = elementToNode[boundType.element];
+        } else {
+          current = null;
+        }
+        if (step == parameters.length) {
+          // This error can only occur if there is a bound, so we can safely
+          // assume `element.bound` is non-`null`.
+          diagnosticReporter.report(
+            diag.typeParameterSupertypeOfItsBound
+                .withArguments(
+                  typeParameterName: element.displayName,
+                  bound: element.bound!,
+                )
+                .at(parameter.name),
+          );
+          break;
+        }
+      }
+    }
+  }
+}
+
+typedef RepeatedTypeDiagnosticCode =
+    DiagnosticWithArguments<
+      LocatableDiagnostic Function({required String interfaceName})
+    >;
+
+class EnclosingExecutableContext {
+  final InternalExecutableElement? element;
+  final bool isAsynchronous;
+  final bool isConstConstructor;
+  final bool isGenerativeConstructor;
+  final bool isGenerator;
+  final bool inFactoryConstructor;
+  final bool inStaticMethod;
+
+  /// If this [EnclosingExecutableContext] is the first argument in a method
+  /// invocation of [Future.catchError], returns the return type expected for
+  /// `Future<T>.catchError`'s `onError` parameter, which is `FutureOr<T>`,
+  /// otherwise `null`.
+  final InterfaceTypeImpl? catchErrorOnErrorReturnType;
+  final InterfaceTypeImpl? thenOnErrorReturnType;
+
+  /// The return statements that have a value.
+  final List<ReturnStatement> _returnsWith = [];
+
+  /// The return statements that do not have a value.
+  final List<ReturnStatement> _returnsWithout = [];
+
+  /// This flag is set to `false` when the declared return type is not legal
+  /// for the kind of the function body, e.g. not `Future` for `async`.
+  bool hasLegalReturnType = true;
+
+  /// The number of enclosing [CatchClause] in this executable.
+  int catchClauseLevel = 0;
+
+  new(
+    this.element, {
+    required this.isAsynchronous,
+    required this.isGenerator,
+    this.catchErrorOnErrorReturnType,
+    this.thenOnErrorReturnType,
+  }) : isConstConstructor =
+           element is InternalConstructorElement && element.isConst,
+       isGenerativeConstructor =
+           element is InternalConstructorElement && !element.isFactory,
+       inFactoryConstructor = _inFactoryConstructor(element),
+       inStaticMethod = _inStaticMethod(element);
+
+  new empty() : this(null, isAsynchronous: false, isGenerator: false);
+
+  String? get displayName {
+    return element?.displayName;
+  }
+
+  bool get isClosure => switch (element) {
+    LocalFunctionElement(:var name) => name == null,
+    _ => false,
+  };
+
+  bool get isConstructor => element is ConstructorElement;
+
+  bool get isFunction => switch (element) {
+    LocalFunctionElement(:var displayName) => displayName.isNotEmpty,
+    TopLevelFunctionElement(:var displayName) => displayName.isNotEmpty,
+    PropertyAccessorElement() => true,
+    _ => false,
+  };
+
+  bool get isMethod => element is MethodElement;
+
+  bool get isSynchronous => !isAsynchronous;
+
+  TypeImpl get returnType {
+    return catchErrorOnErrorReturnType ??
+        thenOnErrorReturnType ??
+        element!.returnType;
+  }
+
+  static bool _inFactoryConstructor(Element? element) {
+    var enclosing = element?.firstFragment.enclosingFragment;
+    if (enclosing == null) {
+      return false;
+    }
+    if (element is ConstructorElement) {
+      return element.isFactory;
+    }
+    return _inFactoryConstructor(enclosing.element);
+  }
+
+  static bool _inStaticMethod(Element? element) {
+    var enclosing = element?.firstFragment.enclosingFragment;
+    if (enclosing == null) {
+      return false;
+    }
+    if (enclosing is InterfaceFragment || enclosing is ExtensionFragment) {
+      if (element is ExecutableElement) {
+        return element.isStatic;
+      }
+    }
+    return _inStaticMethod(enclosing.element);
+  }
+}
+
+/// A visitor used to traverse an AST structure looking for additional errors
+/// and warnings not covered by the parser and resolver.
+class ErrorVerifier extends RecursiveAstVisitor2<void>
+    with ErrorDetectionHelpers {
+  /// The factory used to create diagnostic messages.
+  static final _diagnosticFactory = DiagnosticFactory();
+
+  /// The error reporter by which errors will be reported.
+  @override
+  final DiagnosticReporter diagnosticReporter;
+
+  /// The visitor used to detect async return await.
+  late final AsyncReturnVisitor _asyncReturnVisitor;
+
+  /// The current library that is being analyzed.
+  final LibraryElementImpl _currentLibrary;
+
+  /// The current unit that is being analyzed.
+  final LibraryFragmentImpl _currentUnit;
+
+  /// The type representing the type 'int'.
+  late final InterfaceTypeImpl _intType;
+
+  /// The options for verification.
+  final AnalysisOptions options;
+
+  /// The object providing access to the types defined by the language.
+  final TypeProviderImpl _typeProvider;
+
+  /// The type system primitives
+  @override
+  late final TypeSystemImpl typeSystem;
+
+  /// The manager for the inheritance mappings.
+  final InheritanceManager3 _inheritanceManager;
+
+  /// A flag indicating whether the visitor is currently within a comment.
+  bool _isInComment = false;
+
+  /// The stack of flags, where `true` at the top (last) of the stack indicates
+  /// that the visitor is in the initializer of a lazy local variable. When the
+  /// top is `false`, we might be not in a local variable, or it is not `lazy`,
+  /// etc.
+  final List<bool> _isInLateLocalVariable = [false];
+
+  /// A flag indicating whether the visitor is currently within code in the SDK.
+  bool _isInSystemLibrary = false;
+
+  /// The instance element containing the AST nodes being visited, or `null`
+  /// if we are not in the scope of an instance element.
+  InstanceElementImpl? _enclosingInstanceElement;
+
+  /// The stack of [ThisContext]s that tracks whether `this` can be accessed.
+  final List<ThisContext> _thisContextStack = [ThisContext.topLevel];
+
+  /// The context of the method or function that we are currently visiting, or
+  /// `null` if we are not inside a method or function.
+  EnclosingExecutableContext _enclosingExecutable =
+      EnclosingExecutableContext.empty();
+
+  /// A set of the names of the variable initializers we are visiting now.
+  final HashSet<String> _namesForReferenceToDeclaredVariableInInitializer =
+      HashSet<String>();
+
+  /// The elements that will be defined later in the current scope, but right
+  /// now are not declared.
+  HiddenElements? _hiddenElements;
+
+  final _UninstantiatedBoundChecker _uninstantiatedBoundChecker;
+
+  /// The features enabled in the library being analyzed.
+  final FeatureSet _featureSet;
+
+  final LibraryVerificationContext libraryContext;
+  final RequiredParametersVerifier _requiredParametersVerifier;
+  final ConstArgumentsVerifier _constArgumentsVerifier;
+  final DuplicateDefinitionVerifier _duplicateDefinitionVerifier;
+  final UseResultVerifier _checkUseVerifier;
+  late final TypeArgumentsVerifier _typeArgumentsVerifier;
+  late final ReturnTypeVerifier _returnTypeVerifier;
+  final TypeSystemOperations typeSystemOperations;
+
+  /// Initialize a newly created error verifier.
+  new(
+    this.diagnosticReporter,
+    this._currentLibrary,
+    this._currentUnit,
+    this._typeProvider,
+    this._inheritanceManager,
+    this.libraryContext,
+    this.options, {
+    required this.typeSystemOperations,
+  }) : _featureSet = _currentLibrary.featureSet,
+       _uninstantiatedBoundChecker = _UninstantiatedBoundChecker(
+         diagnosticReporter,
+       ),
+       _checkUseVerifier = UseResultVerifier(diagnosticReporter),
+       _requiredParametersVerifier = RequiredParametersVerifier(
+         diagnosticReporter,
+       ),
+       _constArgumentsVerifier = ConstArgumentsVerifier(diagnosticReporter),
+       _duplicateDefinitionVerifier = DuplicateDefinitionVerifier(
+         _currentLibrary,
+         diagnosticReporter,
+       ) {
+    _isInSystemLibrary = _currentLibrary.uri.isScheme('dart');
+    _intType = _typeProvider.intType;
+    typeSystem = _currentLibrary.typeSystem;
+    _typeArgumentsVerifier = TypeArgumentsVerifier(
+      options,
+      _currentLibrary,
+      diagnosticReporter,
+    );
+    _returnTypeVerifier = ReturnTypeVerifier(
+      typeProvider: _typeProvider,
+      typeSystem: typeSystem,
+      diagnosticReporter: diagnosticReporter,
+      strictCasts: strictCasts,
+    );
+    _asyncReturnVisitor = AsyncReturnVisitor(
+      withinTryBlock: true,
+      reportAtToken: _reportUnawaitedReturnInTryBlock,
+      typeProvider: _typeProvider,
+      typeSystem: typeSystem,
+    );
+  }
+
+  @override
+  InheritanceManager3 get inheritance => _inheritanceManager;
+
+  @override
+  bool get strictCasts => options.strictCasts;
+
+  /// The language team is thinking about adding abstract fields, or external
+  /// fields. But for now we will ignore such fields in `Struct` subtypes.
+  bool get _isEnclosingFfiStruct {
+    var superclass = _enclosingInstanceElement
+        .tryCast<InterfaceElementImpl>()
+        ?.supertype
+        ?.element;
+    return superclass != null &&
+        superclass.library._isDartFfiLibrary &&
+        superclass.name == 'Struct';
+  }
+
+  /// The language team is thinking about adding abstract fields, or external
+  /// fields. But for now we will ignore such fields in `Union` subtypes.
+  bool get _isEnclosingFfiUnion {
+    var superclass = _enclosingInstanceElement
+        .tryCast<InterfaceElementImpl>()
+        ?.supertype
+        ?.element;
+    return superclass != null &&
+        superclass.library._isDartFfiLibrary &&
+        superclass.name == 'Union';
+  }
+
+  /// The [ThisContext] for the code currently being visited.
+  ThisContext get _thisContext => _thisContextStack.last;
+
+  @override
+  List<DiagnosticMessage> computeWhyNotPromotedMessages(
+    SyntacticEntity errorEntity,
+    Map<SharedTypeView, NonPromotionReason>? whyNotPromoted,
+  ) {
+    return [];
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    _checkForInvalidAnnotationFromDeferredLibrary(node);
+    super.visitAnnotation(node);
+  }
+
+  @override
+  void visitAnonymousMethodInvocation(
+    covariant AnonymousMethodInvocationImpl node,
+  ) {
+    var element = node.declaredFragment!.element;
+
+    var target = node.target2;
+    if (target != null) {
+      checkForUseOfVoidResult(target);
+      target.accept2(this);
+    }
+    _constArgumentsVerifier.visitAnonymousMethodInvocation(node);
+
+    void visitRest() {
+      node.parameters?.accept2(this);
+      node.body.accept2(this);
+    }
+
+    void visitWithThisContext() {
+      if (node.parameters == null) {
+        _withThisContext(ThisContext.instanceMemberBody, visitRest);
+      } else {
+        visitRest();
+      }
+    }
+
+    if (node.body case AnonymousBlockBodyImpl body) {
+      var parent = body.parent2 as AnonymousMethodInvocationImpl;
+      var returnType = parent.staticType ?? _typeProvider.dynamicType;
+      element.returnType = returnType;
+      var outerExecutable = _enclosingExecutable;
+      try {
+        _enclosingExecutable = EnclosingExecutableContext(
+          element,
+          isAsynchronous: false,
+          isGenerator: false,
+        );
+        _returnTypeVerifier.enclosingExecutable = _enclosingExecutable;
+        visitWithThisContext();
+      } finally {
+        _enclosingExecutable = outerExecutable;
+        _returnTypeVerifier.enclosingExecutable = _enclosingExecutable;
+      }
+    } else {
+      visitWithThisContext();
+    }
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    _checkForTypeAnnotationDeferredClass(node.type);
+    super.visitAsExpression(node);
+  }
+
+  @override
+  void visitAssignedVariablePattern(AssignedVariablePattern node) {
+    _checkForAssignmentToPrimaryConstructorParameter(node);
+    super.visitAssignedVariablePattern(node);
+  }
+
+  @override
+  void visitAwaitExpression(AwaitExpression node) {
+    checkForUseOfVoidResult(node.expression2);
+    _checkForAwaitInLateLocalVariableInitializer(node);
+    _checkForAwaitOfIncompatibleType(node);
+    super.visitAwaitExpression(node);
+  }
+
+  @override
+  void visitBinaryOperatorInvocation(
+    covariant BinaryOperatorInvocationImpl node,
+  ) {
+    if (node.leftOperand case Expression left) {
+      checkForUseOfVoidResult(left);
+    }
+    _constArgumentsVerifier.visitBinaryOperatorInvocation(node);
+
+    super.visitBinaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitBlock(covariant BlockImpl node) {
+    _withHiddenElementsForStatements(node.statements2, () {
+      _duplicateDefinitionVerifier.checkStatements(node.statements2);
+      super.visitBlock(node);
+    });
+  }
+
+  @override
+  void visitBreakStatement(BreakStatement node) {
+    var labelNode = node.label;
+    if (labelNode != null) {
+      var labelElement = labelNode.element;
+      if (labelElement is LabelElementImpl && labelElement.isOnSwitchMember) {
+        diagnosticReporter.report(diag.breakLabelOnSwitchMember.at(labelNode));
+      }
+    }
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    var functionExpression = node.receiver;
+
+    if (functionExpression is ExtensionOverride2) {
+      return super.visitCallInvocation(node);
+    }
+
+    _typeArgumentsVerifier.checkCallInvocation(node);
+    _requiredParametersVerifier.visitCallInvocation(node);
+    _constArgumentsVerifier.visitCallInvocation(node);
+    _checkUseVerifier.checkCallInvocation(node);
+    super.visitCallInvocation(node);
+  }
+
+  @override
+  void visitCascadeIndexAssignmentTarget(CascadeIndexAssignmentTarget node) {
+    _checkCascadeIndexNullAwareOperator(node);
+    super.visitCascadeIndexAssignmentTarget(node);
+  }
+
+  @override
+  void visitCascadeIndexExpression(CascadeIndexExpression node) {
+    _checkCascadeIndexNullAwareOperator(node);
+    super.visitCascadeIndexExpression(node);
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    _checkCascadeSectionNullAware(node);
+    _verifyNamedFunctionInvocation(node);
+    super.visitCascadeMethodInvocation(node);
+  }
+
+  @override
+  void visitCascadePropertyAssignmentTarget(
+    CascadePropertyAssignmentTarget node,
+  ) {
+    _checkCascadeSectionNullAware(node);
+    super.visitCascadePropertyAssignmentTarget(node);
+  }
+
+  @override
+  void visitCascadePropertyExtraction(
+    covariant CascadePropertyExtractionImpl node,
+  ) {
+    _constArgumentsVerifier.checkNameExpression(node);
+    _checkCascadeSectionNullAware(node);
+    _checkUseVerifier.checkPropertyExtraction(node);
+    super.visitCascadePropertyExtraction(node);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    _duplicateDefinitionVerifier.checkCatchClause(node);
+    try {
+      _enclosingExecutable.catchClauseLevel++;
+      _checkForTypeAnnotationDeferredClass(node.exceptionType);
+      super.visitCatchClause(node);
+    } finally {
+      _enclosingExecutable.catchClauseLevel--;
+    }
+  }
+
+  @override
+  void visitClassDeclaration2(covariant ClassDeclaration2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _withEnclosingInstanceElement(element, () {
+      _checkAugmentationWithoutDeclaration(
+        declaredFragment,
+        node.augmentKeyword,
+      );
+      _checkForAugmentationTypeParameters(
+        fragment: declaredFragment,
+        firstTypeParameters: element.firstFragment.typeParameters,
+        nameOrKeywordToken: node.namePart.typeName,
+        typeParameterList: node.namePart.typeParameters,
+      );
+      _checkForAugmentationExtendsClauseAlreadyPresent(node, declaredFragment);
+      _checkForClassAugmentationModifierMismatch(declaredFragment, node);
+
+      List<AnnotatedNode> members = node.body.members;
+      if (!element.isDartCoreFunction) {
+        _checkForBuiltInIdentifierAsName(
+          node.namePart.typeName,
+          diag.builtInIdentifierAsTypeName,
+        );
+      }
+      _checkForConflictingClassTypeVariableErrorCodes(element);
+      var superclass = node.extendsClause?.superclass;
+      var implementsClause = node.implementsClause;
+      var withClause = node.withClause;
+
+      // Only do error checks on the clause nodes if there is a non-null clause
+      if (implementsClause != null ||
+          superclass != null ||
+          withClause != null) {
+        var moreChecks = _checkClassInheritance(
+          declaredFragment,
+          superclass,
+          withClause,
+          implementsClause,
+          node.namePart.typeName,
+        );
+        if (moreChecks) {
+          _checkForNoDefaultSuperConstructorImplicit(declaredFragment);
+        }
+      }
+
+      if (node.nativeClause == null) {
+        libraryContext.constructorFieldsVerifier.addConstructors(
+          diagnosticReporter,
+          element,
+          members,
+          node.namePart,
+        );
+      }
+
+      _checkForConflictingClassMembers(declaredFragment);
+      _checkForNotInitializedFieldDeclarations(declaredFragment, members);
+      _checkForBadFunctionUse(
+        superclass: node.extendsClause?.superclass,
+        withClause: node.withClause,
+        implementsClause: node.implementsClause,
+      );
+      _checkForWrongTypeParameterVarianceInSuperinterfaces(element);
+      _checkForMainFunction1(declaredFragment, node.namePart.typeName);
+      _checkForMixinClassErrorCodes(node, members, superclass, withClause);
+      _checkForMultiplePrimaryConstructorBodyDeclarations(members);
+
+      GetterSetterTypesVerifier(
+        library: _currentLibrary,
+        diagnosticReporter: diagnosticReporter,
+        diagnosticSource: _currentUnit.source,
+      ).checkStaticGetters(element.getters);
+
+      super.visitClassDeclaration2(node);
+    });
+  }
+
+  @override
+  void visitClassTypeAlias2(covariant ClassTypeAlias2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkForBuiltInIdentifierAsName(
+      node.name,
+      diag.builtInIdentifierAsTypedefName,
+    );
+    _withEnclosingInstanceElement(element, () {
+      _checkClassInheritance(
+        declaredFragment,
+        node.superclass,
+        node.withClause,
+        node.implementsClause,
+        node.name,
+      );
+      _checkForMainFunction1(declaredFragment, node.name);
+      _checkForMixinClassErrorCodes(
+        node,
+        List.empty(),
+        node.superclass,
+        node.withClause,
+      );
+      _checkForBadFunctionUse(
+        superclass: node.superclass,
+        withClause: node.withClause,
+        implementsClause: node.implementsClause,
+      );
+      _checkForWrongTypeParameterVarianceInSuperinterfaces(element);
+    });
+    super.visitClassTypeAlias2(node);
+  }
+
+  @override
+  void visitComment(Comment node) {
+    _isInComment = true;
+    try {
+      super.visitComment(node);
+    } finally {
+      _isInComment = false;
+    }
+  }
+
+  @override
+  void visitCompilationUnit(covariant CompilationUnitImpl node) {
+    var element = node.declaredFragment!.element;
+
+    _duplicateDefinitionVerifier.checkUnit(node);
+    _checkForDeferredPrefixCollisions(node);
+    _checkForIllegalLanguageOverride(node);
+
+    GetterSetterTypesVerifier(
+      library: _currentLibrary,
+      diagnosticReporter: diagnosticReporter,
+      diagnosticSource: _currentUnit.source,
+    ).checkStaticGetters(element.getters);
+
+    super.visitCompilationUnit(node);
+  }
+
+  @override
+  void visitCompoundAssignment(covariant CompoundAssignmentImpl node) {
+    switch (node.target) {
+      case ParsedAssignmentTargetImpl():
+        throw StateError('Parsed assignment target was not lowered');
+      case ImportPrefixedAssignmentTargetImpl():
+      case PropertyAssignmentTargetImpl():
+      case IndexAssignmentTargetImpl():
+      case InvalidExtensionOverrideAssignmentTargetImpl():
+      case InvalidSuperAssignmentTargetImpl():
+      case InvalidExpressionAssignmentTargetImpl():
+        break;
+      case UnqualifiedNameAssignmentTargetImpl target:
+        var readElement = target.read?.element;
+        var writeElement = target.write?.element;
+        for (var element in {readElement, writeElement}) {
+          if (element == null) continue;
+          _checkForReferenceBeforeDeclaration(
+            nameToken: target.name,
+            element: element,
+          );
+          _checkForInvalidInstanceMemberAccess2(
+            entity: target,
+            name: target.name.lexeme,
+            element: element,
+          );
+          _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+            entity: target,
+            element: element,
+          );
+        }
+        if (writeElement != null) {
+          _checkForAssignmentToPrimaryConstructorParameter(
+            target,
+            element: writeElement,
+          );
+        }
+    }
+    _constArgumentsVerifier.visitCompoundAssignment(node);
+    super.visitCompoundAssignment(node);
+  }
+
+  @override
+  void visitConstructorDeclaration2(
+    covariant ConstructorDeclaration2Impl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+    var typeName = node.typeName;
+
+    if (node.factoryKeyword != null &&
+        typeName != null &&
+        typeName.lexeme != element.enclosingElement.name) {
+      diagnosticReporter.report(diag.invalidFactoryNameNotAClass.at(typeName));
+    }
+
+    _checkAugmentationWithoutDeclaration(declaredFragment, node.augmentKeyword);
+    _checkForConstructorAugmentationModifierMismatch(node, declaredFragment);
+    _checkForAugmentationFormalParameters(
+      executableFragment: declaredFragment,
+      formalParameterList: node.formalParameters,
+    );
+
+    if (declaredFragment.isAugmentation && declaredFragment.isComplete) {
+      var precedingComplete = declaredFragment.nearestPrecedingCompleteFragment;
+      if (precedingComplete != null) {
+        diagnosticReporter.report(
+          diag.constructorAlreadyComplete
+              .withContextMessages([
+                ?precedingComplete.contextMessageAt(
+                  "The complete declaration is here.",
+                ),
+              ])
+              .at(node.augmentKeyword!),
+        );
+      }
+    }
+
+    _checkForFactoryBodyCompleteness(node);
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        _checkForNonConstGenerativeEnumConstructor(node);
+
+        // Check for modifiers in the body only for non-factory constructors.
+        // For factory constructors Parser already emits 'factoryNotSync' which then converted to 'nonSyncFactory'.
+        if (node.factoryKeyword == null) {
+          _checkForInvalidModifierOnBody(node.body);
+        }
+
+        if (!_checkForConstConstructorWithNonConstSuper(
+          element: element,
+          factoryKeyword: node.factoryKeyword,
+          initializers: node.initializers,
+          implicitErrorRange: node.errorRange,
+        )) {
+          _checkForConstConstructorWithNonFinalField(
+            constructorElement: element,
+            errorRange: node.errorRange,
+          );
+          _validateConstructorBodyAllowed(
+            element: element,
+            constKeyword: node.constKeyword,
+            externalKeyword: node.externalKeyword,
+            isRedirecting: element.isRedirecting,
+            body: node.body,
+          );
+        }
+        _checkForRedirectingConstructorErrorCodes(node);
+        _checkForConflictingInitializerErrorCodes(
+          element.enclosingElement,
+          node,
+        );
+        _checkForRecursiveConstructorRedirect(node, element);
+        if (!_checkForRecursiveFactoryRedirect(node, element)) {
+          _checkForAllRedirectConstructorErrorCodes(node);
+        }
+        _checkForUndefinedConstructorInInitializerImplicitConstructor(
+          element.enclosingElement,
+          node,
+        );
+        _checkForReturnInGenerativeConstructor(node);
+        _checkForNonRedirectingGenerativeConstructorWithPrimary(
+          element.enclosingElement,
+          node,
+        );
+
+        node.visitChildrenWithHooks(
+          this,
+          visitInitializers: (initializers) {
+            _withThisContext(ThisContext.constructorInitializers, () {
+              initializers.accept2(this);
+            });
+          },
+          visitBody: (body) {
+            _withThisContext(
+              node.factoryKeyword != null
+                  ? ThisContext.factoryConstructorBody
+                  : ThisContext.generativeConstructorBody,
+              () {
+                body.accept2(this);
+              },
+            );
+          },
+        );
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    var element = node.fieldElement;
+    _checkForInvalidField(element, node, node.fieldName2);
+    if (element is FieldElement) {
+      _checkForAbstractOrExternalFieldConstructorInitializer(
+        element,
+        node.fieldName2,
+      );
+    }
+    super.visitConstructorFieldInitializer(node);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    var constructorReference = node.constructorReference;
+    var typeReference =
+        constructorReference.typeReference as ConstructorTypeReferenceImpl;
+    var type = typeReference.type;
+    if (type case InterfaceType type) {
+      _checkForConstOrNewWithAbstractClass(type, node, typeReference);
+      _checkForInvalidGenerativeConstructorReference(
+        constructorReference,
+        constructorReference.element,
+      );
+      _checkForConstOrNewWithMixin(type, node, typeReference);
+      _requiredParametersVerifier.visitConstructorInvocation(node);
+      _constArgumentsVerifier.visitConstructorInvocation(node);
+      _checkUseVerifier.checkConstructorInvocation(node);
+      if (node.isConst) {
+        _checkForConstWithNonConst(
+          node.constructorReference.element,
+          node,
+          node.keyword,
+        );
+        _checkForConstWithUndefinedConstructor(
+          node,
+          constructorReference,
+          typeReference,
+        );
+        _checkForConstDeferredClass(node, constructorReference, typeReference);
+      } else {
+        _checkForNewWithUndefinedConstructor(
+          node,
+          constructorReference,
+          typeReference,
+          type,
+        );
+      }
+    }
+    super.visitConstructorInvocation(node);
+  }
+
+  @override
+  void visitConstructorReference2(covariant ConstructorReference2Impl node) {
+    var typeReference = node.typeReference;
+    _checkForAmbiguousImport(
+      element: typeReference.element,
+      name: typeReference.name,
+    );
+    _typeArgumentsVerifier.checkConstructorTypeReference(typeReference);
+    super.visitConstructorReference2(node);
+  }
+
+  @override
+  void visitConstructorTearOff(covariant ConstructorTearOffImpl node) {
+    _constArgumentsVerifier.visitConstructorTearOff(node);
+    _typeArgumentsVerifier.checkConstructorTearOff(node);
+    _checkForInvalidGenerativeConstructorReference(node, node.element);
+  }
+
+  @override
+  void visitConstructorTypeReference(ConstructorTypeReference node) {
+    _checkForTypeParameterReferencedByStatic(
+      element: node.element,
+      name: node.name,
+    );
+    super.visitConstructorTypeReference(node);
+  }
+
+  @override
+  void visitDirectAssignment(covariant DirectAssignmentImpl node) {
+    var target = node.target;
+    if (target is! UnqualifiedNameAssignmentTargetImpl) {
+      _constArgumentsVerifier.visitDirectAssignment(node);
+      super.visitDirectAssignment(node);
+      return;
+    }
+    var write = target.write;
+    if (write?.element case var element?) {
+      _checkForReferenceBeforeDeclaration(
+        nameToken: target.name,
+        element: element,
+      );
+      _checkForInvalidInstanceMemberAccess2(
+        entity: target,
+        name: target.name.lexeme,
+        element: element,
+      );
+      _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+        entity: target,
+        element: element,
+      );
+      _checkForAssignmentToPrimaryConstructorParameter(
+        target,
+        element: element,
+      );
+    }
+    _constArgumentsVerifier.visitDirectAssignment(node);
+    super.visitDirectAssignment(node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation2(
+    DotShorthandConstructorInvocation2 node,
+  ) {
+    var constructorElement = node.element;
+    if (node.isConst) {
+      _checkForConstWithNonConst(constructorElement, node, node.constKeyword);
+    }
+    _checkForInvalidGenerativeConstructorReference(
+      node.name,
+      constructorElement,
+    );
+    _requiredParametersVerifier.visitDotShorthandConstructorInvocation2(node);
+    super.visitDotShorthandConstructorInvocation2(node);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    _verifyNamedFunctionInvocation(node);
+    super.visitDotShorthandMethodInvocation(node);
+  }
+
+  @override
+  void visitDotShorthandNameExpression(DotShorthandNameExpression node) {
+    _constArgumentsVerifier.checkNameExpression(node);
+    super.visitDotShorthandNameExpression(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration2(
+    covariant EnumConstantDeclaration2Impl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+
+    _checkEnumConstantSameAsEnclosing(node);
+    _checkForConstVariableAugmentation(
+      fragment: declaredFragment,
+      errorToken: node.name,
+    );
+    _requiredParametersVerifier.visitEnumConstantDeclaration2(node);
+    _typeArgumentsVerifier.checkEnumConstantDeclaration(node);
+    node.visitChildrenWithHooks(
+      this,
+      visitArguments: (arguments) => _withThisContext(
+        ThisContext.staticFieldDeclaration,
+        () => arguments.accept2(this),
+      ),
+    );
+  }
+
+  @override
+  void visitEnumDeclaration2(covariant EnumDeclaration2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkAugmentationWithoutDeclaration(declaredFragment, node.augmentKeyword);
+
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.namePart.typeName,
+      typeParameterList: node.namePart.typeParameters,
+    );
+
+    _withEnclosingInstanceElement(element, () {
+      _checkForEnumWithNameValues(node);
+      _checkForBuiltInIdentifierAsName(
+        node.namePart.typeName,
+        diag.builtInIdentifierAsTypeName,
+      );
+      _checkForConflictingEnumTypeVariableErrorCodes(declaredFragment);
+      var implementsClause = node.implementsClause;
+      var withClause = node.withClause;
+
+      if (implementsClause != null || withClause != null) {
+        _checkClassInheritance(
+          declaredFragment,
+          null,
+          withClause,
+          implementsClause,
+          node.namePart.typeName,
+        );
+      }
+
+      if (!declaredFragment.isAugmentation) {
+        if (element.constants.isEmpty) {
+          diagnosticReporter.report(
+            diag.enumWithoutConstants.at(node.namePart.typeName),
+          );
+        }
+      }
+
+      var members = node.body.members;
+      libraryContext.constructorFieldsVerifier.addConstructors(
+        diagnosticReporter,
+        element,
+        members,
+        node.namePart,
+      );
+      _checkForNotInitializedFieldDeclarations(declaredFragment, members);
+      _checkForWrongTypeParameterVarianceInSuperinterfaces(element);
+      _checkForMainFunction1(declaredFragment, node.namePart.typeName);
+      _checkForEnumInstantiatedToBoundsIsNotWellBounded(node, element);
+      _checkForMultiplePrimaryConstructorBodyDeclarations(members);
+
+      GetterSetterTypesVerifier(
+        library: _currentLibrary,
+        diagnosticReporter: diagnosticReporter,
+        diagnosticSource: _currentUnit.source,
+      ).checkStaticGetters(element.getters);
+
+      super.visitEnumDeclaration2(node);
+    });
+  }
+
+  @override
+  void visitExportDirective(covariant ExportDirectiveImpl node) {
+    var libraryExport = node.libraryExport;
+    if (libraryExport != null) {
+      var exportedLibrary = libraryExport.exportedLibrary;
+      _checkForAmbiguousExport(exportedLibrary, libraryExport, node);
+      _checkForExportInternalLibrary(node, libraryExport);
+    }
+    _reportForMultipleCombinators(node);
+    super.visitExportDirective(node);
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    if (node.parent2 is! PrimaryConstructorBody2) {
+      _returnTypeVerifier.verifyExpressionFunctionBody(node);
+    }
+    super.visitExpressionFunctionBody(node);
+  }
+
+  @override
+  void visitExtensionDeclaration2(covariant ExtensionDeclaration2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    // A missing extension augmentation name is already reported by the
+    // parser. Avoid reporting a missing augmentation target as well.
+    if (node.name != null) {
+      _checkAugmentationWithoutDeclaration(
+        declaredFragment,
+        node.augmentKeyword,
+      );
+    }
+
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.name ?? node.extensionKeyword,
+      typeParameterList: node.typeParameters,
+    );
+
+    _withEnclosingInstanceElement(element, () {
+      _checkForConflictingExtensionTypeVariableErrorCodes(element);
+      _checkForNotInitializedFieldDeclarations(
+        declaredFragment,
+        node.body.members,
+      );
+
+      GetterSetterTypesVerifier(
+        library: _currentLibrary,
+        diagnosticReporter: diagnosticReporter,
+        diagnosticSource: _currentUnit.source,
+      ).checkExtension(element);
+
+      var name = node.name;
+      if (name != null) {
+        _checkForBuiltInIdentifierAsName(
+          name,
+          diag.builtInIdentifierAsExtensionName,
+        );
+      }
+      super.visitExtensionDeclaration2(node);
+    });
+  }
+
+  @override
+  void visitExtensionTypeDeclaration2(
+    covariant ExtensionTypeDeclaration2Impl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkAugmentationWithoutDeclaration(declaredFragment, node.augmentKeyword);
+
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.namePart.typeName,
+      typeParameterList: node.namePart.typeParameters,
+    );
+
+    _withEnclosingInstanceElement(element, () {
+      _checkForBuiltInIdentifierAsName(
+        node.namePart.typeName,
+        diag.builtInIdentifierAsExtensionTypeName,
+      );
+      _checkForConflictingExtensionTypeTypeVariableErrorCodes(declaredFragment);
+      _checkForNotInitializedFieldDeclarations(
+        declaredFragment,
+        node.body.members,
+      );
+
+      var members = node.body.members;
+      if (!_featureSet.isEnabled(Feature.augmentations)) {
+        _checkForRepeatedType(
+          libraryContext.setOfImplements(element),
+          node.implementsClause?.interfaces,
+          diag.implementsRepeated,
+        );
+      }
+      _checkForConflictingClassMembers(declaredFragment);
+      _checkForConflictingGenerics(
+        fragment: declaredFragment,
+        nameToken: node.namePart.typeName,
+      );
+      libraryContext.constructorFieldsVerifier.addConstructors(
+        diagnosticReporter,
+        element,
+        members,
+        node.namePart,
+      );
+
+      _checkForNonCovariantTypeParameterPositionInRepresentationType(
+        node,
+        declaredFragment,
+      );
+      _checkForExtensionTypeRepresentationDependsOnItself(
+        node,
+        declaredFragment,
+      );
+      _checkForExtensionTypeRepresentationTypeBottom(node, declaredFragment);
+      _checkForExtensionTypeImplementsDeferred(node);
+      _checkForExtensionTypeImplementsItself(node, declaredFragment);
+      _checkForExtensionTypeMemberConflicts(node: node, element: element);
+      _checkForExtensionTypeWithAbstractMember(node);
+      _checkForExtensionTypeRepresentationErrorCodes(node);
+      _checkForWrongTypeParameterVarianceInSuperinterfaces(element);
+      _checkForMultiplePrimaryConstructorBodyDeclarations(members);
+
+      var interface = _inheritanceManager.getInterface(element);
+      GetterSetterTypesVerifier(
+        library: _currentLibrary,
+        diagnosticReporter: diagnosticReporter,
+        diagnosticSource: _currentUnit.source,
+      ).checkExtensionType(element, interface);
+
+      super.visitExtensionTypeDeclaration2(node);
+    });
+  }
+
+  @override
+  void visitField2(covariant Field2Impl node) {
+    _visitVariableInitializer(node);
+  }
+
+  @override
+  void visitFieldFormalParameter(FieldFormalParameter node) {
+    var element = node.declaredFragment?.element;
+
+    _checkForDefaultValueAssignableAtType(node);
+    _checkForValidField(node);
+    _checkPrivateOptionalParameter(node);
+    _checkForFieldInitializingFormalRedirectingConstructor(node);
+    _checkForTypeAnnotationDeferredClass(node.type);
+
+    if (element is FieldFormalParameterElement) {
+      if (element.field case var field?) {
+        _checkForAbstractOrExternalFieldConstructorInitializer(
+          field,
+          node.name,
+        );
+      }
+    }
+
+    super.visitFieldFormalParameter(node);
+  }
+
+  @override
+  void visitFieldsDeclaration(covariant FieldsDeclarationImpl node) {
+    var isStatic = node.staticKeyword != null;
+    for (var variable in node.fields) {
+      var declaredFragment = variable.declaredFragment!;
+      var hasConstVariableAugmentation = _checkForConstVariableAugmentation(
+        fragment: declaredFragment,
+        errorToken: variable.name,
+      );
+      if (node.augmentKeyword != null) {
+        if (!hasConstVariableAugmentation) {
+          _checkAugmentationWithoutDeclaration(declaredFragment, variable.name);
+          _checkAugmentationWithoutDeclarationForInducedAccessors(
+            declaredFragment,
+            variable.name,
+          );
+          _checkForAugmentationInducedAccessorsAlreadyComplete(
+            fragment: declaredFragment,
+            errorToken: variable.name,
+          );
+          _checkForAugmentationVariableDifferentGetterSetterTypes(
+            fragment: declaredFragment,
+            errorToken: variable.name,
+          );
+          if (declaredFragment.inducedGetter case var inducedGetter?) {
+            _checkForAugmentationReturnTypeMismatch(
+              fragment: inducedGetter,
+              returnTypeNode: node.type,
+              errorEntity: variable.name,
+            );
+          }
+        }
+      }
+    }
+
+    // Abstract fields are syntactic sugar for incomplete getters/setters.
+    // For classes, instance accessors can be implemented by subclasses.
+    // Static fields, enum fields, and extension/extension type fields have no
+    // subclass implementation path, so their induced accessors must be
+    // completed by augmentations.
+    if (node.abstractKeyword != null) {
+      if (isStatic ||
+          _enclosingInstanceElement is EnumElement ||
+          _enclosingInstanceElement is ExtensionElement ||
+          _enclosingInstanceElement is ExtensionTypeElement) {
+        for (var variable in node.fields) {
+          var declaredFragment = variable.declaredFragment!;
+          _checkForIncompleteInducedAccessors(
+            fragment: declaredFragment,
+            nameToken: variable.name,
+          );
+        }
+      }
+    }
+
+    if (!isStatic) {
+      if (node.constKeyword case var constKeyword?) {
+        diagnosticReporter.report(diag.constInstanceField.at(constKeyword));
+      }
+    }
+
+    _checkForExtensionDeclaresInstanceField(node);
+    _checkForExtensionTypeDeclaresInstanceField(node);
+    if (_enclosingInstanceElement case InterfaceElementImpl element) {
+      _checkForWrongTypeParameterVarianceInField(element, node);
+      _checkForLateFinalFieldWithConstConstructor(node, element);
+    }
+    _checkForNonFinalFieldInEnum(
+      fieldDeclaration: node,
+      primaryConstructor: null,
+    );
+
+    _checkForTypeAnnotationDeferredClass(node.type);
+
+    // The type and the fields are in the context of the declaration, but the
+    // metadata and the documentation comment are not.
+    var thisContext = isStatic
+        ? ThisContext.staticFieldDeclaration
+        : node.lateKeyword != null
+        ? ThisContext.lateInstanceFieldDeclaration
+        : ThisContext.instanceFieldDeclaration;
+    node.visitChildrenWithHooks(
+      this,
+      visitType: (type) {
+        _withThisContext(thisContext, () {
+          type.accept2(this);
+        });
+      },
+      visitFields: (fields) {
+        _withThisContext(thisContext, () {
+          fields.accept2(this);
+        });
+      },
+    );
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    DeclaredIdentifier loopVariable = node.loopVariable;
+    var element = loopVariable.declaredFragment?.element;
+
+    if (_checkForEachParts(element, node)) {
+      if (loopVariable.isConst) {
+        diagnosticReporter.report(
+          diag.forInWithConstVariable.at(loopVariable.keyword!),
+        );
+      }
+    }
+    super.visitForEachPartsWithDeclaration(node);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    // Writes of names that can't be assigned are reported by the resolver.
+    _checkForEachParts(node.target.write?.elementOrRecovery, node);
+    super.visitForEachPartsWithIdentifier(node);
+  }
+
+  @override
+  void visitForElement(covariant ForElementImpl node) {
+    _withHiddenElementsForForParts(node.forLoopParts, () {
+      super.visitForElement(node);
+    });
+  }
+
+  @override
+  void visitFormalParameterList(covariant FormalParameterListImpl node) {
+    _duplicateDefinitionVerifier.checkParameters(node);
+    _checkUseOfCovariantInParameters(node);
+    _checkUseOfDefaultValuesInParameters(node);
+    super.visitFormalParameterList(node);
+  }
+
+  @override
+  void visitForPartsWithDeclarations(
+    covariant ForPartsWithDeclarationsImpl node,
+  ) {
+    _duplicateDefinitionVerifier.checkForVariables(node.variables2);
+    super.visitForPartsWithDeclarations(node);
+  }
+
+  @override
+  void visitForStatement(covariant ForStatementImpl node) {
+    _withHiddenElementsForForParts(node.forLoopParts, () {
+      super.visitForStatement(node);
+    });
+  }
+
+  @override
+  void visitFunctionExpression(covariant FunctionExpressionImpl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _isInLateLocalVariable.add(false);
+    _withEnclosingExecutable(
+      element,
+      () {
+        super.visitFunctionExpression(node);
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+    _isInLateLocalVariable.removeLast();
+  }
+
+  @override
+  void visitFunctionInstantiation(FunctionInstantiation node) {
+    _constArgumentsVerifier.visitFunctionInstantiation(node);
+    _typeArgumentsVerifier.checkFunctionInstantiation(node);
+    super.visitFunctionInstantiation(node);
+  }
+
+  @override
+  void visitFunctionTypeAlias2(covariant FunctionTypeAlias2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+
+    _checkForBuiltInIdentifierAsName(
+      node.name,
+      diag.builtInIdentifierAsTypedefName,
+    );
+    _checkForMainFunction1(declaredFragment, node.name);
+    _checkForTypeAliasCannotReferenceItself(
+      declaredFragment.element,
+      node.name,
+    );
+    super.visitFunctionTypeAlias2(node);
+  }
+
+  @override
+  void visitGenericTypeAlias2(covariant GenericTypeAlias2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+
+    _checkForBuiltInIdentifierAsName(
+      node.name,
+      diag.builtInIdentifierAsTypedefName,
+    );
+    _checkForMainFunction1(declaredFragment, node.name);
+    _checkForTypeAliasCannotReferenceItself(
+      declaredFragment.element,
+      node.name,
+    );
+    super.visitGenericTypeAlias2(node);
+  }
+
+  @override
+  void visitGetterDeclaration(covariant GetterDeclarationImpl node) {
+    _visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitGuardedPattern(covariant GuardedPatternImpl node) {
+    _withHiddenElementsGuardedPattern(node, () {
+      node.pattern.accept2(this);
+    });
+    node.whenClause?.accept2(this);
+  }
+
+  @override
+  void visitIfNull(covariant IfNullImpl node) {
+    _checkForDeadNullCoalesce(node.leftOperand.staticType!, node.rightOperand);
+    checkForUseOfVoidResult(node.leftOperand);
+    super.visitIfNull(node);
+  }
+
+  @override
+  void visitIfNullAssignment(covariant IfNullAssignmentImpl node) {
+    var target = node.target;
+    if (target is InvalidExpressionAssignmentTargetImpl) {
+      _constArgumentsVerifier.visitIfNullAssignment(node);
+      super.visitIfNullAssignment(node);
+      return;
+    }
+    if (target.read case var read?) {
+      _checkForDeadNullCoalesce(
+        AssignmentExpressionResolver.operatorReadType(read, target.write),
+        node.value,
+      );
+    }
+    if (target is UnqualifiedNameAssignmentTargetImpl) {
+      var readElement = target.read?.element;
+      var writeElement = target.write?.element;
+      for (var element in {readElement, writeElement}) {
+        if (element == null) continue;
+        _checkForReferenceBeforeDeclaration(
+          nameToken: target.name,
+          element: element,
+        );
+        _checkForInvalidInstanceMemberAccess2(
+          entity: target,
+          name: target.name.lexeme,
+          element: element,
+        );
+        _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+          entity: target,
+          element: element,
+        );
+      }
+      if (writeElement != null) {
+        _checkForAssignmentToPrimaryConstructorParameter(
+          target,
+          element: writeElement,
+        );
+      }
+    }
+    _constArgumentsVerifier.visitIfNullAssignment(node);
+    super.visitIfNullAssignment(node);
+  }
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    var importElement = node.libraryImport;
+    if (node.prefixName case var prefixName?) {
+      _checkForBuiltInIdentifierAsName(
+        prefixName,
+        diag.builtInIdentifierAsPrefixName,
+      );
+    }
+    if (importElement != null) {
+      _checkForImportInternalLibrary(node, importElement);
+      if (importElement.prefix?.isDeferred ?? false) {
+        _checkForDeferredImportOfExtensions(importElement, node);
+      }
+    }
+
+    _reportForMultipleCombinators(node);
+    super.visitImportDirective(node);
+  }
+
+  @override
+  void visitImportPrefixedAssignmentTarget(
+    ImportPrefixedAssignmentTarget node,
+  ) {
+    var ambiguousRead = node.read
+        .tryCast<InvalidNamedReadResolution>()
+        ?.recoveryElement
+        .tryCast<MultiplyDefinedElementImpl>();
+    // Getter-only conflicts are recovery for a missing setter, not write
+    // ambiguities. Report them only when the assignment also reads the name.
+    var ambiguousWrite = switch (node.write) {
+      InvalidNamedWriteResolution(
+        recoveryElement: MultiplyDefinedElementImpl element,
+      )
+          when element.conflictingElements.any((e) => e is! GetterElement) =>
+        element,
+      _ => null,
+    };
+    _checkForAmbiguousImport(element: ambiguousRead, name: node.name);
+    // Both resolutions can retain the same scope element for recovery.
+    if (!identical(ambiguousWrite, ambiguousRead)) {
+      _checkForAmbiguousImport(element: ambiguousWrite, name: node.name);
+    }
+    super.visitImportPrefixedAssignmentTarget(node);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    _verifyNamedFunctionInvocation(node);
+    super.visitImportPrefixedFunctionInvocation(node);
+  }
+
+  @override
+  void visitImportPrefixedNameExpression(ImportPrefixedNameExpression node) {
+    _constArgumentsVerifier.checkNameExpression(node);
+    var ambiguousElement = node.resolution
+        .tryCast<InvalidNamedReadResolution>()
+        ?.recoveryElement
+        .tryCast<MultiplyDefinedElementImpl>();
+    _checkForAmbiguousImport(element: ambiguousElement, name: node.name);
+    _checkUseVerifier.checkNameExpression(node, node.resolution);
+    super.visitImportPrefixedNameExpression(node);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    _checkForReferenceBeforeDeclaration(
+      element: node.element,
+      nameToken: node.name,
+    );
+  }
+
+  @override
+  void visitIncrementOrDecrementExpression(
+    covariant IncrementOrDecrementExpressionImpl node,
+  ) {
+    if (node.target case UnqualifiedNameAssignmentTarget(
+      :var read,
+      :var write,
+    )) {
+      _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+        entity: node.target,
+        element: write?.element ?? read?.element,
+      );
+    }
+    var writeElement = switch (node.target) {
+      IndexAssignmentTarget() ||
+      PropertyAssignmentTarget() ||
+      UnqualifiedNameAssignmentTarget() => node.target.write?.element,
+      _ => null,
+    };
+    if (node.target case UnqualifiedNameAssignmentTarget(
+      :var name,
+      :var read,
+    )) {
+      var readElement = read?.element;
+      for (var element in {readElement, writeElement}) {
+        _checkForReferenceBeforeDeclaration(element: element, nameToken: name);
+      }
+    }
+    _checkForAssignmentToPrimaryConstructorParameter(
+      node.target,
+      element: writeElement,
+    );
+    var readType = node.target.read?.type;
+    if (node.position == IncrementOrDecrementPosition.prefix &&
+        readType is VoidType) {
+      diagnosticReporter.report(diag.useOfVoidResult.at(node.target));
+    }
+    node.visitChildren2(this);
+  }
+
+  @override
+  void visitIntegerLiteral(covariant IntegerLiteralImpl node) {
+    _checkForOutOfRange(node);
+    super.visitIntegerLiteral(node);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    checkForUseOfVoidResult(node.expression2);
+    super.visitInterpolationExpression(node);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    _checkForTypeAnnotationDeferredClass(node.type);
+    checkForUseOfVoidResult(node.expression2);
+    super.visitIsExpression(node);
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    _typeArgumentsVerifier.checkListLiteral(node);
+    _checkForListElementTypeNotAssignable(node);
+
+    super.visitListLiteral(node);
+  }
+
+  @override
+  void visitLocalFunctionDeclaration(
+    covariant LocalFunctionDeclarationImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkForFunctionBodyCompleteness(
+      fragment: declaredFragment,
+      node: node,
+      nameToken: node.name,
+    );
+
+    _hiddenElements!.declare(element);
+
+    _isInLateLocalVariable.add(false);
+    _withEnclosingExecutable(
+      element,
+      () {
+        var returnType = node.returnType;
+        _checkForTypeAnnotationDeferredClass(returnType);
+        _returnTypeVerifier.verifyReturnType(returnType);
+        super.visitLocalFunctionDeclaration(node);
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+    _isInLateLocalVariable.removeLast();
+  }
+
+  @override
+  void visitLocalVariable(covariant LocalVariableImpl node) {
+    var element = node.declaredFragment!.element;
+    _visitVariableInitializer(node);
+    // There is no hidden elements if we are outside of a function body,
+    // which will happen for variables declared in control flow elements.
+    _hiddenElements?.declare(element);
+  }
+
+  @override
+  void visitLocalVariablesDeclaration(LocalVariablesDeclaration node) {
+    _checkForTypeAnnotationDeferredClass(node.type);
+    super.visitLocalVariablesDeclaration(node);
+  }
+
+  @override
+  void visitLocalVariablesDeclarationStatement(
+    LocalVariablesDeclarationStatement node,
+  ) {
+    var declaration = node.declaration;
+    _isInLateLocalVariable.add(declaration.lateKeyword != null);
+
+    if (declaration.constKeyword != null) {
+      for (var variable in declaration.variables) {
+        if (variable.initializer == null) {
+          diagnosticReporter.report(
+            diag.constNotInitialized
+                .withArguments(name: variable.name.lexeme)
+                .at(variable.name),
+          );
+        }
+      }
+    }
+
+    super.visitLocalVariablesDeclarationStatement(node);
+
+    _isInLateLocalVariable.removeLast();
+  }
+
+  @override
+  void visitLogicalAnd(LogicalAnd node) {
+    checkForUseOfVoidResult(node.leftOperand);
+    checkForUseOfVoidResult(node.rightOperand);
+    super.visitLogicalAnd(node);
+  }
+
+  @override
+  void visitLogicalOr(LogicalOr node) {
+    checkForUseOfVoidResult(node.leftOperand);
+    checkForUseOfVoidResult(node.rightOperand);
+    super.visitLogicalOr(node);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    if (node.keyQuestion != null) {
+      _checkForUnnecessaryNullAware(
+        node.key2,
+        node.keyQuestion!,
+        kind: _NullAwareKind.mapEntryKey,
+      );
+    }
+    if (node.valueQuestion != null) {
+      _checkForUnnecessaryNullAware(
+        node.value2,
+        node.valueQuestion!,
+        kind: _NullAwareKind.mapEntryValue,
+      );
+    }
+    super.visitMapLiteralEntry(node);
+  }
+
+  @override
+  void visitMethodDeclaration2(covariant MethodDeclaration2Impl node) {
+    _visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitMixinDeclaration2(covariant MixinDeclaration2Impl node) {
+    // TODO(scheglov): Verify for all mixin errors.
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkAugmentationWithoutDeclaration(declaredFragment, node.augmentKeyword);
+
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.name,
+      typeParameterList: node.typeParameters,
+    );
+    _checkForMixinAugmentationModifierMismatch(node, declaredFragment);
+
+    _withEnclosingInstanceElement(element, () {
+      _checkForBuiltInIdentifierAsName(
+        node.name,
+        diag.builtInIdentifierAsTypeName,
+      );
+      _checkForConflictingClassTypeVariableErrorCodes(element);
+
+      var onClause = node.onClause;
+      var implementsClause = node.implementsClause;
+
+      // Only do error checks only if there is a non-null clause.
+      if (onClause != null || implementsClause != null) {
+        _checkMixinInheritance(
+          declaredFragment,
+          onClause,
+          implementsClause,
+          node.name,
+        );
+      }
+
+      _checkForConflictingClassMembers(declaredFragment);
+      _checkForNotInitializedFieldDeclarations(
+        declaredFragment,
+        node.body.members,
+      );
+      _checkForMainFunction1(declaredFragment, node.name);
+      _checkForWrongTypeParameterVarianceInSuperinterfaces(element);
+      //      _checkForBadFunctionUse(node);
+      super.visitMixinDeclaration2(node);
+    });
+  }
+
+  @override
+  void visitNamedType(covariant NamedTypeImpl node) {
+    _checkForAmbiguousImport(element: node.element, name: node.name);
+    _checkForTypeParameterReferencedByStatic(
+      element: node.element,
+      name: node.name,
+    );
+    _typeArgumentsVerifier.checkNamedType(node);
+    super.visitNamedType(node);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {
+    // TODO(brianwilkerson): Figure out the right rule for when 'native' is
+    // allowed.
+    if (!_isInSystemLibrary) {
+      diagnosticReporter.report(diag.nativeClauseInNonSdkCode.at(node));
+    }
+    super.visitNativeClause(node);
+  }
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {
+    _checkForNativeFunctionBodyInNonSdkCode(node);
+    super.visitNativeFunctionBody(node);
+  }
+
+  @override
+  void visitNullAssertionExpression(
+    covariant NullAssertionExpressionImpl node,
+  ) {
+    checkForUseOfVoidResult(node);
+    _checkForUnnecessaryNullAware(
+      node.operand,
+      node.operator,
+      kind: _NullAwareKind.nullCheck,
+    );
+    super.visitNullAssertionExpression(node);
+  }
+
+  @override
+  void visitNullAwareElement(NullAwareElement node) {
+    _checkForUnnecessaryNullAware(
+      node.value2,
+      node.question,
+      kind: _NullAwareKind.element,
+    );
+    super.visitNullAwareElement(node);
+  }
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitPatternVariableDeclarationStatement(
+    covariant PatternVariableDeclarationStatementImpl node,
+  ) {
+    super.visitPatternVariableDeclarationStatement(node);
+    for (var variable in node.declaration.elements) {
+      _hiddenElements?.declare(variable);
+    }
+  }
+
+  @override
+  void visitPrimaryConstructorBody2(
+    covariant PrimaryConstructorBody2Impl node,
+  ) {
+    var declaredFragment = node.declaration?.declaredFragment;
+    if (declaredFragment == null) {
+      return;
+    }
+
+    var element = declaredFragment.element;
+    _withEnclosingExecutable(
+      element,
+      () {
+        _checkForConflictingPrimaryConstructorInitializers(node);
+
+        node.visitChildrenWithHooks(
+          this,
+          visitInitializers: (initializers) {
+            _withThisContext(ThisContext.constructorInitializers, () {
+              initializers.accept2(this);
+            });
+          },
+          visitBody: (body) {
+            _withThisContext(ThisContext.generativeConstructorBody, () {
+              body.accept2(this);
+            });
+          },
+        );
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(
+    covariant PrimaryConstructorDeclarationImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        super.visitPrimaryConstructorDeclaration(node);
+        var body = node.body2;
+
+        if (!_checkForConstConstructorWithNonConstSuper(
+          element: element,
+          factoryKeyword: null,
+          initializers: node.body2?.initializers,
+          implicitErrorRange: node.errorRange,
+        )) {
+          _checkForConstConstructorWithNonFinalField(
+            constructorElement: element,
+            errorRange: node.errorRange,
+          );
+          if (body != null) {
+            _validateConstructorBodyAllowed(
+              element: element,
+              constKeyword: node.constKeyword,
+              externalKeyword: null,
+              isRedirecting: false,
+              body: body.body,
+              isPrimary: true,
+            );
+          }
+        }
+
+        _checkForUndefinedConstructorInInitializerImplicit(
+          enclosingElement: element.enclosingElement,
+          formalParameterList: node.formalParameters,
+          initializers: body?.initializers,
+          errorRange: body?.thisKeyword.sourceRange ?? node.errorRange,
+        );
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+    _checkForNonFinalFieldInEnum(
+      fieldDeclaration: null,
+      primaryConstructor: node,
+    );
+  }
+
+  @override
+  void visitReceiverIndexAssignmentTarget(ReceiverIndexAssignmentTarget node) {
+    var question = node.question;
+    if (question != null) {
+      _checkForUnnecessaryNullAware(
+        node.receiver,
+        question,
+        kind: _NullAwareKind.indexExpression,
+      );
+    }
+
+    super.visitReceiverIndexAssignmentTarget(node);
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    var question = node.question;
+    if (question != null) {
+      _checkForUnnecessaryNullAware(
+        node.receiver,
+        question,
+        kind: _NullAwareKind.indexExpression,
+      );
+    }
+
+    super.visitReceiverIndexExpression(node);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(
+    covariant ReceiverMethodInvocationImpl node,
+  ) {
+    if (node.operator.type == TokenType.QUESTION_PERIOD) {
+      switch (node.receiver) {
+        case SuperReferenceImpl():
+          break;
+        case StaticQualifierImpl():
+          diagnosticReporter.report(
+            diag.invalidNullAwareOperator
+                .withArguments(operator: '?.', replacement: '.')
+                .at(node.operator),
+          );
+        case InstanceReceiverImpl receiver:
+          _checkForUnnecessaryNullAware(
+            receiver,
+            node.operator,
+            kind: _NullAwareKind.access,
+          );
+      }
+    }
+    _verifyNamedFunctionInvocation(node);
+    super.visitReceiverMethodInvocation(node);
+  }
+
+  @override
+  void visitReceiverPropertyAssignmentTarget(
+    covariant ReceiverPropertyAssignmentTargetImpl node,
+  ) {
+    var ambiguousElement = node.read
+        .tryCast<InvalidNamedReadResolution>()
+        ?.recoveryElement
+        .tryCast<MultiplyDefinedElementImpl>();
+    ambiguousElement ??= node.write
+        .tryCast<InvalidNamedWriteResolution>()
+        ?.recoveryElement
+        .tryCast<MultiplyDefinedElementImpl>();
+    _checkForAmbiguousImport(element: ambiguousElement, name: node.name);
+    if (node.operator.type == TokenType.QUESTION_PERIOD) {
+      switch (node.receiver) {
+        case SuperReferenceImpl():
+          break;
+        case StaticQualifierImpl():
+          diagnosticReporter.report(
+            diag.invalidNullAwareOperator
+                .withArguments(operator: '?.', replacement: '.')
+                .at(node.operator),
+          );
+        case InstanceReceiverImpl receiver:
+          _checkForUnnecessaryNullAware(
+            receiver,
+            node.operator,
+            kind: _NullAwareKind.access,
+          );
+      }
+    }
+    super.visitReceiverPropertyAssignmentTarget(node);
+  }
+
+  @override
+  void visitReceiverPropertyExtraction(
+    covariant ReceiverPropertyExtractionImpl node,
+  ) {
+    _constArgumentsVerifier.checkNameExpression(node);
+    if (node.operator.type == TokenType.QUESTION_PERIOD) {
+      switch (node.receiver) {
+        case SuperReferenceImpl():
+          break;
+        case StaticQualifierImpl():
+          diagnosticReporter.report(
+            diag.invalidNullAwareOperator
+                .withArguments(operator: '?.', replacement: '.')
+                .at(node.operator),
+          );
+        case InstanceReceiverImpl receiver:
+          _checkForUnnecessaryNullAware(
+            receiver,
+            node.operator,
+            kind: _NullAwareKind.access,
+          );
+      }
+    }
+    _checkUseVerifier.checkPropertyExtraction(node);
+    super.visitReceiverPropertyExtraction(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    _requiredParametersVerifier.visitRedirectingConstructorInvocation(node);
+    _constArgumentsVerifier.visitRedirectingConstructorInvocation(node);
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    _checkForDefaultValueAssignableAtType(node);
+    _checkForTypeAnnotationDeferredClass(node.type);
+    _checkPrivateOptionalParameter(node);
+    super.visitRegularFormalParameter(node);
+  }
+
+  @override
+  void visitRethrowExpression(RethrowExpression node) {
+    _checkForRethrowOutsideCatch(node);
+    super.visitRethrowExpression(node);
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    if (node.expression2 == null) {
+      _enclosingExecutable._returnsWithout.add(node);
+    } else {
+      _enclosingExecutable._returnsWith.add(node);
+      _reportMissingAwaitInTryBlock(node);
+    }
+    _returnTypeVerifier.verifyReturnStatement(node);
+    super.visitReturnStatement(node);
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    if (node.isMap) {
+      _typeArgumentsVerifier.checkMapLiteral(node);
+      _checkForMapTypeNotAssignable(node);
+      _checkForNonConstMapAsExpressionStatement3(node);
+    } else if (node.isSet) {
+      _typeArgumentsVerifier.checkSetLiteral(node);
+      _checkForSetElementTypeNotAssignable3(node);
+    }
+    super.visitSetOrMapLiteral(node);
+  }
+
+  @override
+  void visitSetterDeclaration(covariant SetterDeclarationImpl node) {
+    _visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    if (node.isNullAware) {
+      _checkForUnnecessaryNullAware(
+        node.expression2,
+        node.spreadOperator,
+        kind: _NullAwareKind.spread,
+      );
+    }
+    super.visitSpreadElement(node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    _requiredParametersVerifier.visitSuperConstructorInvocation(
+      node,
+      enclosingConstructor: _enclosingExecutable.element.tryCast(),
+    );
+    _constArgumentsVerifier.visitSuperConstructorInvocation(node);
+    _checkForExtensionTypeConstructorWithSuperInvocation(node);
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitSuperFormalParameter(covariant SuperFormalParameterImpl node) {
+    var element = node.declaredFragment!.element;
+
+    _checkForDefaultValueAssignableAtType(node);
+    _checkPrivateOptionalParameter(node);
+    super.visitSuperFormalParameter(node);
+
+    if (_enclosingInstanceElement is ExtensionTypeElement) {
+      if (node.parentFormalParameterList2.parent2
+          is PrimaryConstructorDeclaration) {
+        return;
+      }
+      diagnosticReporter.report(
+        diag.extensionTypeConstructorWithSuperFormalParameter.at(
+          node.superKeyword,
+        ),
+      );
+      return;
+    }
+
+    var constructor = node.parentFormalParameterList2.parent2;
+    if (constructor is ConstructorDeclaration2Impl &&
+        constructor.isNonRedirectingGenerative) {
+      var constructorElement = constructor.declaredFragment!.element;
+      if (constructorElement.superConstructor == null) {
+        return;
+      }
+    } else if (constructor is PrimaryConstructorDeclarationImpl) {
+      var constructorElement = constructor.declaredFragment!.element;
+      if (constructorElement.superConstructor == null) {
+        return;
+      }
+    } else {
+      diagnosticReporter.report(
+        diag.invalidSuperFormalParameterLocation.at(node.superKeyword),
+      );
+      return;
+    }
+
+    if (element is! SuperFormalParameterElementImpl) {
+      return;
+    }
+
+    var superParameter = element.superConstructorParameter;
+    if (superParameter == null) {
+      diagnosticReporter.report(
+        (node.isNamed
+                ? diag.superFormalParameterWithoutAssociatedNamed
+                : diag.superFormalParameterWithoutAssociatedPositional)
+            .at(node.name),
+      );
+      return;
+    }
+
+    if (!_currentLibrary.typeSystem.isSubtypeOf(
+      element.type,
+      superParameter.type,
+    )) {
+      diagnosticReporter.report(
+        diag.superFormalParameterTypeIsNotSubtypeOfAssociated
+            .withArguments(
+              parameterType: element.type,
+              superParameterType: superParameter.type,
+            )
+            .at(node.name),
+      );
+    }
+  }
+
+  @override
+  void visitSwitchCase(covariant SwitchCaseImpl node) {
+    _withHiddenElementsForStatements(node.statements2, () {
+      _duplicateDefinitionVerifier.checkStatements(node.statements2);
+      super.visitSwitchCase(node);
+    });
+  }
+
+  @override
+  void visitSwitchDefault(covariant SwitchDefaultImpl node) {
+    _withHiddenElementsForStatements(node.statements2, () {
+      _duplicateDefinitionVerifier.checkStatements(node.statements2);
+      super.visitSwitchDefault(node);
+    });
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    checkForUseOfVoidResult(node.expression2);
+    super.visitSwitchExpression(node);
+  }
+
+  @override
+  void visitSwitchPatternCase(covariant SwitchPatternCaseImpl node) {
+    _withHiddenElementsForStatements(node.statements2, () {
+      _duplicateDefinitionVerifier.checkStatements(node.statements2);
+      super.visitSwitchPatternCase(node);
+    });
+  }
+
+  @override
+  void visitSwitchStatement(SwitchStatement node) {
+    checkForUseOfVoidResult(node.expression2);
+    _checkForMissingEnumConstantInSwitch(node);
+    super.visitSwitchStatement(node);
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    _checkForConstEvalThrowsException(node);
+    checkForUseOfVoidResult(node.expression2);
+    _checkForThrowOfInvalidType(node);
+    super.visitThrowExpression(node);
+  }
+
+  @override
+  void visitTopLevelFunctionDeclaration(
+    covariant TopLevelFunctionDeclarationImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    _checkAugmentationWithoutDeclaration(declaredFragment, node.augmentKeyword);
+    _checkForFunctionAlreadyComplete(
+      fragment: declaredFragment,
+      augmentKeyword: node.augmentKeyword,
+    );
+    _checkForFunctionBodyCompleteness(
+      fragment: declaredFragment,
+      node: node,
+      nameToken: node.name,
+    );
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.name,
+      typeParameterList: node.typeParameters,
+    );
+    _checkForAugmentationReturnTypeMismatch(
+      fragment: declaredFragment,
+      returnTypeNode: node.returnType,
+      errorEntity: node.returnType ?? node.name,
+    );
+    _checkForAugmentationFormalParameters(
+      executableFragment: declaredFragment,
+      formalParameterList: node.formalParameters,
+    );
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        var returnType = node.returnType;
+        _checkForTypeAnnotationDeferredClass(returnType);
+        _returnTypeVerifier.verifyReturnType(returnType);
+        _checkForMainFunction1(declaredFragment, node.name);
+        _checkForMainFunction2(
+          nameToken: node.name,
+          parameterList: node.formalParameters,
+        );
+        _checkForExternalMethodWithBody(
+          externalKeyword: node.externalKeyword,
+          body: node.body,
+        );
+        super.visitTopLevelFunctionDeclaration(node);
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  @override
+  void visitTopLevelGetterDeclaration(
+    covariant TopLevelGetterDeclarationImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    var hasConstVariableAugmentation =
+        _checkForConstVariableAugmentationByAccessor(
+          fragment: declaredFragment,
+          errorToken: node.name,
+        );
+    if (!hasConstVariableAugmentation) {
+      _checkAugmentationWithoutDeclaration(
+        declaredFragment,
+        node.augmentKeyword,
+      );
+      _checkForFunctionAlreadyComplete(
+        fragment: declaredFragment,
+        augmentKeyword: node.augmentKeyword,
+      );
+    }
+    _checkForFunctionBodyCompleteness(
+      fragment: declaredFragment,
+      node: node,
+      nameToken: node.name,
+    );
+    _checkForAugmentationReturnTypeMismatch(
+      fragment: declaredFragment,
+      returnTypeNode: node.returnType,
+      errorEntity: node.returnType ?? node.name,
+    );
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        var returnType = node.returnType;
+        _checkForTypeAnnotationDeferredClass(returnType);
+        _returnTypeVerifier.verifyReturnType(returnType);
+        _checkForMainFunction1(declaredFragment, node.name);
+        _checkForExternalMethodWithBody(
+          externalKeyword: node.externalKeyword,
+          body: node.body,
+        );
+        super.visitTopLevelGetterDeclaration(node);
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  @override
+  void visitTopLevelSetterDeclaration(
+    covariant TopLevelSetterDeclarationImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    var hasConstVariableAugmentation =
+        _checkForConstVariableAugmentationByAccessor(
+          fragment: declaredFragment,
+          errorToken: node.name,
+        );
+    if (!hasConstVariableAugmentation) {
+      _checkAugmentationWithoutDeclaration(
+        declaredFragment,
+        node.augmentKeyword,
+      );
+      _checkForFunctionAlreadyComplete(
+        fragment: declaredFragment,
+        augmentKeyword: node.augmentKeyword,
+      );
+    }
+    _checkForFunctionBodyCompleteness(
+      fragment: declaredFragment,
+      node: node,
+      nameToken: node.name,
+    );
+    _checkForAugmentationReturnTypeMismatch(
+      fragment: declaredFragment,
+      returnTypeNode: node.returnType,
+      errorEntity: node.returnType ?? node.name,
+    );
+    _checkForAugmentationFormalParameters(
+      executableFragment: declaredFragment,
+      formalParameterList: node.formalParameters,
+    );
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        var returnType = node.returnType;
+        _checkForNonVoidReturnTypeForSetter(returnType);
+        _checkForTypeAnnotationDeferredClass(returnType);
+        _returnTypeVerifier.verifyReturnType(returnType);
+        _checkForMainFunction1(declaredFragment, node.name);
+        _checkForMainFunction2(
+          nameToken: node.name,
+          parameterList: node.formalParameters,
+        );
+        _checkForExternalMethodWithBody(
+          externalKeyword: node.externalKeyword,
+          body: node.body,
+        );
+        super.visitTopLevelSetterDeclaration(node);
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  @override
+  void visitTopLevelVariable2(covariant TopLevelVariable2Impl node) {
+    _visitVariableInitializer(node);
+  }
+
+  @override
+  void visitTopLevelVariablesDeclaration(
+    covariant TopLevelVariablesDeclarationImpl node,
+  ) {
+    for (var variable in node.variables) {
+      var declaredFragment = variable.declaredFragment!;
+      var hasConstVariableAugmentation = _checkForConstVariableAugmentation(
+        fragment: declaredFragment,
+        errorToken: variable.name,
+      );
+      if (node.augmentKeyword != null) {
+        if (!hasConstVariableAugmentation) {
+          _checkAugmentationWithoutDeclaration(declaredFragment, variable.name);
+          _checkAugmentationWithoutDeclarationForInducedAccessors(
+            declaredFragment,
+            variable.name,
+          );
+          _checkForAugmentationInducedAccessorsAlreadyComplete(
+            fragment: declaredFragment,
+            errorToken: variable.name,
+          );
+          _checkForAugmentationVariableDifferentGetterSetterTypes(
+            fragment: declaredFragment,
+            errorToken: variable.name,
+          );
+          if (declaredFragment.inducedGetter case var inducedGetter?) {
+            _checkForAugmentationReturnTypeMismatch(
+              fragment: inducedGetter,
+              returnTypeNode: node.type,
+              errorEntity: variable.name,
+            );
+          }
+        }
+      }
+    }
+
+    if (node.constKeyword != null) {
+      for (var variable in node.variables) {
+        if (variable.initializer == null) {
+          diagnosticReporter.report(
+            diag.constNotInitialized
+                .withArguments(name: variable.name.lexeme)
+                .at(variable.name),
+          );
+        }
+      }
+    } else if (node.abstractKeyword == null &&
+        node.externalKeyword == null &&
+        node.lateKeyword == null) {
+      for (var variable in node.variables) {
+        var element = variable.declaredFragment!.element;
+
+        if (variable.initializer == null) {
+          if (node.finalKeyword != null) {
+            diagnosticReporter.report(
+              diag.finalNotInitialized
+                  .withArguments(name: variable.name.lexeme)
+                  .at(variable.name),
+            );
+          } else {
+            if (typeSystem.isPotentiallyNonNullable(element.type)) {
+              diagnosticReporter.report(
+                diag.notInitializedNonNullableVariable
+                    .withArguments(name: variable.name.lexeme)
+                    .at(variable.name),
+              );
+            }
+          }
+        }
+      }
+    }
+
+    for (var variable in node.variables) {
+      var declaredFragment = variable.declaredFragment!;
+
+      if (node.abstractKeyword != null) {
+        _checkForIncompleteInducedAccessors(
+          fragment: declaredFragment,
+          nameToken: variable.name,
+        );
+      }
+      _checkForMainFunction1(declaredFragment, variable.name);
+    }
+
+    _checkForTypeAnnotationDeferredClass(node.type);
+    super.visitTopLevelVariablesDeclaration(node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    NodeList<TypeAnnotation> list = node.arguments;
+    for (TypeAnnotation type in list) {
+      _checkForTypeAnnotationDeferredClass(type);
+    }
+    super.visitTypeArgumentList(node);
+  }
+
+  @override
+  void visitTypeParameter(TypeParameter node) {
+    _checkForBuiltInIdentifierAsName(
+      node.name,
+      diag.builtInIdentifierAsTypeParameterName,
+    );
+    _checkForTypeAnnotationDeferredClass(node.bound);
+    _checkForGenericFunctionType(node.bound);
+    node.bound?.accept2(_uninstantiatedBoundChecker);
+    super.visitTypeParameter(node);
+  }
+
+  @override
+  void visitTypeParameterList(covariant TypeParameterListImpl node) {
+    _duplicateDefinitionVerifier.checkTypeParameters(node);
+    _checkForTypeParameterBoundRecursion(node.typeParameters);
+    super.visitTypeParameterList(node);
+  }
+
+  @override
+  void visitUnaryOperatorInvocation(
+    covariant UnaryOperatorInvocationImpl node,
+  ) {
+    if (node.operand case ExpressionImpl operand) {
+      checkForUseOfVoidResult(operand);
+      _checkForIntNotAssignable(operand);
+    }
+    super.visitUnaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    _verifyNamedFunctionInvocation(node);
+    super.visitUnqualifiedFunctionInvocation(node);
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    _constArgumentsVerifier.checkNameExpression(node);
+    var element = node.resolution?.element;
+    var ambiguousElement = node.resolution
+        .tryCast<InvalidNamedReadResolution>()
+        ?.recoveryElement
+        .tryCast<MultiplyDefinedElementImpl>();
+    _checkForAmbiguousImport(element: ambiguousElement, name: node.name);
+    _checkForReferenceBeforeDeclaration(element: element, nameToken: node.name);
+    _checkForInvalidInstanceMemberAccess2(
+      entity: node,
+      name: node.name.lexeme,
+      element: element,
+    );
+    _checkForTypeParameterReferencedByStatic(element: element, name: node.name);
+    _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+      entity: node,
+      element: element,
+    );
+    _checkUseVerifier.checkNameExpression(node, node.resolution);
+    super.visitUnqualifiedNameExpression(node);
+  }
+
+  void _checkAugmentationWithoutDeclaration(
+    FragmentImpl fragment,
+    Token? errorToken,
+  ) {
+    if (errorToken != null) {
+      if (fragment.previousFragment == null) {
+        var element = fragment.element;
+        var previousFragmentOfDifferentKind =
+            element.previousFragmentOfDifferentKind;
+        switch (previousFragmentOfDifferentKind) {
+          case ClassFragmentImpl(isMixinApplication: true):
+            diagnosticReporter.report(
+              diag.augmentationOfMixinApplicationClass
+                  .withContextMessages([
+                    ?previousFragmentOfDifferentKind.contextMessageAt(
+                      "The declaration being augmented.",
+                    ),
+                  ])
+                  .at(errorToken),
+            );
+          case FragmentImpl previousFragment:
+            var previousElement = previousFragment.element;
+            diagnosticReporter.report(
+              diag.augmentationOfDifferentDeclarationKind
+                  .withArguments(
+                    declarationKind: previousElement.kind.displayName,
+                    augmentationKind: element.kind.displayName,
+                  )
+                  .withContextMessages([
+                    ?previousFragment.contextMessageAt(
+                      "The declaration being augmented.",
+                    ),
+                  ])
+                  .at(errorToken),
+            );
+          case null:
+            diagnosticReporter.report(
+              diag.augmentationWithoutDeclaration.at(errorToken),
+            );
+        }
+      }
+    }
+  }
+
+  void _checkAugmentationWithoutDeclarationForInducedAccessors(
+    PropertyInducingFragmentImpl fragment,
+    Token variableName,
+  ) {
+    var previousFragment = fragment.previousFragment;
+
+    // Already reported by `_checkAugmentationWithoutDeclaration`.
+    if (previousFragment == null) {
+      return;
+    }
+
+    if (fragment.inducedGetter case var inducedGetter?) {
+      if (inducedGetter.previousFragment == null) {
+        var setterFragment =
+            fragment.inducedSetter?.previousFragment ??
+            fragment.element.setter?.lastFragment;
+        var contextMessage =
+            setterFragment?.contextMessageAt(
+              "The corresponding setter is declared here.",
+            ) ??
+            previousFragment.contextMessageAt(
+              "The corresponding setter is induced by this declaration.",
+            );
+        diagnosticReporter.report(
+          diag.augmentationWithoutGetterDeclaration
+              .withArguments(name: variableName.lexeme)
+              .withContextMessages([?contextMessage])
+              .at(variableName),
+        );
+      }
+    }
+
+    if (fragment.inducedSetter case var inducedSetter?) {
+      if (inducedSetter.previousFragment == null) {
+        var getterFragment =
+            fragment.inducedGetter?.previousFragment ??
+            fragment.element.getter?.lastFragment;
+        var contextMessage =
+            getterFragment?.contextMessageAt(
+              "The corresponding getter is declared here.",
+            ) ??
+            previousFragment.contextMessageAt(
+              "The corresponding getter is induced by this declaration.",
+            );
+        diagnosticReporter.report(
+          diag.augmentationWithoutSetterDeclaration
+              .withArguments(name: variableName.lexeme)
+              .withContextMessages([?contextMessage])
+              .at(variableName),
+        );
+      }
+    }
+  }
+
+  void _checkCascadeIndexNullAwareOperator(AstNode node) {
+    var section = node.thisOrAncestorOfType2<CascadeSection>();
+    if (section == null || !section.isNullAware) {
+      return;
+    }
+    if (section.parent2 case CascadeExpression cascade) {
+      _checkForUnnecessaryNullAware(
+        cascade.target2,
+        section.operator,
+        kind: _NullAwareKind.cascaded,
+      );
+    }
+  }
+
+  void _checkCascadeSectionNullAware(AstNode node) {
+    CascadeSection? section;
+    for (
+      var ancestor = node.parent2;
+      ancestor != null;
+      ancestor = ancestor.parent2
+    ) {
+      if (ancestor is CascadeSection) {
+        section = ancestor;
+        break;
+      }
+    }
+    if (section == null ||
+        section.operator.type != TokenType.QUESTION_PERIOD_PERIOD) {
+      return;
+    }
+    if (section.parent2 case CascadeExpression(:var target2)) {
+      _checkForUnnecessaryNullAware(
+        target2,
+        section.operator,
+        kind: _NullAwareKind.cascaded,
+      );
+    }
+  }
+
+  /// Check [declarationFragment] for problems involving [superclass],
+  /// [withClause], or [implementsClause]. The [nameToken] is the declaration
+  /// name where applicable diagnostics are reported.
+  ///
+  /// Returns `false` if a severe hierarchy error was found, so that further
+  /// checking is not useful.
+  bool _checkClassInheritance(
+    InterfaceFragmentImpl declarationFragment,
+    NamedType? superclass,
+    WithClauseImpl? withClause,
+    ImplementsClause? implementsClause,
+    Token nameToken,
+  ) {
+    var element = declarationFragment.element;
+
+    // Only check for all of the inheritance logic around clauses if there
+    // isn't an error code such as "Cannot extend double" already on the
+    // class.
+    if (!_checkForExtendsDisallowedClass(superclass) &&
+        !_checkForImplementsClauseErrorCodes(implementsClause) &&
+        !_checkForAllMixinErrorCodes(
+          element,
+          declarationFragment,
+          withClause,
+        ) &&
+        !_checkForNoGenerativeConstructorsInSuperclass(element, superclass)) {
+      _checkForExtendsDeferredClass(superclass);
+      if (!_featureSet.isEnabled(Feature.augmentations)) {
+        _checkForRepeatedType(
+          libraryContext.setOfImplements(element),
+          implementsClause?.interfaces,
+          diag.implementsRepeated,
+        );
+      }
+      _checkImplementsSuperClass(element, implementsClause);
+      _checkMixinsSuperClass(element, withClause);
+      _checkForMixinWithConflictingPrivateMember(withClause, superclass);
+      _checkForConflictingGenerics(
+        fragment: declarationFragment,
+        nameToken: nameToken,
+      );
+      _checkForBaseClassOrMixinImplementedOutsideOfLibrary(implementsClause);
+      _checkForInterfaceClassOrMixinSuperclassOutsideOfLibrary(
+        superclass,
+        withClause,
+      );
+      _checkForFinalSupertypeOutsideOfLibrary(
+        superclass,
+        withClause,
+        implementsClause,
+        null,
+      );
+      _checkForSealedSupertypeOutsideOfLibrary([
+        ?superclass,
+        ...?withClause?.mixinTypes,
+        ...?implementsClause?.interfaces,
+      ]);
+      return true;
+    }
+    return false;
+  }
+
+  /// Given a list of [directives] that have the same prefix, generate an error
+  /// if there is more than one import and any of those imports is deferred.
+  ///
+  /// See [diag.sharedDeferredPrefix].
+  void _checkDeferredPrefixCollision(List<ImportDirective> directives) {
+    int count = directives.length;
+    if (count > 1) {
+      for (int i = 0; i < count; i++) {
+        var deferredToken = directives[i].deferredKeyword;
+        if (deferredToken != null) {
+          diagnosticReporter.report(
+            diag.sharedDeferredPrefix.at(deferredToken),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkEnumConstantSameAsEnclosing(EnumConstantDeclaration2Impl node) {
+    if (node.name.lexeme == _enclosingInstanceElement?.name) {
+      diagnosticReporter.report(
+        diag.enumConstantSameNameAsEnclosing.at(node.name),
+      );
+    }
+  }
+
+  void _checkForAbstractOrExternalFieldConstructorInitializer(
+    FieldElement fieldElement,
+    Token identifier,
+  ) {
+    if (fieldElement.isAbstract) {
+      diagnosticReporter.report(
+        diag.abstractFieldConstructorInitializer.at(identifier),
+      );
+    }
+    if (fieldElement.isExternal) {
+      diagnosticReporter.report(
+        diag.externalFieldConstructorInitializer.at(identifier),
+      );
+    }
+  }
+
+  void _checkForAbstractOrExternalVariableInitializer(
+    VariableBindingImpl node,
+  ) {
+    var declaredFragment = node.declaredFragment;
+    if (node.initializer2 != null) {
+      if (declaredFragment is FieldFragmentImpl) {
+        if (declaredFragment.isAbstract) {
+          diagnosticReporter.report(
+            diag.abstractFieldInitializer.at(node.name),
+          );
+        }
+        if (declaredFragment.isExternal) {
+          diagnosticReporter.report(
+            diag.externalFieldInitializer.at(node.name),
+          );
+        }
+      } else if (declaredFragment is TopLevelVariableFragmentImpl) {
+        if (declaredFragment.isExternal) {
+          diagnosticReporter.report(
+            diag.externalVariableInitializer.at(node.name),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify that all classes of the given [withClause] are valid.
+  ///
+  /// See [diag.classUsedAsMixin],
+  /// [diag.classUsedAsMixinDeclaresGenerativeConstructor],
+  /// [diag.mixinInheritsFromNotObject].
+  bool _checkForAllMixinErrorCodes(
+    InterfaceElementImpl element,
+    InterfaceFragmentImpl declarationFragment,
+    WithClauseImpl? withClause,
+  ) {
+    if (withClause == null) {
+      return false;
+    }
+    bool problemReported = false;
+    var mixinIndex = declarationFragment.withClauseMixinStartIndex;
+    for (
+      int mixinNameIndex = 0;
+      mixinNameIndex < withClause.mixinTypes.length;
+      mixinNameIndex++
+    ) {
+      var mixinName = withClause.mixinTypes[mixinNameIndex];
+      DartType mixinType = mixinName.typeOrThrow;
+      if (mixinType is InterfaceTypeImpl) {
+        int? currentMixinIndex;
+        if (mixinType.isValidSuperinterface) {
+          currentMixinIndex = mixinIndex++;
+        }
+
+        if (_checkForExtendsOrImplementsDisallowedClass(mixinName) &&
+            !mixinType.isDartCoreEnum) {
+          problemReported = true;
+        } else {
+          var mixinElement = mixinType.element;
+          if (_checkForExtendsOrImplementsDeferredClass(
+            mixinName,
+            diag.mixinDeferredClass,
+          )) {
+            problemReported = true;
+          }
+          if (mixinType.element is ExtensionTypeElement) {
+            // Already reported.
+          } else if (mixinElement is MixinElement) {
+            if (currentMixinIndex != null) {
+              if (_checkForMixinSuperclassConstraints(
+                element,
+                currentMixinIndex,
+                mixinName,
+              )) {
+                problemReported = true;
+              } else if (_checkForMixinSuperInvokedMembers(
+                currentMixinIndex,
+                mixinName,
+                element,
+                mixinElement,
+                mixinType,
+              )) {
+                problemReported = true;
+              }
+            }
+          } else if (mixinElement is ClassElementImpl &&
+              !mixinElement.isMixinClass &&
+              mixinElement.library.featureSet.isEnabled(
+                Feature.class_modifiers,
+              ) &&
+              !_mayIgnoreClassModifiers(mixinElement.library)) {
+            diagnosticReporter.report(
+              diag.classUsedAsMixin
+                  .withArguments(name: mixinElement.name!)
+                  .at(mixinName),
+            );
+          } else {
+            if (mixinElement is ClassElementImpl &&
+                !mixinElement.isMixinClass) {
+              if (_checkForClassUsedAsMixinDeclaresGenerativeConstructor(
+                mixinElement,
+                mixinName,
+              )) {
+                problemReported = true;
+              }
+            }
+            if (_checkForMixinInheritsNotFromObject(mixinName, mixinElement)) {
+              problemReported = true;
+            }
+          }
+        }
+      }
+    }
+    return problemReported;
+  }
+
+  /// Check for errors related to the redirected constructors.
+  void _checkForAllRedirectConstructorErrorCodes(
+    ConstructorDeclaration2Impl declaration,
+  ) {
+    var element = declaration.declaredFragment!.element;
+
+    // Prepare redirected constructor node
+    var factoryRedirectionTarget = declaration.factoryRedirectionTarget;
+    if (factoryRedirectionTarget == null) {
+      return;
+    }
+
+    // Prepare redirected constructor type
+    var redirectedElement = factoryRedirectionTarget.element;
+    if (redirectedElement == null) {
+      // If the element is null, we check for the
+      // REDIRECT_TO_MISSING_CONSTRUCTOR case
+      var redirectedType =
+          factoryRedirectionTarget.typeReference.type ??
+          InvalidTypeImpl.instance;
+      if (!(redirectedType is DynamicType || redirectedType is InvalidType)) {
+        diagnosticReporter.report(
+          diag.redirectToMissingConstructor
+              .withArguments(
+                constructorName: factoryRedirectionTarget.toSource(),
+                redirectedType: redirectedType,
+              )
+              .at(factoryRedirectionTarget),
+        );
+      }
+      return;
+    }
+    var redirectedType = redirectedElement.type;
+    var redirectedReturnType = redirectedType.returnType;
+
+    // Report specific problem when return type is incompatible
+    var constructorType = element.type;
+    var constructorReturnType = constructorType.returnType;
+    if (!typeSystem.isAssignableTo(
+      redirectedReturnType,
+      constructorReturnType,
+      strictCasts: strictCasts,
+    )) {
+      diagnosticReporter.report(
+        diag.redirectToInvalidReturnType
+            .withArguments(
+              redirectedReturnType: redirectedReturnType,
+              redirectingReturnType: constructorReturnType,
+            )
+            .at(factoryRedirectionTarget),
+      );
+      return;
+    } else if (!typeSystem.isSubtypeOf(redirectedType, constructorType)) {
+      // Check parameters.
+      diagnosticReporter.report(
+        diag.redirectToInvalidFunctionType
+            .withArguments(
+              redirectedType: redirectedType,
+              redirectingType: constructorType,
+            )
+            .at(factoryRedirectionTarget),
+      );
+    }
+  }
+
+  /// Verify that [exportedLibrary], as exported by [libraryExport] through
+  /// [directive], does not export any name already exported by another export
+  /// directive.
+  ///
+  /// If [exportedLibrary] is `null`, return without checking anything.
+  ///
+  /// See [diag.ambiguousExport].
+  void _checkForAmbiguousExport(
+    LibraryElementImpl? exportedLibrary,
+    LibraryExportImpl libraryExport,
+    ExportDirectiveImpl directive,
+  ) {
+    if (exportedLibrary == null) {
+      return;
+    }
+    // check exported names
+    Namespace namespace = NamespaceBuilder().createExportNamespaceForDirective2(
+      libraryExport,
+    );
+    Map<String, Element> definedNames = namespace.definedNames2;
+    for (String name in definedNames.keys) {
+      var element = definedNames[name]!;
+      var prevElement = libraryContext._exportedElements[name];
+      if (prevElement != null && prevElement != element) {
+        diagnosticReporter.report(
+          diag.ambiguousExport
+              .withArguments(
+                name: name,
+                firstUri: prevElement.library!.uri,
+                secondUri: element.library!.uri,
+              )
+              .at(directive.uri),
+        );
+        return;
+      } else {
+        libraryContext._exportedElements[name] = element;
+      }
+    }
+  }
+
+  /// Check whether [element] is ambiguous because [name] was imported from two
+  /// or more imports.
+  void _checkForAmbiguousImport({
+    required Element? element,
+    required Token name,
+  }) {
+    if (element is MultiplyDefinedElementImpl) {
+      diagnosticReporter.report(
+        _diagnosticFactory.ambiguousImport(name: name, element: element),
+      );
+    }
+  }
+
+  void _checkForAssignmentToPrimaryConstructorParameter(
+    AstNode node, {
+    Element? element,
+  }) {
+    var formalParameter = element;
+    formalParameter ??= switch (node) {
+      AssignedVariablePattern(:var element) => element,
+      _ => null,
+    };
+
+    if (formalParameter is! FormalParameterElement) {
+      return;
+    }
+
+    var enclosing = formalParameter.enclosingElement;
+    if (enclosing is ConstructorElement && enclosing.isPrimary) {
+      switch (_thisContext) {
+        case ThisContext.constructorInitializers:
+        case ThisContext.instanceFieldDeclaration:
+          diagnosticReporter.report(
+            diag.assignmentToPrimaryConstructorParameter.at(node),
+          );
+        default:
+        // OK
+      }
+    }
+  }
+
+  void _checkForAugmentationExtendsClauseAlreadyPresent(
+    ClassDeclaration2Impl node,
+    ClassFragmentImpl declaredFragment,
+  ) {
+    if (node.augmentKeyword == null) {
+      return;
+    }
+
+    var extendsClause = node.extendsClause;
+    if (extendsClause == null) {
+      return;
+    }
+
+    for (var precedingFragment in declaredFragment.precedingFragments) {
+      if (precedingFragment.hasExtendsClause) {
+        diagnosticReporter.report(
+          diag.augmentationExtendsClauseAlreadyPresent
+              .withContextMessages([
+                ?precedingFragment.contextMessageAt(
+                  "The declaration being augmented.",
+                ),
+              ])
+              .at(extendsClause.extendsKeyword),
+        );
+        break;
+      }
+    }
+  }
+
+  void _checkForAugmentationFormalParameters({
+    required ExecutableFragmentImpl executableFragment,
+    required FormalParameterListImpl formalParameterList,
+  }) {
+    if (!executableFragment.isAugmentation) {
+      return;
+    }
+
+    var firstExecutableFragment = executableFragment.element.firstFragment;
+    if (identical(executableFragment, firstExecutableFragment) ||
+        firstExecutableFragment.isAugmentation) {
+      return;
+    }
+
+    var firstParameters = firstExecutableFragment.formalParameters
+        .where((parameter) => !parameter.isOriginOtherFragmentOfEnclosing)
+        .toList();
+    var currentParameters = executableFragment.formalParameters
+        .where((parameter) => !parameter.isOriginOtherFragmentOfEnclosing)
+        .toList();
+
+    var firstExecutableContextMessages = [
+      ?firstExecutableFragment.contextMessageAt(
+        'The declaration being augmented.',
+      ),
+    ];
+
+    var firstRequiredPositionalCount = firstParameters
+        .where((parameter) => parameter.isRequiredPositional)
+        .length;
+    var currentRequiredPositionalCount = currentParameters
+        .where((parameter) => parameter.isRequiredPositional)
+        .length;
+
+    var firstOptionalPositionalCount = firstParameters
+        .where((parameter) => parameter.isOptionalPositional)
+        .length;
+    var currentOptionalPositionalCount = currentParameters
+        .where((parameter) => parameter.isOptionalPositional)
+        .length;
+
+    FormalParameter? formalParameterAtPositionalIndex(int index) {
+      return formalParameterList.allFormalParameters
+          .where((parameter) => parameter.isPositional)
+          .elementAtOrNull(index);
+    }
+
+    SyntacticEntity formalParameterErrorEntity(FormalParameter? parameter) {
+      if (parameter == null) {
+        return formalParameterList.rightParenthesis;
+      }
+      return parameter.name ?? parameter;
+    }
+
+    void checkModifier({
+      required FormalParameter formalParameter,
+      required FormalParameterFragmentImpl firstParameter,
+      required String modifier,
+      required bool expected,
+      required Token? actualKeyword,
+    }) {
+      if (!expected && actualKeyword != null) {
+        diagnosticReporter.report(
+          diag.augmentationFormalParameterModifierExtra
+              .withArguments(modifier: modifier)
+              .withContextMessages([
+                ?firstParameter.contextMessageAt(
+                  'The formal parameter is here.',
+                ),
+              ])
+              .at(actualKeyword),
+        );
+      } else if (expected && actualKeyword == null) {
+        diagnosticReporter.report(
+          diag.augmentationFormalParameterModifierMissing
+              .withArguments(modifier: modifier)
+              .withContextMessages([
+                ?firstParameter.contextMessageAt(
+                  'The formal parameter is here.',
+                ),
+              ])
+              .at(formalParameterErrorEntity(formalParameter)),
+        );
+      }
+    }
+
+    void checkFormalParameterPair({
+      required FormalParameterImpl formalParameter,
+      required FormalParameterFragmentImpl firstParameter,
+    }) {
+      var declaredFragment = formalParameter.declaredFragment;
+      if (declaredFragment is! FormalParameterFragmentImpl ||
+          declaredFragment.isOriginOtherFragmentOfEnclosing) {
+        return;
+      }
+
+      checkModifier(
+        formalParameter: formalParameter,
+        firstParameter: firstParameter,
+        modifier: 'covariant',
+        expected: firstParameter.isExplicitlyCovariant,
+        actualKeyword: formalParameter.covariantKeyword,
+      );
+
+      checkModifier(
+        formalParameter: formalParameter,
+        firstParameter: firstParameter,
+        modifier: 'required',
+        expected: firstParameter.isRequiredNamed,
+        actualKeyword: formalParameter.requiredKeyword,
+      );
+
+      var actualType = formalParameter.explicitFragmentType;
+      if (actualType != null) {
+        var expectedType = firstParameter.element.type;
+        if (actualType is InvalidType || expectedType is InvalidType) {
+          return;
+        }
+        if (actualType != expectedType) {
+          diagnosticReporter.report(
+            diag.augmentationFormalParameterTypeMismatch
+                .withArguments(
+                  expectedType: expectedType,
+                  actualType: actualType,
+                )
+                .withContextMessages([
+                  ?firstParameter.contextMessageAt(
+                    'The formal parameter is here.',
+                  ),
+                ])
+                .at(
+                  formalParameter.type ??
+                      formalParameterErrorEntity(formalParameter),
+                ),
+          );
+        }
+      }
+    }
+
+    if (currentRequiredPositionalCount < firstRequiredPositionalCount) {
+      diagnosticReporter.report(
+        diag.augmentationRequiredPositionalFormalParameterCount
+            .withArguments(
+              expectedCount: firstRequiredPositionalCount,
+              actualCount: currentRequiredPositionalCount,
+            )
+            .withContextMessages(firstExecutableContextMessages)
+            .at(
+              formalParameterList.delimitedFormalParameters?.leftDelimiter ??
+                  formalParameterErrorEntity(
+                    formalParameterAtPositionalIndex(
+                      currentRequiredPositionalCount,
+                    ),
+                  ),
+            ),
+      );
+    } else if (currentRequiredPositionalCount > firstRequiredPositionalCount) {
+      diagnosticReporter.report(
+        diag.augmentationRequiredPositionalFormalParameterCount
+            .withArguments(
+              expectedCount: firstRequiredPositionalCount,
+              actualCount: currentRequiredPositionalCount,
+            )
+            .withContextMessages(firstExecutableContextMessages)
+            .at(
+              formalParameterErrorEntity(
+                formalParameterAtPositionalIndex(firstRequiredPositionalCount),
+              ),
+            ),
+      );
+    } else {
+      if (currentOptionalPositionalCount < firstOptionalPositionalCount) {
+        diagnosticReporter.report(
+          diag.augmentationOptionalPositionalFormalParameterCount
+              .withArguments(
+                expectedCount: firstOptionalPositionalCount,
+                actualCount: currentOptionalPositionalCount,
+              )
+              .withContextMessages(firstExecutableContextMessages)
+              .at(formalParameterList.rightParenthesis),
+        );
+      } else if (currentOptionalPositionalCount >
+          firstOptionalPositionalCount) {
+        diagnosticReporter.report(
+          diag.augmentationOptionalPositionalFormalParameterCount
+              .withArguments(
+                expectedCount: firstOptionalPositionalCount,
+                actualCount: currentOptionalPositionalCount,
+              )
+              .withContextMessages(firstExecutableContextMessages)
+              .at(
+                firstOptionalPositionalCount == 0
+                    ? formalParameterList
+                              .delimitedFormalParameters
+                              ?.leftDelimiter ??
+                          formalParameterErrorEntity(
+                            formalParameterAtPositionalIndex(
+                              firstRequiredPositionalCount,
+                            ),
+                          )
+                    : formalParameterErrorEntity(
+                        formalParameterAtPositionalIndex(
+                          firstRequiredPositionalCount +
+                              firstOptionalPositionalCount,
+                        ),
+                      ),
+              ),
+        );
+      }
+    }
+
+    // Positional parameter names can be `_`, but every non-wildcard name must
+    // match all preceding non-wildcard declarations for the same parameter.
+    var positionalShapeMatches =
+        currentRequiredPositionalCount == firstRequiredPositionalCount &&
+        currentOptionalPositionalCount == firstOptionalPositionalCount;
+    if (positionalShapeMatches) {
+      for (var formalParameter in formalParameterList.allFormalParameters) {
+        var declaredFragment = formalParameter.declaredFragment;
+
+        if (!formalParameter.isPositional) {
+          continue;
+        }
+
+        if (declaredFragment is! FormalParameterFragmentImpl ||
+            declaredFragment.isOriginOtherFragmentOfEnclosing) {
+          continue;
+        }
+
+        var currentName = declaredFragment.name;
+        if (currentName == null || currentName == '_') {
+          continue;
+        }
+
+        for (var precedingParameter in declaredFragment.precedingFragments) {
+          if (precedingParameter.isOriginOtherFragmentOfEnclosing ||
+              precedingParameter.nameOffset == null) {
+            continue;
+          }
+
+          var precedingName = precedingParameter.name;
+          if (precedingName == null ||
+              precedingName == '_' ||
+              precedingName == currentName) {
+            continue;
+          }
+
+          diagnosticReporter.report(
+            diag.augmentationPositionalFormalParameterName
+                .withArguments(
+                  expectedName: precedingName,
+                  actualName: currentName,
+                )
+                .withContextMessages([
+                  ?precedingParameter.contextMessageAt(
+                    'The preceding declaration is here.',
+                  ),
+                ])
+                .at(formalParameterErrorEntity(formalParameter)),
+          );
+          break;
+        }
+      }
+    }
+
+    if (positionalShapeMatches) {
+      forCorrespondingPairs(
+        formalParameterList.allFormalParameters.where((f) => f.isPositional),
+        firstParameters.where((f) => f.isPositional),
+        (formalParameter, firstParameter) {
+          checkFormalParameterPair(
+            formalParameter: formalParameter,
+            firstParameter: firstParameter,
+          );
+        },
+      );
+    }
+
+    var firstNamedParametersByName = <String, FormalParameterFragmentImpl>{};
+    for (var parameter in firstParameters) {
+      var name = parameter.name;
+      if (parameter.isNamed && name != null) {
+        firstNamedParametersByName[name] = parameter;
+      }
+    }
+
+    var currentNamedParametersByName = <String, FormalParameterImpl>{};
+    for (var formalParameter in formalParameterList.allFormalParameters) {
+      var declaredFragment = formalParameter.declaredFragment;
+
+      if (declaredFragment is FormalParameterFragmentImpl &&
+          declaredFragment.isNamed) {
+        var name = declaredFragment.name;
+        if (name != null) {
+          currentNamedParametersByName.putIfAbsent(name, () => formalParameter);
+        }
+      }
+    }
+
+    for (var entry in currentNamedParametersByName.entries) {
+      var name = entry.key;
+      var firstParameter = firstNamedParametersByName[name];
+      if (firstParameter != null) {
+        checkFormalParameterPair(
+          formalParameter: entry.value,
+          firstParameter: firstParameter,
+        );
+      } else {
+        diagnosticReporter.report(
+          diag.augmentationNamedFormalParameterExtra
+              .withArguments(name: name)
+              .withContextMessages(firstExecutableContextMessages)
+              .at(formalParameterErrorEntity(entry.value)),
+        );
+      }
+    }
+
+    for (var entry in firstNamedParametersByName.entries) {
+      var name = entry.key;
+      if (!currentNamedParametersByName.containsKey(name)) {
+        diagnosticReporter.report(
+          diag.augmentationNamedFormalParameterMissing
+              .withArguments(name: name)
+              .withContextMessages([
+                ?entry.value.contextMessageAt('The formal parameter is here.'),
+              ])
+              .at(formalParameterList.rightParenthesis),
+        );
+      }
+    }
+  }
+
+  void _checkForAugmentationInducedAccessorsAlreadyComplete({
+    required PropertyInducingFragmentImpl fragment,
+    required Token errorToken,
+  }) {
+    if (fragment.inducedGetter case var inducedGetter?) {
+      if (inducedGetter.isComplete) {
+        var precedingComplete = inducedGetter.nearestPrecedingCompleteFragment;
+        if (precedingComplete != null) {
+          diagnosticReporter.report(
+            diag.augmentationInducedGetterAlreadyComplete
+                .withContextMessages([
+                  ?precedingComplete.contextMessageAt(
+                    "The complete declaration is here.",
+                  ),
+                ])
+                .at(errorToken),
+          );
+        }
+      }
+    }
+
+    if (fragment.inducedSetter case var inducedSetter?) {
+      if (inducedSetter.isComplete) {
+        var precedingComplete = inducedSetter.nearestPrecedingCompleteFragment;
+        if (precedingComplete != null) {
+          diagnosticReporter.report(
+            diag.augmentationInducedSetterAlreadyComplete
+                .withContextMessages([
+                  ?precedingComplete.contextMessageAt(
+                    "The complete declaration is here.",
+                  ),
+                ])
+                .at(errorToken),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkForAugmentationModifierMismatch({
+    required Token augmentKeyword,
+    required bool inAugmentation,
+    required bool inIntroductory,
+    required Token? modifierToken,
+    required String modifierName,
+  }) {
+    if (inAugmentation != inIntroductory) {
+      if (inAugmentation) {
+        if (modifierToken != null) {
+          diagnosticReporter.report(
+            diag.augmentationModifierExtra
+                .withArguments(modifier: modifierName)
+                .at(modifierToken),
+          );
+        }
+      } else {
+        diagnosticReporter.report(
+          diag.augmentationModifierMissing
+              .withArguments(modifier: modifierName)
+              .at(augmentKeyword),
+        );
+      }
+    }
+  }
+
+  void _checkForAugmentationReturnTypeMismatch({
+    required ExecutableFragmentImpl fragment,
+    required TypeAnnotation? returnTypeNode,
+    required SyntacticEntity errorEntity,
+  }) {
+    if (!fragment.isAugmentation) {
+      return;
+    }
+
+    if (returnTypeNode == null) {
+      return;
+    }
+
+    var expectedType = fragment.element.returnType;
+    var actualType = returnTypeNode.typeOrThrow;
+    if (actualType is InvalidType || expectedType is InvalidType) {
+      return;
+    }
+    if (actualType == expectedType) {
+      return;
+    }
+
+    var diagnosticCode =
+        fragment is GetterFragmentImpl && fragment.inducingVariable != null
+        ? diag.augmentationInducedGetterReturnTypeMismatch
+        : diag.augmentationReturnTypeMismatch;
+
+    diagnosticReporter.report(
+      diagnosticCode
+          .withArguments(expectedType: expectedType, actualType: actualType)
+          .at(errorEntity),
+    );
+  }
+
+  void _checkForAugmentationTypeParameters({
+    required FragmentImpl fragment,
+    required List<TypeParameterFragmentImpl> firstTypeParameters,
+    required Token nameOrKeywordToken,
+    required TypeParameterList? typeParameterList,
+  }) {
+    if (!fragment.isAugmentation) {
+      return;
+    }
+
+    var introductoryCount = firstTypeParameters
+        .takeWhile((p) => !p.isOriginOtherFragmentOfEnclosing)
+        .length;
+
+    // If no type parameter nodes, but introductory has type parameters.
+    if (typeParameterList == null) {
+      if (introductoryCount != 0) {
+        diagnosticReporter.report(
+          diag.augmentationTypeParameterCount.at(nameOrKeywordToken),
+        );
+      }
+      return;
+    }
+
+    // If the number of type parameters does not match, it is an error.
+    if (typeParameterList.typeParameters.length > introductoryCount) {
+      diagnosticReporter.report(
+        diag.augmentationTypeParameterCount.at(
+          typeParameterList.typeParameters[introductoryCount].name,
+        ),
+      );
+      return;
+    } else if (typeParameterList.typeParameters.length < introductoryCount) {
+      diagnosticReporter.report(
+        diag.augmentationTypeParameterCount.at(typeParameterList.rightBracket),
+      );
+      return;
+    }
+
+    for (var i = 0; i < introductoryCount; i++) {
+      var firstTypeParameter = firstTypeParameters[i];
+      var typeParameterNode = typeParameterList.typeParameters[i];
+
+      if (typeParameterNode.name.lexeme != firstTypeParameter.name) {
+        diagnosticReporter.report(
+          diag.augmentationTypeParameterName.at(typeParameterNode.name),
+        );
+      }
+
+      if (typeParameterNode.bound case var boundNode?) {
+        var firstBound = firstTypeParameter.element.bound;
+        if (firstBound == null || boundNode.typeOrThrow != firstBound) {
+          diagnosticReporter.report(
+            diag.augmentationTypeParameterBound.at(boundNode),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkForAugmentationVariableDifferentGetterSetterTypes({
+    required PropertyInducingFragmentImpl fragment,
+    required Token errorToken,
+  }) {
+    if (!(fragment.isAbstract && fragment.hasImplicitType)) {
+      return;
+    }
+
+    var getter = fragment.inducedGetter;
+    var setter = fragment.inducedSetter;
+    if (getter == null ||
+        getter.previousFragment == null ||
+        setter == null ||
+        setter.previousFragment == null) {
+      return;
+    }
+
+    var getterType = getter.element.returnType;
+    var setterType = setter.element.valueFormalParameter.type;
+    if (getterType is InvalidType || setterType is InvalidType) {
+      return;
+    }
+    if (getterType == setterType) {
+      return;
+    }
+
+    diagnosticReporter.report(
+      diag.augmentationVariableDifferentGetterSetterTypes
+          .withArguments(getterType: getterType, setterType: setterType)
+          .at(errorToken),
+    );
+  }
+
+  void _checkForAwaitInLateLocalVariableInitializer(AwaitExpression node) {
+    if (_isInLateLocalVariable.last) {
+      diagnosticReporter.report(
+        diag.awaitInLateLocalVariableInitializer.at(node.awaitKeyword),
+      );
+    }
+  }
+
+  void _checkForAwaitOfIncompatibleType(AwaitExpression node) {
+    var expression = node.expression2;
+    var expressionType = expression.typeOrThrow;
+    if (typeSystem.isIncompatibleWithAwait(expressionType)) {
+      diagnosticReporter.report(
+        diag.awaitOfIncompatibleType.at(node.awaitKeyword),
+      );
+    }
+  }
+
+  /// Verifies that the nodes don't reference `Function` from `dart:core`.
+  void _checkForBadFunctionUse({
+    required NamedType? superclass,
+    required ImplementsClause? implementsClause,
+    required WithClause? withClause,
+  }) {
+    // With the `class_modifiers` feature `Function` is final.
+    if (_featureSet.isEnabled(Feature.class_modifiers)) {
+      return;
+    }
+
+    if (superclass != null) {
+      var type = superclass.type;
+      if (type != null && type.isDartCoreFunction) {
+        diagnosticReporter.report(
+          diag.deprecatedExtendsFunction.at(superclass),
+        );
+      }
+    }
+
+    if (implementsClause != null) {
+      for (var interface in implementsClause.interfaces) {
+        var type = interface.type;
+        if (type != null && type.isDartCoreFunction) {
+          diagnosticReporter.report(
+            diag.deprecatedImplementsFunction.at(interface),
+          );
+          break;
+        }
+      }
+    }
+
+    if (withClause != null) {
+      for (NamedType mixin in withClause.mixinTypes) {
+        var type = mixin.type;
+        if (type != null && type.isDartCoreFunction) {
+          diagnosticReporter.report(diag.deprecatedMixinFunction.at(mixin));
+        }
+      }
+    }
+  }
+
+  /// Verify that if a class is implementing a base class or mixin, it must be
+  /// within the same library as that class or mixin.
+  ///
+  /// See [diag.baseClassImplementedOutsideOfLibrary],
+  /// [diag.baseMixinImplementedOutsideOfLibrary].
+  void _checkForBaseClassOrMixinImplementedOutsideOfLibrary(
+    ImplementsClause? implementsClause,
+  ) {
+    if (implementsClause == null) return;
+    for (NamedType interface in implementsClause.interfaces) {
+      var interfaceType = interface.type;
+      if (interfaceType is InterfaceType) {
+        var implementedInterfaces = [
+          interfaceType,
+          ...interfaceType.element.allSupertypes,
+        ].map((e) => e.element).toList();
+        for (var interfaceElement in implementedInterfaces) {
+          if ((interfaceElement is ClassElementImpl &&
+                      interfaceElement.isBase ||
+                  interfaceElement is MixinElementImpl &&
+                      interfaceElement.isBase) &&
+              interfaceElement.library != _currentLibrary &&
+              !_mayIgnoreClassModifiers(interfaceElement.library)) {
+            // Should this be combined with _checkForImplementsClauseErrorCodes
+            // to avoid double errors if implementing `int`.
+            if (interfaceElement is ClassElementImpl &&
+                !interfaceElement.isSealed) {
+              diagnosticReporter.report(
+                diag.baseClassImplementedOutsideOfLibrary
+                    .withArguments(implementedClassName: interfaceElement.name!)
+                    .at(interface),
+              );
+            } else if (interfaceElement is MixinElement) {
+              diagnosticReporter.report(
+                diag.baseMixinImplementedOutsideOfLibrary
+                    .withArguments(implementedMixinName: interfaceElement.name!)
+                    .at(interface),
+              );
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  /// Verify that the given [token] is not a keyword, and generates the
+  /// given [code] on the identifier if it is a keyword.
+  ///
+  /// See [diag.builtInIdentifierAsExtensionName],
+  /// [diag.builtInIdentifierAsTypeName],
+  /// [diag.builtInIdentifierAsTypeParameterName], and
+  /// [diag.builtInIdentifierAsTypedefName].
+  void _checkForBuiltInIdentifierAsName(
+    Token token,
+    DiagnosticWithArguments<
+      LocatableDiagnostic Function({required String name})
+    >
+    code,
+  ) {
+    if (token.type.isKeyword && token.keyword?.isPseudo != true) {
+      diagnosticReporter.report(
+        code.withArguments(name: token.lexeme).at(token),
+      );
+      return;
+    }
+
+    if (_featureSet.isEnabled(Feature.variance)) {
+      if (token.keyword == Keyword.INOUT || token.keyword == Keyword.OUT) {
+        diagnosticReporter.report(
+          code.withArguments(name: token.lexeme).at(token),
+        );
+      }
+    }
+  }
+
+  void _checkForClassAugmentationModifierMismatch(
+    ClassFragmentImpl declaredFragment,
+    ClassDeclaration2Impl node,
+  ) {
+    var element = declaredFragment.element;
+
+    var augmentKeyword = node.augmentKeyword;
+    if (augmentKeyword == null) {
+      return;
+    }
+
+    var firstFragment = element.firstFragment;
+    if (identical(declaredFragment, firstFragment)) {
+      return;
+    }
+
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isAbstract,
+      inIntroductory: firstFragment.isAbstract,
+      modifierToken: node.abstractKeyword,
+      modifierName: 'abstract',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isBase,
+      inIntroductory: firstFragment.isBase,
+      modifierToken: node.baseKeyword,
+      modifierName: 'base',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isFinal,
+      inIntroductory: firstFragment.isFinal,
+      modifierToken: node.finalKeyword,
+      modifierName: 'final',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isInterface,
+      inIntroductory: firstFragment.isInterface,
+      modifierToken: node.interfaceKeyword,
+      modifierName: 'interface',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isSealed,
+      inIntroductory: firstFragment.isSealed,
+      modifierToken: node.sealedKeyword,
+      modifierName: 'sealed',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isMixinClass,
+      inIntroductory: firstFragment.isMixinClass,
+      modifierToken: node.mixinKeyword,
+      modifierName: 'mixin',
+    );
+  }
+
+  /// Verify that [mixinElement], used as a mixin at [mixinName], does not
+  /// declare a generative constructor.
+  ///
+  /// See [diag.classUsedAsMixinDeclaresGenerativeConstructor].
+  bool _checkForClassUsedAsMixinDeclaresGenerativeConstructor(
+    InterfaceElement mixinElement,
+    NamedType mixinName,
+  ) {
+    for (var constructor in mixinElement.constructors) {
+      if (constructor.isOriginDeclaration && !constructor.isFactory) {
+        diagnosticReporter.report(
+          diag.classUsedAsMixinDeclaresGenerativeConstructor
+              .withArguments(className: mixinElement.name!)
+              .at(mixinName),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Verify that the element associated with [fragment] does not have a method
+  /// and getter pair with the same name, via inheritance.
+  ///
+  /// See [diag.conflictingStaticAndInstance],
+  /// [diag.conflictingMethodAndField], and
+  /// [diag.conflictingFieldAndMethod].
+  void _checkForConflictingClassMembers(InterfaceFragmentImpl fragment) {
+    var element = fragment.element;
+
+    Uri libraryUri = _currentLibrary.uri;
+
+    if (element is ExtensionTypeElementImpl) {
+      var conflicts = _inheritanceManager.getInterface(element).conflicts;
+      for (var conflict in conflicts) {
+        switch (conflict) {
+          case ExtensionTypeConflictingStaticAndInstanceConflict():
+            var declared = conflict.declared;
+            if (declared.firstFragment.libraryFragment != _currentUnit) {
+              continue;
+            }
+            diagnosticReporter.report(
+              diag.conflictingStaticAndInstance
+                  .withArguments(
+                    className: element.displayName,
+                    memberName: declared.displayName,
+                    conflictingClassName:
+                        conflict.inherited.enclosingElement!.displayName,
+                  )
+                  .atSourceRange(declared.diagnosticRange(_currentUnit.source)),
+            );
+          case ExtensionTypeConflictingInheritedMethodAndSetterConflict():
+            if (fragment.isAugmentation) {
+              continue;
+            }
+            var method = conflict.method;
+            var setter = conflict.setter;
+            diagnosticReporter.report(
+              diag.conflictingInheritedMethodAndSetter
+                  .withArguments(
+                    enclosingElementKind: element.kind.displayName,
+                    enclosingElementName: element.displayName,
+                    memberName: conflict.name.name,
+                  )
+                  .withContextMessages([
+                    ?method.contextMessageAt(
+                      formatList(
+                        "The method is inherited from the {0} '{1}'.",
+                        [
+                          method.enclosingElement!.kind.displayName,
+                          method.enclosingElement!.name,
+                        ],
+                      ),
+                    ),
+                    ?setter.contextMessageAt(
+                      formatList(
+                        "The setter is inherited from the {0} '{1}'.",
+                        [
+                          setter.enclosingElement.kind.displayName,
+                          setter.enclosingElement.name,
+                        ],
+                      ),
+                    ),
+                  ])
+                  .atSourceRange(element.diagnosticRange(_currentUnit.source)),
+            );
+        }
+      }
+      return;
+    }
+
+    var conflictingDeclaredNames = <String>{};
+
+    // method declared in the enclosing class vs. inherited getter/setter
+    for (var method in fragment.methods) {
+      if (method.libraryFragment.source != _currentUnit.source) {
+        continue;
+      }
+
+      String name = method.name ?? '';
+
+      // find inherited property accessors
+      var getter = _inheritanceManager.getInherited(
+        element,
+        Name(libraryUri, name),
+      );
+      var setter = _inheritanceManager.getInherited(
+        element,
+        Name(libraryUri, '$name='),
+      );
+
+      if (method.isStatic) {
+        void reportStaticConflict(InternalExecutableElement inherited) {
+          diagnosticReporter.report(
+            diag.conflictingStaticAndInstance
+                .withArguments(
+                  className: element.displayName,
+                  memberName: name,
+                  conflictingClassName: inherited.enclosingElement!.displayName,
+                )
+                .atSourceRange(
+                  method.element.diagnosticRange(_currentUnit.source),
+                ),
+          );
+        }
+
+        if (getter != null) {
+          reportStaticConflict(getter);
+          continue;
+        }
+
+        if (setter != null) {
+          reportStaticConflict(setter);
+          continue;
+        }
+      }
+
+      void reportFieldConflict(InternalPropertyAccessorElement inherited) {
+        diagnosticReporter.report(
+          diag.conflictingMethodAndField
+              .withArguments(
+                className: element.displayName,
+                methodName: name,
+                conflictingClassName: inherited.enclosingElement.displayName,
+              )
+              .atSourceRange(
+                method.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+
+      if (getter is InternalGetterElement) {
+        reportFieldConflict(getter);
+        continue;
+      }
+
+      if (setter is InternalSetterElement) {
+        reportFieldConflict(setter);
+        continue;
+      }
+    }
+
+    // getter declared in the enclosing class vs. inherited method
+    for (var accessor in fragment.accessors) {
+      String name = accessor.displayName;
+
+      // find inherited method or property accessor
+      var inherited = _inheritanceManager.getInherited(
+        element,
+        Name(libraryUri, name),
+      );
+      inherited ??= _inheritanceManager.getInherited(
+        element,
+        Name(libraryUri, '$name='),
+      );
+
+      if (accessor.isStatic && inherited != null) {
+        diagnosticReporter.report(
+          diag.conflictingStaticAndInstance
+              .withArguments(
+                className: element.displayName,
+                memberName: name,
+                conflictingClassName: inherited.enclosingElement!.displayName,
+              )
+              .atSourceRange(
+                accessor.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+        conflictingDeclaredNames.add(name);
+      } else if (inherited is InternalMethodElement) {
+        diagnosticReporter.report(
+          diag.conflictingFieldAndMethod
+              .withArguments(
+                className: element.displayName,
+                fieldName: name,
+                conflictingClassName: inherited.enclosingElement!.displayName,
+              )
+              .atSourceRange(
+                accessor.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+        conflictingDeclaredNames.add(name);
+      }
+    }
+
+    // Inherited method and setter with the same name.
+    var inherited = _inheritanceManager.getInheritedMap(element);
+    for (var entry in inherited.entries) {
+      var method = entry.value;
+      if (method is InternalMethodElement) {
+        var methodName = entry.key;
+        if (conflictingDeclaredNames.contains(methodName.name)) {
+          continue;
+        }
+        var setterName = methodName.forSetter;
+        var setter = inherited[setterName];
+        if (setter is InternalSetterElement) {
+          diagnosticReporter.report(
+            diag.conflictingInheritedMethodAndSetter
+                .withArguments(
+                  enclosingElementKind: element.kind.displayName,
+                  enclosingElementName: element.displayName,
+                  memberName: methodName.name,
+                )
+                .withContextMessages([
+                  ?method.contextMessageAt(
+                    formatList("The method is inherited from the {0} '{1}'.", [
+                      method.enclosingElement!.kind.displayName,
+                      method.enclosingElement!.name,
+                    ]),
+                  ),
+                  ?setter.contextMessageAt(
+                    formatList("The setter is inherited from the {0} '{1}'.", [
+                      setter.enclosingElement.kind.displayName,
+                      setter.enclosingElement.name,
+                    ]),
+                  ),
+                ])
+                .atSourceRange(element.diagnosticRange(_currentUnit.source)),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify all conflicts between a type variable and its enclosing class or
+  /// mixin.
+  void _checkForConflictingClassTypeVariableErrorCodes(
+    InterfaceElementImpl element,
+  ) {
+    for (TypeParameterElement typeParameter in element.typeParameters) {
+      if (typeParameter.isWildcardVariable) continue;
+
+      var name = typeParameter.name;
+      if (name == null) continue;
+
+      // The name is the same as the name of the enclosing class or mixin.
+      if (element.name == name) {
+        var code = element is MixinElement
+            ? diag.conflictingTypeVariableAndMixin
+            : diag.conflictingTypeVariableAndClass;
+        diagnosticReporter.report(
+          code
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+      // check members
+      if (element.getNamedConstructor(name) != null ||
+          element.getMethod(name) != null ||
+          element.getGetter(name) != null ||
+          element.getSetter(name) != null) {
+        var code = element is MixinElement
+            ? diag.conflictingTypeVariableAndMemberMixin
+            : diag.conflictingTypeVariableAndMemberClass;
+        diagnosticReporter.report(
+          code
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+    }
+  }
+
+  void _checkForConflictingEnumTypeVariableErrorCodes(
+    EnumFragmentImpl fragment,
+  ) {
+    for (var typeParameter in fragment.typeParameters) {
+      var name = typeParameter.name ?? '';
+      // name is same as the name of the enclosing enum
+      if (fragment.name == name) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndEnum
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+      // check members
+      var element = fragment.element;
+      if (element.getMethod(name) != null ||
+          element.getGetter(name) != null ||
+          element.getSetter(name) != null) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndMemberEnum
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+    }
+  }
+
+  void _checkForConflictingExtensionTypeTypeVariableErrorCodes(
+    ExtensionTypeFragmentImpl fragment,
+  ) {
+    for (var typeParameter in fragment.typeParameters) {
+      if (typeParameter.element.isWildcardVariable) continue;
+
+      var name = typeParameter.name ?? '';
+      // The name is the same as the name of the enclosing extension type.
+      if (fragment.name == name) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndExtensionType
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+      // check members
+      var element = fragment.element;
+      if (element.getNamedConstructor(name) != null ||
+          element.getMethod(name) != null ||
+          element.getGetter(name) != null ||
+          element.getSetter(name) != null) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndMemberExtensionType
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+    }
+  }
+
+  /// Verify all conflicts between type variable and the extension.
+  ///
+  /// See [diag.conflictingTypeVariableAndExtension], and
+  /// [diag.conflictingTypeVariableAndMemberExtension].
+  void _checkForConflictingExtensionTypeVariableErrorCodes(
+    ExtensionElementImpl element,
+  ) {
+    for (TypeParameterElement typeParameter in element.typeParameters) {
+      var name = typeParameter.name;
+      if (name == null) continue;
+
+      // name is same as the name of the extension
+      if (element.name == name) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndExtension
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+      // check members
+      if (element.getMethod(name) != null ||
+          element.getGetter(name) != null ||
+          element.getSetter(name) != null) {
+        diagnosticReporter.report(
+          diag.conflictingTypeVariableAndMemberExtension
+              .withArguments(typeParameterName: name)
+              .atSourceRange(
+                typeParameter.diagnosticRange(_currentUnit.source),
+              ),
+        );
+      }
+    }
+  }
+
+  void _checkForConflictingGenerics({
+    required InterfaceFragmentImpl fragment,
+    required Token nameToken,
+  }) {
+    // Report only on the declaration.
+    if (fragment.isAugmentation) {
+      return;
+    }
+
+    var element = fragment.element;
+    var analysisSession = _currentLibrary.session;
+    var errors = analysisSession.classHierarchy.errors(element);
+
+    for (var error in errors) {
+      if (error is IncompatibleInterfacesClassHierarchyError) {
+        diagnosticReporter.report(
+          diag.conflictingGenericInterfaces
+              .withArguments(
+                kind: element.kind.displayName,
+                element: element.name!,
+                type1: error.first.getDisplayString(),
+                type2: error.second.getDisplayString(),
+              )
+              .at(nameToken),
+        );
+      } else {
+        throw UnimplementedError('${error.runtimeType}');
+      }
+    }
+  }
+
+  /// Within [enclosingElement], check that [declaration] has a valid combination
+  /// of redirecting constructor invocation(s), super constructor invocation(s),
+  /// field initializers, and assert initializers.
+  void _checkForConflictingInitializerErrorCodes(
+    InterfaceElementImpl enclosingElement,
+    ConstructorDeclaration2 declaration,
+  ) {
+    var element = declaration.declaredFragment!.element;
+
+    // Count and check each redirecting initializer.
+    var redirectingInitializerCount = 0;
+    var superInitializerCount = 0;
+    late SuperConstructorInvocation superInitializer;
+    for (ConstructorInitializer initializer in declaration.initializers) {
+      if (initializer case RedirectingConstructorInvocation invocation) {
+        if (redirectingInitializerCount > 0) {
+          diagnosticReporter.report(
+            diag.multipleRedirectingConstructorInvocations.at(invocation),
+          );
+        }
+        if (declaration.factoryKeyword == null) {
+          var redirectingElement = invocation.element;
+          if (redirectingElement == null) {
+            String enclosingNamedType = enclosingElement.displayName;
+            String constructorStrName = enclosingNamedType;
+            if (invocation.constructorSelector case var selector?) {
+              constructorStrName += ".${selector.name2.lexeme}";
+            }
+            diagnosticReporter.report(
+              diag.redirectGenerativeToMissingConstructor
+                  .withArguments(
+                    constructorName: constructorStrName,
+                    className: enclosingNamedType,
+                  )
+                  .at(invocation),
+            );
+          } else {
+            if (redirectingElement.isFactory) {
+              diagnosticReporter.report(
+                diag.redirectGenerativeToNonGenerativeConstructor.at(
+                  invocation,
+                ),
+              );
+            }
+          }
+        }
+        // [declaration] is a redirecting constructor via a redirecting
+        // initializer.
+        _checkForRedirectToNonConstConstructor(
+          element,
+          invocation.element,
+          invocation.constructorSelector?.name2 ?? invocation.thisKeyword,
+        );
+        redirectingInitializerCount++;
+      } else if (initializer is SuperConstructorInvocation) {
+        if (enclosingElement is EnumElement) {
+          diagnosticReporter.report(
+            diag.superInEnumConstructor.at(initializer.superKeyword),
+          );
+        } else if (superInitializerCount == 1) {
+          // Only report the second (first illegal) superinitializer.
+          diagnosticReporter.report(
+            diag.multipleSuperInitializers.at(initializer),
+          );
+        }
+        superInitializer = initializer;
+        superInitializerCount++;
+      }
+    }
+    // Check for initializers which are illegal when alongside a redirecting
+    // initializer.
+    if (redirectingInitializerCount > 0) {
+      for (ConstructorInitializer initializer in declaration.initializers) {
+        if (initializer is SuperConstructorInvocation) {
+          if (enclosingElement is! EnumElement) {
+            diagnosticReporter.report(
+              diag.superInRedirectingConstructor.at(initializer),
+            );
+          }
+        }
+        if (initializer is ConstructorFieldInitializer) {
+          diagnosticReporter.report(
+            diag.fieldInitializerRedirectingConstructor.at(initializer),
+          );
+        }
+        if (initializer is AssertInitializer) {
+          diagnosticReporter.report(
+            diag.assertInRedirectingConstructor.at(initializer),
+          );
+        }
+      }
+    }
+    if (enclosingElement is! EnumElement &&
+        redirectingInitializerCount == 0 &&
+        superInitializerCount == 1 &&
+        superInitializer != declaration.initializers.last) {
+      var superType = enclosingElement.supertype;
+      if (superType != null) {
+        diagnosticReporter.report(
+          diag.superInvocationNotLast.at(superInitializer.superKeyword),
+        );
+      }
+    }
+  }
+
+  /// Check that the given primary constructor [body] has a valid combination of
+  /// redirecting constructor invocation(s) and super constructor invocation(s).
+  void _checkForConflictingPrimaryConstructorInitializers(
+    PrimaryConstructorBody2Impl body,
+  ) {
+    var redirectingConstructorInvocations = body.initializers
+        .whereType<RedirectingConstructorInvocationImpl>()
+        .toList();
+    if (redirectingConstructorInvocations.isNotEmpty) {
+      for (var invocation in redirectingConstructorInvocations) {
+        diagnosticReporter.report(
+          diag.primaryConstructorCannotRedirect.at(invocation.thisKeyword),
+        );
+      }
+      return;
+    }
+
+    var superConstructorInvocations = body.initializers
+        .whereType<SuperConstructorInvocationImpl>()
+        .toList();
+    if (_enclosingInstanceElement is ClassElementImpl) {
+      if (superConstructorInvocations case [_, var second, ...]) {
+        diagnosticReporter.report(
+          diag.multipleSuperInitializers.at(second.superKeyword),
+        );
+        return;
+      }
+    } else if (_enclosingInstanceElement is EnumElementImpl) {
+      if (superConstructorInvocations case [var first, ...]) {
+        diagnosticReporter.report(
+          diag.superInEnumConstructor.at(first.superKeyword),
+        );
+        return;
+      }
+    }
+
+    var superConstructorInvocation = superConstructorInvocations.lastOrNull;
+    if (superConstructorInvocation != null &&
+        body.initializers.last != superConstructorInvocation) {
+      diagnosticReporter.report(
+        diag.superInvocationNotLast.at(superConstructorInvocation.superKeyword),
+      );
+    }
+  }
+
+  /// Verify that if the given [element] is 'const' constructor, then there are
+  /// no invocations of non-'const' super constructors, and that there are no
+  /// instance variables mixed in.
+  ///
+  /// Return `true` if an error is reported here, and the caller should stop
+  /// checking the constructor for constant-related errors.
+  ///
+  /// See [diag.constConstructorWithNonConstSuper], and
+  /// [diag.constConstructorWithMixinWithField].
+  bool _checkForConstConstructorWithNonConstSuper({
+    required ConstructorElement element,
+    required Token? factoryKeyword,
+    required List<ConstructorInitializer>? initializers,
+    required SourceRange implicitErrorRange,
+  }) {
+    var enclosingElement = element.enclosingElement;
+    if (!element.isConst) {
+      return false;
+    }
+
+    // OK, const factory, checked elsewhere
+    if (factoryKeyword != null) {
+      return false;
+    }
+
+    // check for mixins
+    var instanceFields = <FieldElement>[];
+    for (var mixin in enclosingElement.mixins) {
+      instanceFields.addAll(
+        mixin.element.fields.where((field) {
+          if (field.isStatic) {
+            return false;
+          }
+          if (field.isOriginGetterSetter) {
+            return false;
+          }
+          // From the abstract and external fields specification:
+          // > An abstract instance variable declaration D is treated as an
+          // > abstract getter declaration and possibly an abstract setter
+          // > declaration. The setter is included if and only if D is non-final.
+          if (field.isAbstract && field.isFinal) {
+            return false;
+          }
+          return true;
+        }),
+      );
+    }
+
+    String fieldName(FieldElement field) {
+      return "'${field.enclosingElement.name}.${field.name}'";
+    }
+
+    if (instanceFields.length == 1) {
+      var field = instanceFields.single;
+      diagnosticReporter.report(
+        diag.constConstructorWithMixinWithField
+            .withArguments(fieldName: fieldName(field))
+            .atSourceRange(implicitErrorRange),
+      );
+      return true;
+    } else if (instanceFields.length > 1) {
+      var fieldNames = instanceFields.map(fieldName).join(', ');
+      diagnosticReporter.report(
+        diag.constConstructorWithMixinWithFields
+            .withArguments(fieldNames: fieldNames)
+            .atSourceRange(implicitErrorRange),
+      );
+      return true;
+    }
+
+    // Enum(s) always call a const super-constructor.
+    if (enclosingElement is EnumElement) {
+      return false;
+    }
+
+    // Redirecting constructors are checked to be const elsewhere.
+    if (element.redirectedConstructor != null) {
+      return false;
+    }
+
+    var invokedSuper = element.superConstructor;
+    if (invokedSuper == null || invokedSuper.isConst) {
+      return false;
+    }
+
+    // Often there is an explicit `super()` invocation, report on it.
+    var superInvocation = initializers
+        ?.whereType<SuperConstructorInvocation>()
+        .firstOrNull;
+    var errorRange = superInvocation?.sourceRange ?? implicitErrorRange;
+    diagnosticReporter.report(
+      diag.constConstructorWithNonConstSuper
+          .withArguments(
+            superclassName: invokedSuper.enclosingElement.displayName,
+          )
+          .atSourceRange(errorRange),
+    );
+    return true;
+  }
+
+  /// Verify that if the given [constructorElement] is 'const' then there
+  /// are no non-final instance variable.
+  void _checkForConstConstructorWithNonFinalField({
+    required ConstructorElement constructorElement,
+    required SourceRange errorRange,
+  }) {
+    if (!constructorElement.isConst) {
+      return;
+    }
+    if (!constructorElement.isGenerative) {
+      return;
+    }
+    // check if there is non-final field
+    var classElement = constructorElement.enclosingElement;
+    if (classElement is! ClassElement || !classElement.hasNonFinalField) {
+      return;
+    }
+    diagnosticReporter.report(
+      diag.constConstructorWithNonFinalField.atSourceRange(errorRange),
+    );
+  }
+
+  /// Verify that the given 'const' constructor invocation [expression] is not
+  /// creating a deferred type. The [constructorReference] identifies the
+  /// constructor, and the [typeReference] identifies its declaring type.
+  ///
+  /// See [diag.constDeferredClass].
+  void _checkForConstDeferredClass(
+    ConstructorInvocation expression,
+    ConstructorReference2 constructorReference,
+    ConstructorTypeReference typeReference,
+  ) {
+    var prefixElement = typeReference.importPrefix?.element;
+    if (prefixElement is PrefixElementImpl && prefixElement.isDeferred) {
+      diagnosticReporter.report(
+        diag.constDeferredClass.at(constructorReference),
+      );
+    }
+  }
+
+  /// Verify that the given throw [expression] is not enclosed in a 'const'
+  /// constructor declaration.
+  ///
+  /// See [diag.constConstructorThrowsException].
+  void _checkForConstEvalThrowsException(ThrowExpression expression) {
+    if (_enclosingExecutable.isConstConstructor) {
+      diagnosticReporter.report(
+        diag.constConstructorThrowsException.at(expression),
+      );
+    }
+  }
+
+  /// Verify that [type], constructed by [expression], is not an abstract class.
+  /// The [typeNode] is the AST node where the diagnostic is reported.
+  void _checkForConstOrNewWithAbstractClass(
+    InterfaceType type,
+    ConstructorInvocation expression,
+    AstNode typeNode,
+  ) {
+    var element = type.element;
+    if (element is ClassElement && element.isAbstract) {
+      var constructorElement = expression.constructorReference.element;
+      if (constructorElement != null && !constructorElement.isFactory) {
+        diagnosticReporter.report(diag.instantiateAbstractClass.at(typeNode));
+      }
+    }
+  }
+
+  /// Verify that [type], instantiated by [expression], is not a mixin. The
+  /// [typeNode] is the AST node where the diagnostic is reported.
+  void _checkForConstOrNewWithMixin(
+    InterfaceType type,
+    ConstructorInvocation expression,
+    AstNode typeNode,
+  ) {
+    if (type.element is MixinElement) {
+      diagnosticReporter.report(diag.mixinInstantiate.at(typeNode));
+    }
+  }
+
+  void _checkForConstructorAugmentationModifierMismatch(
+    ConstructorDeclaration2Impl node,
+    ConstructorFragmentImpl declaredFragment,
+  ) {
+    var element = declaredFragment.element;
+
+    var augmentKeyword = node.augmentKeyword;
+    if (augmentKeyword == null) {
+      return;
+    }
+
+    var firstFragment = element.firstFragment;
+    if (identical(declaredFragment, firstFragment)) {
+      return;
+    }
+
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isConst,
+      inIntroductory: firstFragment.isConst,
+      modifierToken: node.constKeyword,
+      modifierName: 'const',
+    );
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isFactory,
+      inIntroductory: firstFragment.isFactory,
+      modifierToken: node.factoryKeyword,
+      modifierName: 'factory',
+    );
+  }
+
+  bool _checkForConstVariableAugmentation({
+    required PropertyInducingFragmentImpl fragment,
+    required Token errorToken,
+  }) {
+    if (!fragment.isAugmentation) {
+      return false;
+    }
+
+    if (fragment.isConst) {
+      diagnosticReporter.report(
+        diag.constantVariableAugmentation.at(errorToken),
+      );
+      return true;
+    }
+
+    if (fragment.element.firstFragment.isConst) {
+      diagnosticReporter.report(diag.augmentsConstantVariable.at(errorToken));
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _checkForConstVariableAugmentationByAccessor({
+    required ExecutableFragmentImpl fragment,
+    required Token errorToken,
+  }) {
+    if (fragment is! PropertyAccessorFragmentImpl || !fragment.isAugmentation) {
+      return false;
+    }
+
+    if (!fragment.element.variable.firstFragment.isConst) {
+      return false;
+    }
+
+    diagnosticReporter.report(diag.augmentsConstantVariable.at(errorToken));
+    return true;
+  }
+
+  /// Verify that [constructorElement], invoked by the 'const' constructor
+  /// invocation [expression], is 'const'. The [keyword] is the token where the
+  /// diagnostic is reported, if it is non-`null`.
+  ///
+  /// This method assumes that the constructor invocation or dot shorthand
+  /// constructor invocation was tested to be 'const' before being called.
+  ///
+  /// See [diag.constWithNonConst].
+  void _checkForConstWithNonConst(
+    ConstructorElement? constructorElement,
+    Expression expression,
+    Token? keyword,
+  ) {
+    if (constructorElement != null && !constructorElement.isConst) {
+      if (keyword != null) {
+        diagnosticReporter.report(diag.constWithNonConst.at(keyword));
+      } else {
+        diagnosticReporter.report(diag.constWithNonConst.at(expression));
+      }
+    }
+  }
+
+  /// Verify that the given 'const' constructor invocation [expression] resolves
+  /// to a constructor. The [constructorReference] identifies the constructor,
+  /// and the [typeReference] identifies its declaring type.
+  ///
+  /// This method assumes that the constructor invocation was tested to be 'const'
+  /// before being called.
+  ///
+  /// See [diag.constWithUndefinedConstructor], and
+  /// [diag.constWithUndefinedConstructorDefault].
+  void _checkForConstWithUndefinedConstructor(
+    ConstructorInvocation expression,
+    ConstructorReference2 constructorReference,
+    ConstructorTypeReference typeReference,
+  ) {
+    // OK if resolved
+    if (constructorReference.element != null) {
+      return;
+    }
+    // report as named or default constructor absence
+    var selector = constructorReference.selector;
+    // The parser has already reported the missing name.
+    if (selector != null && selector.name2.isSynthetic) {
+      return;
+    }
+    var className = [
+      if (typeReference.importPrefix case var prefix?) prefix.name.lexeme,
+      typeReference.name.lexeme,
+    ].join('.');
+    if (selector != null) {
+      diagnosticReporter.report(
+        diag.constWithUndefinedConstructor
+            .withArguments(
+              className: className,
+              constructorName: selector.name2.lexeme,
+            )
+            .at(selector.name2),
+      );
+    } else {
+      diagnosticReporter.report(
+        diag.constWithUndefinedConstructorDefault
+            .withArguments(className: className)
+            .at(constructorReference),
+      );
+    }
+  }
+
+  void _checkForDeadNullCoalesce(TypeImpl lhsType, Expression rhs) {
+    if (typeSystem.isStrictlyNonNullable(lhsType)) {
+      diagnosticReporter.report(diag.deadNullAwareExpression.at(rhs));
+    }
+  }
+
+  void _checkForDefaultValueAlreadySpecifiedInAugmentationChain(
+    FormalParameter formalParameter,
+  ) {
+    if (!formalParameter.isOptional) {
+      return;
+    }
+
+    var defaultClause = formalParameter.defaultClause;
+    if (defaultClause == null) {
+      return;
+    }
+
+    var fragment = formalParameter.declaredFragment;
+    if (fragment is! FormalParameterFragmentImpl) {
+      return;
+    }
+
+    for (var previousFragment in fragment.precedingFragments) {
+      if (previousFragment.constantInitializer2 != null) {
+        diagnosticReporter.report(
+          diag.defaultValueAlreadySpecifiedInAugmentationChain
+              .withContextMessages([
+                ?previousFragment.contextMessageAt(
+                  "The previous formal parameter with default value is here.",
+                ),
+              ])
+              .at(defaultClause.separator),
+        );
+        return;
+      }
+    }
+  }
+
+  void _checkForDefaultValueAssignableAtType(FormalParameter node) {
+    var element = node.declaredFragment!.element;
+
+    if (node.defaultClause case var defaultClause?) {
+      var defaultValue = defaultClause.value2;
+      checkForAssignableExpressionAtType(
+        defaultValue,
+        defaultValue.typeOrThrow,
+        element.type as TypeImpl,
+        const NonAssignabilityReporterForAssignment(),
+      );
+    }
+  }
+
+  void _checkForDefaultValueInRedirectingFactoryConstructor(
+    FormalParameter formalParameter,
+  ) {
+    if (!formalParameter.isOptional) {
+      return;
+    }
+
+    var defaultClause = formalParameter.defaultClause;
+    if (defaultClause == null) {
+      return;
+    }
+
+    var fragment = formalParameter.declaredFragment;
+    if (fragment is! FormalParameterFragmentImpl) {
+      return;
+    }
+    var element = fragment.element;
+
+    var enclosingFragment = fragment.enclosingFragment;
+    if (enclosingFragment is! ConstructorFragmentImpl) {
+      return;
+    }
+
+    var constructorElement = enclosingFragment.element;
+    if (!(constructorElement.isFactory && constructorElement.isRedirecting)) {
+      return;
+    }
+
+    // More than one complete constructor fragment is reported separately.
+    if (constructorElement.fragments.where((f) => f.isComplete).length > 1) {
+      return;
+    }
+
+    // More than one default value is reported separately.
+    var defaultValueFragments = element.fragments.where((fragment) {
+      return fragment.constantInitializer2 != null;
+    }).toList();
+    if (defaultValueFragments.length != 1) {
+      return;
+    }
+
+    var redirectingFactoryFragment = constructorElement.fragments.firstWhere(
+      (fragment) => fragment.isFactory && fragment.isRedirecting,
+    );
+
+    diagnosticReporter.report(
+      diag.defaultValueInRedirectingFactoryConstructor
+          .withContextMessages([
+            if (redirectingFactoryFragment != enclosingFragment)
+              ?redirectingFactoryFragment.contextMessageAt(
+                "The redirecting factory is here.",
+              ),
+          ])
+          .at(defaultClause.separator),
+    );
+  }
+
+  /// Report if [importElement] exposes any extensions that are not hidden. The
+  /// diagnostic is reported on [directive].
+  void _checkForDeferredImportOfExtensions(
+    LibraryImport importElement,
+    ImportDirective directive,
+  ) {
+    for (var element in importElement.namespace.definedNames2.values) {
+      if (element is ExtensionElement) {
+        diagnosticReporter.report(
+          diag.deferredImportOfExtension.at(directive.uri),
+        );
+        return;
+      }
+    }
+  }
+
+  /// Verify that any deferred imports in the given compilation [unit] have a
+  /// unique prefix.
+  ///
+  /// See [diag.sharedDeferredPrefix].
+  void _checkForDeferredPrefixCollisions(CompilationUnit unit) {
+    NodeList<Directive> directives = unit.directives;
+    int count = directives.length;
+    if (count > 0) {
+      var prefixToDirectivesMap = <PrefixElement, List<ImportDirective>>{};
+      for (int i = 0; i < count; i++) {
+        Directive directive = directives[i];
+        if (directive is ImportDirective) {
+          var element = directive.libraryImport?.prefix?.element;
+          if (element != null) {
+            var elements = prefixToDirectivesMap[element];
+            if (elements == null) {
+              elements = <ImportDirective>[];
+              prefixToDirectivesMap[element] = elements;
+            }
+            elements.add(directive);
+          }
+        }
+      }
+      for (List<ImportDirective> imports in prefixToDirectivesMap.values) {
+        _checkDeferredPrefixCollision(imports);
+      }
+    }
+  }
+
+  /// Check [variableElement] and the enclosing for-each [node].
+  ///
+  /// Return `true` if the caller should continue checking the rest of [node].
+  bool _checkForEachParts(Element? variableElement, ForEachParts node) {
+    if (checkForUseOfVoidResult(node.iterable2)) {
+      return false;
+    }
+
+    var iterableType = node.iterable2.typeOrThrow;
+
+    Token? awaitKeyword;
+    var parent = node.parent2;
+    if (parent is ForStatement) {
+      awaitKeyword = parent.awaitKeyword;
+    } else if (parent is ForElement) {
+      awaitKeyword = parent.awaitKeyword;
+    }
+
+    // Use an explicit string instead of [loopType] to remove the "<E>".
+    String loopNamedType = awaitKeyword != null ? 'Stream' : 'Iterable';
+
+    if (iterableType is DynamicType && strictCasts) {
+      diagnosticReporter.report(
+        diag.forInOfInvalidType
+            .withArguments(
+              expressionType: iterableType,
+              expectedType: loopNamedType,
+            )
+            .at(node.iterable2),
+      );
+      return false;
+    }
+
+    // TODO(scheglov): use NullableDereferenceVerifier
+    if (typeSystem.isNullable(iterableType)) {
+      return false;
+    }
+
+    // The type of the loop variable.
+    TypeImpl variableType;
+    if (variableElement is VariableElementImpl) {
+      variableType = variableElement.type;
+    } else {
+      return false;
+    }
+
+    // The object being iterated has to implement Iterable<T> for some T that
+    // is assignable to the variable's type.
+    // TODO(rnystrom): Move this into mostSpecificTypeArgument()?
+    iterableType = typeSystem.resolveToBound(iterableType);
+
+    var requiredSequenceType = awaitKeyword != null
+        ? _typeProvider.streamDynamicType
+        : _typeProvider.iterableDynamicType;
+
+    if (typeSystem.isTop(iterableType)) {
+      iterableType = requiredSequenceType;
+    }
+
+    if (!typeSystem.isAssignableTo(
+      iterableType,
+      requiredSequenceType,
+      strictCasts: strictCasts,
+    )) {
+      diagnosticReporter.report(
+        diag.forInOfInvalidType
+            .withArguments(
+              expressionType: iterableType,
+              expectedType: loopNamedType,
+            )
+            .at(node.iterable2),
+      );
+      return false;
+    }
+
+    TypeImpl? sequenceElementType;
+    {
+      var sequenceElement = awaitKeyword != null
+          ? _typeProvider.streamElement
+          : _typeProvider.iterableElement;
+      var sequenceType = iterableType.asInstanceOf(sequenceElement);
+      if (sequenceType != null) {
+        sequenceElementType = sequenceType.typeArguments[0];
+      }
+    }
+
+    if (sequenceElementType == null) {
+      return true;
+    }
+
+    // The element value is implicitly assigned to the loop variable. If the
+    // element type is `void`, the value can only be discarded into a `void`
+    // loop variable.
+    if (sequenceElementType is VoidType && variableType is! VoidType) {
+      diagnosticReporter.report(diag.useOfVoidResult.at(node.iterable2));
+      return false;
+    }
+
+    if (!typeSystem.isAssignableTo(
+      sequenceElementType,
+      variableType,
+      strictCasts: strictCasts,
+    )) {
+      // Use an explicit string instead of [loopType] to remove the "<E>".
+      String loopNamedType = awaitKeyword != null ? 'Stream' : 'Iterable';
+
+      // A for-in loop is specified to desugar to a different set of statements
+      // which include an assignment of the sequence element's `iterator`'s
+      // `current` value, at which point "implicit tear-off conversion" may be
+      // performed. We do not perform this desugaring; instead we allow a
+      // special assignability here.
+      var implicitCallMethod = getImplicitCallMethod(
+        sequenceElementType,
+        variableType,
+        node.iterable2,
+      );
+      if (implicitCallMethod == null) {
+        diagnosticReporter.report(
+          diag.forInOfInvalidElementType
+              .withArguments(
+                iterableType: iterableType,
+                expectedTypeName: loopNamedType,
+                loopVariableType: variableType,
+              )
+              .at(node.iterable2),
+        );
+      } else {
+        var tearoffType = implicitCallMethod.type;
+        // An implicit tear-off conversion does occur on the values of the
+        // iterator, but this does not guarantee their assignability.
+
+        if (_featureSet.isEnabled(Feature.constructor_tearoffs)) {
+          var typeArguments = typeSystem.inferFunctionTypeInstantiation(
+            variableType as FunctionTypeImpl,
+            tearoffType,
+            diagnosticReporter: diagnosticReporter,
+            expression: node.iterable2,
+            genericMetadataIsEnabled: true,
+            inferenceUsingBoundsIsEnabled: _featureSet.isEnabled(
+              Feature.inference_using_bounds,
+            ),
+            strictInference: options.strictInference,
+            strictCasts: options.strictCasts,
+            typeSystemOperations: typeSystemOperations,
+            dataForTesting: null,
+            nodeForTesting: null,
+          );
+          if (typeArguments.isNotEmpty) {
+            tearoffType = tearoffType.instantiate(typeArguments);
+          }
+        }
+
+        if (!typeSystem.isAssignableTo(
+          tearoffType,
+          variableType,
+          strictCasts: strictCasts,
+        )) {
+          diagnosticReporter.report(
+            diag.forInOfInvalidElementType
+                .withArguments(
+                  iterableType: iterableType,
+                  expectedTypeName: loopNamedType,
+                  loopVariableType: variableType,
+                )
+                .at(node.iterable2),
+          );
+        }
+      }
+    }
+
+    return true;
+  }
+
+  void _checkForEnumInstantiatedToBoundsIsNotWellBounded(
+    EnumDeclaration2 node,
+    EnumElementImpl element,
+  ) {
+    var valuesFieldType = element.valuesField?.type;
+    if (valuesFieldType is InterfaceTypeImpl) {
+      var isWellBounded = typeSystem.isWellBounded(
+        valuesFieldType.typeArguments.single,
+        allowSuperBounded: true,
+      );
+      if (isWellBounded is NotWellBoundedTypeResult) {
+        diagnosticReporter.report(
+          diag.enumInstantiatedToBoundsIsNotWellBounded.at(
+            node.namePart.typeName,
+          ),
+        );
+      }
+    }
+  }
+
+  void _checkForEnumWithNameValues(EnumDeclaration2Impl node) {
+    if (node.namePart.typeName.lexeme == 'values') {
+      diagnosticReporter.report(
+        diag.enumWithNameValues.at(node.namePart.typeName),
+      );
+    }
+  }
+
+  /// Check that [libraryExport], represented by [directive], does not export an
+  /// internal SDK library when the visiting library is not a system library.
+  ///
+  /// See [diag.exportInternalLibrary].
+  void _checkForExportInternalLibrary(
+    ExportDirective directive,
+    LibraryExport libraryExport,
+  ) {
+    if (_isInSystemLibrary) {
+      return;
+    }
+
+    var exportedLibrary = libraryExport.exportedLibrary;
+    if (exportedLibrary == null) {
+      return;
+    }
+
+    // should be private
+    if (!(exportedLibrary as LibraryElementImpl).isInternalSdkLibrary) {
+      return;
+    }
+
+    // It is safe to assume that `directive.uri.stringValue` is non-`null`,
+    // because the only time it is `null` is if the URI contains a string
+    // interpolation, in which case the export would never have resolved in the
+    // first place.
+    diagnosticReporter.report(
+      diag.exportInternalLibrary
+          .withArguments(uri: directive.uri.stringValue!)
+          .at(directive),
+    );
+  }
+
+  /// Verifies that the given [superclass], found in an extends-clause, is not a
+  /// deferred class.
+  ///
+  /// See [diag.extendsDeferredClass].
+  void _checkForExtendsDeferredClass(NamedType? superclass) {
+    if (superclass == null) {
+      return;
+    }
+    _checkForExtendsOrImplementsDeferredClass(
+      superclass,
+      diag.extendsDeferredClass,
+    );
+  }
+
+  /// Verifies that the given [superclass], found in an extends-clause, is not a
+  /// class such as 'num' or 'String'.
+  ///
+  /// See [diag.extendsDisallowedClass].
+  bool _checkForExtendsDisallowedClass(NamedType? superclass) {
+    if (superclass == null) {
+      return false;
+    }
+    return _checkForExtendsOrImplementsDisallowedClass(superclass);
+  }
+
+  /// Verify that the given [namedType] does not extend, implement or mixin
+  /// classes that are deferred.
+  ///
+  /// See [_checkForExtendsDeferredClass],
+  /// [_checkForAllMixinErrorCodes],
+  /// [diag.extendsDeferredClass],
+  /// [diag.implementsDeferredClass], and
+  /// [diag.mixinDeferredClass].
+  bool _checkForExtendsOrImplementsDeferredClass(
+    NamedType namedType,
+    LocatableDiagnostic locatableDiagnostic,
+  ) {
+    if (namedType.isSynthetic) {
+      return false;
+    }
+    if (namedType.isDeferred) {
+      diagnosticReporter.report(locatableDiagnostic.at(namedType));
+      return true;
+    }
+    return false;
+  }
+
+  /// Verify that the given [namedType] does not extend, implement or mixin
+  /// classes such as 'num' or 'String'.
+  ///
+  // TODO(scheglov): Remove this method, when all inheritance / override
+  // is concentrated. We keep it for now only because we need to know when
+  // inheritance is completely wrong, so that we don't need to check anything
+  // else.
+  bool _checkForExtendsOrImplementsDisallowedClass(NamedType namedType) {
+    if (namedType.isSynthetic) {
+      return false;
+    }
+    // The SDK implementation may implement disallowed types. For example,
+    // JSNumber in dart2js and _Smi in Dart VM both implement int.
+    if (_currentLibrary.uri.isScheme('dart')) {
+      return false;
+    }
+    var type = namedType.type;
+    return type is InterfaceType &&
+        _typeProvider.isNonSubtypableClass(type.element);
+  }
+
+  void _checkForExtensionDeclaresAbstractMember(
+    MethodDeclarationV1OriginImpl node,
+  ) {
+    if (_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    if (_enclosingInstanceElement is! ExtensionElementImpl) {
+      return;
+    }
+
+    // Static members without bodies are already reported by the parser.
+    if (node.staticKeyword != null) {
+      return;
+    }
+
+    if (!node.isComplete) {
+      diagnosticReporter.report(
+        diag.extensionDeclaresAbstractMember.at(node.nameToken),
+      );
+    }
+  }
+
+  void _checkForExtensionDeclaresInstanceField(FieldsDeclarationImpl node) {
+    if (node.parent2?.parent2 is! ExtensionDeclaration2) {
+      return;
+    }
+
+    if (node.staticKeyword != null ||
+        node.externalKeyword != null ||
+        node.isAbstractWhenAugmentationsEnabled(_featureSet)) {
+      return;
+    }
+
+    for (var field in node.fields) {
+      diagnosticReporter.report(
+        diag.extensionDeclaresInstanceField.at(field.name),
+      );
+    }
+  }
+
+  void _checkForExtensionDeclaresMemberOfObject(
+    MethodDeclarationV1OriginImpl node,
+  ) {
+    if (_enclosingInstanceElement is ExtensionElementImpl) {
+      if (_typeProvider.isObjectMember(node.nameToken.lexeme)) {
+        diagnosticReporter.report(
+          diag.extensionDeclaresMemberOfObject.at(node.nameToken),
+        );
+      }
+    }
+
+    if (_enclosingInstanceElement is ExtensionTypeElement) {
+      if (_typeProvider.isObjectMember(node.nameToken.lexeme)) {
+        diagnosticReporter.report(
+          diag.extensionTypeDeclaresMemberOfObject.at(node.nameToken),
+        );
+      }
+    }
+  }
+
+  void _checkForExtensionTypeConstructorWithSuperInvocation(
+    SuperConstructorInvocation node,
+  ) {
+    if (_enclosingInstanceElement is ExtensionTypeElement) {
+      diagnosticReporter.report(
+        diag.extensionTypeConstructorWithSuperInvocation.at(node.superKeyword),
+      );
+    }
+  }
+
+  void _checkForExtensionTypeDeclaresInstanceField(FieldsDeclarationImpl node) {
+    if (_enclosingInstanceElement is! ExtensionTypeElement) {
+      return;
+    }
+
+    if (node.staticKeyword != null ||
+        node.externalKeyword != null ||
+        node.isAbstractWhenAugmentationsEnabled(_featureSet)) {
+      return;
+    }
+
+    for (var field in node.fields) {
+      diagnosticReporter.report(
+        diag.extensionTypeDeclaresInstanceField.at(field.name),
+      );
+    }
+  }
+
+  void _checkForExtensionTypeImplementsDeferred(
+    ExtensionTypeDeclaration2Impl node,
+  ) {
+    var clause = node.implementsClause;
+    if (clause == null) {
+      return;
+    }
+
+    for (var type in clause.interfaces) {
+      _checkForExtendsOrImplementsDeferredClass(
+        type,
+        diag.implementsDeferredClass,
+      );
+    }
+  }
+
+  void _checkForExtensionTypeImplementsItself(
+    ExtensionTypeDeclaration2Impl node,
+    ExtensionTypeFragmentImpl fragment,
+  ) {
+    if (fragment.element.hasImplementsSelfReference) {
+      diagnosticReporter.report(
+        diag.extensionTypeImplementsItself.at(node.namePart.typeName),
+      );
+    }
+  }
+
+  void _checkForExtensionTypeMemberConflicts({
+    required ExtensionTypeDeclaration2 node,
+    required ExtensionTypeElementImpl element,
+  }) {
+    void report(String memberName, List<InternalExecutableElement> candidates) {
+      var contextMessages = [
+        for (var executable in candidates)
+          ?executable.contextMessageAt(
+            "Inherited from '${executable.enclosingElement!.name}'",
+          ),
+      ];
+      diagnosticReporter.report(
+        diag.extensionTypeInheritedMemberConflict
+            .withArguments(
+              extensionTypeName: node.namePart.typeName.lexeme,
+              memberName: memberName,
+            )
+            .withContextMessages(contextMessages)
+            .at(node.namePart.typeName),
+      );
+    }
+
+    var interface = _inheritanceManager.getInterface(element);
+    for (var conflict in interface.conflicts) {
+      switch (conflict) {
+        case CandidatesConflict _:
+          report(conflict.name.name, conflict.candidates);
+        case HasNonExtensionAndExtensionMemberConflict _:
+          report(conflict.name.name, [
+            ...conflict.nonExtension,
+            ...conflict.extension,
+          ]);
+        case NotUniqueExtensionMemberConflict _:
+          report(conflict.name.name, conflict.candidates);
+      }
+    }
+  }
+
+  void _checkForExtensionTypeRepresentationDependsOnItself(
+    ExtensionTypeDeclaration2Impl node,
+    ExtensionTypeFragmentImpl fragment,
+  ) {
+    if (fragment.element.hasRepresentationSelfReference) {
+      diagnosticReporter.report(
+        diag.extensionTypeRepresentationDependsOnItself.at(
+          node.namePart.typeName,
+        ),
+      );
+    }
+  }
+
+  void _checkForExtensionTypeRepresentationErrorCodes(
+    ExtensionTypeDeclaration2Impl node,
+  ) {
+    var primaryConstructor = node.namePart;
+    if (primaryConstructor is! PrimaryConstructorDeclarationImpl) {
+      return;
+    }
+
+    var formalParameterList = primaryConstructor.formalParameters;
+    var formalParameters = formalParameterList.allFormalParameters;
+
+    if (formalParameters.isEmpty) {
+      diagnosticReporter.report(
+        diag.expectedRepresentationField.at(
+          formalParameterList.leftParenthesis.next!,
+        ),
+      );
+      return;
+    }
+
+    var first = formalParameters.first;
+    var inner = first;
+
+    if (formalParameters.length > 1) {
+      diagnosticReporter.report(
+        diag.multipleRepresentationFields.at(first.endToken.next!),
+      );
+      return;
+    }
+
+    if (inner is FieldFormalParameterImpl) {
+      diagnosticReporter.report(
+        diag.expectedRepresentationField.at(inner.thisKeyword),
+      );
+      return;
+    }
+
+    if (inner is SuperFormalParameterImpl) {
+      diagnosticReporter.report(
+        diag.expectedRepresentationField.at(inner.superKeyword),
+      );
+      return;
+    }
+
+    var nameToken = inner.name;
+    if (nameToken == null) {
+      diagnosticReporter.report(diag.expectedRepresentationField.at(inner));
+      return;
+    }
+
+    if (nameToken.lexeme == primaryConstructor.typeName.lexeme) {
+      diagnosticReporter.report(diag.memberWithClassName.at(nameToken));
+    }
+
+    if (_typeProvider.isObjectMember(nameToken.lexeme)) {
+      diagnosticReporter.report(
+        diag.extensionTypeDeclaresMemberOfObject.at(nameToken),
+      );
+    }
+
+    if (_featureSet.isEnabled(Feature.primary_constructors)) {
+      if (inner is RegularFormalParameterImpl) {
+        var keyword = inner.constFinalOrVarKeyword;
+        if (keyword != null) {
+          if (keyword.keyword == Keyword.VAR) {
+            diagnosticReporter.report(
+              diag.representationFieldModifier.at(keyword),
+            );
+          }
+        }
+      }
+    } else {
+      if (formalParameterList.delimitedFormalParameters?.leftDelimiter
+          case var leftDelimiter?) {
+        diagnosticReporter.report(
+          diag.expectedRepresentationField.at(leftDelimiter),
+        );
+        return;
+      }
+
+      if (inner.functionTypedSuffix != null) {
+        diagnosticReporter.report(
+          diag.expectedRepresentationField.at(inner.beginToken),
+        );
+        return;
+      }
+
+      if (inner is RegularFormalParameterImpl) {
+        var keyword = inner.constFinalOrVarKeyword;
+        if (keyword != null) {
+          if (keyword.keyword == Keyword.FINAL ||
+              keyword.keyword == Keyword.VAR) {
+            diagnosticReporter.report(
+              diag.representationFieldModifier.at(keyword),
+            );
+          }
+        }
+        if (inner.type == null) {
+          diagnosticReporter.report(
+            diag.expectedRepresentationType.at(nameToken),
+          );
+        }
+      }
+
+      if (first.endToken.next case var maybeComma?) {
+        if (maybeComma.type == TokenType.COMMA) {
+          diagnosticReporter.report(
+            diag.representationFieldTrailingComma.at(maybeComma),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkForExtensionTypeRepresentationTypeBottom(
+    ExtensionTypeDeclaration2Impl node,
+    ExtensionTypeFragmentImpl fragment,
+  ) {
+    var element = fragment.element;
+    var representationType = element.representation.type;
+    if (representationType.isBottom) {
+      var representationFormal = node.representationFormalParameter;
+      var representationTypeNode = representationFormal?.type;
+      if (representationTypeNode != null) {
+        diagnosticReporter.report(
+          diag.extensionTypeRepresentationTypeBottom.at(representationTypeNode),
+        );
+      }
+    }
+  }
+
+  void _checkForExtensionTypeWithAbstractMember(
+    ExtensionTypeDeclaration2Impl node,
+  ) {
+    if (_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+    for (var member in node.body.members) {
+      if (member is MethodDeclarationV1OriginImpl &&
+          member.staticKeyword == null) {
+        if (!member.isComplete) {
+          diagnosticReporter.report(
+            diag.extensionTypeWithAbstractMember
+                .withArguments(
+                  methodName: member.nameToken.lexeme,
+                  extensionTypeName: node.namePart.typeName.lexeme,
+                )
+                .at(member),
+          );
+        }
+      }
+    }
+  }
+
+  bool _checkForExternalMethodWithBody({
+    required Token? externalKeyword,
+    required FunctionBody body,
+  }) {
+    if (externalKeyword != null) {
+      if (body is BlockFunctionBody) {
+        diagnosticReporter.report(
+          diag.externalMethodWithBody.at(body.block.leftBracket),
+        );
+        return true;
+      } else if (body is ExpressionFunctionBody) {
+        diagnosticReporter.report(
+          diag.externalMethodWithBody.at(body.functionDefinition),
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _checkForFactoryBodyCompleteness(ConstructorDeclaration2Impl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    if (!_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    // Report only on the introductory declaration.
+    if (node.augmentKeyword != null) {
+      return;
+    }
+
+    if (node.factoryKeyword == null) {
+      return;
+    }
+
+    if (element.fragments.any((f) => f.isComplete)) {
+      return;
+    }
+
+    if (element.fragments.length == 1) {
+      diagnosticReporter.report(
+        diag.factoryWithoutBody.atSourceRange(node.errorRange),
+      );
+    } else {
+      diagnosticReporter.report(
+        diag.factoryNotCompleteAfterAugmentations
+            .withArguments(name: declaredFragment.name)
+            .atSourceRange(node.errorRange),
+      );
+    }
+  }
+
+  /// Verify that the given field formal [parameter] is in a constructor
+  /// declaration.
+  ///
+  /// See [diag.fieldInitializerOutsideConstructor].
+  void _checkForFieldInitializingFormalRedirectingConstructor(
+    FieldFormalParameter parameter,
+  ) {
+    // prepare the node that should be a ConstructorDeclaration2
+    var formalParameterList = parameter.parent2;
+    if (formalParameterList is! FormalParameterList) {
+      formalParameterList = formalParameterList?.parent2;
+    }
+    var constructor = formalParameterList?.parent2;
+    // now check whether the node is actually a ConstructorDeclaration2
+    if (constructor is ConstructorDeclaration2) {
+      // constructor cannot be a factory
+      if (constructor.factoryKeyword != null) {
+        diagnosticReporter.report(
+          diag.fieldInitializerFactoryConstructor.at(parameter),
+        );
+        return;
+      }
+      // constructor cannot have a redirection
+      for (ConstructorInitializer initializer in constructor.initializers) {
+        if (initializer is RedirectingConstructorInvocation) {
+          diagnosticReporter.report(
+            diag.fieldInitializerRedirectingConstructor.at(parameter),
+          );
+          return;
+        }
+      }
+    } else if (constructor is PrimaryConstructorDeclaration) {
+      // No additional checks.
+    } else {
+      diagnosticReporter.report(
+        diag.fieldInitializerOutsideConstructor.at(parameter.thisKeyword),
+      );
+    }
+  }
+
+  /// Check that if a direct supertype of a node is final, then it must be in
+  /// the same library.
+  ///
+  /// See [diag.finalClassExtendedOutsideOfLibrary],
+  /// [diag.finalClassImplementedOutsideOfLibrary],
+  /// [CompileTimeErrorCode.
+  /// FINAL_CLASS_USED_AS_MIXIN_CONSTRAINT_OUTSIDE_OF_LIBRARY].
+  void _checkForFinalSupertypeOutsideOfLibrary(
+    NamedType? superclass,
+    WithClause? withClause,
+    ImplementsClause? implementsClause,
+    MixinOnClause? onClause,
+  ) {
+    if (superclass != null) {
+      var type = superclass.type;
+      if (type is InterfaceType) {
+        var element = type.element;
+        if (element is ClassElementImpl &&
+            element.isFinal &&
+            !element.isSealed &&
+            element.library != _currentLibrary &&
+            !_mayIgnoreClassModifiers(element.library)) {
+          diagnosticReporter.report(
+            diag.finalClassExtendedOutsideOfLibrary
+                .withArguments(name: element.name!)
+                .at(superclass),
+          );
+        }
+      }
+    }
+    if (implementsClause != null) {
+      for (NamedType namedType in implementsClause.interfaces) {
+        var type = namedType.type;
+        if (type is InterfaceType) {
+          var implementedInterfaces = [
+            type,
+            ...type.element.allSupertypes,
+          ].map((e) => e.element).toList();
+          for (var element in implementedInterfaces) {
+            if (element is ClassElement &&
+                element.isFinal &&
+                !element.isSealed &&
+                element.library != _currentLibrary &&
+                !_mayIgnoreClassModifiers(element.library)) {
+              // If the final interface is an indirect interface and is in a
+              // different library that has class modifiers enabled, there is a
+              // nearer declaration that would emit an error, if any.
+              if (element != type.element &&
+                  type.element.library.featureSet.isEnabled(
+                    Feature.class_modifiers,
+                  )) {
+                continue;
+              }
+
+              diagnosticReporter.report(
+                diag.finalClassImplementedOutsideOfLibrary
+                    .withArguments(name: element.name!)
+                    .at(namedType),
+              );
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (onClause != null) {
+      for (NamedType namedType in onClause.superclassConstraints) {
+        var type = namedType.type;
+        if (type is InterfaceType) {
+          var element = type.element;
+          if (element is ClassElement &&
+              element.isFinal &&
+              !element.isSealed &&
+              element.library != _currentLibrary &&
+              !_mayIgnoreClassModifiers(element.library)) {
+            diagnosticReporter.report(
+              diag.finalClassUsedAsMixinConstraintOutsideOfLibrary
+                  .withArguments(name: element.name!)
+                  .at(namedType),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  void _checkForFunctionAlreadyComplete({
+    required FragmentImpl fragment,
+    required Token? augmentKeyword,
+  }) {
+    if (augmentKeyword != null && fragment.isComplete) {
+      var precedingComplete = fragment.nearestPrecedingCompleteFragment;
+      if (precedingComplete != null) {
+        diagnosticReporter.report(
+          diag.functionAlreadyComplete
+              .withContextMessages([
+                ?precedingComplete.contextMessageAt(
+                  "The complete declaration is here.",
+                ),
+              ])
+              .at(augmentKeyword),
+        );
+      }
+    }
+  }
+
+  void _checkForFunctionBodyCompleteness({
+    required ExecutableFragmentImpl fragment,
+    required AstNode node,
+    required Token nameToken,
+  }) {
+    if (!_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    // Report only on the introductory declaration.
+    if (fragment.isAugmentation) {
+      return;
+    }
+
+    var element = fragment.element;
+    var enclosingElement = element.enclosingElement;
+
+    // Instance members are validated for the whole interface.
+    if (!element.isStatic) {
+      if (enclosingElement is ClassElement ||
+          enclosingElement is EnumElement ||
+          enclosingElement is MixinElement) {
+        return;
+      }
+    }
+
+    var name = element.name;
+    if (name == null) {
+      return;
+    }
+
+    if (element.fragments.any((f) => f.isComplete)) {
+      return;
+    }
+
+    if (element.fragments.length == 1) {
+      switch (enclosingElement) {
+        case ExtensionElement() when !element.isStatic:
+          diagnosticReporter.report(
+            diag.extensionDeclaresAbstractMember.at(nameToken),
+          );
+        case ExtensionTypeElement() when !element.isStatic:
+          diagnosticReporter.report(
+            diag.extensionTypeWithAbstractMember
+                .withArguments(
+                  methodName: name,
+                  extensionTypeName: enclosingElement.name!,
+                )
+                .at(node),
+          );
+        case _:
+          var body = switch (node) {
+            MethodDeclarationV1OriginImpl(:var body) => body,
+            LocalFunctionDeclaration(:var body) => body,
+            TopLevelFunctionDeclaration(:var body) => body,
+            TopLevelGetterDeclaration(:var body) => body,
+            TopLevelSetterDeclaration(:var body) => body,
+            _ => throw StateError('Unexpected node type: ${node.runtimeType}'),
+          };
+          var errorToken = (body as EmptyFunctionBody).semicolon;
+          diagnosticReporter.report(diag.missingFunctionBody.at(errorToken));
+      }
+    } else {
+      diagnosticReporter.report(
+        diag.functionNotCompleteAfterAugmentations
+            .withArguments(name: name)
+            .at(nameToken),
+      );
+    }
+  }
+
+  void _checkForGenericFunctionType(TypeAnnotation? node) {
+    if (node == null) {
+      return;
+    }
+    if (_featureSet.isEnabled(Feature.generic_metadata)) {
+      return;
+    }
+    DartType type = node.typeOrThrow;
+    if (type is FunctionType && type.typeParameters.isNotEmpty) {
+      diagnosticReporter.report(diag.genericFunctionTypeCannotBeBound.at(node));
+    }
+  }
+
+  void _checkForIllegalLanguageOverride(CompilationUnit node) {
+    var sourceLanguageConstraint =
+        (options as AnalysisOptionsImpl).sourceLanguageConstraint;
+    if (sourceLanguageConstraint == null) {
+      return;
+    }
+
+    var languageVersion = _currentLibrary.languageVersion.effective;
+    if (sourceLanguageConstraint.allows(languageVersion)) {
+      return;
+    }
+
+    var languageVersionToken = node.languageVersionToken;
+    if (languageVersionToken != null) {
+      diagnosticReporter.report(
+        diag.illegalLanguageVersionOverride
+            .withArguments(requiredVersion: '$sourceLanguageConstraint')
+            .at(languageVersionToken),
+      );
+    }
+  }
+
+  /// Verify that the given implements [clause] does not implement classes such
+  /// as 'num' or 'String'.
+  ///
+  /// See [diag.implementsDisallowedClass],
+  /// [diag.implementsDeferredClass].
+  bool _checkForImplementsClauseErrorCodes(ImplementsClause? clause) {
+    if (clause == null) {
+      return false;
+    }
+    bool foundError = false;
+    for (NamedType type in clause.interfaces) {
+      if (_checkForExtendsOrImplementsDisallowedClass(type)) {
+        foundError = true;
+      } else if (_checkForExtendsOrImplementsDeferredClass(
+        type,
+        diag.implementsDeferredClass,
+      )) {
+        foundError = true;
+      }
+    }
+    return foundError;
+  }
+
+  /// Check that [importElement], represented by [directive], does not import an
+  /// internal SDK library when the visiting library is not a system library.
+  void _checkForImportInternalLibrary(
+    ImportDirective directive,
+    LibraryImport importElement,
+  ) {
+    if (_isInSystemLibrary || _isWasm(importElement)) {
+      return;
+    }
+
+    var importedLibrary = importElement.importedLibrary;
+    if (importedLibrary == null) {
+      return;
+    }
+
+    // should be private
+    if (!(importedLibrary as LibraryElementImpl).isInternalSdkLibrary) {
+      return;
+    }
+    // The only way an import URI's `stringValue` can be `null` is if the string
+    // contained interpolations, in which case the import would have failed to
+    // resolve, and we would never reach here.  So it is safe to assume that
+    // `directive.uri.stringValue` is non-`null`.
+    diagnosticReporter.report(
+      diag.importInternalLibrary
+          .withArguments(uri: directive.uri.stringValue!)
+          .at(directive.uri),
+    );
+  }
+
+  void _checkForIncompleteInducedAccessors({
+    required PropertyInducingFragmentImpl fragment,
+    required Token nameToken,
+  }) {
+    if (!_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    if (fragment.isAugmentation) {
+      return;
+    }
+
+    var getter = fragment.inducedGetter;
+    var setter = fragment.inducedSetter;
+    var hasAugmentations =
+        (getter?.element.fragments.length ?? 0) > 1 ||
+        (setter?.element.fragments.length ?? 0) > 1;
+
+    if (getter != null) {
+      if (getter.element.fragments.none((f) => f.isComplete)) {
+        var diagnostic = hasAugmentations
+            ? diag.inducedGetterNotCompleteAfterAugmentations
+            : diag.inducedGetterWithoutBody;
+        diagnosticReporter.report(
+          diagnostic.withArguments(name: nameToken.lexeme).at(nameToken),
+        );
+      }
+    }
+
+    if (setter != null) {
+      if (setter.element.fragments.none((f) => f.isComplete)) {
+        var diagnostic = hasAugmentations
+            ? diag.inducedSetterNotCompleteAfterAugmentations
+            : diag.inducedSetterWithoutBody;
+        diagnosticReporter.report(
+          diagnostic.withArguments(name: nameToken.lexeme).at(nameToken),
+        );
+      }
+    }
+  }
+
+  /// Verify that if a class is extending an interface class or mixing in an
+  /// interface mixin, it must be within the same library as that class or
+  /// mixin.
+  ///
+  /// See
+  /// [diag.interfaceClassExtendedOutsideOfLibrary].
+  void _checkForInterfaceClassOrMixinSuperclassOutsideOfLibrary(
+    NamedType? superclass,
+    WithClause? withClause,
+  ) {
+    if (superclass != null) {
+      var superclassType = superclass.type;
+      if (superclassType is InterfaceType) {
+        var superclassElement = superclassType.element;
+        if (superclassElement is ClassElementImpl &&
+            superclassElement.isInterface &&
+            !superclassElement.isSealed &&
+            superclassElement.library != _currentLibrary &&
+            !_mayIgnoreClassModifiers(superclassElement.library)) {
+          diagnosticReporter.report(
+            diag.interfaceClassExtendedOutsideOfLibrary
+                .withArguments(name: superclassElement.name!)
+                .at(superclass),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify that an 'int' can be assigned to the parameter corresponding to the
+  /// given [argument]. This is used for prefix and postfix expressions where
+  /// the argument value is implicit.
+  ///
+  /// See [diag.argumentTypeNotAssignable].
+  void _checkForIntNotAssignable(ExpressionImpl argument) {
+    var parameterElement = argument.correspondingParameter;
+    var parameterType = parameterElement?.type;
+    if (parameterType != null) {
+      checkForArgumentTypeNotAssignable(
+        argument,
+        parameterType,
+        _intType,
+        const NonAssignabilityReporterForArgument(),
+      );
+    }
+  }
+
+  /// Verify that the given [annotation] isn't defined in a deferred library.
+  ///
+  /// See [diag.invalidAnnotationFromDeferredLibrary].
+  void _checkForInvalidAnnotationFromDeferredLibrary(Annotation annotation) {
+    // An invocation through a deferred prefix, such as `@p.C()`, is checked
+    // like any other constant constructor invocation, which reports
+    // `const_deferred_class`. Only a reference, such as `@p.c`, is reported
+    // here.
+    var importPrefix = switch (annotation.expression) {
+      ImportPrefixedNameExpression(:var importPrefix) => importPrefix,
+      ReceiverPropertyExtraction(
+        receiver: StaticQualifier(:var importPrefix?),
+      ) =>
+        importPrefix,
+      _ => null,
+    };
+    if (importPrefix?.element case PrefixElementImpl(isDeferred: true)) {
+      diagnosticReporter.report(
+        diag.invalidAnnotationFromDeferredLibrary.at(annotation.nameEntity),
+      );
+    }
+  }
+
+  /// Check that [staticElement] is a valid field for [initializer]. The
+  /// [fieldName] is the field name from [initializer].
+  void _checkForInvalidField(
+    Element? staticElement,
+    ConstructorFieldInitializer initializer,
+    Token fieldName,
+  ) {
+    if (staticElement is FieldElement) {
+      if (staticElement.isOriginGetterSetter) {
+        diagnosticReporter.report(
+          diag.initializerForNonExistentField
+              .withArguments(formalName: fieldName.lexeme)
+              .at(initializer),
+        );
+      } else if (staticElement.isStatic) {
+        diagnosticReporter.report(
+          diag.initializerForStaticField
+              .withArguments(formalName: fieldName.lexeme)
+              .at(initializer),
+        );
+      }
+    } else {
+      diagnosticReporter.report(
+        diag.initializerForNonExistentField
+            .withArguments(formalName: fieldName.lexeme)
+            .at(initializer),
+      );
+      return;
+    }
+  }
+
+  /// Verify that [constructorElement] is not used at [node] unless it creates an
+  /// enum constant or is the target of constructor redirection.
+  void _checkForInvalidGenerativeConstructorReference(
+    SyntacticEntity node,
+    ConstructorElement? constructorElement,
+  ) {
+    if (constructorElement != null &&
+        constructorElement.isGenerative &&
+        constructorElement.enclosingElement is EnumElement) {
+      if (_currentLibrary.featureSet.isEnabled(Feature.enhanced_enums)) {
+        if (node is ConstructorTearOff) {
+          diagnosticReporter.report(
+            diag.invalidReferenceToGenerativeEnumConstructorTearoff.at(node),
+          );
+        } else {
+          diagnosticReporter.report(
+            diag.invalidReferenceToGenerativeEnumConstructor.at(node),
+          );
+        }
+      } else {
+        diagnosticReporter.report(diag.instantiateEnum.at(node));
+      }
+    }
+  }
+
+  void _checkForInvalidInstanceMemberAccess2({
+    required SyntacticEntity entity,
+    required String name,
+    required Element? element,
+  }) {
+    if (_isInComment) {
+      return;
+    }
+
+    if (_thisContext.allowsThis) {
+      return;
+    }
+
+    if (!(element is MethodElement || element is PropertyAccessorElement)) {
+      return;
+    }
+    // static element
+    ExecutableElement executableElement = element as ExecutableElement;
+    if (executableElement.isStatic) {
+      return;
+    }
+    // not a class member
+    var enclosingElement = element.enclosingElement;
+    if (enclosingElement is! InterfaceElement &&
+        enclosingElement is! ExtensionElement) {
+      return;
+    }
+    switch (_thisContext) {
+      case ThisContext.constructorInitializers:
+      case ThisContext.instanceFieldDeclaration:
+      case ThisContext.staticFieldDeclaration:
+      case ThisContext.topLevel:
+        diagnosticReporter.report(
+          diag.implicitThisReferenceInInitializer
+              .withArguments(memberName: name)
+              .at(entity),
+        );
+      case ThisContext.factoryConstructorBody:
+        diagnosticReporter.report(
+          diag.instanceMemberAccessFromFactory.at(entity),
+        );
+      case ThisContext.staticMemberBody:
+        diagnosticReporter.report(
+          diag.instanceMemberAccessFromStatic.at(entity),
+        );
+      case ThisContext.generativeConstructorBody:
+      case ThisContext.instanceMemberBody:
+      case ThisContext.lateInstanceFieldDeclaration:
+        throw StateError('Should not be reached');
+    }
+  }
+
+  /// Check to see whether the given function [body] has a modifier associated
+  /// with it, and report it as an error if it does.
+  void _checkForInvalidModifierOnBody(FunctionBody body) {
+    var keyword = body.keyword;
+    if (keyword != null) {
+      diagnosticReporter.report(
+        diag.invalidModifierOnConstructor
+            .withArguments(modifier: keyword.lexeme)
+            .at(keyword),
+      );
+    }
+  }
+
+  void _checkForLateFinalFieldWithConstConstructor(
+    FieldsDeclaration node,
+    InterfaceElementImpl enclosingElement,
+  ) {
+    if (node.staticKeyword != null) return;
+    if (node.finalKeyword == null) return;
+
+    var lateKeyword = node.lateKeyword;
+    if (lateKeyword == null) return;
+
+    var hasGenerativeConstConstructor = enclosingElement.constructors.any(
+      (c) => c.isConst && !c.isFactory,
+    );
+    if (!hasGenerativeConstConstructor) return;
+
+    diagnosticReporter.report(
+      diag.lateFinalFieldWithConstConstructor.at(lateKeyword),
+    );
+  }
+
+  /// Verify that the elements of the given list [literal] are subtypes of the
+  /// list's static type.
+  ///
+  /// See [diag.listElementTypeNotAssignable].
+  void _checkForListElementTypeNotAssignable(ListLiteral literal) {
+    // Determine the list's element type. We base this on the static type and
+    // not the literal's type arguments because in strong mode, the type
+    // arguments may be inferred.
+    DartType listType = literal.typeOrThrow;
+    assert(listType is InterfaceTypeImpl);
+
+    var typeArguments = (listType as InterfaceTypeImpl).typeArguments;
+    assert(typeArguments.length == 1);
+
+    var listElementType = typeArguments[0];
+
+    // Check every list element.
+    var verifier = LiteralElementVerifier(
+      _typeProvider,
+      typeSystem,
+      diagnosticReporter,
+      this,
+      forList: true,
+      elementType: listElementType,
+      featureSet: _featureSet,
+    );
+    for (CollectionElement element in literal.elements2) {
+      verifier.verify(element);
+    }
+  }
+
+  void _checkForMainFunction1(Fragment declaredFragment, Token nameToken) {
+    // We should only check exported declarations, i.e. top-level.
+    if (declaredFragment.enclosingFragment is! LibraryFragment) {
+      return;
+    }
+
+    if (declaredFragment.name != 'main') {
+      return;
+    }
+
+    if (declaredFragment is! TopLevelFunctionFragment) {
+      diagnosticReporter.report(diag.mainIsNotFunction.at(nameToken));
+    }
+  }
+
+  /// Checks the formal parameters of the top-level declaration named
+  /// [nameToken], if it is `main`.
+  void _checkForMainFunction2({
+    required Token nameToken,
+    required FormalParameterListImpl? parameterList,
+  }) {
+    if (nameToken.lexeme != 'main') {
+      return;
+    }
+
+    if (parameterList == null) {
+      return;
+    }
+
+    var parameters = parameterList.allFormalParameters;
+    var positional = parameters.where((e) => e.isPositional).toList();
+    var requiredPositional = parameters
+        .where((e) => e.isRequiredPositional)
+        .toList();
+
+    if (requiredPositional.length > 2) {
+      diagnosticReporter.report(
+        diag.mainHasTooManyRequiredPositionalParameters.at(nameToken),
+      );
+    }
+
+    if (parameters.any((e) => e.isRequiredNamed)) {
+      diagnosticReporter.report(
+        diag.mainHasRequiredNamedParameters.at(nameToken),
+      );
+    }
+
+    if (positional.isNotEmpty) {
+      var first = positional.first;
+      var element = first.declaredFragment!.element;
+      var type = element.type;
+      var listOfString = _typeProvider.listType(_typeProvider.stringType);
+      if (!typeSystem.isSubtypeOf(listOfString, type)) {
+        diagnosticReporter.report(
+          diag.mainFirstPositionalParameterType.at(first.typeOrSelf),
+        );
+      }
+    }
+  }
+
+  void _checkForMapTypeNotAssignable(SetOrMapLiteral literal) {
+    // Determine the map's key and value types. We base this on the static type
+    // and not the literal's type arguments because in strong mode, the type
+    // arguments may be inferred.
+    DartType mapType = literal.typeOrThrow;
+    assert(mapType is InterfaceTypeImpl);
+
+    var typeArguments = (mapType as InterfaceTypeImpl).typeArguments;
+    // It is possible for the number of type arguments to be inconsistent when
+    // the literal is ambiguous and a non-map type was selected.
+    // TODO(brianwilkerson): Unify this and _checkForSetElementTypeNotAssignable3
+    //  to better handle recovery situations.
+    if (typeArguments.length == 2) {
+      var keyType = typeArguments[0];
+      var valueType = typeArguments[1];
+
+      var verifier = LiteralElementVerifier(
+        _typeProvider,
+        typeSystem,
+        diagnosticReporter,
+        this,
+        forMap: true,
+        mapKeyType: keyType,
+        mapValueType: valueType,
+        featureSet: _featureSet,
+      );
+      for (CollectionElement element in literal.elements2) {
+        verifier.verify(element);
+      }
+    }
+  }
+
+  /// Check to make sure that the given switch [statement] whose static type is
+  /// an enum type either have a default case or include all of the enum
+  /// constants.
+  void _checkForMissingEnumConstantInSwitch(SwitchStatement statement) {
+    if (_currentLibrary.featureSet.isEnabled(Feature.patterns)) {
+      // Exhaustiveness checking cover this warning.
+      return;
+    }
+
+    // TODO(brianwilkerson): This needs to be checked after constant values have
+    // been computed.
+    var expressionType = statement.expression2.staticType;
+
+    var hasCaseNull = false;
+    if (expressionType is InterfaceType) {
+      var enumElement = expressionType.element;
+      if (enumElement is EnumElement) {
+        var constantNames = enumElement.fields
+            .where((field) => field.isEnumConstant)
+            .map((field) => field.name)
+            .toSet();
+
+        for (var member in statement.members) {
+          Expression? caseConstant;
+          if (member is SwitchCase) {
+            caseConstant = member.expression2;
+          } else if (member is SwitchPatternCase) {
+            var guardedPattern = member.guardedPattern;
+            if (guardedPattern.whenClause == null) {
+              var pattern = guardedPattern.pattern.unParenthesized;
+              if (pattern is ConstantPattern) {
+                caseConstant = pattern.expression2;
+              }
+            }
+          }
+          if (caseConstant != null) {
+            var expression = caseConstant.unParenthesized2;
+            if (expression is NullLiteral) {
+              hasCaseNull = true;
+            } else {
+              var constantName = _getConstantName(expression);
+              constantNames.remove(constantName);
+            }
+          }
+          if (member is SwitchDefault) {
+            return;
+          }
+        }
+
+        for (var constantName in constantNames) {
+          int offset = statement.offset;
+          int end = statement.rightParenthesis.end;
+          diagnosticReporter.report(
+            diag.missingEnumConstantInSwitch
+                .withArguments(constant: constantName!)
+                .atOffset(offset: offset, length: end - offset),
+          );
+        }
+
+        if (typeSystem.isNullable(expressionType) && !hasCaseNull) {
+          int offset = statement.offset;
+          int end = statement.rightParenthesis.end;
+          diagnosticReporter.report(
+            diag.missingEnumConstantInSwitch
+                .withArguments(constant: 'null')
+                .atOffset(offset: offset, length: end - offset),
+          );
+        }
+      }
+    }
+  }
+
+  void _checkForMixinAugmentationModifierMismatch(
+    MixinDeclaration2Impl node,
+    MixinFragmentImpl declaredFragment,
+  ) {
+    var element = declaredFragment.element;
+
+    var augmentKeyword = node.augmentKeyword;
+    if (augmentKeyword == null) {
+      return;
+    }
+
+    var firstFragment = element.firstFragment;
+    if (identical(declaredFragment, firstFragment)) {
+      return;
+    }
+
+    _checkForAugmentationModifierMismatch(
+      augmentKeyword: augmentKeyword,
+      inAugmentation: declaredFragment.isBase,
+      inIntroductory: firstFragment.isBase,
+      modifierToken: node.baseKeyword,
+      modifierName: 'base',
+    );
+  }
+
+  /// Verify that mixin classes must have 'Object' as their superclass and that
+  /// they do not declare a non-trivial generative constructor.
+  ///
+  /// See [diag.mixinClassDeclaresNonTrivialGenerativeConstructor],
+  /// [diag.mixinInheritsFromNotObject].
+  void _checkForMixinClassErrorCodes(
+    FragmentDeclaringNode node,
+    List<AnnotatedNode> members,
+    NamedType? superclass,
+    WithClause? withClause,
+  ) {
+    var element = node.declaredFragment?.element;
+
+    if (element is ClassElementImpl && element.isMixinClass) {
+      var className = element.name;
+      if (className == null) {
+        return;
+      }
+
+      // Check that the class does not have a constructor.
+      for (var member in members) {
+        if (member case ConstructorDeclaration2Impl constructor) {
+          if (!constructor.isSynthetic && constructor.isGenerative) {
+            if (!constructor.isTrivial) {
+              diagnosticReporter.report(
+                diag.mixinClassDeclaresNonTrivialGenerativeConstructor
+                    .withArguments(className: className)
+                    .atSourceRange(constructor.errorRange),
+              );
+            }
+          }
+        }
+      }
+      if (node is ClassDeclaration2Impl) {
+        if (node.namePart
+            case PrimaryConstructorDeclarationImpl primaryConstructor) {
+          if (primaryConstructor
+              .formalParameters
+              .allFormalParameters
+              .isNotEmpty) {
+            diagnosticReporter.report(
+              diag.mixinClassDeclaresNonTrivialGenerativeConstructor
+                  .withArguments(className: className)
+                  .atSourceRange(primaryConstructor.errorRange),
+            );
+          } else if (primaryConstructor.body2 case var body?) {
+            if (body.initializers.isNotEmpty) {
+              diagnosticReporter.report(
+                diag.mixinClassDeclaresNonTrivialGenerativeConstructor
+                    .withArguments(className: className)
+                    .at(body.colon!),
+              );
+            } else if (body.body case BlockFunctionBody blockBody) {
+              diagnosticReporter.report(
+                diag.mixinClassDeclaresNonTrivialGenerativeConstructor
+                    .withArguments(className: className)
+                    .at(blockBody.block.leftBracket),
+              );
+            }
+          }
+        }
+      }
+      // Check that the class has 'Object' as their superclass.
+      if (superclass != null && !superclass.typeOrThrow.isDartCoreObject) {
+        diagnosticReporter.report(
+          diag.mixinClassDeclarationExtendsNotObject
+              .withArguments(name: className)
+              .at(superclass),
+        );
+      } else if (withClause != null) {
+        if (!element.isMixinApplication) {
+          diagnosticReporter.report(
+            diag.mixinClassDeclarationWithClause
+                .withArguments(name: className)
+                .at(withClause),
+          );
+        } else if (withClause.mixinTypes.length >= 2) {
+          diagnosticReporter.report(
+            diag.mixinModifierMixinApplicationClassWithMultipleMixins
+                .withArguments(name: className)
+                .at(withClause),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify that the given mixin has the 'Object' superclass.
+  ///
+  /// The [mixinElement] is the mixin to evaluate, and [mixinName] is the node
+  /// where the problem is reported.
+  ///
+  /// See [diag.mixinInheritsFromNotObject].
+  bool _checkForMixinInheritsNotFromObject(
+    NamedType mixinName,
+    InterfaceElement mixinElement,
+  ) {
+    if (mixinElement is! ClassElement) {
+      return false;
+    }
+
+    var mixinSupertype = mixinElement.supertype;
+    if (mixinSupertype == null || mixinSupertype.isDartCoreObject) {
+      var mixins = mixinElement.mixins;
+      if (mixins.isEmpty ||
+          mixinElement.isMixinApplication && mixins.length < 2) {
+        return false;
+      }
+    }
+
+    diagnosticReporter.report(
+      diag.mixinInheritsFromNotObject
+          .withArguments(name: mixinElement.name!)
+          .at(mixinName),
+    );
+    return true;
+  }
+
+  /// Check that superclass constrains for the mixin type of [mixinName] at
+  /// the [mixinIndex] position in the mixins list are satisfied by the
+  /// [enclosingElement], or a previous mixin.
+  bool _checkForMixinSuperclassConstraints(
+    InterfaceElementImpl enclosingElement,
+    int mixinIndex,
+    NamedTypeImpl mixinName,
+  ) {
+    var mixinType = mixinName.type as InterfaceTypeImpl;
+    for (var constraint in mixinType.superclassConstraints) {
+      var superType = enclosingElement.supertype as InterfaceTypeImpl;
+      superType = superType.withNullability(NullabilitySuffix.none);
+
+      bool isSatisfied = typeSystem.isSubtypeOf(superType, constraint);
+      if (!isSatisfied) {
+        for (int i = 0; i < mixinIndex && !isSatisfied; i++) {
+          // If there are less mixin types than mixin nodes, escape.
+          if (i >= enclosingElement.mixins.length) {
+            return false;
+          }
+          // Probe a previous mixin type.
+          isSatisfied = typeSystem.isSubtypeOf(
+            enclosingElement.mixins[i],
+            constraint,
+          );
+        }
+      }
+      if (!isSatisfied) {
+        // This error can only occur if [mixinName] resolved to an actual mixin,
+        // so we can safely rely on `mixinName.type` being non-`null`.
+        var diagnostic = diagnosticReporter.report(
+          diag.mixinApplicationNotImplementedInterface
+              .withArguments(
+                mixinType: mixinName.type!,
+                superType: superType,
+                notImplementedType: constraint,
+              )
+              .at(mixinName.name),
+        );
+        mixinApplicationNotImplementedInterfaceConstraint[diagnostic] =
+            constraint;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Check that, in [element], the superclass of [mixinElement] instantiated as
+  /// [mixinType] at [mixinIndex] has concrete implementations of all its
+  /// super-invoked members. The [mixinName] is the node where a problem is
+  /// reported.
+  bool _checkForMixinSuperInvokedMembers(
+    int mixinIndex,
+    NamedType mixinName,
+    InterfaceElementImpl element,
+    InterfaceElement mixinElement,
+    InterfaceType mixinType,
+  ) {
+    var mixinElementImpl = mixinElement as MixinElementImpl;
+    if (mixinElementImpl.superInvokedNames.isEmpty) {
+      return false;
+    }
+
+    Uri mixinLibraryUri = mixinElement.library.uri;
+    for (var name in mixinElementImpl.superInvokedNames) {
+      var nameObject = Name(mixinLibraryUri, name);
+
+      var superMember = _inheritanceManager.getMember(
+        element,
+        nameObject,
+        forMixinIndex: mixinIndex,
+        concrete: true,
+        forSuper: true,
+      );
+
+      if (superMember == null) {
+        var isSetter = name.endsWith('=');
+
+        diagnosticReporter.report(
+          (isSetter
+                  ? diag.mixinApplicationNoConcreteSuperInvokedSetter
+                        .withArguments(name: name.substring(0, name.length - 1))
+                  : diag.mixinApplicationNoConcreteSuperInvokedMember
+                        .withArguments(name: name))
+              .at(mixinName),
+        );
+        return true;
+      }
+
+      var mixinMember = _inheritanceManager.getMember3(
+        mixinType,
+        nameObject,
+        forSuper: true,
+      );
+
+      if (mixinMember != null) {
+        var isCorrect = CorrectOverrideHelper(
+          typeSystem: typeSystem,
+          thisMember: superMember,
+        ).isCorrectOverrideOf(superMember: mixinMember);
+        if (!isCorrect) {
+          diagnosticReporter.report(
+            diag.mixinApplicationConcreteSuperInvokedMemberType
+                .withArguments(
+                  memberName: name,
+                  mixinMemberType: mixinMember.type,
+                  concreteMemberType: superMember.type,
+                )
+                .at(mixinName),
+          );
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Check for the declaration of a mixin from a library other than the current
+  /// library that defines a private member that conflicts with a private name
+  /// from the same library but from a superclass or a different mixin.
+  void _checkForMixinWithConflictingPrivateMember(
+    WithClause? withClause,
+    NamedType? superclassName,
+  ) {
+    if (withClause == null) {
+      return;
+    }
+    var declaredSupertype = superclassName?.type ?? _typeProvider.objectType;
+    if (declaredSupertype is! InterfaceType) {
+      return;
+    }
+    var mixedInNames = <LibraryElement, Map<String, String>>{};
+
+    /// Report an error and return `true` if the given [name] is a private name
+    /// (which is defined in the given [library]) and it conflicts with another
+    /// definition of that name inherited from the superclass.
+    bool isConflictingName(
+      String name,
+      LibraryElement library,
+      NamedType namedType,
+    ) {
+      if (name.isPrivateName) {
+        Map<String, String> names = mixedInNames.putIfAbsent(library, () => {});
+        var conflictingName = names[name];
+        if (conflictingName != null) {
+          if (name.endsWith('=')) {
+            name = name.substring(0, name.length - 1);
+          }
+          diagnosticReporter.report(
+            diag.privateCollisionInMixinApplication
+                .withArguments(
+                  collidingName: name,
+                  mixin1: namedType.name.lexeme,
+                  mixin2: conflictingName,
+                )
+                .at(namedType),
+          );
+          return true;
+        }
+        names[name] = namedType.name.lexeme;
+        var inheritedMember = _inheritanceManager.getMember(
+          declaredSupertype.element,
+          Name(library.uri, name),
+          concrete: true,
+        );
+        if (inheritedMember != null) {
+          if (name.endsWith('=')) {
+            name = name.substring(0, name.length - 1);
+          }
+          // Inherited members are always contained inside named elements, so we
+          // can safely assume `inheritedMember.enclosingElement3.name` is
+          // non-`null`.
+          diagnosticReporter.report(
+            diag.privateCollisionInMixinApplication
+                .withArguments(
+                  collidingName: name,
+                  mixin1: namedType.name.lexeme,
+                  mixin2: inheritedMember.enclosingElement!.name!,
+                )
+                .at(namedType),
+          );
+          return true;
+        }
+      }
+      return false;
+    }
+
+    for (NamedType mixinType in withClause.mixinTypes) {
+      DartType type = mixinType.typeOrThrow;
+      if (type is InterfaceType) {
+        var library = type.element.library;
+        if (library != _currentLibrary) {
+          for (var getter in type.getters) {
+            if (getter.isStatic) {
+              continue;
+            }
+            if (isConflictingName(getter.lookupName!, library, mixinType)) {
+              return;
+            }
+          }
+          for (var setter in type.setters) {
+            if (setter.isStatic) {
+              continue;
+            }
+            if (isConflictingName(setter.lookupName!, library, mixinType)) {
+              return;
+            }
+          }
+          for (var method in type.methods) {
+            if (method.isStatic) {
+              continue;
+            }
+            if (isConflictingName(method.lookupName!, library, mixinType)) {
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void _checkForMultiplePrimaryConstructorBodyDeclarations(
+    List<AnnotatedNode> members,
+  ) {
+    var primaryConstructorBodies = members
+        .whereType<PrimaryConstructorBody2>()
+        .toList();
+
+    for (var i = 1; i < primaryConstructorBodies.length; i++) {
+      diagnosticReporter.report(
+        diag.multiplePrimaryConstructorBodyDeclarations.at(
+          primaryConstructorBodies[i].thisKeyword,
+        ),
+      );
+    }
+  }
+
+  /// Checks to ensure that the given native function [body] is in SDK code.
+  ///
+  /// See [diag.nativeFunctionBodyInNonSdkCode].
+  void _checkForNativeFunctionBodyInNonSdkCode(NativeFunctionBody body) {
+    if (!_isInSystemLibrary) {
+      diagnosticReporter.report(diag.nativeFunctionBodyInNonSdkCode.at(body));
+    }
+  }
+
+  /// Verify that [type], constructed by [expression], has the constructor
+  /// identified by [constructorReference]. The [typeReference] identifies the
+  /// declaring type.
+  ///
+  /// This method assumes that the constructor invocation was tested to be 'new'
+  /// before being called.
+  ///
+  /// See [diag.newWithUndefinedConstructor].
+  void _checkForNewWithUndefinedConstructor(
+    ConstructorInvocation expression,
+    ConstructorReference2 constructorReference,
+    ConstructorTypeReference typeReference,
+    InterfaceType type,
+  ) {
+    // OK if resolved
+    if (constructorReference.element != null) {
+      return;
+    }
+    var element = type.element;
+    if (element is EnumElement || element is MixinElement) {
+      // We have already reported the error.
+      return;
+    }
+    // report as named or default constructor absence
+    var selector = constructorReference.selector;
+    // The parser has already reported the missing name.
+    if (selector != null && selector.name2.isSynthetic) {
+      return;
+    }
+    var className = [
+      if (typeReference.importPrefix case var prefix?) prefix.name.lexeme,
+      typeReference.name.lexeme,
+    ].join('.');
+    if (selector?.name2.lexeme == 'new' &&
+        _featureSet.isEnabled(Feature.constructor_tearoffs)) {
+      diagnosticReporter.report(
+        diag.newWithUndefinedConstructorDefault
+            .withArguments(className: className)
+            .at(selector!.name2),
+      );
+    } else if (selector != null) {
+      diagnosticReporter.report(
+        diag.newWithUndefinedConstructor
+            .withArguments(
+              typeName: className,
+              constructorName: selector.name2.lexeme,
+            )
+            .at(selector.name2),
+      );
+    } else {
+      diagnosticReporter.report(
+        diag.newWithUndefinedConstructorDefault
+            .withArguments(className: className)
+            .at(constructorReference),
+      );
+    }
+  }
+
+  /// Check that if the given class [fragment] implicitly calls default
+  /// constructor of its superclass, there should be such default constructor -
+  /// implicit or explicit.
+  ///
+  /// See [diag.noDefaultSuperConstructorImplicit].
+  void _checkForNoDefaultSuperConstructorImplicit(ClassFragmentImpl fragment) {
+    // do nothing if there is explicit constructor
+    var constructors = fragment.element.constructors;
+    if (constructors[0].isOriginDeclaration) {
+      return;
+    }
+    // prepare super
+    var superType = fragment.element.supertype;
+    if (superType == null) {
+      return;
+    }
+    var superElement = superType.element;
+    // try to find default generative super constructor
+    var superUnnamedConstructor = superElement.unnamedConstructor;
+    if (superUnnamedConstructor != null) {
+      if (superUnnamedConstructor.isFactory) {
+        diagnosticReporter.report(
+          diag.nonGenerativeImplicitConstructor
+              .withArguments(
+                superclassName: superElement.name ?? '',
+                className: fragment.name ?? '',
+                factoryConstructor: superUnnamedConstructor,
+              )
+              .atSourceRange(
+                fragment.element.diagnosticRange(_currentUnit.source),
+              ),
+        );
+        return;
+      }
+      if (superUnnamedConstructor.isDefaultConstructor) {
+        return;
+      }
+    }
+
+    if (!_typeProvider.isNonSubtypableClass(superType.element)) {
+      // Don't report this diagnostic for non-subtypable classes because the
+      // real problem was already reported.
+      diagnosticReporter.report(
+        diag.noDefaultSuperConstructorImplicit
+            .withArguments(
+              superclassType: superType,
+              subclassName: fragment.displayName,
+            )
+            .atSourceRange(
+              fragment.element.diagnosticRange(_currentUnit.source),
+            ),
+      );
+    }
+  }
+
+  bool _checkForNoGenerativeConstructorsInSuperclass(
+    InterfaceElementImpl enclosingElement,
+    NamedType? superclass,
+  ) {
+    var superType = enclosingElement.supertype;
+    if (superType == null) {
+      return false;
+    }
+    if (enclosingElement.constructors.every(
+      (constructor) => constructor.isFactory,
+    )) {
+      // A class with no generative constructors *can* be extended if the
+      // subclass has only factory constructors.
+      return false;
+    }
+    var superElement = superType.element;
+    if (superElement.constructors.isEmpty) {
+      // Exclude empty constructor set, which indicates other errors occurred.
+      return false;
+    }
+    if (superElement.constructors.every(
+      (constructor) => constructor.isFactory,
+    )) {
+      // For `E extends Exception`, etc., this will never work, because it has
+      // no generative constructors. State this clearly to users.
+      diagnosticReporter.report(
+        diag.noGenerativeConstructorsInSuperclass
+            .withArguments(
+              subclassName: enclosingElement.name!,
+              superclassName: superElement.name!,
+            )
+            .at(superclass!),
+      );
+      return true;
+    }
+    return false;
+  }
+
+  void _checkForNonConstGenerativeEnumConstructor(
+    ConstructorDeclaration2 node,
+  ) {
+    var element = node.declaredFragment!.element;
+
+    if (element.enclosingElement is EnumElement &&
+        element.isGenerative &&
+        !element.isConst) {
+      diagnosticReporter.report(
+        diag.nonConstGenerativeEnumConstructor.atSourceRange(node.errorRange),
+      );
+    }
+  }
+
+  /// Verify the given map [literal] either:
+  /// * has `const modifier`
+  /// * has explicit type arguments
+  /// * is not start of the statement
+  ///
+  /// See [diag.nonConstMapAsExpressionStatement].
+  void _checkForNonConstMapAsExpressionStatement3(SetOrMapLiteral literal) {
+    // "const"
+    if (literal.constKeyword != null) {
+      return;
+    }
+    // has type arguments
+    if (literal.typeArguments != null) {
+      return;
+    }
+    // prepare statement
+    var statement = literal.thisOrAncestorOfType2<ExpressionStatement>();
+    if (statement == null) {
+      return;
+    }
+    // OK, statement does not start with map
+    if (!identical(statement.beginToken, literal.beginToken)) {
+      return;
+    }
+
+    // TODO(srawlins): Add any tests showing this is reported.
+    diagnosticReporter.report(
+      diag.nonConstMapAsExpressionStatement.at(literal),
+    );
+  }
+
+  void _checkForNonCovariantTypeParameterPositionInRepresentationType(
+    ExtensionTypeDeclaration2 node,
+    ExtensionTypeFragmentImpl fragment,
+  ) {
+    var typeParameters = node.namePart.typeParameters?.typeParameters;
+    if (typeParameters == null) {
+      return;
+    }
+
+    var element = fragment.element;
+    var representationType = element.representation.type;
+
+    for (var typeParameterNode in typeParameters) {
+      var typeParameterElement = typeParameterNode.declaredFragment!.element;
+
+      var nonCovariant = representationType.accept(
+        NonCovariantTypeParameterPositionVisitor([
+          typeParameterElement,
+        ], initialVariance: Variance.covariant),
+      );
+      if (nonCovariant) {
+        diagnosticReporter.report(
+          diag.nonCovariantTypeParameterPositionInRepresentationType.at(
+            typeParameterNode,
+          ),
+        );
+      }
+    }
+  }
+
+  void _checkForNonFinalFieldInEnum({
+    required FieldsDeclarationImpl? fieldDeclaration,
+    required PrimaryConstructorDeclarationImpl? primaryConstructor,
+  }) {
+    if (_enclosingInstanceElement is! EnumElement) {
+      return;
+    }
+
+    if (fieldDeclaration != null) {
+      if (fieldDeclaration.staticKeyword == null) {
+        // External fields don't add stored state to enum instance. When
+        // augmentations are enabled, abstract fields are checked as incomplete
+        // induced accessors that may be completed by augmentations.
+        if (fieldDeclaration.externalKeyword == null &&
+            !fieldDeclaration.isAbstractWhenAugmentationsEnabled(_featureSet)) {
+          if (fieldDeclaration.finalKeyword == null) {
+            diagnosticReporter.report(
+              diag.nonFinalFieldInEnum.at(fieldDeclaration.fields.first.name),
+            );
+          }
+        }
+      }
+    } else if (primaryConstructor != null) {
+      for (var parameter
+          in primaryConstructor.formalParameters.allFormalParameters) {
+        var formalParameter = parameter;
+        var element = formalParameter.declaredFragment?.element;
+
+        if (element is FieldFormalParameterElementImpl && element.isDeclaring) {
+          var nameToken = formalParameter.name;
+          var field = element.field;
+          if (nameToken != null && field != null && !field.isFinal) {
+            diagnosticReporter.report(diag.nonFinalFieldInEnum.at(nameToken));
+          }
+        }
+      }
+    } else {
+      throw StateError('No required location');
+    }
+  }
+
+  void _checkForNonRedirectingGenerativeConstructorWithPrimary(
+    InterfaceElementImpl enclosingElement,
+    ConstructorDeclaration2Impl node,
+  ) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    if (declaredFragment.isAugmentation) return;
+
+    if (enclosingElement is ExtensionTypeElement ||
+        enclosingElement.constructors.none((c) => c.isPrimary)) {
+      return;
+    }
+
+    if (element.isFactory) return;
+    if (element.isRedirecting) return;
+
+    diagnosticReporter.report(
+      diag.nonRedirectingGenerativeConstructorWithPrimary.atSourceRange(
+        node.errorRange,
+      ),
+    );
+  }
+
+  /// Verify that the given method [declaration] of operator `[]=`, has `void`
+  /// return type.
+  ///
+  /// See [diag.nonVoidReturnForOperator].
+  void _checkForNonVoidReturnTypeForOperator(
+    OperatorDeclarationImpl declaration,
+  ) {
+    // check that []= operator
+    if (declaration.nameToken.lexeme != "[]=") {
+      return;
+    }
+    // check return type
+    var annotation = declaration.returnType;
+    if (annotation != null) {
+      DartType type = annotation.typeOrThrow;
+      if (type is! VoidType) {
+        diagnosticReporter.report(diag.nonVoidReturnForOperator.at(annotation));
+      }
+    }
+  }
+
+  /// Verify the [namedType], used as the return type of a setter, is valid
+  /// (either `null` or the type 'void').
+  ///
+  /// See [diag.nonVoidReturnForSetter].
+  void _checkForNonVoidReturnTypeForSetter(TypeAnnotation? namedType) {
+    if (namedType != null) {
+      DartType type = namedType.typeOrThrow;
+      if (type is! VoidType) {
+        diagnosticReporter.report(diag.nonVoidReturnForSetter.at(namedType));
+      }
+    }
+  }
+
+  /// Verify that fields in [fieldDeclaration] are initialized.
+  ///
+  /// If [hasGenerativeConstructor] is `true`, then [ConstructorFieldsVerifier]
+  /// will verify that instance fields are initialized.
+  void _checkForNotInitializedFieldDeclaration(
+    FieldsDeclaration fieldDeclaration,
+    bool hasGenerativeConstructor,
+  ) {
+    if (fieldDeclaration.constKeyword != null) {
+      for (var variable in fieldDeclaration.fields) {
+        if (variable.initializer == null) {
+          diagnosticReporter.report(
+            diag.constNotInitialized
+                .withArguments(name: variable.name.lexeme)
+                .at(variable.name),
+          );
+        }
+      }
+      return;
+    }
+
+    if (fieldDeclaration.abstractKeyword != null ||
+        fieldDeclaration.externalKeyword != null ||
+        fieldDeclaration.lateKeyword != null) {
+      return;
+    }
+
+    var isInstanceField = fieldDeclaration.staticKeyword == null;
+    if (isInstanceField) {
+      // [FfiVerifier] reports [fieldMustBeExternalInStruct].
+      if (_isEnclosingFfiStruct || _isEnclosingFfiUnion) {
+        return;
+      }
+      // If there is a constructor, we use [ConstructorFieldsVerifier].
+      if (hasGenerativeConstructor) {
+        return;
+      }
+    }
+
+    for (var variable in fieldDeclaration.fields) {
+      var element = variable.declaredFragment!.element;
+
+      if (variable.initializer != null) {
+        continue;
+      }
+
+      if (fieldDeclaration.finalKeyword != null) {
+        diagnosticReporter.report(
+          diag.finalNotInitialized
+              .withArguments(name: variable.name.lexeme)
+              .at(variable.name),
+        );
+        continue;
+      }
+
+      if (typeSystem.isPotentiallyNonNullable(element.type)) {
+        if (isInstanceField) {
+          diagnosticReporter.report(
+            diag.notInitializedNonNullableInstanceField
+                .withArguments(name: variable.name.lexeme)
+                .at(variable.name),
+          );
+        } else {
+          diagnosticReporter.report(
+            diag.notInitializedNonNullableVariable
+                .withArguments(name: variable.name.lexeme)
+                .at(variable.name),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify that fields in the given [members] are initialized.
+  ///
+  /// If there is a generative constructor, instance fields are verified by
+  /// [ConstructorFieldsVerifier].
+  void _checkForNotInitializedFieldDeclarations(
+    InstanceFragmentImpl fragment,
+    List<AnnotatedNode> members,
+  ) {
+    var hasGenerativeConstructor = false;
+    var element = fragment.element;
+    if (element is InterfaceElementImpl) {
+      hasGenerativeConstructor = element.constructors.any((constructor) {
+        return constructor.isGenerative && constructor.isOriginDeclaration;
+      });
+    }
+
+    // Primary constructor body is an intention to have a constructor.
+    hasGenerativeConstructor |= members
+        .whereType<PrimaryConstructorBody2Impl>()
+        .isNotEmpty;
+
+    for (var fieldDeclaration in members.whereType<FieldsDeclaration>()) {
+      _checkForNotInitializedFieldDeclaration(
+        fieldDeclaration,
+        hasGenerativeConstructor,
+      );
+    }
+  }
+
+  /// Verify that all classes of the given [onClause] are valid.
+  ///
+  /// See [diag.mixinSuperClassConstraintDisallowedClass],
+  /// [diag.mixinSuperClassConstraintDeferredClass].
+  bool _checkForOnClauseErrorCodes(MixinOnClause? onClause) {
+    if (onClause == null) {
+      return false;
+    }
+    bool problemReported = false;
+    for (NamedType namedType in onClause.superclassConstraints) {
+      DartType type = namedType.typeOrThrow;
+      if (type is InterfaceType) {
+        if (_checkForExtendsOrImplementsDisallowedClass(namedType)) {
+          problemReported = true;
+        } else {
+          if (_checkForExtendsOrImplementsDeferredClass(
+            namedType,
+            diag.mixinSuperClassConstraintDeferredClass,
+          )) {
+            problemReported = true;
+          }
+        }
+      }
+    }
+    return problemReported;
+  }
+
+  /// Verify the given operator-method [declaration], does not have an optional
+  /// parameter.
+  ///
+  /// This method assumes that the method declaration was tested to be an
+  /// operator declaration before being called.
+  ///
+  /// See [diag.optionalParameterInOperator].
+  void _checkForOptionalParameterInOperator(
+    OperatorDeclarationImpl declaration,
+  ) {
+    var parameterList = declaration.writtenFormalParameters;
+    if (parameterList == null) {
+      return;
+    }
+
+    var formalParameters = parameterList.allFormalParameters;
+    for (FormalParameter formalParameter in formalParameters) {
+      if (!formalParameter.isRequiredPositional) {
+        diagnosticReporter.report(
+          diag.optionalParameterInOperator.at(formalParameter),
+        );
+      }
+    }
+  }
+
+  /// Via informal specification: dart-lang/language/issues/4
+  ///
+  /// If e is an integer literal which is not the operand of a unary minus
+  /// operator, then:
+  ///   - If the context type is double, it is a compile-time error if the
+  ///   numerical value of e is not precisely representable by a double.
+  ///   Otherwise the static type of e is double and the result of evaluating e
+  ///   is a double instance representing that value.
+  ///   - Otherwise (the current behavior of e, with a static type of int).
+  ///
+  /// and
+  ///
+  /// If e is -n and n is an integer literal, then
+  ///   - If the context type is double, it is a compile-time error if the
+  ///   numerical value of n is not precisely representable by a double.
+  ///   Otherwise the static type of e is double and the result of evaluating e
+  ///   is the result of calling the unary minus operator on a double instance
+  ///   representing the numerical value of n.
+  ///   - Otherwise (the current behavior of -n)
+  void _checkForOutOfRange(IntegerLiteralImpl node) {
+    var source = node.literal.lexeme;
+    if (node.beginToken.type == TokenType.INT_WITH_SEPARATORS ||
+        node.beginToken.type == TokenType.HEXADECIMAL_WITH_SEPARATORS) {
+      source = shared.stripSeparators(source);
+    }
+    bool isNegated = node.immediatelyNegated;
+
+    bool treatedAsDouble = node.staticType == _typeProvider.doubleType;
+    bool valid = treatedAsDouble
+        ? node.parseDoubleValue(negated: isNegated) != null
+        : node.parseIntValue(negated: isNegated) != null;
+
+    if (!valid) {
+      var lexeme = node.literal.lexeme;
+      var literal = isNegated ? '-$lexeme' : lexeme;
+      diagnosticReporter.report(
+        (treatedAsDouble
+                ?
+                  // Suggest the nearest valid double (as a BigInt, for
+                  // printing).
+                  // TODO(srawlins): Insert digit separators at the same
+                  // positions as the input. This should be tested code, and a
+                  // shared impl when we have an assist that adds digit
+                  // separators to a number literal.
+                  diag.integerLiteralImpreciseAsDouble.withArguments(
+                    literal: literal,
+                    closestDouble: BigInt.from(
+                      IntegerLiteralImpl.nearestValidDouble(source),
+                    ).toString(),
+                  )
+                : diag.integerLiteralOutOfRange.withArguments(literal: literal))
+            .at(node),
+      );
+    }
+  }
+
+  /// Check whether [constructorElement], introduced by [declaration], is a
+  /// redirecting generative constructor that references itself directly or
+  /// indirectly.
+  ///
+  /// See [diag.recursiveConstructorRedirect].
+  void _checkForRecursiveConstructorRedirect(
+    ConstructorDeclaration2 declaration,
+    ConstructorElementImpl constructorElement,
+  ) {
+    // we check generative constructor here
+    if (declaration.factoryKeyword != null) {
+      return;
+    }
+    // try to find redirecting constructor invocation and analyze it for
+    // recursion
+    for (ConstructorInitializer initializer in declaration.initializers) {
+      if (initializer is RedirectingConstructorInvocation) {
+        if (constructorElement.isInRedirectingConstructorCycle) {
+          diagnosticReporter.report(
+            diag.recursiveConstructorRedirect.at(initializer),
+          );
+        }
+        return;
+      }
+    }
+  }
+
+  /// Check whether [element], introduced by [declaration], redirects to a
+  /// constructor and references itself directly or indirectly.
+  ///
+  /// See [diag.recursiveFactoryRedirect].
+  bool _checkForRecursiveFactoryRedirect(
+    ConstructorDeclaration2 declaration,
+    ConstructorElementImpl element,
+  ) {
+    // prepare redirected constructor
+    var factoryRedirectionTarget = declaration.factoryRedirectionTarget;
+    if (factoryRedirectionTarget == null) {
+      return false;
+    }
+    // OK if no cycle
+    if (!element.isInRedirectingConstructorCycle) {
+      return false;
+    }
+    // report error
+    diagnosticReporter.report(
+      diag.recursiveFactoryRedirect.at(factoryRedirectionTarget),
+    );
+    return true;
+  }
+
+  /// Check that the given constructor [declaration] has a valid redirected
+  /// constructor.
+  void _checkForRedirectingConstructorErrorCodes(
+    ConstructorDeclaration2 declaration,
+  ) {
+    var element = declaration.declaredFragment!.element;
+
+    var factoryRedirectionTarget = declaration.factoryRedirectionTarget;
+    if (factoryRedirectionTarget == null) {
+      return;
+    }
+    var redirectedElement = factoryRedirectionTarget.element;
+    _checkForRedirectToNonConstConstructor(
+      element,
+      redirectedElement,
+      factoryRedirectionTarget,
+    );
+    var redirectedClass = redirectedElement?.enclosingElement;
+    if (redirectedClass is ClassElement &&
+        redirectedClass.isAbstract &&
+        redirectedElement != null &&
+        !redirectedElement.isFactory) {
+      String enclosingNamedType = _enclosingInstanceElement!.displayName;
+      String constructorStrName = enclosingNamedType;
+      if (declaration.name != null) {
+        constructorStrName += ".${declaration.name!.lexeme}";
+      }
+      diagnosticReporter.report(
+        diag.redirectToAbstractClassConstructor
+            .withArguments(
+              redirectingConstructorName: constructorStrName,
+              abstractClass: redirectedClass.name!,
+            )
+            .at(factoryRedirectionTarget),
+      );
+    }
+    _checkForInvalidGenerativeConstructorReference(
+      factoryRedirectionTarget,
+      redirectedElement,
+    );
+  }
+
+  /// Check whether the redirecting constructor, [element], is const, and
+  /// [redirectedElement], its redirectee, is not const.
+  ///
+  /// See [diag.redirectToNonConstConstructor].
+  void _checkForRedirectToNonConstConstructor(
+    ConstructorElement element,
+    ConstructorElement? redirectedElement,
+    SyntacticEntity errorEntity,
+  ) {
+    // This constructor is const, but it redirects to a non-const constructor.
+    if (redirectedElement != null &&
+        element.isConst &&
+        !redirectedElement.isConst) {
+      diagnosticReporter.report(
+        diag.redirectToNonConstConstructor.at(errorEntity),
+      );
+    }
+  }
+
+  void _checkForReferenceBeforeDeclaration({
+    required Element? element,
+    required Token nameToken,
+  }) {
+    if (element != null &&
+        _hiddenElements != null &&
+        _hiddenElements!.contains(element)) {
+      _hiddenElements!.contains(element);
+      diagnosticReporter.report(
+        _diagnosticFactory.referencedBeforeDeclaration(
+          diagnosticReporter.source,
+          nameToken: nameToken,
+          element2: element,
+        ),
+      );
+    }
+  }
+
+  void _checkForRepeatedType(
+    Set<InstanceElement> accumulatedElements,
+    List<NamedType>? namedTypes,
+    RepeatedTypeDiagnosticCode code,
+  ) {
+    if (namedTypes == null) {
+      return;
+    }
+
+    for (var namedType in namedTypes) {
+      var type = namedType.type;
+      if (type is InterfaceType) {
+        var element = type.element;
+        var added = accumulatedElements.add(element);
+        if (!added) {
+          diagnosticReporter.report(
+            code.withArguments(interfaceName: element.name!).at(namedType),
+          );
+        }
+      }
+    }
+  }
+
+  /// Check that the given rethrow [expression] is inside of a catch clause.
+  ///
+  /// See [diag.rethrowOutsideCatch].
+  void _checkForRethrowOutsideCatch(RethrowExpression expression) {
+    if (_enclosingExecutable.catchClauseLevel == 0) {
+      diagnosticReporter.report(diag.rethrowOutsideCatch.at(expression));
+    }
+  }
+
+  /// Check that if the given constructor [declaration] is generative, then
+  /// it does not have an expression function body.
+  ///
+  /// See [diag.returnInGenerativeConstructor].
+  void _checkForReturnInGenerativeConstructor(
+    ConstructorDeclaration2 declaration,
+  ) {
+    // ignore factory
+    if (declaration.factoryKeyword != null) {
+      return;
+    }
+    // block body (with possible return statement) is checked elsewhere
+    FunctionBody body = declaration.body;
+    if (body is! ExpressionFunctionBody) {
+      return;
+    }
+
+    diagnosticReporter.report(diag.returnInGenerativeConstructor.at(body));
+  }
+
+  /// Checks that every supertype which is sealed is also declared in the
+  /// current library.
+  ///
+  /// See [diag.sealedClassSubtypeOutsideOfLibrary].
+  void _checkForSealedSupertypeOutsideOfLibrary(List<NamedType> supertypes) {
+    for (NamedType namedType in supertypes) {
+      if (namedType.type case InterfaceType(:ClassElement element)) {
+        if (element.isSealed && element.library != _currentLibrary) {
+          diagnosticReporter.report(
+            diag.sealedClassSubtypeOutsideOfLibrary
+                .withArguments(sealedClassName: element.name!)
+                .at(namedType),
+          );
+        }
+      }
+    }
+  }
+
+  /// Verify that the elements in the given set [literal] are subtypes of the
+  /// set's static type.
+  ///
+  /// See [diag.setElementTypeNotAssignable].
+  void _checkForSetElementTypeNotAssignable3(SetOrMapLiteral literal) {
+    // Determine the set's element type. We base this on the static type and
+    // not the literal's type arguments because in strong mode, the type
+    // arguments may be inferred.
+    var setType = literal.typeOrThrow;
+    assert(setType is InterfaceTypeImpl);
+
+    var typeArguments = (setType as InterfaceTypeImpl).typeArguments;
+    // It is possible for the number of type arguments to be inconsistent when
+    // the literal is ambiguous and a non-set type was selected.
+    // TODO(brianwilkerson): Unify this and _checkForMapTypeNotAssignable3 to
+    //  better handle recovery situations.
+    if (typeArguments.length == 1) {
+      var setElementType = typeArguments[0];
+
+      // Check every set element.
+      var verifier = LiteralElementVerifier(
+        _typeProvider,
+        typeSystem,
+        diagnosticReporter,
+        this,
+        forSet: true,
+        elementType: setElementType,
+        featureSet: _featureSet,
+      );
+      for (CollectionElement element in literal.elements2) {
+        verifier.verify(element);
+      }
+    }
+  }
+
+  void _checkForThrowOfInvalidType(ThrowExpression node) {
+    var expression = node.expression2;
+    var type = node.expression2.typeOrThrow;
+
+    if (!typeSystem.isAssignableTo(
+      type,
+      typeSystem.objectNone,
+      strictCasts: strictCasts,
+    )) {
+      diagnosticReporter.report(
+        diag.throwOfInvalidType.withArguments(type: type).at(expression),
+      );
+    }
+  }
+
+  /// Verify that the given [element] does not reference itself directly.
+  /// If it does, report the error on the [nameToken].
+  ///
+  /// See [diag.typeAliasCannotReferenceItself].
+  void _checkForTypeAliasCannotReferenceItself(
+    TypeAliasElementImpl element,
+    Token nameToken,
+  ) {
+    if (element.hasSelfReference) {
+      diagnosticReporter.report(
+        diag.typeAliasCannotReferenceItself.at(nameToken),
+      );
+    }
+  }
+
+  /// Verify that the [type] is not a deferred type.
+  ///
+  /// See [diag.typeAnnotationDeferredClass].
+  void _checkForTypeAnnotationDeferredClass(TypeAnnotation? type) {
+    if (type is NamedType && type.isDeferred) {
+      diagnosticReporter.report(
+        diag.typeAnnotationDeferredClass
+            .withArguments(typeName: type.qualifiedName)
+            .at(type),
+      );
+    }
+  }
+
+  /// Check that none of the type [parameters] references itself in its bound.
+  ///
+  /// See [diag.typeParameterSupertypeOfItsBound].
+  void _checkForTypeParameterBoundRecursion(List<TypeParameter> parameters) {
+    checkForTypeParameterBoundRecursion(diagnosticReporter, parameters);
+  }
+
+  void _checkForTypeParameterReferencedByStatic({
+    required Element? element,
+    required Token name,
+  }) {
+    if (_enclosingExecutable.inStaticMethod ||
+        _thisContext == ThisContext.staticFieldDeclaration) {
+      if (element is TypeParameterElement &&
+          element.enclosingElement is InstanceElement) {
+        // The class's type parameters are not in scope for static methods.
+        // However all other type parameters are legal (e.g. the static method's
+        // type parameters, or a local function's type parameters).
+        diagnosticReporter.report(
+          diag.typeParameterReferencedByStatic.at(name),
+        );
+      }
+    }
+  }
+
+  /// Check that if the generative constructor has neither an explicit super
+  /// constructor invocation nor a redirecting constructor invocation, that
+  /// the superclass has a generative constructor that can be invoked without
+  /// arguments.
+  ///
+  /// See [diag.undefinedConstructorInInitializerDefault],
+  /// [diag.nonGenerativeConstructor], and
+  /// [diag.noDefaultSuperConstructorExplicit].
+  void _checkForUndefinedConstructorInInitializerImplicit({
+    required InterfaceElementImpl enclosingElement,
+    required FormalParameterList formalParameterList,
+    required List<ConstructorInitializer>? initializers,
+    required SourceRange errorRange,
+  }) {
+    // Ignore if the constructor has either an explicit super constructor
+    // invocation or a redirecting constructor invocation.
+    if (initializers != null) {
+      for (ConstructorInitializer constructorInitializer in initializers) {
+        if (constructorInitializer is SuperConstructorInvocation ||
+            constructorInitializer is RedirectingConstructorInvocation) {
+          return;
+        }
+      }
+    }
+
+    // Check to see whether the superclass has a non-factory unnamed
+    // constructor.
+    var superType = enclosingElement.supertype;
+    if (superType == null) {
+      return;
+    }
+    var superElement = superType.element;
+
+    if (superElement.constructors.every(
+      (constructor) => constructor.isFactory,
+    )) {
+      // Already reported [NO_GENERATIVE_CONSTRUCTORS_IN_SUPERCLASS].
+      return;
+    }
+
+    var superUnnamedConstructor = superElement.unnamedConstructor;
+    if (superUnnamedConstructor == null) {
+      diagnosticReporter.report(
+        diag.undefinedConstructorInInitializerDefault
+            .withArguments(className: superElement.name!)
+            .atSourceRange(errorRange),
+      );
+      return;
+    }
+
+    if (superUnnamedConstructor.isFactory) {
+      diagnosticReporter.report(
+        diag.nonGenerativeConstructor
+            .withArguments(constructor: superUnnamedConstructor)
+            .atSourceRange(errorRange),
+      );
+      return;
+    }
+
+    var requiredPositionalParameterCount = superUnnamedConstructor
+        .formalParameters
+        .where((parameter) => parameter.isRequiredPositional)
+        .length;
+    var requiredNamedParameters = superUnnamedConstructor.formalParameters
+        .where((parameter) => parameter.isRequiredNamed)
+        .map((parameter) => parameter.name)
+        .toSet();
+
+    if (!_currentLibrary.featureSet.isEnabled(Feature.super_parameters)) {
+      if (requiredPositionalParameterCount != 0 ||
+          requiredNamedParameters.isNotEmpty) {
+        diagnosticReporter.report(
+          diag.noDefaultSuperConstructorExplicit
+              .withArguments(supertype: superType)
+              .atSourceRange(errorRange),
+        );
+      }
+      return;
+    }
+
+    var superParametersResult = verifySuperFormalParameters(
+      formalParameterList: formalParameterList,
+      diagnosticReporter: diagnosticReporter,
+    );
+    requiredNamedParameters.removeAll(superParametersResult.namedArgumentNames);
+
+    if (requiredPositionalParameterCount >
+            superParametersResult.positionalArgumentCount ||
+        requiredNamedParameters.isNotEmpty) {
+      diagnosticReporter.report(
+        diag.implicitSuperInitializerMissingArguments
+            .withArguments(superType: superType)
+            .atSourceRange(errorRange),
+      );
+    }
+  }
+
+  /// Check that if the given generative [constructor] has neither an explicit
+  /// super constructor invocation nor a redirecting constructor invocation,
+  /// that the superclass has a default generative constructor.
+  ///
+  /// See [diag.undefinedConstructorInInitializerDefault],
+  /// [diag.nonGenerativeConstructor], and
+  /// [diag.noDefaultSuperConstructorExplicit].
+  void _checkForUndefinedConstructorInInitializerImplicitConstructor(
+    InterfaceElementImpl enclosingElement,
+    ConstructorDeclaration2 constructor,
+  ) {
+    // Ignore if the constructor is not generative.
+    if (constructor.factoryKeyword != null) {
+      return;
+    }
+
+    // Ignore if the constructor is external. See
+    // https://github.com/dart-lang/language/issues/869.
+    if (constructor.externalKeyword != null) {
+      return;
+    }
+
+    _checkForUndefinedConstructorInInitializerImplicit(
+      enclosingElement: enclosingElement,
+      formalParameterList: constructor.formalParameters,
+      initializers: constructor.initializers,
+      errorRange: constructor.errorRange,
+    );
+  }
+
+  void _checkForUnnecessaryNullAware(
+    InstanceReceiver target,
+    Token operator, {
+    required _NullAwareKind kind,
+  }) {
+    if (target is SuperReference) {
+      return;
+    }
+
+    /// If the operator is not valid because the target already makes use of a
+    /// null aware operator, return the null aware operator from the target.
+    Token? previousShortCircuitingOperator(InstanceReceiver? target) {
+      if (target case ReceiverPropertyExtraction(:Expression receiver)) {
+        if (target.operator.type == TokenType.QUESTION_PERIOD) {
+          return previousShortCircuitingOperator(receiver) ?? target.operator;
+        }
+      } else if (target is ReceiverIndexExpression) {
+        if (target.question != null) {
+          return previousShortCircuitingOperator(target.receiver) ??
+              target.question;
+        }
+      } else if (target is ReceiverMethodInvocation) {
+        var operator = target.operator;
+        if (target.receiver case Expression receiver
+            when operator.type == TokenType.QUESTION_PERIOD) {
+          return previousShortCircuitingOperator(receiver) ?? operator;
+        }
+      }
+      return null;
+    }
+
+    var targetType = target is Expression ? target.staticType : null;
+    if (target is ExtensionOverride2) {
+      var arguments = target.argumentList.arguments2;
+      if (arguments.length == 1) {
+        targetType = arguments[0].argumentExpression2.typeOrThrow;
+      } else {
+        return;
+      }
+    }
+
+    // A static member reference, such as `C?.x`, has a `StaticQualifier`
+    // receiver instead of an `InstanceReceiver`, and is checked by the caller.
+    if (targetType == null) {
+      return;
+    }
+    if (!typeSystem.isStrictlyNonNullable(targetType)) {
+      // The warning shouldn't be reported because the target type is
+      // potentially nullable.
+      return;
+    }
+
+    Token? previousOperator;
+    if (kind.canParticipateInShortCircuiting) {
+      previousOperator = previousShortCircuitingOperator(target);
+    }
+    var becauseOfShortCircuiting = previousOperator != null;
+    var locatableDiagnostic = kind.locatableDiagnostic(
+      becauseOfShortCircuiting: becauseOfShortCircuiting,
+    );
+
+    if (becauseOfShortCircuiting) {
+      var lexeme = previousOperator.lexeme;
+      locatableDiagnostic = locatableDiagnostic.withContextMessages([
+        DiagnosticMessageImpl(
+          filePath: diagnosticReporter.source.fullName,
+          message: "The operator '$lexeme' is causing the short circuiting.",
+          offset: previousOperator.offset,
+          length: previousOperator.length,
+          url: null,
+        ),
+      ]);
+    }
+
+    if (kind == _NullAwareKind.indexExpression) {
+      diagnosticReporter.report(
+        locatableDiagnostic.atOffset(
+          offset: operator.offset,
+          length: operator.next!.end - operator.offset,
+        ),
+      );
+    } else {
+      diagnosticReporter.report(locatableDiagnostic.at(operator));
+    }
+  }
+
+  void _checkForUnqualifiedReferenceToNonLocalStaticMember2({
+    required SyntacticEntity entity,
+    required Element? element,
+  }) {
+    if (element == null || element is TypeParameterElement) {
+      return;
+    }
+
+    var enclosingElement = element.enclosingElement;
+    if (enclosingElement == null) {
+      return;
+    }
+
+    if (identical(enclosingElement, _enclosingInstanceElement)) {
+      return;
+    }
+    if (enclosingElement is! InterfaceElement) {
+      return;
+    }
+    if (element is ExecutableElement && !element.isStatic) {
+      return;
+    }
+    if (_enclosingInstanceElement is ExtensionElementImpl) {
+      diagnosticReporter.report(
+        diag.unqualifiedReferenceToStaticMemberOfExtendedType
+            .withArguments(name: enclosingElement.displayName)
+            .at(entity),
+      );
+    } else {
+      diagnosticReporter.report(
+        diag.unqualifiedReferenceToNonLocalStaticMember
+            .withArguments(name: enclosingElement.displayName)
+            .at(entity),
+      );
+    }
+  }
+
+  void _checkForValidField(FieldFormalParameter parameter) {
+    var element = parameter.declaredFragment?.element;
+
+    var constructor = parameter.parentFormalParameterList2.parent2;
+    if (constructor is PrimaryConstructorDeclaration &&
+        constructor.parent2 is ExtensionTypeDeclaration2) {
+      return;
+    }
+    if (constructor is! ConstructorDeclaration2 &&
+        constructor is! PrimaryConstructorDeclaration) {
+      return;
+    }
+    if (element is! FieldFormalParameterElementImpl) {
+      return;
+    }
+
+    var fieldElement = element.field;
+    if (fieldElement == null || fieldElement.isOriginGetterSetter) {
+      diagnosticReporter.report(
+        diag.initializingFormalForNonExistentField
+            .withArguments(formalName: parameter.name.lexeme)
+            .at(parameter),
+      );
+      return;
+    }
+
+    if (fieldElement.isStatic) {
+      diagnosticReporter.report(
+        diag.initializerForStaticField
+            .withArguments(formalName: parameter.name.lexeme)
+            .at(parameter.thisKeyword),
+      );
+      return;
+    }
+
+    var elementType = element.type;
+    var fieldType = fieldElement.type;
+    if (!typeSystem.isSubtypeOf(elementType, fieldType)) {
+      diagnosticReporter.report(
+        diag.fieldInitializingFormalNotAssignable
+            .withArguments(
+              formalParameterType: elementType,
+              fieldType: fieldType,
+            )
+            .at(parameter),
+      );
+    }
+    //        else {
+    // TODO(jwren): Report error, constructor initializer variable is a top level element
+    // (Either here or in ErrorVerifier.checkForAllFinalInitializedErrorCodes)
+    //        }
+  }
+
+  /// Verify the given operator-method [declaration], has correct number of
+  /// parameters.
+  ///
+  /// This method assumes that the method declaration was tested to be an
+  /// operator declaration before being called.
+  ///
+  /// See [diag.wrongNumberOfParametersForOperator].
+  bool _checkForWrongNumberOfParametersForOperator(
+    OperatorDeclarationImpl declaration,
+  ) {
+    // prepare number of parameters
+    var parameterList = declaration.writtenFormalParameters;
+    if (parameterList == null) {
+      return false;
+    }
+    int numParameters = parameterList.allFormalParameters.length;
+    // prepare operator name
+    var nameToken = declaration.nameToken;
+    var name = nameToken.lexeme;
+    // check for exact number of parameters
+    int expected = -1;
+    if ("[]=" == name) {
+      expected = 2;
+    } else if ("<" == name ||
+        ">" == name ||
+        "<=" == name ||
+        ">=" == name ||
+        "==" == name ||
+        "+" == name ||
+        "/" == name ||
+        "~/" == name ||
+        "*" == name ||
+        "%" == name ||
+        "|" == name ||
+        "^" == name ||
+        "&" == name ||
+        "<<" == name ||
+        ">>" == name ||
+        ">>>" == name ||
+        "[]" == name) {
+      expected = 1;
+    } else if ("~" == name) {
+      expected = 0;
+    }
+    if (expected != -1 && numParameters != expected) {
+      diagnosticReporter.report(
+        diag.wrongNumberOfParametersForOperator
+            .withArguments(
+              name: name,
+              expectedCount: expected,
+              actualCount: numParameters,
+            )
+            .at(nameToken),
+      );
+      return true;
+    } else if ("-" == name && numParameters > 1) {
+      diagnosticReporter.report(
+        diag.wrongNumberOfParametersForOperatorMinus
+            .withArguments(actualCount: numParameters)
+            .at(nameToken),
+      );
+      return true;
+    }
+    return false;
+  }
+
+  void _checkForWrongTypeParameterVarianceInField(
+    InterfaceElementImpl enclosingElement,
+    FieldsDeclarationImpl node,
+  ) {
+    var firstField = node.fields.first;
+    var element = firstField.declaredFragment!.element;
+
+    for (var typeParameter in enclosingElement.typeParameters) {
+      if (!typeParameter.isLegacyCovariant) {
+        var fieldName = firstField.name;
+        Variance fieldVariance = typeParameter.computeVarianceInType(
+          element.type,
+        );
+
+        _checkForWrongVariancePosition(typeParameter, fieldVariance, fieldName);
+        if (node.finalKeyword == null && node.covariantKeyword == null) {
+          _checkForWrongVariancePosition(
+            typeParameter,
+            Variance.contravariant.combine(fieldVariance),
+            fieldName,
+          );
+        }
+      }
+    }
+  }
+
+  void _checkForWrongTypeParameterVarianceInMethod(
+    InterfaceElementImpl enclosingElement,
+    MethodDeclarationV1OriginImpl method,
+  ) {
+    // Only need to report errors for parameters with explicitly defined type
+    // parameters in classes or mixins.
+    for (var typeParameter in enclosingElement.typeParameters) {
+      if (typeParameter.isLegacyCovariant) {
+        continue;
+      }
+
+      var methodTypeParameters = method.writtenTypeParameters?.typeParameters;
+      if (methodTypeParameters != null) {
+        for (var methodTypeParameter in methodTypeParameters) {
+          if (methodTypeParameter.bound == null) {
+            continue;
+          }
+          var methodTypeParameterVariance = Variance.invariant.combine(
+            typeParameter.computeVarianceInType(
+              methodTypeParameter.bound!.typeOrThrow,
+            ),
+          );
+          _checkForWrongVariancePosition(
+            typeParameter,
+            methodTypeParameterVariance,
+            methodTypeParameter,
+          );
+        }
+      }
+
+      var methodParameters =
+          method.writtenFormalParameters?.allFormalParameters;
+      if (methodParameters != null) {
+        for (var methodParameter in methodParameters) {
+          var methodParameterElement =
+              methodParameter.declaredFragment!.element;
+
+          if (methodParameterElement.isCovariant) {
+            continue;
+          }
+          var methodParameterVariance = Variance.contravariant.combine(
+            typeParameter.computeVarianceInType(methodParameterElement.type),
+          );
+          _checkForWrongVariancePosition(
+            typeParameter,
+            methodParameterVariance,
+            methodParameter,
+          );
+        }
+      }
+
+      var returnType = method.returnType;
+      if (returnType != null) {
+        var methodReturnTypeVariance = typeParameter.computeVarianceInType(
+          returnType.typeOrThrow,
+        );
+        _checkForWrongVariancePosition(
+          typeParameter,
+          methodReturnTypeVariance,
+          returnType,
+        );
+      }
+    }
+  }
+
+  void _checkForWrongTypeParameterVarianceInSuperinterfaces(
+    InterfaceElementImpl element,
+  ) {
+    void checkOne(DartType? superInterface) {
+      if (superInterface != null) {
+        for (var typeParameter in element.typeParameters) {
+          var superVariance = typeParameter.computeVarianceInType(
+            superInterface,
+          );
+          // Let `D` be a class or mixin declaration, let `S` be a direct
+          // superinterface of `D`, and let `X` be a type parameter declared by
+          // `D`.
+          // If `X` is an `out` type parameter, it can only occur in `S` in an
+          // covariant or unrelated position.
+          // If `X` is an `in` type parameter, it can only occur in `S` in an
+          // contravariant or unrelated position.
+          // If `X` is an `inout` type parameter, it can occur in `S` in any
+          // position.
+          if (!superVariance.greaterThanOrEqual(typeParameter.variance)) {
+            if (!typeParameter.isLegacyCovariant) {
+              diagnosticReporter.report(
+                diag.wrongExplicitTypeParameterVarianceInSuperinterface
+                    .withArguments(
+                      typeParameterName: typeParameter.name ?? '',
+                      varianceModifier: typeParameter.variance.keyword,
+                      variancePosition: superVariance.keyword,
+                      superInterface: superInterface,
+                    )
+                    .atSourceRange(
+                      typeParameter.diagnosticRange(_currentUnit.source),
+                    ),
+              );
+            } else {
+              diagnosticReporter.report(
+                diag.wrongTypeParameterVarianceInSuperinterface
+                    .withArguments(
+                      typeParameterName: typeParameter.name ?? '',
+                      superInterfaceType: superInterface,
+                    )
+                    .atSourceRange(
+                      typeParameter.diagnosticRange(_currentUnit.source),
+                    ),
+              );
+            }
+          }
+        }
+      }
+    }
+
+    checkOne(element.supertype);
+    element.interfaces.forEach(checkOne);
+    element.mixins.forEach(checkOne);
+
+    if (element is MixinElementImpl) {
+      element.superclassConstraints.forEach(checkOne);
+    }
+  }
+
+  /// Check for invalid variance positions in members of a class or mixin.
+  ///
+  /// Let `C` be a class or mixin declaration with type parameter `T`.
+  /// If `T` is an `out` type parameter then `T` can only appear in covariant
+  /// positions within the accessors and methods of `C`.
+  /// If `T` is an `in` type parameter then `T` can only appear in contravariant
+  /// positions within the accessors and methods of `C`.
+  /// If `T` is an `inout` type parameter or a type parameter with no explicit
+  /// variance modifier then `T` can appear in any variant position within the
+  /// accessors and methods of `C`.
+  ///
+  /// Errors should only be reported in classes and mixins since those are the
+  /// only components that allow explicit variance modifiers.
+  ///
+  /// For [typeParameter], check whether [variance] is valid and report any
+  /// diagnostic at [errorTarget].
+  void _checkForWrongVariancePosition(
+    TypeParameterElementImpl typeParameter,
+    Variance variance,
+    SyntacticEntity errorTarget,
+  ) {
+    if (!variance.greaterThanOrEqual(typeParameter.variance)) {
+      diagnosticReporter.report(
+        diag.wrongTypeParameterVariancePosition
+            .withArguments(
+              modifier: typeParameter.variance.keyword,
+              typeParameterName: typeParameter.name ?? '',
+              variancePosition: variance.keyword,
+            )
+            .at(errorTarget),
+      );
+    }
+  }
+
+  /// Verify that the current class does not have the same class in the
+  /// 'extends' and 'implements' clauses.
+  ///
+  /// See [diag.implementsSuperClass].
+  void _checkImplementsSuperClass(
+    InterfaceElementImpl element,
+    ImplementsClause? implementsClause,
+  ) {
+    if (_featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    if (implementsClause == null) {
+      return;
+    }
+
+    var superElement = element.supertype?.element;
+    if (superElement == null) {
+      return;
+    }
+
+    for (var interfaceNode in implementsClause.interfaces) {
+      var type = interfaceNode.type;
+      if (type is InterfaceType && type.element == superElement) {
+        diagnosticReporter.report(
+          diag.implementsSuperClass
+              .withArguments(superElement: superElement)
+              .at(interfaceNode),
+        );
+      }
+    }
+  }
+
+  void _checkImplementsSuperClassConstraint(
+    MixinOnClause? onClause,
+    ImplementsClause? implementsClause,
+  ) {
+    if (onClause == null || implementsClause == null) {
+      return;
+    }
+
+    if (_currentLibrary.featureSet.isEnabled(Feature.augmentations)) {
+      return;
+    }
+
+    var onElements = <Element>{};
+    for (var onNode in onClause.superclassConstraints) {
+      var type = onNode.type;
+      if (type is InterfaceType) {
+        onElements.add(type.element);
+      }
+    }
+
+    for (var interfaceNode in implementsClause.interfaces) {
+      var type = interfaceNode.type;
+      if (type is InterfaceType && onElements.contains(type.element)) {
+        diagnosticReporter.report(
+          diag.implementsSuperClassConstraint
+              .withArguments(superElement: type.element)
+              .at(interfaceNode),
+        );
+      }
+    }
+  }
+
+  /// Check [declarationFragment] for problems involving [onClause] or
+  /// [implementsClause]. The [nameToken] is the declaration name where
+  /// applicable diagnostics are reported.
+  void _checkMixinInheritance(
+    MixinFragmentImpl declarationFragment,
+    MixinOnClause? onClause,
+    ImplementsClause? implementsClause,
+    Token nameToken,
+  ) {
+    // Only check for all of the inheritance logic around clauses if there
+    // isn't an error code such as "Cannot implement double" already.
+    if (!_checkForOnClauseErrorCodes(onClause) &&
+        !_checkForImplementsClauseErrorCodes(implementsClause)) {
+      //      _checkForImplicitDynamicType(superclass);
+      _checkForRepeatedType(
+        libraryContext.setOfOn(declarationFragment.element),
+        onClause?.superclassConstraints,
+        diag.onRepeated,
+      );
+      if (!_featureSet.isEnabled(Feature.augmentations)) {
+        _checkForRepeatedType(
+          libraryContext.setOfImplements(declarationFragment.element),
+          implementsClause?.interfaces,
+          diag.implementsRepeated,
+        );
+      }
+      _checkImplementsSuperClassConstraint(onClause, implementsClause);
+      _checkForConflictingGenerics(
+        fragment: declarationFragment,
+        nameToken: nameToken,
+      );
+      _checkForBaseClassOrMixinImplementedOutsideOfLibrary(implementsClause);
+      _checkForFinalSupertypeOutsideOfLibrary(
+        null,
+        null,
+        implementsClause,
+        onClause,
+      );
+      _checkForSealedSupertypeOutsideOfLibrary([
+        ...?implementsClause?.interfaces,
+        ...?onClause?.superclassConstraints,
+      ]);
+    }
+  }
+
+  /// Verify that the current class does not have the same class in the
+  /// 'extends' and 'with' clauses.
+  ///
+  /// See [diag.implementsSuperClass].
+  void _checkMixinsSuperClass(
+    InterfaceElementImpl element,
+    WithClause? withClause,
+  ) {
+    if (withClause == null) {
+      return;
+    }
+
+    var superElement = element.supertype?.element;
+    if (superElement == null) {
+      return;
+    }
+
+    for (var mixinNode in withClause.mixinTypes) {
+      var type = mixinNode.type;
+      if (type is InterfaceType && type.element == superElement) {
+        diagnosticReporter.report(
+          diag.mixinsSuperClass
+              .withArguments(referencedClass: superElement)
+              .at(mixinNode),
+        );
+      }
+    }
+  }
+
+  /// Check that a private named [node] has a valid public name.
+  void _checkPrivateOptionalParameter(FormalParameter node) {
+    var element = node.declaredFragment!.element;
+
+    // Must be a named parameter.
+    if (!node.isNamed) {
+      return;
+    }
+
+    // Must be private.
+    var name = node.name;
+    if (name == null || name.isSynthetic || !name.lexeme.startsWith('_')) {
+      return;
+    }
+
+    var feature = Feature.private_named_parameters;
+    if (!_currentLibrary.featureSet.isEnabled(feature)) {
+      if (node is FieldFormalParameter) {
+        // The user is using syntax that is now meaningful, but in a
+        // library where it isn't enabled, so report a more precise error.
+        if (feature.isEnabledByDefault) {
+          diagnosticReporter.report(
+            diag.experimentNotEnabled
+                .withArguments(
+                  featureName: feature.enableString,
+                  enabledVersion: feature.releaseVersion.toString(),
+                )
+                .at(name),
+          );
+        } else {
+          diagnosticReporter.report(
+            diag.experimentNotEnabledOffByDefault
+                .withArguments(featureName: feature.enableString)
+                .at(name),
+          );
+        }
+      } else {
+        diagnosticReporter.report(diag.privateOptionalParameter.at(name));
+      }
+      return;
+    }
+
+    // Must refer to a field.
+    if (element is! FieldFormalParameterElementImpl) {
+      diagnosticReporter.report(diag.privateNamedNonFieldParameter.at(name));
+      return;
+    }
+
+    if (correspondingPublicName(name.lexeme) == null) {
+      diagnosticReporter.report(
+        diag.privateNamedParameterWithoutPublicName.at(name),
+      );
+    }
+  }
+
+  void _checkUseOfCovariantInParameters(FormalParameterList node) {
+    var parent = node.parent2;
+    if (_enclosingInstanceElement is InterfaceElementImpl &&
+        parent is MethodDeclarationV1OriginImpl) {
+      // Either [parent] is a static method, in which case `EXTRANEOUS_MODIFIER`
+      // is reported by the parser, or [parent] is an instance method, in which
+      // case any use of `covariant` is legal.
+      return;
+    }
+
+    // Parser reports `invalidCovariantModifierInPrimaryConstructor`.
+    if (parent is PrimaryConstructorDeclaration) {
+      return;
+    }
+
+    if (_enclosingInstanceElement is ExtensionElementImpl) {
+      // `INVALID_USE_OF_COVARIANT_IN_EXTENSION` is reported by the parser.
+      return;
+    }
+
+    if (parent is TopLevelFunctionDeclaration ||
+        parent is TopLevelGetterDeclaration ||
+        parent is TopLevelSetterDeclaration) {
+      // `EXTRANEOUS_MODIFIER` is reported by the parser, for library-level
+      // functions, getters, and setters.
+      return;
+    }
+
+    var parameters = node.allFormalParameters;
+    int length = parameters.length;
+    for (int i = 0; i < length; i++) {
+      var parameter = parameters[i];
+      var keyword = parameter.covariantKeyword;
+      if (keyword != null) {
+        diagnosticReporter.report(diag.invalidUseOfCovariant.at(keyword));
+      }
+    }
+  }
+
+  void _checkUseOfDefaultValuesInParameters(FormalParameterList node) {
+    var defaultValuesAreExpected = () {
+      var parent = node.parent2;
+      if (parent is ConstructorDeclaration2Impl) {
+        var declaredFragment = parent.declaredFragment!;
+        var element = declaredFragment.element;
+
+        if (declaredFragment.isAugmentation) {
+          return false;
+        }
+        if (element.isExternal) {
+          return false;
+        }
+        if (element.isFactory && element.isRedirecting) {
+          return false;
+        }
+        return true;
+      } else if (parent is FunctionExpression) {
+        if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is LocalFunctionDeclaration) {
+        if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is MethodDeclarationV1OriginImpl) {
+        if (parent.augmentKeyword != null) {
+          return false;
+        } else if (parent.declaredFragment!.element.isAbstract) {
+          return false;
+        } else if (parent.externalKeyword != null) {
+          return false;
+        } else if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is TopLevelFunctionDeclarationImpl) {
+        if (parent.augmentKeyword != null) {
+          return false;
+        } else if (parent.externalKeyword != null) {
+          return false;
+        } else if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is TopLevelGetterDeclarationImpl) {
+        if (parent.augmentKeyword != null) {
+          return false;
+        } else if (parent.externalKeyword != null) {
+          return false;
+        } else if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is TopLevelSetterDeclarationImpl) {
+        if (parent.augmentKeyword != null) {
+          return false;
+        } else if (parent.externalKeyword != null) {
+          return false;
+        } else if (parent.body is NativeFunctionBody) {
+          return false;
+        }
+        return true;
+      } else if (parent is PrimaryConstructorDeclaration) {
+        return true;
+      }
+      return false;
+    }();
+
+    for (var parameter in node.allFormalParameters) {
+      _checkForDefaultValueAlreadySpecifiedInAugmentationChain(parameter);
+      _checkForDefaultValueInRedirectingFactoryConstructor(parameter);
+
+      if (parameter.isRequiredNamed) {
+        if (parameter.defaultClause != null) {
+          var errorTarget = parameter.name ?? parameter;
+          diagnosticReporter.report(
+            diag.defaultValueOnRequiredParameter.at(errorTarget),
+          );
+        }
+      } else if (defaultValuesAreExpected && parameter.isOptional) {
+        var element = parameter.declaredFragment!.element;
+
+        if (!element.hasDefaultValue) {
+          var type = element.type;
+          if (typeSystem.isPotentiallyNonNullable(type)) {
+            var parameterName = parameter.name;
+            var errorTarget = parameterName ?? parameter;
+            if (element.metadata.hasRequired) {
+              diagnosticReporter.report(
+                diag.missingDefaultValueForParameterWithAnnotation.at(
+                  errorTarget,
+                ),
+              );
+            } else {
+              if (!_isWildcardSuperFormalPositionalParameter(parameter)) {
+                diagnosticReporter.report(
+                  (element.isPositional
+                          ? diag.missingDefaultValueForParameterPositional
+                          : diag.missingDefaultValueForParameter)
+                      .withArguments(name: parameterName?.lexeme ?? '?')
+                      .at(errorTarget),
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /// Given an [expression] in a switch case whose value is expected to be an
+  /// enum constant, return the name of the constant.
+  String? _getConstantName(Expression expression) {
+    // TODO(brianwilkerson): Convert this to return the element representing the
+    // constant.
+    if (expression is NameExpression) {
+      return expression.name.lexeme;
+    }
+    return null;
+  }
+
+  /// Return `true` if the [importElement] is the internal library `dart:_wasm`
+  /// and the current library is either `package:js/js.dart` or is in
+  /// `package:ui`.
+  bool _isWasm(LibraryImport importElement) {
+    var importedUri = importElement.importedLibrary?.uri.toString();
+    if (importedUri != 'dart:_wasm' && importedUri != 'dart:_js_interop_wasm') {
+      return false;
+    }
+    var importingUri = _currentLibrary.uri.toString();
+    if (importingUri == 'package:js/js.dart') {
+      return true;
+    } else if (importingUri.startsWith('package:ui/')) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isWildcardSuperFormalPositionalParameter(FormalParameter parameter) =>
+      parameter is SuperFormalParameter &&
+      parameter.isPositional &&
+      parameter.name.lexeme == '_' &&
+      _currentLibrary.featureSet.isEnabled(Feature.wildcard_variables);
+
+  /// Checks whether a `final`, `base` or `interface` modifier can be ignored.
+  ///
+  /// Checks whether a subclass in the current library
+  /// can ignore a class modifier of a declaration in [superLibrary].
+  ///
+  /// Only true if the supertype library is a platform library, and
+  /// either the current library is also a platform library,
+  /// or the current library has a language version which predates
+  /// class modifiers
+  bool _mayIgnoreClassModifiers(LibraryElement superLibrary) {
+    // Only modifiers in platform libraries can be ignored.
+    if (!superLibrary.isInSdk) return false;
+
+    // Modifiers in 'dart:ffi' can't be ignored in pre-feature code.
+    if (superLibrary._isDartFfiLibrary) {
+      return false;
+    }
+
+    // Other platform libraries can ignore modifiers.
+    if (_currentLibrary.isInSdk) return true;
+
+    // Libraries predating class modifiers can ignore platform modifiers.
+    return !_currentLibrary.featureSet.isEnabled(Feature.class_modifiers);
+  }
+
+  /// Reports when multiple combinator clauses are specified on [node], _when
+  /// [Feature.single_combinators] is not enabled.
+  ///
+  /// (When that experiment _is_ enabled, a compile-time parse error is emitted
+  /// by the parser.)
+  void _reportForMultipleCombinators(NamespaceDirective node) {
+    if (_currentLibrary.featureSet.isEnabled(Feature.single_combinators)) {
+      return;
+    }
+    var combinators = node.combinators;
+    if (combinators.length > 1) {
+      var offset = combinators.beginToken!.offset;
+      var length = combinators.endToken!.end - offset;
+      diagnosticReporter.report(
+        diag.multipleCombinatorsDeprecated.atOffset(
+          offset: offset,
+          length: length,
+        ),
+      );
+    }
+  }
+
+  void _reportMissingAwaitInTryBlock(ReturnStatement node) {
+    node.accept2(_asyncReturnVisitor);
+  }
+
+  Diagnostic _reportUnawaitedReturnInTryBlock(Token token) {
+    return diagnosticReporter.report(diag.unawaitedReturnInTryBlock.at(token));
+  }
+
+  void _validateConstructorBodyAllowed({
+    required ConstructorElement element,
+    required Token? constKeyword,
+    required Token? externalKeyword,
+    required bool isRedirecting,
+    required FunctionBody body,
+    bool isPrimary = false,
+  }) {
+    if (element.isFactory) {
+      if (externalKeyword != null) {
+        if (body is BlockFunctionBody) {
+          diagnosticReporter.report(
+            diag.externalFactoryWithBody.at(body.block.leftBracket),
+          );
+        } else if (body is ExpressionFunctionBody) {
+          diagnosticReporter.report(
+            diag.externalFactoryWithBody.at(body.functionDefinition),
+          );
+        }
+      } else if (constKeyword != null && !isRedirecting) {
+        diagnosticReporter.report(diag.constFactory.at(constKeyword));
+      }
+    } else {
+      _checkForExternalMethodWithBody(
+        externalKeyword: externalKeyword,
+        body: body,
+      );
+      if (isRedirecting) {
+        if (body is BlockFunctionBody) {
+          diagnosticReporter.report(
+            diag.redirectingConstructorWithBody.at(body.block.leftBracket),
+          );
+        } else if (body is ExpressionFunctionBody) {
+          diagnosticReporter.report(
+            diag.redirectingConstructorWithBody.at(body.functionDefinition),
+          );
+        }
+      }
+      if (element.isConst) {
+        if (body is BlockFunctionBody) {
+          var error = isPrimary
+              ? diag.constPrimaryConstructorWithBlockBody
+              : diag.constConstructorWithBody;
+          diagnosticReporter.report(error.at(body.block.leftBracket));
+        } else if (body is ExpressionFunctionBody) {
+          var error = isPrimary
+              ? diag.constPrimaryConstructorWithExpressionBody
+              : diag.constConstructorWithBody;
+          diagnosticReporter.report(error.at(body.functionDefinition));
+        }
+      } else if (isPrimary && body is ExpressionFunctionBody) {
+        diagnosticReporter.report(
+          diag.primaryConstructorBodyWithExpressionBody.at(
+            body.functionDefinition,
+          ),
+        );
+      }
+    }
+  }
+
+  void _verifyNamedFunctionInvocation(NamedFunctionInvocation node) {
+    var element = switch (node.resolution) {
+      ExecutableInvocationResolution(:var element) => element,
+      InvalidInvocationResolution(
+        recovery: ExecutableInvocationResolution(:var element),
+      ) =>
+        element,
+      InvalidInvocationResolution(:var candidates) => candidates.singleOrNull,
+      _ => null,
+    };
+    var ambiguousElement = switch (node.resolution) {
+      InvalidInvocationResolution(:var candidates) =>
+        candidates.whereType<MultiplyDefinedElementImpl>().firstOrNull,
+      _ => null,
+    };
+    _checkForAmbiguousImport(element: ambiguousElement, name: node.name);
+    if (node is UnqualifiedFunctionInvocation) {
+      _checkForReferenceBeforeDeclaration(
+        element: element,
+        nameToken: node.name,
+      );
+      _checkForInvalidInstanceMemberAccess2(
+        entity: node.name,
+        name: node.name.lexeme,
+        element: element,
+      );
+      _checkForTypeParameterReferencedByStatic(
+        element: element,
+        name: node.name,
+      );
+      _checkForUnqualifiedReferenceToNonLocalStaticMember2(
+        entity: node.name,
+        element: element,
+      );
+    }
+    _typeArgumentsVerifier.checkFunctionInvocation(node);
+    _requiredParametersVerifier.verifyNamedFunctionInvocation(node);
+    _constArgumentsVerifier.verifyNamedFunctionInvocation(node);
+    _checkUseVerifier.checkNamedFunctionInvocation(node);
+  }
+
+  void _visitMethodDeclaration(MethodDeclarationV1OriginImpl node) {
+    var declaredFragment = node.declaredFragment!;
+    var element = declaredFragment.element;
+
+    var hasConstVariableAugmentation =
+        _checkForConstVariableAugmentationByAccessor(
+          fragment: declaredFragment,
+          errorToken: node.nameToken,
+        );
+    if (!hasConstVariableAugmentation) {
+      _checkAugmentationWithoutDeclaration(
+        declaredFragment,
+        node.augmentKeyword,
+      );
+      _checkForFunctionAlreadyComplete(
+        fragment: declaredFragment,
+        augmentKeyword: node.augmentKeyword,
+      );
+    }
+    _checkForFunctionBodyCompleteness(
+      fragment: declaredFragment,
+      node: node,
+      nameToken: node.nameToken,
+    );
+    _checkForExtensionDeclaresAbstractMember(node);
+    _checkForAugmentationTypeParameters(
+      fragment: declaredFragment,
+      firstTypeParameters: element.firstFragment.typeParameters,
+      nameOrKeywordToken: node.nameToken,
+      typeParameterList: node.writtenTypeParameters,
+    );
+    _checkForAugmentationReturnTypeMismatch(
+      fragment: declaredFragment,
+      returnTypeNode: node.returnType,
+      errorEntity: node.returnType ?? node.nameToken,
+    );
+    if (node.writtenFormalParameters case var parameters?) {
+      _checkForAugmentationFormalParameters(
+        executableFragment: declaredFragment,
+        formalParameterList: parameters,
+      );
+    }
+
+    _withEnclosingExecutable(
+      element,
+      () {
+        var returnType = node.returnType;
+        if (node is SetterDeclarationImpl) {
+          _checkForNonVoidReturnTypeForSetter(returnType);
+        } else if (node is OperatorDeclarationImpl) {
+          var hasWrongNumberOfParameters =
+              _checkForWrongNumberOfParametersForOperator(node);
+          if (!hasWrongNumberOfParameters) {
+            // If the operator has too many parameters including one or more
+            // optional parameters, only report one error.
+            _checkForOptionalParameterInOperator(node);
+          }
+          _checkForNonVoidReturnTypeForOperator(node);
+        }
+        _checkForExtensionDeclaresMemberOfObject(node);
+        _checkForTypeAnnotationDeferredClass(returnType);
+        _returnTypeVerifier.verifyReturnType(returnType);
+        if (element.enclosingElement
+            case InterfaceElementImpl enclosingElement) {
+          _checkForWrongTypeParameterVarianceInMethod(enclosingElement, node);
+        }
+        _checkForExternalMethodWithBody(
+          externalKeyword: node.externalKeyword,
+          body: node.body,
+        );
+
+        void visitBody(FunctionBodyImpl body) {
+          _withThisContext(
+            node.staticKeyword != null
+                ? ThisContext.staticMemberBody
+                : ThisContext.instanceMemberBody,
+            () {
+              body.accept2(this);
+            },
+          );
+        }
+
+        switch (node) {
+          case GetterDeclarationImpl():
+            node.visitChildrenWithHooks(this, visitBody: visitBody);
+          case MethodDeclaration2Impl():
+            node.visitChildrenWithHooks(this, visitBody: visitBody);
+          case OperatorDeclarationImpl():
+            node.visitChildrenWithHooks(this, visitBody: visitBody);
+          case SetterDeclarationImpl():
+            node.visitChildrenWithHooks(this, visitBody: visitBody);
+        }
+      },
+      isAsynchronous: declaredFragment.isAsynchronous,
+      isGenerator: declaredFragment.isGenerator,
+    );
+  }
+
+  /// Checks and visits the initializer of the variable [node], with the name
+  /// of the variable recorded as being declared by it.
+  void _visitVariableInitializer(VariableBindingImpl node) {
+    _checkForAbstractOrExternalVariableInitializer(node);
+    var name = node.name.lexeme;
+    _namesForReferenceToDeclaredVariableInInitializer.add(name);
+    try {
+      node.initializer2?.accept2(this);
+    } finally {
+      _namesForReferenceToDeclaredVariableInInitializer.remove(name);
+    }
+  }
+
+  void _withEnclosingExecutable(
+    InternalExecutableElement element,
+    void Function() operation, {
+    required bool isAsynchronous,
+    required bool isGenerator,
+  }) {
+    var current = _enclosingExecutable;
+    try {
+      _enclosingExecutable = EnclosingExecutableContext(
+        element,
+        isAsynchronous: isAsynchronous,
+        isGenerator: isGenerator,
+      );
+      _returnTypeVerifier.enclosingExecutable = _enclosingExecutable;
+      operation();
+    } finally {
+      _enclosingExecutable = current;
+      _returnTypeVerifier.enclosingExecutable = _enclosingExecutable;
+    }
+  }
+
+  void _withEnclosingInstanceElement(
+    InstanceElementImpl element,
+    void Function() operation,
+  ) {
+    var previousElement = _enclosingInstanceElement;
+    _enclosingInstanceElement = element;
+    try {
+      operation();
+    } finally {
+      _enclosingInstanceElement = previousElement;
+    }
+  }
+
+  void _withHiddenElements(HiddenElements hiddenElements, void Function() f) {
+    var outerElements = _hiddenElements;
+    _hiddenElements = hiddenElements;
+    try {
+      f();
+    } finally {
+      _hiddenElements = outerElements;
+    }
+  }
+
+  void _withHiddenElementsForForParts(
+    ForLoopParts forLoopParts,
+    void Function() f,
+  ) {
+    if (forLoopParts is ForPartsWithDeclarations) {
+      _withHiddenElements(
+        HiddenElements.forElements(
+          _hiddenElements,
+          forLoopParts.variables2.variables.map((variable) {
+            return variable.declaredFragment!.element;
+          }),
+        ),
+        f,
+      );
+    } else {
+      f();
+    }
+  }
+
+  void _withHiddenElementsForStatements(
+    List<Statement> statements,
+    void Function() f,
+  ) {
+    _withHiddenElements(
+      HiddenElements.forElements(
+        _hiddenElements,
+        BlockScope.elementsInStatements(statements),
+      ),
+      f,
+    );
+  }
+
+  void _withHiddenElementsGuardedPattern(
+    GuardedPatternImpl guardedPattern,
+    void Function() f,
+  ) {
+    _withHiddenElements(
+      HiddenElements.forElements(
+        _hiddenElements,
+        guardedPattern.variables.values,
+      ),
+      f,
+    );
+  }
+
+  /// Executes [f] with [state] as the current [ThisContext].
+  void _withThisContext(ThisContext state, void Function() f) {
+    _thisContextStack.add(state);
+    try {
+      f();
+    } finally {
+      _thisContextStack.removeLast();
+    }
+  }
+}
+
+/// A record of the elements that will be declared in some scope (block), but
+/// are not yet declared.
+class HiddenElements {
+  /// The elements hidden in outer scopes, or `null` if this is the outermost
+  /// scope.
+  final HiddenElements? outerElements;
+
+  /// A set containing the elements that will be declared in this scope, but are
+  /// not yet declared.
+  final Set<Element> _elements = {};
+
+  /// Initialize a newly created set of hidden elements to include all of the
+  /// elements defined in [outerElements] and the given [elements].
+  new forElements(this.outerElements, Iterable<Element> elements) {
+    _elements.addAll(elements);
+  }
+
+  /// Return `true` if this set of elements contains the given [element].
+  bool contains(Element element) {
+    if (_elements.contains(element)) {
+      return true;
+    } else if (outerElements != null) {
+      return outerElements!.contains(element);
+    }
+    return false;
+  }
+
+  /// Record that the given [element] has been declared, so it is no longer
+  /// hidden.
+  void declare(Element element) {
+    _elements.remove(element);
+  }
+}
+
+/// Information to pass from from the defining unit to augmentations.
+class LibraryVerificationContext {
+  final duplicationDefinitionContext = DuplicationDefinitionContext();
+  final LibraryFileKind libraryKind;
+  final ConstructorFieldsVerifier constructorFieldsVerifier;
+
+  /// A table mapping names to the exported elements.
+  final Map<String, Element> _exportedElements = {};
+
+  /// Elements referenced in `implements` clauses.
+  /// Key: the declaration element.
+  final Map<InstanceElement, Set<InstanceElement>> _setOfImplementsMap =
+      Map.identity();
+
+  /// Elements referenced in `on` clauses.
+  /// Key: the declaration element.
+  final Map<MixinElement, Set<InterfaceElement>> _setOfOnMaps = Map.identity();
+
+  new({required this.libraryKind, required this.constructorFieldsVerifier});
+
+  bool libraryCycleContains(Uri uri) {
+    return libraryKind.libraryCycle.libraryUris.contains(uri);
+  }
+
+  Set<InstanceElement> setOfImplements(InstanceElement declaration) {
+    return _setOfImplementsMap[declaration] ??= Set.identity();
+  }
+
+  Set<InterfaceElement> setOfOn(MixinElement declaration) {
+    return _setOfOnMaps[declaration] ??= Set.identity();
+  }
+}
+
+/// The semantic location related to explicit or implicit `this` access.
+enum ThisContext {
+  constructorInitializers(allowsThis: false),
+  factoryConstructorBody(allowsThis: false),
+  generativeConstructorBody(allowsThis: true),
+  instanceFieldDeclaration(allowsThis: false),
+  instanceMemberBody(allowsThis: true),
+  lateInstanceFieldDeclaration(allowsThis: true),
+  staticFieldDeclaration(allowsThis: false),
+  staticMemberBody(allowsThis: false),
+  topLevel(allowsThis: false);
+
+  final bool allowsThis;
+
+  new({required this.allowsThis});
+}
+
+/// Kinds of null-aware accesses handled by
+/// [ErrorVerifier._checkForUnnecessaryNullAware].
+enum _NullAwareKind {
+  indexExpression(canParticipateInShortCircuiting: true),
+  element,
+  mapEntryKey,
+  mapEntryValue,
+  access(canParticipateInShortCircuiting: true),
+  cascaded(canParticipateInShortCircuiting: true),
+  spread,
+  nullCheck;
+
+  final bool canParticipateInShortCircuiting;
+
+  new({this.canParticipateInShortCircuiting = false});
+
+  LocatableDiagnostic locatableDiagnostic({
+    required bool becauseOfShortCircuiting,
+  }) {
+    String operator;
+    String replacement;
+    switch (this) {
+      case _NullAwareKind.element:
+        return diag.invalidNullAwareElement;
+      case _NullAwareKind.mapEntryKey:
+        return diag.invalidNullAwareMapEntryKey;
+      case _NullAwareKind.mapEntryValue:
+        return diag.invalidNullAwareMapEntryValue;
+      case _NullAwareKind.nullCheck:
+        return diag.unnecessaryNonNullAssertion;
+      case _NullAwareKind.indexExpression:
+        operator = '?[';
+        replacement = '[';
+      case _NullAwareKind.access:
+        operator = '?.';
+        replacement = '.';
+      case _NullAwareKind.cascaded:
+        operator = '?..';
+        replacement = '..';
+      case _NullAwareKind.spread:
+        operator = '?...';
+        replacement = '...';
+    }
+    return (becauseOfShortCircuiting
+            ? diag.invalidNullAwareOperatorAfterShortCircuit
+            : diag.invalidNullAwareOperator)
+        .withArguments(operator: operator, replacement: replacement);
+  }
+}
+
+/// Recursively visits a type annotation, looking uninstantiated bounds.
+class _UninstantiatedBoundChecker extends RecursiveAstVisitor2<void> {
+  final DiagnosticReporter _diagnosticReporter;
+
+  new(this._diagnosticReporter);
+
+  @override
+  void visitNamedType(NamedType node) {
+    var typeArgs = node.typeArguments;
+    if (typeArgs != null) {
+      typeArgs.accept2(this);
+      return;
+    }
+
+    var element = node.element;
+    if (element is TypeParameterizedElement && !element.isSimplyBounded) {
+      // TODO(srawlins): Don't report this if TYPE_ALIAS_CANNOT_REFERENCE_ITSELF
+      //  has been reported.
+      _diagnosticReporter.report(diag.notInstantiatedBound.at(node));
+    }
+  }
+}
+
+extension on LibraryElement {
+  bool get _isDartFfiLibrary => name == 'dart.ffi';
+}

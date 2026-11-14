@@ -1,0 +1,184 @@
+// Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import 'context_collection_resolution.dart';
+import 'node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(VarianceResolutionTest);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+@reflectiveTest
+class VarianceResolutionTest extends PubPackageResolutionTest {
+  test_inference_in_parameter() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+class Contravariant<in T> {}
+
+class Exactly<inout T> {}
+
+class Upper {}
+class Middle extends Upper {}
+
+Exactly<T> inferContraContra<T>(Contravariant<T> x, Contravariant<T> y)
+    => new Exactly<T>();
+
+main() {
+  inferContraContra(Contravariant<Upper>(), Contravariant<Middle>());
+}
+    ''');
+
+    var node = result.findNode.unqualifiedFunctionInvocation(
+      'inferContraContra(',
+    );
+    nodeTextConfiguration.skipArgumentList = true;
+    assertResolvedNodeText(node, r'''
+UnqualifiedFunctionInvocation
+  name: inferContraContra
+  resolution: ExecutableInvocationResolution
+    element: <testLibrary>::@function::inferContraContra
+    invokeType: Exactly<Middle> Function(Contravariant<Middle>, Contravariant<Middle>)
+    type: Exactly<Middle>
+  staticType: Exactly<Middle>
+  typeArgumentTypes
+    Middle
+V1: MethodInvocation
+  methodName: SimpleIdentifier
+    token: inferContraContra
+    element: <testLibrary>::@function::inferContraContra
+    staticType: Exactly<T> Function<T>(Contravariant<T>, Contravariant<T>)
+  staticInvokeType: Exactly<Middle> Function(Contravariant<Middle>, Contravariant<Middle>)
+  staticType: Exactly<Middle>
+  typeArgumentTypes
+    Middle
+''');
+  }
+
+  test_inference_in_parameter_downwards() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+class B<in T> {
+  B(List<T> x);
+  void set x(T val) {}
+}
+
+main() {
+  B<int> b = B(<num>[])..x=2.2;
+//       ^
+// [diag.unusedLocalVariable] The value of the local variable 'b' isn't used.
+}
+''');
+
+    var node = result.findNode.constructorInvocation('B(<num>');
+    nodeTextConfiguration.skipArgumentList = true;
+    assertResolvedNodeText(node, r'''
+ConstructorInvocation
+  constructorReference: ConstructorReference2
+    typeReference: ConstructorTypeReference
+      name: B
+      element: <testLibrary>::@class::B
+      type: B<num>
+    element: SubstitutedConstructorElementImpl
+      baseElement: <testLibrary>::@class::B::@constructor::new
+      substitution: {T: num}
+  staticType: B<num>
+V1: InstanceCreationExpression
+  constructorName: ConstructorName
+    type: NamedType
+      name: B
+      element: <testLibrary>::@class::B
+      type: B<num>
+    element: SubstitutedConstructorElementImpl
+      baseElement: <testLibrary>::@class::B::@constructor::new
+      substitution: {T: num}
+  staticType: B<num>
+''');
+  }
+
+  test_inference_inout_parameter() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+class Invariant<inout T> {}
+
+class Exactly<inout T> {}
+
+Exactly<T> inferInvInv<T>(Invariant<T> x, Invariant<T> y) => new Exactly<T>();
+
+main() {
+  inferInvInv(Invariant<String>(), Invariant<int>());
+//^^^^^^^^^^^
+// [diag.couldNotInfer] Couldn't infer type parameter 'T'.\n\nTried to infer 'Object' for 'T' which doesn't work:\n  Parameter 'x' declared as     'Invariant<T>'\n                but argument is 'Invariant<String>'.\n  Parameter 'y' declared as     'Invariant<T>'\n                but argument is 'Invariant<int>'.\n\nConsider passing explicit type argument(s) to the generic.
+//            ^^^^^^^^^^^^^^^^^^^
+// [diag.argumentTypeNotAssignable] The argument type 'Invariant<String>' can't be assigned to the parameter type 'Invariant<Object>'.
+//                                 ^^^^^^^^^^^^^^^^
+// [diag.argumentTypeNotAssignable] The argument type 'Invariant<int>' can't be assigned to the parameter type 'Invariant<Object>'.
+}
+''');
+
+    var node = result.findNode.unqualifiedFunctionInvocation('inferInvInv(');
+    nodeTextConfiguration.skipArgumentList = true;
+    assertResolvedNodeText(node, r'''
+UnqualifiedFunctionInvocation
+  name: inferInvInv
+  resolution: ExecutableInvocationResolution
+    element: <testLibrary>::@function::inferInvInv
+    invokeType: Exactly<Object> Function(Invariant<Object>, Invariant<Object>)
+    type: Exactly<Object>
+  staticType: Exactly<Object>
+  typeArgumentTypes
+    Object
+V1: MethodInvocation
+  methodName: SimpleIdentifier
+    token: inferInvInv
+    element: <testLibrary>::@function::inferInvInv
+    staticType: Exactly<T> Function<T>(Invariant<T>, Invariant<T>)
+  staticInvokeType: Exactly<Object> Function(Invariant<Object>, Invariant<Object>)
+  staticType: Exactly<Object>
+  typeArgumentTypes
+    Object
+''');
+  }
+
+  test_inference_out_parameter() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+class Covariant<out T> {}
+
+class Exactly<inout T> {}
+
+class Upper {}
+class Middle extends Upper {}
+
+Exactly<T> inferCovCov<T>(Covariant<T> x, Covariant<T> y) => new Exactly<T>();
+
+main() {
+  inferCovCov(Covariant<Upper>(), Covariant<Middle>());
+}
+''');
+
+    var node = result.findNode.unqualifiedFunctionInvocation('inferCovCov(');
+    nodeTextConfiguration.skipArgumentList = true;
+    assertResolvedNodeText(node, r'''
+UnqualifiedFunctionInvocation
+  name: inferCovCov
+  resolution: ExecutableInvocationResolution
+    element: <testLibrary>::@function::inferCovCov
+    invokeType: Exactly<Upper> Function(Covariant<Upper>, Covariant<Upper>)
+    type: Exactly<Upper>
+  staticType: Exactly<Upper>
+  typeArgumentTypes
+    Upper
+V1: MethodInvocation
+  methodName: SimpleIdentifier
+    token: inferCovCov
+    element: <testLibrary>::@function::inferCovCov
+    staticType: Exactly<T> Function<T>(Covariant<T>, Covariant<T>)
+  staticInvokeType: Exactly<Upper> Function(Covariant<Upper>, Covariant<Upper>)
+  staticType: Exactly<Upper>
+  typeArgumentTypes
+    Upper
+''');
+  }
+}

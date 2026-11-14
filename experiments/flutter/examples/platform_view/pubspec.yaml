@@ -1,0 +1,19 @@
+name: platform_view
+
+environment:
+  sdk: ^3.13.0-0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.1.0
+
+flutter:
+
+  uses-material-design: true
+  assets:
+    - assets/flutter-mark-square-64.png
+
+# PUBSPEC CHECKSUM: 1o8tcm

@@ -1,0 +1,1474 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:collection';
+import 'dart:math' as math;
+
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/extensions.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/codes.dart';
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/utilities/extensions/object.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+import 'package:collection/collection.dart';
+
+/// An [AstVisitor2] that fills [UsedLocalElements].
+class GatherUsedLocalElementsVisitor extends UnifyingAstVisitor2<void> {
+  final UsedLocalElements usedElements = UsedLocalElements();
+
+  final LibraryElement _enclosingLibrary;
+  InterfaceElement? _enclosingClass;
+  ExecutableElement? _enclosingExec;
+
+  /// Whether the visitor is inside an [IsExpression]'s type.
+  bool _insideIsExpression = false;
+
+  new(this._enclosingLibrary);
+
+  @override
+  void visitBinaryOperatorInvocation(BinaryOperatorInvocation node) {
+    var element = node.element;
+    usedElements.addMember(element);
+    super.visitBinaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    if (node.resolution case ExecutableInvocationResolution(:var element)) {
+      usedElements.addElement(element);
+    }
+    super.visitCallInvocation(node);
+  }
+
+  @override
+  void visitCascadeIndexExpression(CascadeIndexExpression node) {
+    _useIndexReadResolution(node.resolution);
+    super.visitCascadeIndexExpression(node);
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    _recordNamedFunctionInvocation(node);
+    super.visitCascadeMethodInvocation(node);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    var exceptionParameter = node.exceptionParameter;
+    var stackTraceParameter = node.stackTraceParameter;
+    if (exceptionParameter != null) {
+      var element = exceptionParameter.declaredFragment?.element;
+      usedElements.addCatchException(element);
+      if (stackTraceParameter != null || node.onKeyword == null) {
+        usedElements.addElement(element);
+      }
+    }
+    if (stackTraceParameter != null) {
+      var element = stackTraceParameter.declaredFragment?.element;
+      usedElements.addCatchStackTrace(element);
+    }
+    super.visitCatchClause(node);
+  }
+
+  @override
+  void visitClassDeclaration2(ClassDeclaration2 node) {
+    var element = node.declaredFragment?.element;
+    if (element != null) {
+      if (element.metadata.hasJS) {
+        usedElements.addElement(element);
+      }
+    }
+
+    var enclosingClassOld = _enclosingClass;
+    try {
+      _enclosingClass = node.declaredFragment?.element;
+      super.visitClassDeclaration2(node);
+    } finally {
+      _enclosingClass = enclosingClassOld;
+    }
+  }
+
+  @override
+  void visitCompoundAssignment(CompoundAssignment node) {
+    usedElements.addMember(node.element);
+    _useReadWriteAssignmentTarget(
+      node.target,
+      readCountsAsUse: node.parent2 is! ExpressionStatement,
+    );
+    super.visitCompoundAssignment(node);
+  }
+
+  @override
+  void visitConstructorDeclaration2(ConstructorDeclaration2 node) {
+    var element = node.declaredFragment!.element;
+    if (node.typeName case var typeName?) {
+      if (typeName.lexeme == element.enclosingElement.name) {
+        _useIdentifierElement(element.enclosingElement);
+      }
+    }
+
+    var factoryRedirectionTarget = node.factoryRedirectionTarget;
+    if (factoryRedirectionTarget != null) {
+      var redirectedElement = factoryRedirectionTarget.element;
+      if (redirectedElement != null) {
+        // TODO(scheglov): Only if not _isPubliclyAccessible
+        _matchParameters(
+          element.formalParameters,
+          redirectedElement.formalParameters,
+          (first, second) {
+            usedElements.addElement(second);
+          },
+        );
+      }
+    }
+    super.visitConstructorDeclaration2(node);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    _addParametersForArguments(node.argumentList);
+    super.visitConstructorInvocation(node);
+  }
+
+  @override
+  void visitConstructorReference2(ConstructorReference2 node) {
+    _useIdentifierElement(node.typeReference.element);
+    _useIdentifierElement(node.element);
+    super.visitConstructorReference2(node);
+  }
+
+  @override
+  void visitConstructorTearOff(ConstructorTearOff node) {
+    _useIdentifierElement(node.typeReference.element);
+    var element = node.element;
+    _useIdentifierElement(element);
+    if (element != null) {
+      for (var parameter in element.baseElement.formalParameters) {
+        usedElements.addElement(parameter);
+      }
+    }
+    super.visitConstructorTearOff(node);
+  }
+
+  @override
+  void visitDirectAssignment(DirectAssignment node) {
+    var target = node.target;
+    var write = target.write;
+    if (write case MethodIndexWriteResolution(:var element)) {
+      _useAssignmentTargetElement(element);
+      super.visitDirectAssignment(node);
+      return;
+    }
+    if (write case InvalidNamedWriteResolution(:var recoveryElement)) {
+      _useIdentifierElement(recoveryElement?.baseElement);
+      super.visitDirectAssignment(node);
+      return;
+    }
+    if (write?.element case var element?) {
+      _useAssignmentTargetElement(element);
+    }
+
+    super.visitDirectAssignment(node);
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation2(
+    DotShorthandConstructorInvocation2 node,
+  ) {
+    _useIdentifierElement(node.element);
+    usedElements.addElement(node.element?.enclosingElement);
+    _addParametersForArguments(node.argumentList);
+    super.visitDotShorthandConstructorInvocation2(node);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    _recordNamedFunctionInvocation(node);
+    super.visitDotShorthandMethodInvocation(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration2(EnumConstantDeclaration2 node) {
+    usedElements.addElement(node.constructorElement?.baseElement);
+
+    var argumentList = node.arguments?.argumentList;
+    if (argumentList != null) {
+      _addParametersForArguments(argumentList);
+    }
+
+    super.visitEnumConstantDeclaration2(node);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    usedElements.addElement(node.declaredFragment?.element);
+    super.visitFunctionExpression(node);
+  }
+
+  @override
+  void visitGenericTypeAlias2(GenericTypeAlias2 node) {
+    if (!node.name.lexeme.isPrivateName) {
+      var type = node.type.type;
+      if (type is InterfaceTypeImpl) {
+        for (var constructor in type.constructors) {
+          if (!constructor.name!.isPrivateName) {
+            usedElements.addElement(constructor);
+          }
+        }
+      }
+    }
+    super.visitGenericTypeAlias2(node);
+  }
+
+  @override
+  void visitGetterDeclaration(covariant GetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitGetterDeclaration(node));
+  }
+
+  @override
+  void visitIfNullAssignment(IfNullAssignment node) {
+    _useReadWriteAssignmentTarget(node.target, readCountsAsUse: true);
+    super.visitIfNullAssignment(node);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    _recordNamedFunctionInvocation(node);
+    super.visitImportPrefixedFunctionInvocation(node);
+  }
+
+  @override
+  void visitIncrementOrDecrementExpression(
+    IncrementOrDecrementExpression node,
+  ) {
+    usedElements.addMember(node.element);
+    _useReadWriteAssignmentTarget(
+      node.target,
+      readCountsAsUse: node.parent2 is! ExpressionStatement,
+    );
+    super.visitIncrementOrDecrementExpression(node);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    var insideIsExpressionOld = _insideIsExpression;
+    node.expression2.accept2(this);
+    try {
+      _insideIsExpression = true;
+      node.type.accept2(this);
+    } finally {
+      _insideIsExpression = insideIsExpressionOld;
+    }
+  }
+
+  @override
+  void visitLocalFunctionDeclaration(LocalFunctionDeclaration node) {
+    var enclosingExecOld = _enclosingExec;
+    try {
+      _enclosingExec = node.declaredFragment?.element;
+      super.visitLocalFunctionDeclaration(node);
+    } finally {
+      _enclosingExec = enclosingExecOld;
+    }
+  }
+
+  @override
+  void visitLocalVariablesDeclaration(LocalVariablesDeclaration node) {
+    node.metadata.accept2(this);
+    node.type?.accept2(this);
+    node.variables.accept2(this);
+  }
+
+  @override
+  void visitMethodDeclaration2(covariant MethodDeclaration2Impl node) {
+    _visitMethodDeclaration(node, () => super.visitMethodDeclaration2(node));
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    _useIdentifierElement(node.element);
+    super.visitNamedType(node);
+  }
+
+  @override
+  void visitNode(AstNode node) {
+    if (node is NameExpression) {
+      _visitNameExpression(node);
+    }
+    node.visitChildren2(this);
+  }
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitOperatorDeclaration(node));
+  }
+
+  @override
+  void visitPatternField(PatternField node) {
+    usedElements.addMember(node.element);
+    usedElements.addReadMember(node.element);
+    super.visitPatternField(node);
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    _useIndexReadResolution(node.resolution);
+    super.visitReceiverIndexExpression(node);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    _recordNamedFunctionInvocation(node);
+    super.visitReceiverMethodInvocation(node);
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    var element = node.element;
+    usedElements.addElement(element);
+    _addParametersForArguments(node.argumentList);
+
+    // TODO(scheglov): Remove this compatibility behavior and report optional
+    // parameters that are omitted by every invocation.
+    if (element != null && node.constructorSelector != null) {
+      for (var parameter in element.baseElement.formalParameters) {
+        usedElements.addElement(parameter);
+      }
+    }
+    super.visitRedirectingConstructorInvocation(node);
+  }
+
+  @override
+  void visitRelationalPattern(RelationalPattern node) {
+    usedElements.addMember(node.element);
+    usedElements.addReadMember(node.element);
+    super.visitRelationalPattern(node);
+  }
+
+  @override
+  void visitSetterDeclaration(covariant SetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitSetterDeclaration(node));
+  }
+
+  @override
+  void visitStaticQualifier(StaticQualifier node) {
+    _useIdentifierElement(node.element);
+    super.visitStaticQualifier(node);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    var element = node.element;
+    usedElements.addElement(element);
+    _addParametersForArguments(node.argumentList);
+
+    // TODO(scheglov): Remove this compatibility behavior and report optional
+    // parameters that are omitted by every invocation.
+    if (element != null && node.constructorSelector != null) {
+      for (var parameter in element.baseElement.formalParameters) {
+        usedElements.addElement(parameter);
+      }
+    }
+    super.visitSuperConstructorInvocation(node);
+  }
+
+  @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    var element = node.declaredFragment?.element;
+    if (element is SuperFormalParameterElement) {
+      var superConstructorParameter = element.superConstructorParameter;
+      if (superConstructorParameter != null) {
+        usedElements.addElement(superConstructorParameter);
+      }
+    }
+    super.visitSuperFormalParameter(node);
+  }
+
+  @override
+  void visitTopLevelFunctionDeclaration(TopLevelFunctionDeclaration node) {
+    var enclosingExecOld = _enclosingExec;
+    try {
+      _enclosingExec = node.declaredFragment?.element;
+      super.visitTopLevelFunctionDeclaration(node);
+    } finally {
+      _enclosingExec = enclosingExecOld;
+    }
+  }
+
+  @override
+  void visitTopLevelGetterDeclaration(TopLevelGetterDeclaration node) {
+    var enclosingExecOld = _enclosingExec;
+    try {
+      _enclosingExec = node.declaredFragment?.element;
+      super.visitTopLevelGetterDeclaration(node);
+    } finally {
+      _enclosingExec = enclosingExecOld;
+    }
+  }
+
+  @override
+  void visitTopLevelSetterDeclaration(TopLevelSetterDeclaration node) {
+    var enclosingExecOld = _enclosingExec;
+    try {
+      _enclosingExec = node.declaredFragment?.element;
+      super.visitTopLevelSetterDeclaration(node);
+    } finally {
+      _enclosingExec = enclosingExecOld;
+    }
+  }
+
+  @override
+  void visitUnaryOperatorInvocation(UnaryOperatorInvocation node) {
+    usedElements.addMember(node.element);
+    super.visitUnaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    _recordNamedFunctionInvocation(node);
+    super.visitUnqualifiedFunctionInvocation(node);
+  }
+
+  /// Add [element] as a used member and, if [element] is a setter, add its
+  /// corresponding getter as a used member.
+  void _addMemberAndCorrespondingGetter(Element element) {
+    if (element is SetterElement) {
+      usedElements.addMember(element.correspondingGetter);
+      usedElements.addReadMember(element.correspondingGetter);
+    } else {
+      usedElements.addReadMember(element);
+    }
+  }
+
+  void _addParametersForArguments(ArgumentList argumentList) {
+    for (var argument in argumentList.arguments2) {
+      var parameter = argument.correspondingParameter;
+      usedElements.addElement(parameter);
+    }
+  }
+
+  /// Records that reading an enum's synthetic `values` getter reads every
+  /// constant declared by the enum.
+  bool _recordEnumValuesUse(Element? element) {
+    var enclosingElement = element?.enclosingElement;
+    if (enclosingElement is! EnumElement || element?.name != 'values') {
+      return false;
+    }
+    for (var field in enclosingElement.fields) {
+      if (field.isEnumConstant) {
+        usedElements.readMembers.add(field.getter!);
+      }
+    }
+    return true;
+  }
+
+  void _recordNamedFunctionInvocation(NamedFunctionInvocation node) {
+    if (node.resolution case ExecutableInvocationResolution(:var element)) {
+      _useIdentifierElement(element);
+      _addParametersForArguments(node.argumentList);
+    }
+  }
+
+  void _useAssignmentTargetElement(Element element) {
+    element = element.baseElement;
+
+    // A write alone does not make a local variable's value used.
+    if (element is LocalVariableElement) {
+      return;
+    }
+
+    _useIdentifierElement(element);
+    var enclosingElement = element.enclosingElement;
+    if ((enclosingElement is InterfaceElement ||
+            enclosingElement is ExtensionElement) &&
+        !identical(element, _enclosingExec)) {
+      usedElements.members.add(element);
+    }
+  }
+
+  /// Marks the [element] as used in the library.
+  void _useIdentifierElement(Element? element) {
+    if (element == null) {
+      return;
+    }
+    // Check if [element] is a local element.
+    if (!identical(element.library, _enclosingLibrary)) {
+      return;
+    }
+    // Ignore references to an element from itself.
+    if (identical(element, _enclosingClass)) {
+      return;
+    }
+    if (identical(element, _enclosingExec)) {
+      return;
+    }
+    // Ignore places where the element is not actually used.
+    if (element is! TypeAliasElement && _insideIsExpression) {
+      // An interface type found in an `is` expression is not used.
+      return;
+    }
+    usedElements.addElement(element);
+  }
+
+  void _useIndexReadResolution(IndexReadResolution? resolution) {
+    usedElements.addMember(resolution?.elementOrRecovery);
+  }
+
+  void _useNamedReadResolution(
+    NamedReadResolution? read, {
+    required bool readCountsAsUse,
+  }) {
+    if (read?.element case var element?) {
+      element = element.baseElement;
+      var variable = element.tryCast<PropertyAccessorElement>()?.variable;
+      if (element is PropertyAccessorElement &&
+          variable is TopLevelVariableElement) {
+        if (element.isOriginVariable) {
+          if (readCountsAsUse) {
+            usedElements.addElement(variable);
+          }
+        } else {
+          usedElements.members.add(element);
+          _addMemberAndCorrespondingGetter(element);
+        }
+      } else if (element is LocalVariableElement) {
+        if (readCountsAsUse) {
+          usedElements.addElement(element);
+        }
+      } else {
+        if (_recordEnumValuesUse(element)) {
+          return;
+        }
+        if (readCountsAsUse ||
+            element is! PropertyAccessorElement ||
+            !element.isOriginVariable) {
+          _useIdentifierElement(element);
+          if (element is ExecutableElement) {
+            for (var parameter in element.formalParameters) {
+              usedElements.addElement(parameter);
+            }
+          }
+          var enclosingElement = element.enclosingElement;
+          if ((enclosingElement is InterfaceElement ||
+                  enclosingElement is ExtensionElement) &&
+              !identical(element, _enclosingExec)) {
+            usedElements.members.add(element);
+            _addMemberAndCorrespondingGetter(element);
+          }
+        }
+      }
+    }
+  }
+
+  void _useReadWriteAssignmentTarget(
+    AssignmentTarget target, {
+    required bool readCountsAsUse,
+  }) {
+    switch (target.read) {
+      case MethodIndexReadResolution(:var element):
+        _useAssignmentTargetElement(element);
+      case NamedReadResolution read:
+        _useNamedReadResolution(read, readCountsAsUse: readCountsAsUse);
+      default:
+    }
+    var write = target.write;
+    if (write case MethodIndexWriteResolution(:var element)) {
+      _useAssignmentTargetElement(element);
+    }
+    if (write case NamedWriteResolution(element: var element?)) {
+      element = element.baseElement;
+      if (element is! LocalVariableElement) {
+        _useIdentifierElement(element);
+        var enclosingElement = element.enclosingElement;
+        if ((enclosingElement is InterfaceElement ||
+                enclosingElement is ExtensionElement) &&
+            !identical(element, _enclosingExec)) {
+          usedElements.members.add(element);
+        }
+      }
+    }
+  }
+
+  void _visitMethodDeclaration(
+    MethodDeclarationV1OriginImpl node,
+    void Function() visitSuper,
+  ) {
+    var enclosingExecOld = _enclosingExec;
+    try {
+      _enclosingExec = node.declaredFragment?.element;
+      visitSuper();
+    } finally {
+      _enclosingExec = enclosingExecOld;
+    }
+  }
+
+  void _visitNameExpression(NameExpression node) {
+    if (node is PropertyExtraction &&
+        node.resolution?.elementOrRecovery == null) {
+      usedElements.unresolvedReadMembers.add(node.name.lexeme);
+    }
+    // The omitted qualifier also refers to the enclosing declaration.
+    if (node is DotShorthandNameExpression) {
+      usedElements.addElement(node.resolution?.element?.enclosingElement);
+    }
+
+    _useNamedReadResolution(
+      node.resolution,
+      // TODO(scheglov): Revise the useful-read heuristic and remove the
+      // distinction between unqualified and qualified reads.
+      readCountsAsUse:
+          node is! UnqualifiedNameExpression || _isUsefulRead(node),
+    );
+  }
+
+  static bool _isUsefulRead(AstNode node) {
+    // Check if useless reading.
+    AstNode parent = node.parent2!;
+
+    if (parent.parent2 is ExpressionStatement) {
+      if (parent is NullAssertionExpression ||
+          parent is LogicalNot ||
+          parent is IncrementOrDecrementExpression ||
+          parent is UnaryOperatorInvocation) {
+        // v++;
+        // ++v;
+        return false;
+      }
+    }
+    // OK
+    return true;
+  }
+
+  /// Invokes [f] for corresponding positional and named parameters.
+  /// Ignores parameters that don't have a corresponding pair.
+  // TODO(scheglov): There might be a better place for this function.
+  static void _matchParameters(
+    List<FormalParameterElement> firstList,
+    List<FormalParameterElement> secondList,
+    void Function(FormalParameterElement first, FormalParameterElement second)
+    f,
+  ) {
+    (List<FormalParameterElement>?, Map<String, FormalParameterElement>?)
+    segregate(List<FormalParameterElement> elements) {
+      List<FormalParameterElement>? positional;
+      Map<String, FormalParameterElement>? named;
+      for (var element in elements) {
+        if (element.isNamed) {
+          if (element.name case var name?) {
+            (named ??= {})[name] = element;
+          }
+        } else {
+          assert(element.isPositional);
+          (positional ??= []).add(element);
+        }
+      }
+      return (positional, named);
+    }
+
+    var (firstPositional, firstNamed) = segregate(firstList);
+    var (secondPositional, secondNamed) = segregate(secondList);
+
+    if (firstPositional != null && secondPositional != null) {
+      var positionalLength = math.min(
+        firstPositional.length,
+        secondPositional.length,
+      );
+      for (var i = 0; i < positionalLength; i++) {
+        f(firstPositional[i], secondPositional[i]);
+      }
+    }
+
+    if (firstNamed != null && secondNamed != null) {
+      for (var firstEntry in firstNamed.entries) {
+        if (secondNamed[firstEntry.key] case var second?) {
+          f(firstEntry.value, second);
+        }
+      }
+    }
+  }
+}
+
+/// Instances of the class [UnusedLocalElementsVerifier] traverse an AST
+/// looking for cases of [diag.unusedElement],
+/// [diag.unusedField],
+/// [diag.unusedLocalVariable], etc.
+class UnusedLocalElementsVerifier extends RecursiveAstVisitor2<void> {
+  final DiagnosticReporter _diagnosticReporter;
+
+  /// The elements know to be used.
+  final UsedLocalElements _usedElements;
+
+  /// The URI of the library being verified.
+  final Uri _libraryUri;
+
+  /// Whether the `wildcard_variables` feature is enabled.
+  final bool _wildCardVariablesEnabled;
+
+  /// The current set of pattern variable elements, used to track whether _all_
+  /// within a [PatternVariableDeclaration] are used.
+  List<BindPatternVariableElement>? _patternVariableElements;
+
+  /// Create a new instance of the [UnusedLocalElementsVerifier].
+  new(this._diagnosticReporter, this._usedElements, LibraryElement library)
+    : _libraryUri = library.uri,
+      _wildCardVariablesEnabled = library.featureSet.isEnabled(
+        Feature.wildcard_variables,
+      );
+
+  @override
+  void visitCatchClauseParameter(CatchClauseParameter node) {
+    _visitLocalVariableElement(node.declaredFragment!.element);
+    super.visitCatchClauseParameter(node);
+  }
+
+  @override
+  void visitClassDeclaration2(ClassDeclaration2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitClassElement(declaredElement);
+
+    super.visitClassDeclaration2(node);
+  }
+
+  @override
+  void visitConstructorDeclaration2(ConstructorDeclaration2 node) {
+    if (node.name != null) {
+      var declaredElement = node.declaredFragment!.element;
+      _visitConstructorElement(declaredElement);
+    }
+
+    super.visitConstructorDeclaration2(node);
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    _visitLocalVariableElement(node.declaredFragment!.element);
+    super.visitDeclaredIdentifier(node);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(
+    covariant DeclaredVariablePatternImpl node,
+  ) {
+    var declaredElement = node.declaredFragment!.element;
+    if (!declaredElement.isDuplicate) {
+      var patternVariableElements = _patternVariableElements;
+      if (patternVariableElements != null) {
+        patternVariableElements.add(declaredElement);
+      } else {
+        _visitLocalVariableElement(declaredElement);
+      }
+    }
+
+    super.visitDeclaredVariablePattern(node);
+  }
+
+  @override
+  void visitEnumConstantDeclaration2(EnumConstantDeclaration2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitFieldElement(declaredElement);
+
+    super.visitEnumConstantDeclaration2(node);
+  }
+
+  @override
+  void visitEnumDeclaration2(EnumDeclaration2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitClassElement(declaredElement);
+
+    super.visitEnumDeclaration2(node);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration2(ExtensionTypeDeclaration2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitClassElement(declaredElement);
+
+    super.visitExtensionTypeDeclaration2(node);
+  }
+
+  @override
+  void visitFieldsDeclaration(FieldsDeclaration node) {
+    for (var field in node.fields) {
+      _visitFieldElement(field.declaredFragment!.element);
+    }
+
+    super.visitFieldsDeclaration(node);
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    for (var fragment in node.parameterFragments) {
+      var element = fragment!.element;
+      if (!_isUsedElement(element)) {
+        _reportDiagnosticForElement(
+          diag.unusedElementParameter.withArguments(name: element.displayName),
+          element,
+        );
+      }
+    }
+    super.visitFormalParameterList(node);
+  }
+
+  @override
+  void visitFunctionTypeAlias2(FunctionTypeAlias2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitTypeAliasElement(declaredElement);
+
+    super.visitFunctionTypeAlias2(node);
+  }
+
+  @override
+  void visitGenericTypeAlias2(GenericTypeAlias2 node) {
+    var declaredElement = node.declaredFragment?.element as TypeAliasElement;
+    _visitTypeAliasElement(declaredElement);
+
+    super.visitGenericTypeAlias2(node);
+  }
+
+  @override
+  void visitGetterDeclaration(covariant GetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitGetterDeclaration(node));
+  }
+
+  @override
+  void visitLocalFunctionDeclaration(LocalFunctionDeclaration node) {
+    var declaredElement = node.declaredFragment?.element;
+    if (declaredElement != null) {
+      _visitLocalFunctionElement(declaredElement);
+    }
+
+    super.visitLocalFunctionDeclaration(node);
+  }
+
+  @override
+  void visitLocalVariablesDeclaration(LocalVariablesDeclaration node) {
+    for (var variable in node.variables) {
+      _visitLocalVariableElement(variable.declaredFragment!.element);
+    }
+
+    super.visitLocalVariablesDeclaration(node);
+  }
+
+  @override
+  void visitMethodDeclaration2(covariant MethodDeclaration2Impl node) {
+    _visitMethodDeclaration(node, () => super.visitMethodDeclaration2(node));
+  }
+
+  @override
+  void visitMixinDeclaration2(MixinDeclaration2 node) {
+    var declaredElement = node.declaredFragment!.element;
+    _visitClassElement(declaredElement);
+
+    super.visitMixinDeclaration2(node);
+  }
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitOperatorDeclaration(node));
+  }
+
+  @override
+  void visitPatternVariableDeclaration(PatternVariableDeclaration node) {
+    var outerPatternVariableElements = _patternVariableElements;
+    var patternVariableElements = _patternVariableElements = [];
+    try {
+      super.visitPatternVariableDeclaration(node);
+      var elementsToReport = <BindPatternVariableElement>[];
+      for (var element in patternVariableElements) {
+        var isUsed = _usedElements.elements.contains(element);
+        // Don't report any of the declared variables as unused, if any of them
+        // are used. This allows for a consistent set of patterns to be used,
+        // in a case where some declared variables are used, and some are just
+        // present to help match, for example, a record shape, or a list, etc.
+        if (isUsed) {
+          return;
+        }
+        if (!_isNamedWildcard(element)) {
+          elementsToReport.add(element);
+        }
+      }
+      for (var element in elementsToReport) {
+        _reportDiagnosticForElement(
+          diag.unusedLocalVariable.withArguments(name: element.displayName),
+          element,
+        );
+      }
+    } finally {
+      _patternVariableElements = outerPatternVariableElements;
+    }
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(
+    covariant PrimaryConstructorDeclarationImpl node,
+  ) {
+    switch (node.parent2) {
+      case ClassDeclaration2Impl():
+      case EnumDeclaration2Impl():
+        for (var parameter in node.formalParameters.allFormalParameters) {
+          var element = parameter.declaredFragment!.element;
+          if (element is FieldFormalParameterElementImpl &&
+              element.isDeclaring) {
+            var field = element.field;
+            if (field != null && !_isReadMember(field)) {
+              var keyword = parameter.finalOrVarKeyword!.lexeme;
+              _diagnosticReporter.report(
+                diag.unusedFieldFromPrimaryConstructor
+                    .withArguments(
+                      fieldName: field.displayName,
+                      keyword: keyword,
+                    )
+                    .at(parameter.name!),
+              );
+            }
+          }
+        }
+      case ExtensionTypeDeclaration2Impl():
+        // Do not report a field declared in a primary constructor which is
+        // declared in an extension type, since it cannot be removed, and
+        // renaming it to be public is not an improvement.
+        break;
+      default:
+        throw UnimplementedError('${node.parent2.runtimeType}');
+    }
+
+    super.visitPrimaryConstructorDeclaration(node);
+  }
+
+  @override
+  void visitSetterDeclaration(covariant SetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitSetterDeclaration(node));
+  }
+
+  @override
+  void visitTopLevelFunctionDeclaration(TopLevelFunctionDeclaration node) {
+    var declaredElement = node.declaredFragment?.element;
+    if (declaredElement != null) {
+      _visitTopLevelFunctionElement(declaredElement);
+    }
+
+    super.visitTopLevelFunctionDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelGetterDeclaration(TopLevelGetterDeclaration node) {
+    var declaredElement = node.declaredFragment?.element;
+    if (declaredElement != null) {
+      _visitPropertyAccessorElement(declaredElement);
+    }
+
+    super.visitTopLevelGetterDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelSetterDeclaration(TopLevelSetterDeclaration node) {
+    var declaredElement = node.declaredFragment?.element;
+    if (declaredElement != null) {
+      _visitPropertyAccessorElement(declaredElement);
+    }
+
+    super.visitTopLevelSetterDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelVariablesDeclaration(TopLevelVariablesDeclaration node) {
+    for (var variable in node.variables) {
+      _visitTopLevelVariableElement(
+        variable.declaredFragment?.element as TopLevelVariableElement,
+      );
+    }
+
+    super.visitTopLevelVariablesDeclaration(node);
+  }
+
+  /// Returns the parameter element, if any, that corresponds to the given
+  /// parameter in the overridden element.
+  FormalParameterElement? _getCorrespondingParameter(
+    FormalParameterElement parameter,
+    ExecutableElement overridden,
+    ExecutableElement enclosingElement,
+  ) {
+    FormalParameterElement? correspondingParameter;
+    if (parameter.isNamed) {
+      correspondingParameter = overridden.formalParameters.firstWhereOrNull(
+        (p) => p.name == parameter.name,
+      );
+    } else {
+      var parameterIndex = 0;
+      var parameterCount = enclosingElement.formalParameters.length;
+      while (parameterIndex < parameterCount) {
+        if (enclosingElement.formalParameters[parameterIndex] == parameter) {
+          break;
+        }
+        parameterIndex++;
+      }
+      if (overridden.formalParameters.length <= parameterIndex) {
+        // Something is wrong with the overridden element. Ignore it.
+        return null;
+      }
+      correspondingParameter = overridden.formalParameters[parameterIndex];
+    }
+    return correspondingParameter;
+  }
+
+  /// Returns whether the name of [element] should be treated as a wildcard.
+  bool _isNamedWildcard(LocalElement element) {
+    if (_wildCardVariablesEnabled) {
+      return element.isWildcardVariable;
+    } else {
+      var name = element.name;
+      if (name == null) return false;
+      return name.codeUnits.every((e) => e == 0x5F /* '_' */);
+    }
+  }
+
+  bool _isPrivateClassOrExtension(Element element) =>
+      (element is InterfaceElement || element is ExtensionElement) &&
+      element.isPrivate;
+
+  /// Returns whether [element] is accessible outside of the library in which
+  /// it is declared.
+  bool _isPubliclyAccessible(ExecutableElement element) {
+    if (element.isPrivate) {
+      return false;
+    }
+    var enclosingElement = element.enclosingElement;
+
+    if (enclosingElement is EnumElement) {
+      if (element is ConstructorElement && element.isGenerative) {
+        return false;
+      }
+    }
+    if (enclosingElement is InterfaceElement) {
+      if (enclosingElement.isPrivate) {
+        if (element.isStatic || element is ConstructorElement) {
+          return false;
+        }
+      }
+    }
+
+    if (enclosingElement is ExtensionElement) {
+      return enclosingElement.isPublic;
+    }
+
+    return true;
+  }
+
+  /// Returns whether [element] is a private element which is read somewhere in
+  /// the library.
+  bool _isReadMember(Element element) {
+    bool elementIsStaticVariable =
+        element is VariableElement && element.isStatic;
+    if (element.isPublic) {
+      if (_isPrivateClassOrExtension(element.enclosingElement!) &&
+          elementIsStaticVariable) {
+        // Public static fields of private classes, mixins, and extensions are
+        // inaccessible from outside the library in which they are declared.
+      } else {
+        return true;
+      }
+    }
+    if (element is FieldElement) {
+      var getter = element.getter;
+      if (getter == null) {
+        return false;
+      }
+      element = getter;
+    }
+    if (_usedElements.readMembers.contains(element) ||
+        _usedElements.unresolvedReadMembers.contains(element.name)) {
+      return true;
+    }
+
+    if (elementIsStaticVariable) {
+      return false;
+    }
+    return _overridesUsedElement(element);
+  }
+
+  bool _isUsedElement(Element element) {
+    if (element is LocalVariableElement ||
+        element is LocalFunctionElement && !element.isStatic) {
+      // local variable or function
+    } else if (element is FormalParameterElement) {
+      var enclosingElement = element.enclosingElement;
+      // Only report unused parameters of constructors, methods, and top-level
+      // functions.
+      if (enclosingElement is! ConstructorElement &&
+          enclosingElement is! MethodElement &&
+          enclosingElement is! TopLevelFunctionElement) {
+        return true;
+      }
+
+      if (!element.isOptional) {
+        return true;
+      }
+      if (enclosingElement is ConstructorElement &&
+          enclosingElement.enclosingElement.typeParameters.isNotEmpty) {
+        // There is an issue matching arguments of constructor invocations for
+        // generic classes with parameters, so for now,
+        // consider every parameter of a constructor of a generic class
+        // "used". See https://github.com/dart-lang/sdk/issues/47839.
+        return true;
+      }
+      if (enclosingElement is ConstructorElement) {
+        var superConstructor = enclosingElement.superConstructor;
+        if (superConstructor != null) {
+          var correspondingParameter = _getCorrespondingParameter(
+            element,
+            superConstructor,
+            enclosingElement,
+          );
+          if (correspondingParameter != null) {
+            if (correspondingParameter.isRequiredNamed ||
+                correspondingParameter.isRequiredPositional) {
+              return true;
+            }
+          }
+        }
+      }
+      if (enclosingElement is ExecutableElement) {
+        if (enclosingElement.typeParameters.isNotEmpty) {
+          // There is an issue matching arguments of generic function
+          // invocations with parameters, so for now, consider every parameter
+          // of a generic function "used". See
+          // https://github.com/dart-lang/sdk/issues/47839.
+          return true;
+        }
+        if (_isPubliclyAccessible(enclosingElement)) {
+          return true;
+        }
+        if (_overridesUsedParameter(element, enclosingElement)) {
+          return true;
+        }
+      }
+    } else {
+      if (element.isPublic) {
+        return true;
+      }
+    }
+    if (_hasPragmaVmEntryPoint(element)) {
+      return true;
+    }
+    return _usedElements.elements.contains(element);
+  }
+
+  bool _isUsedMember(ExecutableElement element) {
+    if (_isPubliclyAccessible(element)) {
+      return true;
+    }
+    if (_hasPragmaVmEntryPoint(element)) {
+      return true;
+    }
+    if (_usedElements.members.contains(element)) {
+      return true;
+    }
+    if (_usedElements.elements.contains(element)) {
+      return true;
+    }
+
+    return _overridesUsedElement(element);
+  }
+
+  Iterable<ExecutableElement> _overriddenElements(Element element) {
+    var enclosingElement = element.enclosingElement;
+    if (enclosingElement is InterfaceElement) {
+      var elementName = element.name;
+      if (element is SetterElement) {
+        elementName = '$elementName=';
+      }
+      if (elementName != null) {
+        Name name = Name(_libraryUri, elementName);
+        var overridden = enclosingElement.getOverridden(name);
+        if (overridden == null) {
+          return const [];
+        }
+
+        return overridden.map((e) => e.baseElement);
+      }
+    }
+    return [];
+  }
+
+  bool _overridesUsedElement(Element element) {
+    return _overriddenElements(element).any(
+      (e) =>
+          _usedElements.members.contains(e) ||
+          _usedElements.elements.contains(e) ||
+          _overridesUsedElement(e),
+    );
+  }
+
+  /// Check if [element] is a parameter of a method which overrides a super
+  /// class's method in which the corresponding parameter is used.
+  bool _overridesUsedParameter(
+    FormalParameterElement element,
+    ExecutableElement enclosingElement,
+  ) {
+    var overriddenElements = _overriddenElements(enclosingElement);
+    for (var overridden in overriddenElements) {
+      FormalParameterElement? correspondingParameter =
+          _getCorrespondingParameter(element, overridden, enclosingElement);
+      // The parameter was added in the override.
+      if (correspondingParameter == null) {
+        continue;
+      }
+      // The parameter was made optional in the override.
+      if (correspondingParameter.isRequiredNamed ||
+          correspondingParameter.isRequiredPositional) {
+        return true;
+      }
+      if (_usedElements.elements.contains(correspondingParameter)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _reportDiagnosticForElement(
+    LocatableDiagnostic locatableDiagnostic,
+    Element? element,
+  ) {
+    if (element != null) {
+      var fragment = element.firstFragment;
+      _diagnosticReporter.report(
+        locatableDiagnostic.atOffset(
+          offset:
+              fragment.nameOffset ??
+              fragment.enclosingFragment?.nameOffset ??
+              0,
+          length: fragment.name?.length ?? 0,
+        ),
+      );
+    }
+  }
+
+  void _visitClassElement(InterfaceElement element) {
+    if (!_isUsedElement(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitConstructorElement(ConstructorElement element) {
+    // Only complain about an unused constructor if it is not the only
+    // constructor in the class. A single unused, private constructor may serve
+    // the purpose of preventing the class from being extended. In serving this
+    // purpose, the constructor is "used."
+    if (element.enclosingElement.constructors.length > 1 &&
+        !_isUsedMember(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitFieldElement(FieldElement element) {
+    if (!_isReadMember(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedField.withArguments(fieldName: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitLocalFunctionElement(LocalFunctionElement element) {
+    if (!_isUsedElement(element)) {
+      if (_wildCardVariablesEnabled && _isNamedWildcard(element)) return;
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitLocalVariableElement(LocalVariableElement element) {
+    if (_isUsedElement(element)) return;
+
+    if (_usedElements.isCatchException(element) &&
+        // TODO(srawlins): Report a wildcard catch clause exception variable.
+        !_isNamedWildcard(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedCatchClause.withArguments(name: element.displayName),
+        element,
+      );
+    } else if (_usedElements.isCatchStackTrace(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedCatchStack.withArguments(name: element.displayName),
+        element,
+      );
+    } else if (!_isNamedWildcard(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedLocalVariable.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitMethodDeclaration(
+    MethodDeclarationV1OriginImpl node,
+    void Function() visitSuper,
+  ) {
+    var declaredElement = node.declaredFragment?.element;
+    if (declaredElement is MethodElementImpl) {
+      _visitMethodElement(declaredElement);
+    } else if (declaredElement is PropertyAccessorElementImpl) {
+      _visitPropertyAccessorElement(declaredElement);
+    }
+
+    visitSuper();
+  }
+
+  void _visitMethodElement(MethodElement element) {
+    if (!_isUsedMember(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitPropertyAccessorElement(PropertyAccessorElement element) {
+    if (!_isUsedMember(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitTopLevelFunctionElement(TopLevelFunctionElement element) {
+    if (!_isUsedElement(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitTopLevelVariableElement(TopLevelVariableElement element) {
+    if (!_isUsedElement(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  void _visitTypeAliasElement(TypeAliasElement element) {
+    if (!_isUsedElement(element)) {
+      _reportDiagnosticForElement(
+        diag.unusedElement.withArguments(name: element.displayName),
+        element,
+      );
+    }
+  }
+
+  static bool _hasPragmaVmEntryPoint(Element element) {
+    return (element.metadata as MetadataImpl).hasPragmaVmEntryPoint;
+  }
+}
+
+/// A container with sets of used [Element]s.
+/// All these elements are defined in a single compilation unit or a library.
+class UsedLocalElements {
+  /// Resolved, locally defined elements that are used or potentially can be
+  /// used.
+  final HashSet<Element> elements = HashSet<Element>();
+
+  /// [LocalVariableElement]s that represent exceptions in [CatchClause]s.
+  final HashSet<LocalVariableElement> catchExceptionElements =
+      HashSet<LocalVariableElement>();
+
+  /// [LocalVariableElement]s that represent stack traces in [CatchClause]s.
+  final HashSet<LocalVariableElement> catchStackTraceElements =
+      HashSet<LocalVariableElement>();
+
+  /// Resolved class members that are referenced in the library.
+  final HashSet<Element> members = HashSet<Element>();
+
+  /// Resolved class members that are read in the library.
+  final HashSet<Element> readMembers = HashSet<Element>();
+
+  /// Unresolved class members that are read in the library.
+  final HashSet<String> unresolvedReadMembers = HashSet<String>();
+
+  new();
+
+  factory merge(List<UsedLocalElements> parts) {
+    UsedLocalElements result = UsedLocalElements();
+    int length = parts.length;
+    for (int i = 0; i < length; i++) {
+      UsedLocalElements part = parts[i];
+      result.elements.addAll(part.elements);
+      result.catchExceptionElements.addAll(part.catchExceptionElements);
+      result.catchStackTraceElements.addAll(part.catchStackTraceElements);
+      result.members.addAll(part.members);
+      result.readMembers.addAll(part.readMembers);
+      result.unresolvedReadMembers.addAll(part.unresolvedReadMembers);
+    }
+    return result;
+  }
+
+  void addCatchException(Element? element) {
+    if (element is LocalVariableElement) {
+      catchExceptionElements.add(element);
+    }
+  }
+
+  void addCatchStackTrace(Element? element) {
+    if (element is LocalVariableElement) {
+      catchStackTraceElements.add(element);
+    }
+  }
+
+  void addElement(Element? element) {
+    if (element is JoinPatternVariableElementImpl) {
+      elements.addAll(element.transitiveVariables);
+    } else if (element != null) {
+      element = element.baseElement;
+      elements.add(element);
+      var enclosingElement = element.enclosingElement;
+      if (element is ConstructorElementImpl &&
+          enclosingElement is ClassElementImpl &&
+          enclosingElement.isMixinApplication) {
+        addElement(element.superConstructor);
+      }
+    }
+  }
+
+  void addMember(Element? element) {
+    if (element != null) {
+      members.add(element.baseElement);
+    }
+  }
+
+  void addReadMember(Element? element) {
+    if (element != null) {
+      readMembers.add(element.baseElement);
+    }
+  }
+
+  bool isCatchException(LocalVariableElement element) {
+    return catchExceptionElements.contains(element);
+  }
+
+  bool isCatchStackTrace(LocalVariableElement element) {
+    return catchStackTraceElements.contains(element);
+  }
+}

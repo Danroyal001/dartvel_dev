@@ -1,0 +1,282 @@
+// Copyright (c) 2018, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import 'context_collection_resolution.dart';
+import 'node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(ImportPrefixResolutionTest);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+@reflectiveTest
+class ImportPrefixResolutionTest extends PubPackageResolutionTest {
+  test_asExpression_constructorInvocation_argument() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:async' as p;
+
+class C<T> {
+  C(a);
+}
+
+main() {
+  var x = new C(p);
+//    ^
+// [diag.unusedLocalVariable] The value of the local variable 'x' isn't used.
+//              ^
+// [diag.prefixIdentifierNotFollowedByDot] The name 'p' refers to an import prefix, so it must be followed by '.'.
+}
+''');
+
+    var node = result.findNode.singleConstructorInvocation;
+    assertResolvedNodeText(node, r'''
+ConstructorInvocation
+  keyword: new
+  constructorReference: ConstructorReference2
+    typeReference: ConstructorTypeReference
+      name: C
+      element: <testLibrary>::@class::C
+      type: C<dynamic>
+    element: SubstitutedConstructorElementImpl
+      baseElement: <testLibrary>::@class::C::@constructor::new
+      substitution: {T: dynamic}
+  argumentList: ArgumentList
+    leftParenthesis: (
+    arguments2
+      UnqualifiedNameExpression
+        name: p
+        resolution: InvalidNamedReadResolution
+          recoveryElement: <testLibraryFragment>::@prefix::p
+        correspondingParameter: SubstitutedFormalParameterElementImpl
+          baseElement: <testLibrary>::@class::C::@constructor::new::@formalParameter::a
+          substitution: {T: dynamic}
+        staticType: InvalidType
+    rightParenthesis: )
+  staticType: C<dynamic>
+V1: InstanceCreationExpression
+  keyword: new
+  constructorName: ConstructorName
+    type: NamedType
+      name: C
+      element: <testLibrary>::@class::C
+      type: C<dynamic>
+    element: SubstitutedConstructorElementImpl
+      baseElement: <testLibrary>::@class::C::@constructor::new
+      substitution: {T: dynamic}
+  argumentList: ArgumentList
+    leftParenthesis: (
+    arguments
+      SimpleIdentifier
+        token: p
+        correspondingParameter: SubstitutedFormalParameterElementImpl
+          baseElement: <testLibrary>::@class::C::@constructor::new::@formalParameter::a
+          substitution: {T: dynamic}
+        element: <testLibraryFragment>::@prefix::p
+        staticType: InvalidType
+    rightParenthesis: )
+  staticType: C<dynamic>
+''');
+  }
+
+  test_asExpression_expressionStatement() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:async' as p;
+
+main() {
+  p; // use
+//^
+// [diag.prefixIdentifierNotFollowedByDot] The name 'p' refers to an import prefix, so it must be followed by '.'.
+}
+''');
+
+    var node = result.findNode.unqualifiedNameExpression('p; // use');
+    assertResolvedNodeText(node, r'''
+UnqualifiedNameExpression
+  name: p
+  resolution: InvalidNamedReadResolution
+    recoveryElement: <testLibraryFragment>::@prefix::p
+  staticType: InvalidType
+V1: SimpleIdentifier
+  token: p
+  element: <testLibraryFragment>::@prefix::p
+  staticType: InvalidType
+''');
+  }
+
+  test_asExpression_forIn_iterable() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:async' as p;
+
+main() {
+  for (var x in p) {}
+//         ^
+// [diag.unusedLocalVariable] The value of the local variable 'x' isn't used.
+//              ^
+// [diag.prefixIdentifierNotFollowedByDot] The name 'p' refers to an import prefix, so it must be followed by '.'.
+}
+''');
+
+    var node = result.findNode.singleForStatement;
+    assertResolvedNodeText(node, r'''
+ForStatement
+  forKeyword: for
+  leftParenthesis: (
+  forLoopParts: ForEachPartsWithDeclaration
+    loopVariable: DeclaredIdentifier
+      keyword: var
+      name: x
+      declaredFragment: isPublic x@47
+        element: hasImplicitType isPublic
+          type: InvalidType
+    inKeyword: in
+    iterable2: UnqualifiedNameExpression
+      name: p
+      resolution: InvalidNamedReadResolution
+        recoveryElement: <testLibraryFragment>::@prefix::p
+      staticType: InvalidType
+    iterable(v1): SimpleIdentifier
+      token: p
+      element: <testLibraryFragment>::@prefix::p
+      staticType: InvalidType
+  rightParenthesis: )
+  body2: Block
+    leftBracket: {
+    rightBracket: }
+''');
+  }
+
+  test_asPrefix_methodInvocation() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:math' as p;
+
+main() {
+  p.max(0, 0);
+}
+''');
+
+    var node = result.findNode.importPrefixReference('p.max');
+    assertResolvedNodeText(node, r'''
+ImportPrefixReference
+  name: p
+  period: .
+  element: <testLibraryFragment>::@prefix::p
+''');
+  }
+
+  test_declaration() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+// ignore: unused_import
+import 'dart:async' as p;
+''');
+
+    var node = result.findNode.singleImportDirective;
+    assertResolvedNodeText(node, r'''
+ImportDirective
+  importKeyword: import
+  uri: SimpleStringLiteral
+    literal: 'dart:async'
+  asKeyword: as
+  prefixName: p
+  semicolon: ;
+  prefix: SimpleIdentifier
+    token: p
+    element: <testLibraryFragment>::@prefix::p
+    staticType: null
+  libraryImport: LibraryImport
+    uri: DirectiveUriWithLibrary
+      uri: dart:async
+''');
+  }
+
+  test_wildcardResolution() async {
+    newFile('$testPackageLibPath/a.dart', r'''
+extension ExtendedString on String {
+  bool get stringExt => true;
+}
+
+var a = 0;
+''');
+
+    newFile('$testPackageLibPath/b.dart', r'''
+extension ExtendedString2 on String {
+  bool get stringExt2 => true;
+}
+''');
+
+    // Import prefixes named `_` provide access to non-private extensions
+    // in the imported library but are non-binding.
+    await resolveTestCodeWithDiagnostics(r'''
+import 'a.dart' as _;
+import 'b.dart' as _;
+
+f() {
+  ''.stringExt;
+  ''.stringExt2;
+  _.a;
+//^
+// [diag.undefinedUnqualifiedNameReadNotFound] Undefined name '_'.
+}
+''');
+  }
+
+  test_wildcardResolution_beforeWildcardVariables() async {
+    newFile('$testPackageLibPath/a.dart', r'''
+extension ExtendedString on String {
+  bool get stringExt => true;
+}
+
+var a = 0;
+''');
+
+    newFile('$testPackageLibPath/b.dart', r'''
+extension ExtendedString on String {
+  bool get stringExt2 => true;
+}
+''');
+
+    var result = await resolveTestCodeWithDiagnostics(r'''
+// %before-language-feature: wildcard-variables
+
+import 'a.dart' as _;
+import 'b.dart' as _;
+
+f() {
+  ''.stringExt;
+  ''.stringExt2;
+  _.a;
+}
+''');
+
+    // `_` is bound so `a` resolves to the int declared in `a.dart`.
+    var node = result.findNode.importPrefixedNameExpression('_.a;');
+    assertResolvedNodeText(node, r'''
+ImportPrefixedNameExpression
+  importPrefix: ImportPrefixReference
+    name: _
+    period: .
+    element: <testLibraryFragment>::@prefix::_
+  name: a
+  resolution: GetterInvocationResolution
+    element: package:test/a.dart::@getter::a
+    type: int
+  staticType: int
+V1: PrefixedIdentifier
+  prefix: SimpleIdentifier
+    token: _
+    element: <testLibraryFragment>::@prefix::_
+    staticType: null
+  period: .
+  identifier: SimpleIdentifier
+    token: a
+    element: package:test/a.dart::@getter::a
+    staticType: int
+  element: package:test/a.dart::@getter::a
+  staticType: int
+''');
+  }
+}

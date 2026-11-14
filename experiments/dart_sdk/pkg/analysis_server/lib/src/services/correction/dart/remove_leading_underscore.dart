@@ -1,0 +1,112 @@
+// Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analysis_server/src/services/correction/fix.dart';
+import 'package:analysis_server/src/services/correction/util.dart';
+import 'package:analysis_server_plugin/edit/dart/correction_producer.dart';
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer_plugin/utilities/change_builder/change_builder_core.dart';
+import 'package:analyzer_plugin/utilities/fixes/fixes.dart';
+import 'package:analyzer_plugin/utilities/range_factory.dart';
+
+class RemoveLeadingUnderscore extends ResolvedCorrectionProducer {
+  new({required super.context});
+
+  @override
+  CorrectionApplicability get applicability => .automatically;
+
+  @override
+  FixKind get fixKind => DartFixKind.removeLeadingUnderscore;
+
+  @override
+  FixKind get multiFixKind => DartFixKind.removeLeadingUnderscoreMulti;
+
+  @override
+  Future<void> compute(ChangeBuilder builder) async {
+    var node = this.node;
+    Token? nameToken;
+    Element? element;
+    if (node is SimpleIdentifier) {
+      nameToken = node.token;
+      element = node.element;
+    } else if (node is FormalParameter) {
+      nameToken = node.name;
+      element = node.declaredFragment?.element;
+    } else if (node is VariableDeclaration) {
+      nameToken = node.name;
+      element = node.declaredFragment?.element;
+    } else if (node is DeclaredVariablePattern) {
+      nameToken = node.name;
+      element = node.declaredFragment?.element;
+    } else if (node is FunctionDeclaration) {
+      nameToken = node.name;
+      element = node.declaredFragment?.element;
+    } else {
+      return;
+    }
+
+    if (nameToken == null || element == null) {
+      return;
+    }
+
+    var oldName = nameToken.lexeme;
+    if (oldName.length < 2) {
+      return;
+    }
+
+    var newName = oldName.substring(1);
+
+    // Find references to the identifier.
+    Map<String, List<SyntacticEntity>>? references;
+    if (element is FormalParameterElement) {
+      if (!element.isNamed) {
+        var root = node.thisOrAncestorMatching(
+          (node) =>
+              node is FunctionDeclaration ||
+              node is MethodDeclaration ||
+              node is ConstructorDeclaration,
+        );
+        if (root != null) {
+          references = {file: findLocalElementReferences(root, element)};
+        } else {
+          var declaration = node
+              .thisOrAncestorOfType<PrimaryConstructorDeclaration>();
+          if (declaration != null) {
+            if (declaration.body case var body?) {
+              references = {file: findLocalElementReferences(body, element)};
+            }
+          }
+        }
+      }
+    } else if (element is LocalElement) {
+      if (node.thisOrAncestorOfType<Block>() case var block?) {
+        references = {file: findLocalElementReferences(block, element)};
+      }
+    } else if (element is PrefixElement) {
+      references = {
+        for (var unit in libraryResult.units)
+          unit.path: findImportPrefixElementReferences(unit.unit, element),
+      };
+    }
+    if (references == null) {
+      return;
+    }
+
+    // Compute the change.
+    for (var MapEntry(key: file, value: references) in references.entries) {
+      var sourceRanges = {
+        if (file == this.file) range.token(nameToken),
+        ...references.map(range.entity),
+      };
+      await builder.addDartFileEdit(file, (builder) {
+        for (var sourceRange in sourceRanges) {
+          builder.addSimpleReplacement(sourceRange, newName);
+        }
+      });
+    }
+  }
+}

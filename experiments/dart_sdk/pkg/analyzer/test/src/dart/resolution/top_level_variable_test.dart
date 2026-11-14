@@ -1,0 +1,317 @@
+// Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test/test.dart';
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import 'context_collection_resolution.dart';
+import 'node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(TopLevelVariableResolutionTest);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+@reflectiveTest
+class TopLevelVariableResolutionTest extends PubPackageResolutionTest {
+  /// See https://github.com/dart-lang/sdk/issues/51137
+  test_initializer_contextType_dontUseInferredType_beforeInferenceUpdate1() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+// %before-language-feature: inference-update-1
+T? f<T>(T Function() a, int Function(T) b) => null;
+String g() => '';
+final x = f(g, (z) => z.length);
+//                      ^^^^^^
+// [diag.uncheckedPropertyAccessOfNullableValue] The property 'length' can't be unconditionally accessed because the receiver can be 'null'.
+''');
+    var node = result.findNode.topLevelVariable('x =');
+    assertResolvedNodeText(node, r'''
+TopLevelVariable
+  name: x
+  equals: =
+  initializer: UnqualifiedFunctionInvocation
+    name: f
+    argumentList: ArgumentList
+      leftParenthesis: (
+      arguments2
+        UnqualifiedNameExpression
+          name: g
+          resolution: ExecutableTearOffResolution
+            element: <testLibrary>::@function::g
+            type: String Function()
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::a
+            substitution: {T: String}
+          staticType: String Function()
+        FunctionExpression
+          parameters: FormalParameterList
+            leftParenthesis: (
+            requiredPositionalFormalParameters
+              RegularFormalParameter
+                name: z
+                declaredFragment: <testLibraryFragment> z@102
+                  element: hasImplicitType isPublic
+                    type: Object?
+            rightParenthesis: )
+          parameters(v1): FormalParameterList
+            leftParenthesis: (
+            parameter: RegularFormalParameter
+              name: z
+              declaredFragment: <testLibraryFragment> z@102
+                element: hasImplicitType isPublic
+                  type: Object?
+            rightParenthesis: )
+          body: ExpressionFunctionBody
+            functionDefinition: =>
+            expression2: ReceiverPropertyExtraction
+              receiver: UnqualifiedNameExpression
+                name: z
+                resolution: VariableReadResolution
+                  element: z@102
+                  type: Object?
+                staticType: Object?
+              operator: .
+              name: length
+              resolution: InvalidNamedReadResolution
+                recoveryElement: <null>
+              staticType: InvalidType
+            expression(v1): PrefixedIdentifier
+              prefix: SimpleIdentifier
+                token: z
+                element: z@102
+                staticType: Object?
+              period: .
+              identifier: SimpleIdentifier
+                token: length
+                element: <null>
+                staticType: InvalidType
+              element: <null>
+              staticType: InvalidType
+          declaredFragment: <testLibraryFragment> null@null
+            element: null@null
+              type: InvalidType Function(Object?)
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::b
+            substitution: {T: String}
+          staticType: InvalidType Function(Object?)
+      arguments(v1)
+        SimpleIdentifier
+          token: g
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::a
+            substitution: {T: String}
+          element: <testLibrary>::@function::g
+          staticType: String Function()
+        FunctionExpression
+          parameters: FormalParameterList
+            leftParenthesis: (
+            parameter: RegularFormalParameter
+              name: z
+              declaredFragment: <testLibraryFragment> z@102
+                element: hasImplicitType isPublic
+                  type: Object?
+            rightParenthesis: )
+          body: ExpressionFunctionBody
+            functionDefinition: =>
+            expression: PrefixedIdentifier
+              prefix: SimpleIdentifier
+                token: z
+                element: z@102
+                staticType: Object?
+              period: .
+              identifier: SimpleIdentifier
+                token: length
+                element: <null>
+                staticType: InvalidType
+              element: <null>
+              staticType: InvalidType
+          declaredFragment: <testLibraryFragment> null@null
+            element: null@null
+              type: InvalidType Function(Object?)
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::b
+            substitution: {T: String}
+          staticType: InvalidType Function(Object?)
+      rightParenthesis: )
+    resolution: ExecutableInvocationResolution
+      element: <testLibrary>::@function::f
+      invokeType: String? Function(String Function(), int Function(String))
+      type: String?
+    staticType: String?
+    typeArgumentTypes
+      String
+  declaredFragment: <testLibraryFragment> x@92
+''');
+  }
+
+  /// See https://github.com/dart-lang/sdk/issues/51137
+  test_initializer_contextType_typeAnnotation_beforeInferenceUpdate1() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+// %before-language-feature: inference-update-1
+T? f<T>(T Function() a, int Function(T) b) => null;
+String g() => '';
+final String? x = f(g, (z) => z.length);
+''');
+    var node = result.findNode.topLevelVariable('x =');
+    assertResolvedNodeText(node, r'''
+TopLevelVariable
+  name: x
+  equals: =
+  initializer: UnqualifiedFunctionInvocation
+    name: f
+    argumentList: ArgumentList
+      leftParenthesis: (
+      arguments2
+        UnqualifiedNameExpression
+          name: g
+          resolution: ExecutableTearOffResolution
+            element: <testLibrary>::@function::g
+            type: String Function()
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::a
+            substitution: {T: String}
+          staticType: String Function()
+        FunctionExpression
+          parameters: FormalParameterList
+            leftParenthesis: (
+            requiredPositionalFormalParameters
+              RegularFormalParameter
+                name: z
+                declaredFragment: <testLibraryFragment> z@110
+                  element: hasImplicitType isPublic
+                    type: String
+            rightParenthesis: )
+          parameters(v1): FormalParameterList
+            leftParenthesis: (
+            parameter: RegularFormalParameter
+              name: z
+              declaredFragment: <testLibraryFragment> z@110
+                element: hasImplicitType isPublic
+                  type: String
+            rightParenthesis: )
+          body: ExpressionFunctionBody
+            functionDefinition: =>
+            expression2: ReceiverPropertyExtraction
+              receiver: UnqualifiedNameExpression
+                name: z
+                resolution: VariableReadResolution
+                  element: z@110
+                  type: String
+                staticType: String
+              operator: .
+              name: length
+              resolution: GetterInvocationResolution
+                element: dart:core::@class::String::@getter::length
+                type: int
+              staticType: int
+            expression(v1): PrefixedIdentifier
+              prefix: SimpleIdentifier
+                token: z
+                element: z@110
+                staticType: String
+              period: .
+              identifier: SimpleIdentifier
+                token: length
+                element: dart:core::@class::String::@getter::length
+                staticType: int
+              element: dart:core::@class::String::@getter::length
+              staticType: int
+          declaredFragment: <testLibraryFragment> null@null
+            element: null@null
+              type: int Function(String)
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::b
+            substitution: {T: String}
+          staticType: int Function(String)
+      arguments(v1)
+        SimpleIdentifier
+          token: g
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::a
+            substitution: {T: String}
+          element: <testLibrary>::@function::g
+          staticType: String Function()
+        FunctionExpression
+          parameters: FormalParameterList
+            leftParenthesis: (
+            parameter: RegularFormalParameter
+              name: z
+              declaredFragment: <testLibraryFragment> z@110
+                element: hasImplicitType isPublic
+                  type: String
+            rightParenthesis: )
+          body: ExpressionFunctionBody
+            functionDefinition: =>
+            expression: PrefixedIdentifier
+              prefix: SimpleIdentifier
+                token: z
+                element: z@110
+                staticType: String
+              period: .
+              identifier: SimpleIdentifier
+                token: length
+                element: dart:core::@class::String::@getter::length
+                staticType: int
+              element: dart:core::@class::String::@getter::length
+              staticType: int
+          declaredFragment: <testLibraryFragment> null@null
+            element: null@null
+              type: int Function(String)
+          correspondingParameter: SubstitutedFormalParameterElementImpl
+            baseElement: <testLibrary>::@function::f::@formalParameter::b
+            substitution: {T: String}
+          staticType: int Function(String)
+      rightParenthesis: )
+    resolution: ExecutableInvocationResolution
+      element: <testLibrary>::@function::f
+      invokeType: String? Function(String Function(), int Function(String))
+      type: String?
+    staticType: String?
+    typeArgumentTypes
+      String
+  declaredFragment: <testLibraryFragment> x@100
+''');
+  }
+
+  test_session_getterSetter() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+var v = 0;
+''');
+    var getter = result.findElement.topGet('v');
+    expect(getter.session, result.session);
+
+    var setter = result.findElement.topSet('v');
+    expect(setter.session, result.session);
+  }
+
+  test_type_inferred_int() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+var v = 0;
+''');
+    assertType(result.findElement.topVar('v').type, 'int');
+  }
+
+  test_type_inferred_Never() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+var v = throw 42;
+''');
+    assertType(result.findElement.topVar('v').type, 'Never');
+  }
+
+  test_type_inferred_noInitializer() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+var v;
+''');
+    assertType(result.findElement.topVar('v').type, 'dynamic');
+  }
+
+  test_type_inferred_null() async {
+    var result = await resolveTestCodeWithDiagnostics('''
+var v = null;
+''');
+    assertType(result.findElement.topVar('v').type, 'dynamic');
+  }
+}

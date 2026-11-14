@@ -1,0 +1,249 @@
+40 columns                              |
+>>> Single cascade on same line.
+"foo"..toString();
+<<< 3.7
+"foo"..toString();
+>>> Split multiple cascades even if they fit.
+foo..fooBar()..toString();
+<<< 3.7
+foo
+  ..fooBar()
+  ..toString();
+>>> Split long single cascade but not after target.
+"foo"..toString(argument, argument, argument);
+<<< 3.7
+"foo"..toString(
+  argument,
+  argument,
+  argument,
+);
+>>> Split at target if single cascade doesn't fit.
+"some much longer string"..someLongMethod(argument, argument);
+<<< 3.7
+"some much longer string"
+  ..someLongMethod(argument, argument);
+>>> Split at target if single cascade doesn't fit.
+"some much longer string"..someLongMethod(argument, argument, argument);
+<<< 3.7
+"some much longer string"
+  ..someLongMethod(
+    argument,
+    argument,
+    argument,
+  );
+>>> Split multiple cascades even if the same name.
+list
+  ..add("baz")
+  ..add("bar");
+<<< 3.7
+list
+  ..add("baz")
+  ..add("bar");
+>>> Setters.
+foo..baz = 3..baz=5;
+<<< 3.7
+foo
+  ..baz = 3
+  ..baz = 5;
+>>> Don't indent contained block arguments if cascade doesn't split.
+"foo"..toString(() {body;});
+<<< 3.7
+"foo"..toString(() {
+  body;
+});
+>>> Indent contained block arguments if cascade splits.
+"foo"..another()..toString(() {body;});
+<<< 3.7
+"foo"
+  ..another()
+  ..toString(() {
+    body;
+  });
+>>> Split if receiver precedence isn't obvious.
+main() async {
+  // These are OK.
+  a = b..c();
+  a += b..c();
+  a.b..c();
+
+  // These are unclear.
+  a ? b : c..d();
+  a ?? b..c();
+  a && b..c();
+  a || b..c();
+  a == b..c();
+  a <= b..c();
+  a + b..c();
+  a / b..c();
+  a ^ b..c();
+  a << b..c();
+  -a..b();
+  !a..b();
+  --a..b();
+  await a..b();
+}
+<<< 3.7
+main() async {
+  // These are OK.
+  a = b..c();
+  a += b..c();
+  a.b..c();
+
+  // These are unclear.
+  a ? b : c
+    ..d();
+  a ?? b
+    ..c();
+  a && b
+    ..c();
+  a || b
+    ..c();
+  a == b
+    ..c();
+  a <= b
+    ..c();
+  a + b
+    ..c();
+  a / b
+    ..c();
+  a ^ b
+    ..c();
+  a << b
+    ..c();
+  -a
+    ..b();
+  !a
+    ..b();
+  --a
+    ..b();
+  await a
+    ..b();
+}
+>>> Omit split if single section on list literal.
+[veryLongElement,veryLongElement,veryLongElement,]..addAll(more);
+<<< 3.7
+[
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+]..addAll(more);
+>>> Omit split if single section on map literal.
+var map = {1: veryLongElement,2: veryLongElement,3: veryLongElement,}..addAll(more);
+<<< 3.7
+var map = {
+  1: veryLongElement,
+  2: veryLongElement,
+  3: veryLongElement,
+}..addAll(more);
+>>> Omit split if single section on record literal.
+(veryLongElement,veryLongElement,veryLongElement,)..addAll(more);
+<<< 3.7
+(
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+)..addAll(more);
+>>> Omit split if single section on function call.
+foo(veryLongElement,veryLongElement,veryLongElement)..addAll(more);
+<<< 3.7
+foo(
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+)..addAll(more);
+>>> Omit split if single section on instance creation.
+new Foo(veryLongElement,veryLongElement,veryLongElement,)..addAll(more);
+<<< 3.7
+new Foo(
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+)..addAll(more);
+>>> Omit split if single section on expression call.
+(foo)(veryLongElement,veryLongElement,veryLongElement,)..addAll(more);
+<<< 3.7
+(foo)(
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+)..addAll(more);
+>>> Prefer splitting at cascade instead of inside target.
+[
+  element1,
+  element2,
+  element3,
+]..cascade();
+<<< 3.7
+[element1, element2, element3]
+  ..cascade();
+>>> Don't force cascade to split on collection target if arg splits.
+[1, 2, 3, 4]..cascade(() {;});
+<<< 3.7
+[1, 2, 3, 4]..cascade(() {
+  ;
+});
+>>> Don't force cascade to split on collection target if target and arg split.
+[veryLongElement,veryLongElement,veryLongElement,]..cascade(() {;});
+<<< 3.7
+[
+  veryLongElement,
+  veryLongElement,
+  veryLongElement,
+]..cascade(() {
+  ;
+});
+>>> Null-aware getter.
+foo?..baz..baz;
+<<< 3.7
+foo
+  ?..baz
+  ..baz;
+>>> Null-aware setter.
+foo?..baz = 3..baz=5;
+<<< 3.7
+foo
+  ?..baz = 3
+  ..baz = 5;
+>>> Mixed null aware and regular cascades.
+foo?..a()..b()..c();
+<<< 3.7
+foo
+  ?..a()
+  ..b()
+  ..c();
+>>> Cascade index.
+object..[index]..method()..[index]=value;
+<<< 3.7
+object
+  ..[index]
+  ..method()
+  ..[index] = value;
+>>> Null-aware cascade index.
+object?..[index]..method()..[index]=value;
+<<< 3.7
+object
+  ?..[index]
+  ..method()
+  ..[index] = value;
+>>> Property chain in cascade.
+object..first.second.third
+    ..fourth.fifth.sixth;
+<<< 3.7
+object
+  ..first.second.third
+  ..fourth.fifth.sixth;
+>>> Split property chain in cascade.
+object..firstProperty.secondProperty.thirdProperty
+    ..fourthProperty.fifthProperty.sixthProperty;
+<<< 3.7
+object
+  ..firstProperty
+      .secondProperty
+      .thirdProperty
+  ..fourthProperty
+      .fifthProperty
+      .sixthProperty;
+>>> Cascade chained property access setter.
+object..a.b = value;
+<<< 3.7
+object..a.b = value;

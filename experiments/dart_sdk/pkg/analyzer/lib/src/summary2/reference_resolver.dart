@@ -1,0 +1,434 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
+import 'package:analyzer/dart/element/scope.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/dart/element/type_system.dart';
+import 'package:analyzer/src/dart/resolver/scope_context.dart';
+import 'package:analyzer/src/summary2/function_type_builder.dart';
+import 'package:analyzer/src/summary2/link.dart';
+import 'package:analyzer/src/summary2/named_type_builder.dart';
+import 'package:analyzer/src/summary2/record_type_builder.dart';
+import 'package:analyzer/src/summary2/types_builder.dart';
+
+/// Recursive visitor of LinkedNodes that resolves explicit type annotations
+/// in outlines.  This includes resolving element references in identifiers
+/// in type annotation, and setting LinkedNodeTypes for corresponding type
+/// annotation nodes.
+///
+/// Declarations that have type annotations, e.g. return types of methods, get
+/// the corresponding type set (so, if there is an explicit type annotation,
+/// the type is set, otherwise we keep it empty, so we will attempt to infer
+/// it later).
+class ReferenceResolver extends ThrowingAstVisitor2<void> {
+  /// The library fragment in which the AST nodes are being resolved.
+  final LibraryFragmentImpl libraryFragment;
+
+  final ScopeContext _scopeContext;
+  final Linker linker;
+  final TypeSystemImpl typeSystem;
+  final NodesToBuildType nodesToBuildType;
+
+  new(
+    this.linker,
+    this.nodesToBuildType,
+    this.typeSystem,
+    Scope scope, {
+    required this.libraryFragment,
+  }) : _scopeContext = ScopeContext(
+         libraryFragment: libraryFragment,
+         nameScope: scope,
+       );
+
+  Scope get nameScope => _scopeContext.nameScope;
+
+  @override
+  void visitAnnotation(covariant AnnotationImpl node) {
+    // Annotations are resolved after types, by `MetadataResolver`.
+  }
+
+  @override
+  void visitBlockEnumDeclarationBody(BlockEnumDeclarationBody node) {
+    node.constants.accept2(this);
+    node.members.accept2(this);
+  }
+
+  @override
+  void visitBlockFunctionBody(BlockFunctionBody node) {}
+
+  @override
+  void visitBlockInstanceDeclarationBody(BlockInstanceDeclarationBody node) {
+    node.members.accept2(this);
+  }
+
+  @override
+  void visitClassDeclaration2(covariant ClassDeclaration2Impl node) {
+    _scopeContext.visitClassDeclaration2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitClassTypeAlias2(covariant ClassTypeAlias2Impl node) {
+    _scopeContext.visitClassTypeAlias2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitComment(Comment node) {}
+
+  @override
+  void visitCompilationUnit(CompilationUnit node) {
+    node.declarations2.accept2(this);
+  }
+
+  @override
+  void visitConstructorDeclaration2(
+    covariant ConstructorDeclaration2Impl node,
+  ) {
+    _scopeContext.visitConstructorDeclaration2(
+      node,
+      visitor: this,
+      visitInitializers: (_) {},
+      visitFactoryRedirectionTarget: (_) {},
+    );
+  }
+
+  @override
+  void visitEmptyFunctionBody(EmptyFunctionBody node) {}
+
+  @override
+  void visitEnumConstantDeclaration2(EnumConstantDeclaration2 node) {}
+
+  @override
+  void visitEnumDeclaration2(covariant EnumDeclaration2Impl node) {
+    var fragment = node.declaredFragment!;
+
+    _scopeContext.visitEnumDeclaration2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+
+    for (var field in fragment.fields) {
+      if (field.isEnumConstant || field.isOriginEnumValues) {
+        var fieldNode = linker.getLinkingNode(field);
+        fieldNode as Field2Impl;
+        fieldNode.initializerScope = node.bodyScope;
+      }
+    }
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {}
+
+  @override
+  void visitExtendsClause(ExtendsClause node) {
+    node.superclass.accept2(this);
+  }
+
+  @override
+  void visitExtensionDeclaration2(covariant ExtensionDeclaration2Impl node) {
+    _scopeContext.visitExtensionDeclaration2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitExtensionOnClause(ExtensionOnClause node) {
+    node.extendedType.accept2(this);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration2(
+    covariant ExtensionTypeDeclaration2Impl node,
+  ) {
+    _scopeContext.visitExtensionTypeDeclaration2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitField2(covariant Field2Impl node) {
+    node.initializerScope = nameScope;
+  }
+
+  @override
+  void visitFieldFormalParameter(covariant FieldFormalParameterImpl node) {
+    _visitFormalParameter(node);
+  }
+
+  @override
+  void visitFieldsDeclaration(covariant FieldsDeclarationImpl node) {
+    _scopeContext.visitFieldsDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {}
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    node.requiredPositionalFormalParameters.accept2(this);
+    node.delimitedFormalParameters?.formalParameters.accept2(this);
+  }
+
+  @override
+  void visitFunctionTypeAlias2(covariant FunctionTypeAlias2Impl node) {
+    _scopeContext.visitFunctionTypeAlias2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitGenericFunctionType(covariant GenericFunctionTypeImpl node) {
+    _scopeContext.visitGenericFunctionType(node, visitor: this);
+
+    var nullabilitySuffix = _getNullabilitySuffix(node.question != null);
+    var builder = FunctionTypeBuilder.of(node, nullabilitySuffix);
+    node.type = builder;
+    nodesToBuildType.addDeclaration(node);
+    nodesToBuildType.addTypeBuilder(builder);
+  }
+
+  @override
+  void visitGenericTypeAlias2(covariant GenericTypeAlias2Impl node) {
+    _scopeContext.visitGenericTypeAlias2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitGetterDeclaration(covariant GetterDeclarationImpl node) {
+    _scopeContext.visitMethodDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitImplementsClause(ImplementsClause node) {
+    node.interfaces.accept2(this);
+  }
+
+  @override
+  void visitMethodDeclaration2(covariant MethodDeclaration2Impl node) {
+    _scopeContext.visitMethodDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitMixinDeclaration2(covariant MixinDeclaration2Impl node) {
+    _scopeContext.visitMixinDeclaration2(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitMixinOnClause(MixinOnClause node) {
+    node.superclassConstraints.accept2(this);
+  }
+
+  @override
+  void visitNamedType(covariant NamedTypeImpl node) {
+    Element? element;
+    var importPrefix = node.importPrefix;
+    if (importPrefix != null) {
+      var prefixToken = importPrefix.name;
+      var prefixName = prefixToken.lexeme;
+      var prefixElement = nameScope.lookup(prefixName).getter;
+      importPrefix.element = prefixElement;
+
+      if (prefixElement is PrefixElement) {
+        var name = node.name.lexeme;
+        element = prefixElement.scope.lookup(name).getter;
+      }
+    } else {
+      var name = node.name.lexeme;
+
+      if (name == 'void') {
+        node.type = VoidTypeImpl.instance;
+        return;
+      }
+
+      element = nameScope.lookup(name).getter;
+    }
+    node.element = element;
+
+    node.typeArguments?.accept2(this);
+
+    var nullabilitySuffix = _getNullabilitySuffix(node.question != null);
+    if (element == null) {
+      node.type = InvalidTypeImpl.instance;
+    } else if (element is TypeParameterElementImpl) {
+      node.type = _scopeContext.instantiateTypeParameter(
+        element: element,
+        nullability: nullabilitySuffix,
+      );
+    } else {
+      var builder = NamedTypeBuilder.of(
+        linker: linker,
+        typeSystem: typeSystem,
+        node: node,
+        element: element,
+        nullabilitySuffix: nullabilitySuffix,
+      );
+      node.type = builder;
+      nodesToBuildType.addTypeBuilder(builder);
+    }
+  }
+
+  @override
+  void visitNameWithTypeParameters(NameWithTypeParameters node) {
+    node.typeParameters?.accept2(this);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {}
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {}
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _scopeContext.visitMethodDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitPrimaryConstructorBody2(
+    covariant PrimaryConstructorBody2Impl node,
+  ) {
+    _scopeContext.visitPrimaryConstructorBody2(
+      node,
+      visitor: this,
+      visitInitializers: (_) {},
+    );
+  }
+
+  @override
+  void visitRecordTypeAnnotation(covariant RecordTypeAnnotationImpl node) {
+    node.positionalFields.accept2(this);
+    node.namedFields?.accept2(this);
+
+    var builder = RecordTypeBuilder.of(typeSystem, node);
+    node.type = builder;
+    nodesToBuildType.addTypeBuilder(builder);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(
+    RecordTypeAnnotationNamedField node,
+  ) {
+    node.type.accept2(this);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(
+    RecordTypeAnnotationNamedFields node,
+  ) {
+    node.fields.accept2(this);
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(
+    RecordTypeAnnotationPositionalField node,
+  ) {
+    node.type.accept2(this);
+  }
+
+  @override
+  void visitRegularFormalParameter(covariant RegularFormalParameterImpl node) {
+    _visitFormalParameter(node);
+  }
+
+  @override
+  void visitSemicolonEnumDeclarationBody(SemicolonEnumDeclarationBody node) {}
+
+  @override
+  void visitSemicolonInstanceDeclarationBody(
+    SemicolonInstanceDeclarationBody node,
+  ) {}
+
+  @override
+  void visitSetterDeclaration(covariant SetterDeclarationImpl node) {
+    _scopeContext.visitMethodDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitSuperFormalParameter(covariant SuperFormalParameterImpl node) {
+    _visitFormalParameter(node);
+  }
+
+  @override
+  void visitTopLevelFunctionDeclaration(
+    covariant TopLevelFunctionDeclarationImpl node,
+  ) {
+    _scopeContext.visitTopLevelFunctionDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelGetterDeclaration(
+    covariant TopLevelGetterDeclarationImpl node,
+  ) {
+    _scopeContext.visitTopLevelGetterDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelSetterDeclaration(
+    covariant TopLevelSetterDeclarationImpl node,
+  ) {
+    _scopeContext.visitTopLevelSetterDeclaration(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitTopLevelVariable2(covariant TopLevelVariable2Impl node) {
+    node.initializerScope = nameScope;
+  }
+
+  @override
+  void visitTopLevelVariablesDeclaration(TopLevelVariablesDeclaration node) {
+    node.visitChildren2(this);
+    nodesToBuildType.addDeclaration(node);
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    node.arguments.accept2(this);
+  }
+
+  @override
+  void visitTypeParameter(covariant TypeParameterImpl node) {
+    var bound = node.bound;
+    if (bound != null) {
+      bound.accept2(this);
+      var fragment = node.declaredFragment!;
+      if (fragment.previousFragment == null) {
+        fragment.element.bound = bound.type;
+      }
+      nodesToBuildType.addDeclaration(node);
+    }
+  }
+
+  @override
+  void visitTypeParameterList(TypeParameterList node) {
+    node.typeParameters.accept2(this);
+  }
+
+  @override
+  void visitWithClause(WithClause node) {
+    node.mixinTypes.accept2(this);
+  }
+
+  NullabilitySuffix _getNullabilitySuffix(bool hasQuestion) {
+    if (hasQuestion) {
+      return NullabilitySuffix.question;
+    } else {
+      return NullabilitySuffix.none;
+    }
+  }
+
+  void _visitFormalParameter(FormalParameterImpl node) {
+    _scopeContext.visitFormalParameter(node, visitor: this);
+    nodesToBuildType.addDeclaration(node);
+  }
+}

@@ -1,0 +1,233 @@
+40 columns                              |
+>>> keeps map on one line if possible
+sendPort.send({'type': 'error', 'error': 'oops'});
+<<< 3.6
+sendPort.send(
+    {'type': 'error', 'error': 'oops'});
+>>> prefers to wrap before "."
+new Future.sync(() => callback('msg')).then(
+    (result) => replyTo.send()).catchError((error) {});
+<<< 3.6
+new Future.sync(() => callback('msg'))
+    .then((result) => replyTo.send())
+    .catchError((error) {});
+>>>
+Stream readInput(AssetId id) => future((input) => input.read());
+<<< 3.6
+Stream readInput(AssetId id) =>
+    future((input) => input.read());
+>>> nested expression indentation
+someFunctionName(argument, argument, argument,
+    someOtherFunction(argument, argument, arg));
+<<< 3.6
+someFunctionName(
+    argument,
+    argument,
+    argument,
+    someOtherFunction(
+        argument, argument, arg));
+>>> does not extra indent when multiple levels of nesting happen on one line
+someFunctionName(argument, argument, argument,
+    some(other(function(argument, argument, arg))));
+<<< 3.6
+someFunctionName(
+    argument,
+    argument,
+    argument,
+    some(other(function(
+        argument, argument, arg))));
+>>> forces extra indent and lines, if later line needs it
+callSomeMethod(innerFunction(argument, argument, argument), argument, argument, argument);
+<<< 3.6
+callSomeMethod(
+    innerFunction(
+        argument, argument, argument),
+    argument,
+    argument,
+    argument);
+>>> function inside a collection
+[item, obj.method(argument).method(argument).method(() {body;}).another().another()];
+<<< 3.6
+[
+  item,
+  obj
+      .method(argument)
+      .method(argument)
+      .method(() {
+        body;
+      })
+      .another()
+      .another()
+];
+>>> function inside an argument list
+function(argument, obj.method(argument).method(argument).method(() {body;}).another().another());
+<<< 3.6
+function(
+    argument,
+    obj
+        .method(argument)
+        .method(argument)
+        .method(() {
+          body;
+        })
+        .another()
+        .another());
+>>> unnested function inside nested expression
+function(argument, function(() {;}));
+<<< 3.6
+function(argument, function(() {
+  ;
+}));
+>>> nested function inside nested expression
+function(argument, function(() {;}, argument, () {;}));
+<<< 3.6
+function(
+    argument,
+    function(
+        () {
+          ;
+        },
+        argument,
+        () {
+          ;
+        }));
+>>> wrap before =>
+receiver.firstMethod().next((parameter) => longIdentifier == veryLongIdentifier);
+<<< 3.6
+receiver.firstMethod().next(
+    (parameter) =>
+        longIdentifier ==
+        veryLongIdentifier);
+>>> wrap after =>
+receiver.firstMethod().next(() => veryveryveryverylongIdentifier == veryLongIdentifier);
+<<< 3.6
+receiver.firstMethod().next(() =>
+    veryveryveryverylongIdentifier ==
+    veryLongIdentifier);
+>>> wrap at nested binary operator
+receiver.firstMethod().next(longIdentifier == veryLongIdentifier);
+<<< 3.6
+receiver.firstMethod().next(
+    longIdentifier ==
+        veryLongIdentifier);
+>>> list inside method chain
+receiver.first([listItem, secondItem, thirdItem]).second();
+<<< 3.6
+receiver.first([
+  listItem,
+  secondItem,
+  thirdItem
+]).second();
+>>> list at end of method chain
+receiver.first().second([listItem, secondItem, thirdItem, fourthItem]);
+<<< 3.6
+receiver.first().second([
+  listItem,
+  secondItem,
+  thirdItem,
+  fourthItem
+]);
+>>> binary operators in ascending precedence
+{
+  b___________________ || a______________ && a______________ == a______________ > a______________ + a______________;
+}
+<<< 3.6
+{
+  b___________________ ||
+      a______________ &&
+          a______________ ==
+              a______________ >
+                  a______________ +
+                      a______________;
+}
+>>> binary operators in descending precedence
+{
+  b___________________ + a______________ > a______________ == a______________ && a______________ || a______________;
+}
+<<< 3.6
+{
+  b___________________ +
+                      a______________ >
+                  a______________ ==
+              a______________ &&
+          a______________ ||
+      a______________;
+}
+>>> mixed multiplicative operators
+longName * longName / longName % longName ~/ longName;
+<<< 3.6
+longName *
+    longName /
+    longName %
+    longName ~/
+    longName;
+>>> mixed additive operators
+longName + longName - longName + longName - longName;
+<<< 3.6
+longName +
+    longName -
+    longName +
+    longName -
+    longName;
+>>> mixed shift operators
+longName >> longName << longName >> longName >>> longName;
+<<< 3.6
+longName >>
+    longName <<
+    longName >>
+    longName >>>
+    longName;
+>>> mixture of same and different precedence
+veryLongIdentifier + veryLongIdentifier / veryLongIdentifier *
+veryLongIdentifier - veryLongIdentifier * veryLongIdentifier +
+veryLongIdentifier / veryLongIdentifier - veryLongIdentifier;
+<<< 3.6
+veryLongIdentifier +
+    veryLongIdentifier /
+        veryLongIdentifier *
+        veryLongIdentifier -
+    veryLongIdentifier *
+        veryLongIdentifier +
+    veryLongIdentifier /
+        veryLongIdentifier -
+    veryLongIdentifier;
+>>> choose extra nesting if it leads to better solution
+longIdentifier +
+    (longIdentifier ? 0 :
+        1) == identifier;
+<<< 3.6
+longIdentifier +
+        (longIdentifier ? 0 : 1) ==
+    identifier;
+>>> normal indent before unsplit binary operators in => body
+veryLongFunction() => extremelyLongArgument + argument;
+<<< 3.6
+veryLongFunction() =>
+    extremelyLongArgument + argument;
+>>> no extra indent before binary operators in => body
+veryLongFunction() => longArgument + longArgument + longArgument;
+<<< 3.6
+veryLongFunction() =>
+    longArgument +
+    longArgument +
+    longArgument;
+>>> initialize with as expression
+var longVariableName = identifierSoLongItWraps as SomeClassName;
+<<< 3.6
+var longVariableName =
+    identifierSoLongItWraps
+        as SomeClassName;
+>>> initialize with is expression
+var longVariableName = identifierSoLongItWraps is SomeClassName;
+<<< 3.6
+var longVariableName =
+    identifierSoLongItWraps
+        is SomeClassName;
+>>> generic function reference nested inside expression
+veryLongFunction(argument, ConstructorTearOff<First, Second, Third, Fourth>, argument);
+<<< 3.6
+veryLongFunction(
+    argument,
+    ConstructorTearOff<First, Second,
+        Third, Fourth>,
+    argument);

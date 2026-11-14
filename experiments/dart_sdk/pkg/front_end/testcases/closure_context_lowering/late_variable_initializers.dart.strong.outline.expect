@@ -1,0 +1,12 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method test1(core::int directCaptured) → dynamic
+  ;
+static method test2(core::int directCaptured) → dynamic
+  ;
+static method test3(core::int assertCaptured) → dynamic
+  ;
+static method test4(core::int directCaptured) → dynamic
+  ;

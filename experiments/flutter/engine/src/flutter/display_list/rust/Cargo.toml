@@ -1,0 +1,9 @@
+# Not an upstream file: Rust display_list foundation, beside the C++ reference.
+[package]
+name = "display_list"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+impeller_geometry = { path = "../../impeller/geometry/rust" }

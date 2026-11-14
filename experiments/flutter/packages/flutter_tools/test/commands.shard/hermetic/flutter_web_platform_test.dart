@@ -1,0 +1,312 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'dart:convert';
+
+import 'package:file/file.dart';
+import 'package:file/memory.dart';
+import 'package:flutter_tools/src/artifacts.dart';
+import 'package:flutter_tools/src/base/logger.dart';
+import 'package:flutter_tools/src/base/platform.dart';
+import 'package:flutter_tools/src/build_info.dart';
+import 'package:flutter_tools/src/isolated/mustache_template.dart';
+import 'package:flutter_tools/src/project.dart';
+import 'package:flutter_tools/src/test/flutter_web_platform.dart';
+import 'package:flutter_tools/src/web/chrome.dart';
+import 'package:flutter_tools/src/web/compile.dart';
+import 'package:flutter_tools/src/web/memory_fs.dart';
+import 'package:flutter_tools/src/web/module_metadata.dart';
+import 'package:shelf/shelf.dart' as shelf;
+import 'package:test_core/backend.dart';
+
+import '../../src/common.dart';
+import '../../src/context.dart';
+import '../../src/fakes.dart';
+
+/// Thrown by [_RecordingChromiumLauncher] to terminate the browser startup early
+/// once browser launch arguments have been intercepted and recorded.
+class _TestBrowserLaunchException implements Exception {
+  const _TestBrowserLaunchException();
+}
+
+/// A test fake [ChromiumLauncher] that captures the `webBrowserFlags` passed to [ChromiumLauncher.launch]
+/// for verification in hermetic tests.
+class _RecordingChromiumLauncher extends ChromiumLauncher {
+  _RecordingChromiumLauncher({
+    required super.fileSystem,
+    required super.platform,
+    required super.processManager,
+    required super.operatingSystemUtils,
+    required super.browserFinder,
+    required super.logger,
+  });
+
+  List<String>? lastWebBrowserFlags;
+
+  @override
+  Future<Chromium> launch(
+    String url, {
+    bool headless = false,
+    int? debugPort,
+    bool skipCheck = false,
+    Directory? cacheDir,
+    List<String> webBrowserFlags = const <String>[],
+  }) async {
+    lastWebBrowserFlags = List<String>.from(webBrowserFlags);
+    throw const _TestBrowserLaunchException();
+  }
+}
+
+class FakeServer implements shelf.Server {
+  shelf.Handler? mountedHandler;
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  void mount(shelf.Handler handler) {
+    mountedHandler = handler;
+  }
+
+  @override
+  Uri get url => Uri.parse('');
+}
+
+void main() {
+  late FileSystem fileSystem;
+  late BufferLogger logger;
+  late Platform platform;
+  late Artifacts artifacts;
+  late ProcessManager processManager;
+  late FakeOperatingSystemUtils operatingSystemUtils;
+  late Directory tempDir;
+
+  setUp(() {
+    fileSystem = MemoryFileSystem.test();
+    logger = BufferLogger.test();
+    platform = FakePlatform();
+    artifacts = Artifacts.test(fileSystem: fileSystem);
+    processManager = FakeProcessManager.empty();
+    operatingSystemUtils = FakeOperatingSystemUtils();
+    tempDir = fileSystem.systemTempDirectory.createTempSync('flutter_web_platform_test.');
+
+    for (final artifact in <HostArtifact>[HostArtifact.webPrecompiledDDCCanarySdk]) {
+      final artifactFile = artifacts.getHostArtifact(artifact) as File;
+      artifactFile.createSync();
+      artifactFile.writeAsStringSync(artifact.name);
+    }
+  });
+
+  tearDown(() {
+    tryToDelete(tempDir);
+  });
+
+  testUsingContext(
+    'FlutterWebPlatform serves the correct dart_sdk.js (ddc library bundle module system) for the passed web renderer',
+    () async {
+      final chromiumLauncher = ChromiumLauncher(
+        fileSystem: fileSystem,
+        platform: platform,
+        processManager: processManager,
+        operatingSystemUtils: operatingSystemUtils,
+        browserFinder: (Platform platform, FileSystem filesystem) => 'chrome',
+        logger: logger,
+      );
+      final server = FakeServer();
+      final FlutterWebPlatform webPlatform = await FlutterWebPlatform.start(
+        'ProjectRoot',
+        buildDirectory: fileSystem.directory('build'),
+        buildInfo: const BuildInfo(
+          BuildMode.debug,
+          '',
+          packageConfigPath: '.dart_tool/package_config.json',
+          treeShakeIcons: false,
+        ),
+        chromiumLauncher: chromiumLauncher,
+        crossOriginIsolation: false,
+        flutterProject: FlutterProject.fromDirectoryTest(tempDir),
+        flutterTesterBinPath: artifacts.getArtifactPath(Artifact.flutterTester),
+        toolContext: FakeToolContext(
+          artifacts: artifacts,
+          fs: fileSystem,
+          logger: logger,
+          processManager: processManager,
+        ),
+        useWasm: false,
+        webMemoryFS: WebMemoryFS(),
+        webRenderer: WebRendererMode.canvaskit,
+        serverFactory: () async => server,
+        testPackageUri: Uri.parse('test'),
+        templateRenderer: const MustacheTemplateRenderer(),
+      );
+      final shelf.Handler? handler = server.mountedHandler;
+      expect(handler, isNotNull);
+      handler!;
+      final shelf.Response response = await handler(
+        shelf.Request('GET', Uri.parse('http://localhost/dart_sdk.js')),
+      );
+      final String contents = await response.readAsString();
+      expect(contents, HostArtifact.webPrecompiledDDCCanarySdk.name);
+      await webPlatform.close();
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => processManager,
+      Logger: () => logger,
+    },
+  );
+  testUsingContext(
+    'FlutterWebPlatform serves the correct bootstrap files (ddc library bundle module system)',
+    () async {
+      final chromiumLauncher = ChromiumLauncher(
+        fileSystem: fileSystem,
+        platform: platform,
+        processManager: processManager,
+        operatingSystemUtils: operatingSystemUtils,
+        browserFinder: (Platform platform, FileSystem filesystem) => 'chrome',
+        logger: logger,
+      );
+      // Generating the bootstrap requires a merged metadata file written during
+      // the initial compile to build and inject the correct scripts object.
+      final server = FakeServer();
+      final webMemoryFS = WebMemoryFS();
+      final File source = fileSystem.file('source')..writeAsStringSync('main() {}');
+      final File sourcemap = fileSystem.file('sourcemap')..writeAsStringSync('{}');
+      final fakeMetadata = ModuleMetadata(
+        'main',
+        'unused',
+        'main.dart.lib.js.map',
+        'main.dart.lib.js',
+      );
+      final File metadata = fileSystem.file('metadata')
+        ..writeAsStringSync(jsonEncode(fakeMetadata.toJson()));
+      final File manifest = fileSystem.file('manifest')
+        ..writeAsStringSync(
+          '{"main.dart.lib.js":{"code":[0,${source.lengthSync()}],"sourcemap":[0,${sourcemap.lengthSync()}],"metadata":[0,${metadata.lengthSync()}]}}',
+        );
+      webMemoryFS.write(source, manifest, sourcemap, metadata);
+
+      final FlutterWebPlatform webPlatform = await FlutterWebPlatform.start(
+        'ProjectRoot',
+        buildDirectory: fileSystem.directory('build'),
+        buildInfo: const BuildInfo(
+          BuildMode.debug,
+          '',
+          packageConfigPath: '.dart_tool/package_config.json',
+          treeShakeIcons: false,
+        ),
+        chromiumLauncher: chromiumLauncher,
+        crossOriginIsolation: false,
+        flutterProject: FlutterProject.fromDirectoryTest(tempDir),
+        flutterTesterBinPath: artifacts.getArtifactPath(Artifact.flutterTester),
+        toolContext: FakeToolContext(
+          artifacts: artifacts,
+          fs: fileSystem,
+          logger: logger,
+          processManager: processManager,
+        ),
+        useWasm: false,
+        webMemoryFS: webMemoryFS,
+        webRenderer: WebRendererMode.canvaskit,
+        serverFactory: () async => server,
+        testPackageUri: Uri.parse('test'),
+        templateRenderer: const MustacheTemplateRenderer(),
+      );
+      final shelf.Handler? handler = server.mountedHandler;
+      expect(handler, isNotNull);
+      handler!;
+
+      final shelf.Response responseBootstrap = await handler(
+        shelf.Request('GET', Uri.parse('http://localhost/main.dart.browser_test.dart.js')),
+      );
+      final String contentsBootstrap = await responseBootstrap.readAsString();
+      expect(contentsBootstrap, contains('ddc_module_loader.js'));
+      expect(contentsBootstrap, contains('dart_stack_trace_mapper.js'));
+      expect(contentsBootstrap, contains('main_module.bootstrap.js'));
+
+      final shelf.Response responseMainModule = await handler(
+        shelf.Request('GET', Uri.parse('http://localhost/main_module.bootstrap.js')),
+      );
+      final String contentsMainModule = await responseMainModule.readAsString();
+      expect(contentsMainModule, contains('on_load_end_bootstrap.js'));
+      expect(contentsMainModule, contains('org-dartlang-app:///main.dart'));
+
+      final shelf.Response responseOnLoadEnd = await handler(
+        shelf.Request('GET', Uri.parse('http://localhost/on_load_end_bootstrap.js')),
+      );
+      final String contentsOnLoadEnd = await responseOnLoadEnd.readAsString();
+      expect(contentsOnLoadEnd, contains(r'window.$onLoadEndCallback();'));
+
+      await webPlatform.close();
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => processManager,
+      Logger: () => logger,
+    },
+  );
+
+  testUsingContext(
+    'FlutterWebPlatform launches Chrome with scale factor and window size flags for goldens alignment',
+    () async {
+      final recordingLauncher = _RecordingChromiumLauncher(
+        fileSystem: fileSystem,
+        platform: platform,
+        processManager: processManager,
+        operatingSystemUtils: operatingSystemUtils,
+        browserFinder: (Platform platform, FileSystem filesystem) => 'chrome',
+        logger: logger,
+      );
+      final server = FakeServer();
+      final FlutterWebPlatform webPlatform = await FlutterWebPlatform.start(
+        'ProjectRoot',
+        buildDirectory: fileSystem.directory('build'),
+        buildInfo: const BuildInfo(
+          BuildMode.debug,
+          '',
+          packageConfigPath: '.dart_tool/package_config.json',
+          treeShakeIcons: false,
+        ),
+        chromiumLauncher: recordingLauncher,
+        crossOriginIsolation: false,
+        flutterProject: FlutterProject.fromDirectoryTest(tempDir),
+        flutterTesterBinPath: artifacts.getArtifactPath(Artifact.flutterTester),
+        toolContext: FakeToolContext(
+          artifacts: artifacts,
+          fs: fileSystem,
+          logger: logger,
+          processManager: processManager,
+        ),
+        useWasm: false,
+        webMemoryFS: WebMemoryFS(),
+        webRenderer: WebRendererMode.canvaskit,
+        serverFactory: () async => server,
+        testPackageUri: Uri.parse('test'),
+        templateRenderer: const MustacheTemplateRenderer(),
+      );
+
+      final suitePlatform = SuitePlatform(Runtime.chrome);
+      try {
+        await webPlatform.load(
+          'test/foo_test.dart',
+          suitePlatform,
+          SuiteConfiguration.empty,
+          Object(),
+        );
+      } on _TestBrowserLaunchException catch (_) {}
+
+      expect(
+        recordingLauncher.lastWebBrowserFlags,
+        containsAll(<String>['--force-device-scale-factor=3', '--window-size=800,600']),
+      );
+
+      await webPlatform.close();
+    },
+    overrides: <Type, Generator>{
+      FileSystem: () => fileSystem,
+      ProcessManager: () => processManager,
+      Logger: () => logger,
+    },
+  );
+}
