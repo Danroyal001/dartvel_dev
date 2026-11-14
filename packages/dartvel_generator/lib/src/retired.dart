@@ -9,7 +9,7 @@ import 'package:build/build.dart';
 /// can start from a clean checkout where these builders cannot.
 const String dartvelGeneratorRetirementNotice =
     "dartvel_generator's build_runner builders are retired and will be "
-    'removed in dartvel_generator 2.0.0. Generate with '
+    'removed in a later release. Generate with '
     '`dart run dartvel_cli:dartvel routes`, or just run `dartvel build`, '
     'which generates before it builds. The CLI writes the whole client -- '
     'the dartvel_client barrel, router, page bodies, functional widgets, '

@@ -1,7 +1,7 @@
 # dartvel_generator
 
 > **Retired.** The `build_runner` builders in this package are retired and will
-> be removed in `dartvel_generator` 2.0.0. Generate with the `dartvel` CLI
+> be removed in a later release. Generate with the `dartvel` CLI
 > instead. They still work exactly as they did — nothing breaks today — and
 > every build logs a warning naming the replacement.
 

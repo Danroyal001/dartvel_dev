@@ -117,7 +117,7 @@ gap.
   `lib/dartvel_client/dartvel_client.dart` barrel every page imports.
 - `dartvel_generator`'s `build_runner` builders are **retired**. They still
   generate, and warn on every build, so a project that has not migrated keeps
-  working; they are removed in `dartvel_generator` 2.0.0. They were never able
+  working; they are removed in a later release. They were never able
   to bootstrap a client on their own -- with no barrel the first page's
   `@DVPage` cannot be resolved -- so every project on that path was really
   running both generators in sequence, and three bugs lived in the difference.

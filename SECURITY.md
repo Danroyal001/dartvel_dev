@@ -52,7 +52,7 @@ signing key or its database.
 
 ## Supported versions
 
-Dartvel is pre-1.0 and releases move quickly. Security fixes land on `main`
+Dartvel is in alpha and releases move quickly. Security fixes land on `main`
 and in the next release from it. Older minor versions are not patched
 separately; the upgrade is the fix.
 

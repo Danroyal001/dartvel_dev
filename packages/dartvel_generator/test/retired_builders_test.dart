@@ -57,8 +57,11 @@ void expectSaysSo(List<LogRecord> records) {
   // command that replaces it leaves the user with nowhere to go.
   expect(message, contains('dart run dartvel_cli:dartvel routes'));
   expect(message, contains('dartvel build'));
-  // When it goes, so a user can plan rather than be surprised by a major.
-  expect(message, contains('2.0.0'));
+  // That it goes. It was promised for dartvel_generator 2.0.0; the version now
+  // follows Flutter's and went from 0.13.51 to 3.47.0, so a message naming
+  // 2.0.0 would name a release that never existed.
+  expect(message, contains('a later release'));
+  expect(message, isNot(contains('2.0.0')));
 }
 
 void main() {
