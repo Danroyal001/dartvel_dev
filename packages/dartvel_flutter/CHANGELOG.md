@@ -1,4 +1,4 @@
-## 3.47.1 — unreleased
+## 3.47.1 — 2026-11-14
 
 - `DV.Platform.apps.homePresses` and `recentsPresses` hear the press as it happens: the launcher MainActivity tells the app over a channel instead of leaving a stamp to be read on the next resume and by a poll four times a second. `recentsPresses` also fires when the opt-in Recents service (`dartvel.android.recentsService: true`) put the app in front in place of the system's Recents.
 - `DV.Platform.apps.homeAppSignals`: everything the system tells a home app, as `DVHomeAppSignal(name, at, detail)`: Home, Back, each close-system-dialogs broadcast with its reason, pause, stop, user-leave hint, focus gained and lost, and the windows and system-button presses the Recents service sees. Phones differ in what they send for the Recents button; a diagnostics screen built on this shows what one phone really does.

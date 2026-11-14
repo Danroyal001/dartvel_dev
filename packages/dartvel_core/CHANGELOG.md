@@ -1,3 +1,7 @@
+## 3.47.1 — 2026-11-14
+
+- Version aligned with dartvel_core 3.47.1.
+
 ## 3.47.0 — 2026-11-14
 
 - The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
