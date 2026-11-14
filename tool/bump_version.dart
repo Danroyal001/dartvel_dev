@@ -44,7 +44,22 @@ const List<String> _pubPackages = <String>[
   'dartvel_generator',
   'dartvel_cli',
   'dartvel_dev',
+  ..._firstPartyModules,
 ];
+
+/// The first-party modules, which live in modules/ rather than packages/
+/// and are released with the framework: `dartvel add <name>` writes a
+/// constraint on the CLI's own version, so one left behind is a module
+/// nobody can add.
+const List<String> _firstPartyModules = <String>[
+  'dartvel_meta_pixel',
+  'dartvel_google_analytics',
+  'dartvel_woocommerce',
+];
+
+/// Where [name]'s package is, from the repository root.
+String _packageDirectory(String name) =>
+    _firstPartyModules.contains(name) ? 'modules/$name' : 'packages/$name';
 
 const List<String> _npmPackages = <String>['dartvel_cli', 'dartvel_dev'];
 /// [manifest] with its own version set to [version], and its dependency on
@@ -117,7 +132,7 @@ void main(List<String> args) {
   final List<String> changed = <String>[];
 
   for (final String name in _pubPackages) {
-    final File pubspec = File('packages/$name/pubspec.yaml');
+    final File pubspec = File('${_packageDirectory(name)}/pubspec.yaml');
     if (!pubspec.existsSync()) {
       stderr.writeln('missing ${pubspec.path}; run from the repository root');
       exit(2);

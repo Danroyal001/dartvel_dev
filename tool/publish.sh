@@ -37,7 +37,16 @@ PUB_PACKAGES=(
   dartvel_generator
   dartvel_cli
   dartvel_dev
+  dartvel_meta_pixel
+  dartvel_google_analytics
+  dartvel_woocommerce
 )
+
+# The first-party modules live in modules/, everything else in packages/.
+# They depend on dartvel_core only, so they publish after it; last is fine.
+pub_dir() {
+  if [[ -d "modules/$1" ]]; then echo "modules/$1"; else echo "packages/$1"; fi
+}
 
 # dartvel_cli pins dartvel_dev exactly, so it is unresolvable until dev is up.
 NPM_PACKAGES=(dartvel_dev dartvel_cli)
@@ -48,7 +57,7 @@ dim()  { printf '\033[2m%s\033[0m\n' "$*"; }
 
 fail() { red "✗ $*"; exit 1; }
 
-local_pub_version()  { grep -m1 '^version:' "packages/$1/pubspec.yaml" | awk '{print $2}'; }
+local_pub_version()  { grep -m1 '^version:' "$(pub_dir "$1")/pubspec.yaml" | awk '{print $2}'; }
 local_npm_version()  { node -p "require('./npm/$1/package.json').version"; }
 
 # The version being released when it is already published (a package such as
@@ -189,7 +198,7 @@ echo "── dry run ───────────────────�
 # be republished once it is taken.
 WARNED=()
 for p in "${PUB_TODO[@]}"; do
-  out="$(dart pub publish --dry-run -C "packages/$p" 2>&1)"
+  out="$(dart pub publish --dry-run -C "$(pub_dir "$p")" 2>&1)"
   summary="$(echo "$out" | grep -oE 'Package has [0-9]+ warning.*' | tail -1)"
 
   # Not the exit code. `dart pub publish --dry-run` exits non-zero for a
@@ -254,7 +263,7 @@ for p in "${PUB_TODO[@]}"; do
   # Stops here rather than continuing: the packages after this one depend on
   # it, and publishing them against a version that never landed produces a
   # release nobody can install.
-  dart pub publish --force -C "packages/$p" || fail "$p failed to publish"
+  dart pub publish --force -C "$(pub_dir "$p")" || fail "$p failed to publish"
   green "✓ $p published"
 done
 
