@@ -16,6 +16,8 @@ import 'package:flutter/rendering.dart'
     show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
 import 'package:flutter/services.dart'
     show Clipboard,
+        ServicesBinding,
+        StringCodec,
         SystemNavigator,
         ClipboardData,
         KeyDownEvent,
@@ -6253,6 +6255,50 @@ class DVInstalledApp {
 /// What an app is for on the phone, as Android's default apps are chosen.
 enum DVAppRole { phone, messages, browser, camera, email, maps }
 
+/// Something the system told a home app, as it happened: which signal, when
+/// (elapsed realtime, in milliseconds), and what came with it.
+///
+/// The names: `home` (Home reached the app), `homeByService` (the Recents
+/// service pressed Home to close the system's Recents; not a Home press),
+/// `back` (Back reached the activity), `recents` (the system's
+/// "recentapps" broadcast), `recentsReplaced` (the opt-in Recents service
+/// brought the app forward; [detail] is what it saw: `key`, `button` or
+/// `window`), `closeSystemDialogs` ([detail] is the broadcast's reason),
+/// `pause`, `stop`, `userLeaveHint`, `focus` ([detail] `gained` or `lost`)
+/// and `window` (the Recents service saw a window open; [detail] is its
+/// package and class).
+class const DVHomeAppSignal(final String name, final int at, [final String detail = '']);
+
+/// The `dev.dartvel/system_keys` channel. The MainActivity
+/// `dartvel.android.launcher: true` writes sends `<name>:<stamp>[:<detail>]`
+/// as each signal happens: Android does not pause or resume a home app that
+/// is already in front when Home is pressed, so they cannot wait for a
+/// lifecycle change.
+abstract final class _DVSystemKeys {
+  static const String channel = 'dev.dartvel/system_keys';
+  static final StreamController<DVHomeAppSignal> _keys = StreamController<DVHomeAppSignal>.broadcast();
+
+  static Stream<DVHomeAppSignal> get heard {
+    // Set on every listen: a test binding, or a hot restart, can swap the
+    // messenger, and setting the same handler again is harmless.
+    ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(channel, (ByteData? message) async {
+      final List<String> parts = (const StringCodec().decodeMessage(message) ?? '').split(':');
+      if (parts.length >= 2 && parts.first.isNotEmpty) {
+        _keys.add(DVHomeAppSignal(parts.first, int.tryParse(parts[1]) ?? 0, parts.skip(2).join(':')));
+      }
+      return null;
+    });
+    return _keys.stream;
+  }
+
+  /// Asks the MainActivity [question] over `dev.dartvel/home_app`; null
+  /// where nothing answers (not Android, not a home app, an older build).
+  static Future<String?> ask(String question) async {
+    final ByteData? answer = await ServicesBinding.instance.defaultBinaryMessenger.send('dev.dartvel/home_app', const StringCodec().encodeMessage(question));
+    return const StringCodec().decodeMessage(answer);
+  }
+}
+
 class DVApps {
   const DVApps();
 
@@ -6330,35 +6376,42 @@ class DVApps {
   /// closes its drawer and goes back to its first page) and when Home brings
   /// it back from another app.
   ///
-  /// Android hands that press to the home app as a new intent, pausing and
-  /// resuming it around it; the MainActivity `dartvel.android.launcher: true`
-  /// writes stamps the intent, and this reads the stamp when the app resumes.
-  /// Where no binding is registered (not Android, or not a home app) the
-  /// stream is empty.
+  /// Android hands that press to the home app as a new intent. From Android
+  /// 10, a home app that is already in front gets the intent and nothing
+  /// else: no pause and no resume, so nothing that waits for a resume ever
+  /// hears it. The MainActivity `dartvel.android.launcher: true` writes
+  /// stamps the intent and tells the app at once (the
+  /// `dev.dartvel/system_keys` channel); the stamp read on resume catches a
+  /// press made while the engine was not listening, and the same stamp is
+  /// never two events. Where no binding is registered (not Android, or not a
+  /// home app) the stream is empty.
   Stream<void> get homePresses {
     if (!DVNativeBridge.isRegistered('apps.homePressedAt')) return const Stream<void>.empty();
     late final StreamController<void> controller;
     AppLifecycleListener? listener;
+    StreamSubscription<DVHomeAppSignal>? keys;
     int? seen;
+    void heard(int stamp) {
+      final int? before = seen;
+      seen = stamp;
+      if (before != null && stamp != 0 && stamp != before && !controller.isClosed) controller.add(null);
+    }
+
     Future<int> stamp() async {
       final Object? value = await DVNativeBridge.invoke<Object?>('apps.homePressedAt');
       return value is int ? value : 0;
-    }
-
-    Future<void> check() async {
-      final int now = await stamp();
-      final int? before = seen;
-      seen = now;
-      if (before != null && now != before && !controller.isClosed) controller.add(null);
     }
 
     controller = StreamController<void>(
       onListen: () {
         // What is there before anyone listened is not a press they missed.
         stamp().then((int value) => seen ??= value);
-        listener = AppLifecycleListener(onResume: () => unawaited(check()));
+        keys = _DVSystemKeys.heard.where((DVHomeAppSignal key) => key.name == 'home').listen((DVHomeAppSignal key) => heard(key.at));
+        listener = AppLifecycleListener(onResume: () => unawaited(stamp().then(heard)));
       },
       onCancel: () {
+        keys?.cancel();
+        keys = null;
         listener?.dispose();
         listener = null;
       },
@@ -6369,20 +6422,25 @@ class DVApps {
   /// One event each time the person presses Recents while this home app is
   /// in front and the system shows nothing over it.
   ///
-  /// Phones whose own launcher hosts Recents (HiOS among them) can do nothing
-  /// when another app is the home app; the press still reaches the app as the
-  /// system's "recentapps" broadcast, which the MainActivity
-  /// `dartvel.android.launcher: true` writes stamps. A press after which the
-  /// app is still in front a moment later went unanswered, and the app can
-  /// show its own recent apps; one that opened the system's Recents over the
-  /// app is not an event. Where no binding is registered the stream is empty.
+  /// Where the system's Recents answers, it covers the app and this stream
+  /// stays quiet. Phones whose own launcher hosts Recents can show nothing
+  /// when another app is the home app; when the press still reaches the app
+  /// as the system's "recentapps" broadcast, the MainActivity
+  /// `dartvel.android.launcher: true` writes tells the app at once (the
+  /// `dev.dartvel/system_keys` channel). A press after which the app is
+  /// still in front a moment later went unanswered, and the app can show its
+  /// own recent apps. A phone that sends nothing at all for the press (the
+  /// button is the system's, not a key the app receives) gives no event:
+  /// no app can hear it there. Where no binding is registered the stream is
+  /// empty.
   Stream<void> get recentsPresses {
     if (!DVNativeBridge.isRegistered('apps.recentsPressedAt')) return const Stream<void>.empty();
     late final StreamController<void> controller;
     AppLifecycleListener? listener;
-    Timer? poll;
+    StreamSubscription<DVHomeAppSignal>? keys;
     Timer? pending;
     int? seen;
+    int? replacedSeen;
     final AppLifecycleState? now = WidgetsBinding.instance.lifecycleState;
     bool inFront = now == null || now == AppLifecycleState.resumed;
     Future<int> stamp() async {
@@ -6390,10 +6448,8 @@ class DVApps {
       return value is int ? value : 0;
     }
 
-    Future<void> check() async {
-      if (!inFront || seen == null) return;
-      final int value = await stamp();
-      if (value == seen || !inFront) return;
+    void heard(int value) {
+      if (!inFront || value == 0 || value == seen) return;
       seen = value;
       // Answered presses cover the app at once; wait to see.
       pending?.cancel();
@@ -6410,12 +6466,18 @@ class DVApps {
     controller = StreamController<void>(
       onListen: () {
         stamp().then((int value) => seen ??= value);
-        // A one-shot timer re-armed after each look, so a stopped stream
-        // leaves no timer behind and a slow binding never stacks looks.
-        void next() {
-          if (controller.isClosed || listener == null) return;
-          poll = Timer(const Duration(milliseconds: 250), () => check().whenComplete(next));
-        }
+        keys = _DVSystemKeys.heard.listen((DVHomeAppSignal key) {
+          if (key.name == 'recents') heard(key.at);
+          // The Recents service already put the app in front, in place of
+          // the system's Recents: nothing to wait for.
+          // Kept apart from [seen]: the resume that follows the service's
+          // new intent reads the same stamp, and may read it first.
+          if (key.name == 'recentsReplaced' && key.at != replacedSeen && !controller.isClosed) {
+            replacedSeen = key.at;
+            pending?.cancel();
+            controller.add(null);
+          }
+        });
         listener = AppLifecycleListener(
           onInactive: leave,
           onHide: leave,
@@ -6428,16 +6490,42 @@ class DVApps {
             });
           },
         );
-        next();
       },
       onCancel: () {
-        poll?.cancel();
+        keys?.cancel();
+        keys = null;
         pending?.cancel();
         listener?.dispose();
         listener = null;
       },
     );
     return controller.stream;
+  }
+
+  /// Everything the system tells this home app, as it happens: Home,
+  /// Recents, the reason of each close-system-dialogs broadcast, pauses,
+  /// stops, focus changes and what the Recents service sees. Phones differ
+  /// in what they send for the Recents button; a diagnostics screen that
+  /// lists these shows what one phone really does. Empty where the app is
+  /// not an Android home app.
+  Stream<DVHomeAppSignal> get homeAppSignals =>
+      DVNativeBridge.isRegistered('apps.homePressedAt') ? _DVSystemKeys.heard : const Stream<DVHomeAppSignal>.empty();
+
+  /// Whether the person has turned on this app's Recents service
+  /// (`dartvel.android.recentsService: true`), the accessibility service
+  /// that shows the app's own Recents in place of the system's. False
+  /// where there is none.
+  Future<bool> get isRecentsServiceOn async {
+    if (!DVNativeBridge.isRegistered('apps.homePressedAt')) return false;
+    return await _DVSystemKeys.ask('recentsService.isOn') == 'true';
+  }
+
+  /// Opens the system's Accessibility settings, where the person turns the
+  /// Recents service on or off. Android lets no app turn it on itself.
+  Future<void> openRecentsServiceSettings() async {
+    if (!DVNativeBridge.isRegistered('apps.homePressedAt') || await _DVSystemKeys.ask('recentsService.settings') != 'true') {
+      throw UnsupportedError('The Recents service exists on an Android home app built with dartvel.android.recentsService: true.');
+    }
   }
 
   /// Starts the app [packageName] the way tapping its icon would.

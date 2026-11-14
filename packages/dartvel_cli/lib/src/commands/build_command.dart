@@ -2136,6 +2136,36 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  No MainActivity.kt under android/app/src/main/kotlin, so the wallpaper will not show through.');
     }
     if (enabled) Logger.log('   Home screen: this app can be chosen as the phone\'s home app, over the phone\'s wallpaper.');
+    // The opt-in Recents service: its declaration, what it asks the system
+    // for, what Settings says about it, and its source beside MainActivity.
+    final bool recents = dvAndroidRecentsServiceEnabled(_dartvelSection(root));
+    final String withLauncher = manifest.readAsStringSync();
+    final String withService = dvAndroidRecentsServiceManifest(withLauncher, enabled: recents && activities.isNotEmpty);
+    if (withService != withLauncher) manifest.writeAsStringSync(withService);
+    final String res = p.join(root, 'android', 'app', 'src', 'main', 'res');
+    final List<File> serviceFiles = <File>[
+      File(p.join(res, 'xml', 'dartvel_recents_service.xml')),
+      File(p.join(res, 'values', 'dartvel_recents_service.xml')),
+      for (final File activity in activities) File(p.join(activity.parent.path, 'DartvelRecentsService.kt')),
+    ];
+    if (recents && activities.isNotEmpty) {
+      final String? label = RegExp(r'<application[^>]*android:label="([^"@][^"]*)"').firstMatch(withService)?.group(1);
+      final String? package = RegExp(r'^package\s+([\w.]+)', multiLine: true).firstMatch(activities.first.readAsStringSync())?.group(1);
+      if (package == null) {
+        Logger.log('⚠️  MainActivity.kt names no package, so dartvel.android.recentsService was not written.');
+      } else {
+        final List<String> contents = <String>[dvAndroidRecentsServiceConfig, dvAndroidRecentsServiceStrings(label ?? 'This app'), dvAndroidRecentsServiceSource(package)];
+        for (int index = 0; index < contents.length; index++) {
+          serviceFiles[index].parent.createSync(recursive: true);
+          if (!serviceFiles[index].existsSync() || serviceFiles[index].readAsStringSync() != contents[index]) serviceFiles[index].writeAsStringSync(contents[index]);
+        }
+        Logger.log('   Recents service: once turned on in Accessibility settings, the Recents button shows this app\'s own Recents.');
+      }
+    } else {
+      for (final File written in serviceFiles) {
+        if (written.existsSync() && written.readAsStringSync().contains('Written by dartvel build (dartvel.android.recentsService)')) written.deleteSync();
+      }
+    }
   }
 
   void _writeIosAppShortcuts(String root) {

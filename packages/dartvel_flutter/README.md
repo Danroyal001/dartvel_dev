@@ -616,8 +616,15 @@ d.dispose();
   `homePresses` has one event each time Home lands on the app as the home app,
   in front already or brought back, so a launcher closes its drawer;
   `recentsPresses` has one when Recents is pressed and the phone shows nothing
-  over the app (HiOS hosts Recents in its own launcher). Elsewhere
-  `isSupported` is false:
+  over the app (HiOS hosts Recents in its own launcher). Both hear the press as
+  it happens. A home app can never be the phone's Recents, so
+  `dartvel.android.recentsService: true` adds an accessibility service the
+  person turns on once (`openRecentsServiceSettings()`, `isRecentsServiceOn`):
+  from then on the Recents button brings the app forward and `recentsPresses`
+  fires. `homeAppSignals` lists everything the system tells the home app
+  (Home, Back, pauses, focus, each close-system-dialogs reason, the windows
+  the service sees), for a diagnostics screen. Elsewhere `isSupported` is
+  false:
 
   ```dart
   final List<DVInstalledApp> apps = await DV.Platform.apps.list();
