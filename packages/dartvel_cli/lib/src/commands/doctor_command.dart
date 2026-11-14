@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import '../analysis/conventions_check.dart';
+import '../analysis/syntax_check.dart';
 import '../analysis/tooltip_lint.dart';
 import '../build/deep_link_files.dart';
 import '../build/build_target.dart';
@@ -555,6 +556,25 @@ class DoctorCommand extends Command<void> {
       backendDir: config?.backendDir ?? 'lib/backend',
     );
     layout.lines.forEach(Logger.log);
+
+    // Whether the project's own sources parse; the build stops on the same
+    // list before it generates anything.
+    final DVSyntaxReport syntax = await dvCheckProjectSyntax(
+      cwd,
+      helper: await dvSyntaxHelperOfThisCli(),
+    );
+    if (syntax.findings.isEmpty) {
+      Logger.log('[+] ${syntax.files} Dart source(s) under lib/ parse');
+    } else {
+      final List<String> lines = dvSyntaxReportLines(syntax);
+      Logger.log('[!] ${lines.first.replaceFirst(':', '')} (dartvel build stops on these):');
+      for (final String line in lines.skip(1)) {
+        Logger.log('   $line');
+      }
+    }
+    for (final String note in syntax.notes) {
+      Logger.log('[!] $note');
+    }
 
     // Everything hoverable has a tooltip; the build fails on the same list.
     final List<DVTooltipFinding> untooltipped = dvScanProjectForTooltips(cwd);

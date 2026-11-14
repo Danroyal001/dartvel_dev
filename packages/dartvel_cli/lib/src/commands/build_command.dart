@@ -13,6 +13,7 @@ import '../build/display_settings.dart';
 import '../build/node_runtime_bundle.dart';
 import '../build/web_fonts.dart';
 import '../analysis/conventions_check.dart';
+import '../analysis/syntax_check.dart';
 import '../analysis/tooltip_lint.dart';
 import '../build/accessibility_audit.dart';
 import '../build/studio_data.dart';
@@ -756,6 +757,24 @@ class BuildCommand extends Command<void> {
       }
       Logger.log('   Run `dartvel doctor` for the whole picture.');
       exit(78); // EX_CONFIG
+    }
+
+    // Whether the project's own sources parse, before anything reads them.
+    // The checks below and the generators read source text, and a file that
+    // does not parse otherwise surfaces minutes later inside the compiler,
+    // or as generated code that does not compile.
+    final DVSyntaxReport syntax = await dvCheckProjectSyntax(
+      root,
+      helper: await dvSyntaxHelperOfThisCli(),
+    );
+    for (final String note in syntax.notes) {
+      Logger.log('⚠ $note');
+    }
+    if (syntax.findings.isNotEmpty) {
+      final List<String> lines = dvSyntaxReportLines(syntax);
+      Logger.log('❌ ${lines.first} Nothing was generated or built.');
+      lines.skip(1).forEach(Logger.log);
+      exit(65); // EX_DATAERR
     }
 
     // Everything hoverable has a tooltip, and it is the control's name.

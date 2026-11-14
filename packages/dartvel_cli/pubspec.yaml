@@ -44,6 +44,11 @@ dependencies:
   # release_constraints_test. Declared rather than relied on as a transitive
   # dependency: pub warns on the undeclared import.
   pub_semver: ^2.1.0
+  # The syntax check's Dart engine: `parseString`, which decides every file
+  # the Rust helper did not answer as clean, and every file when the helper
+  # is absent (`dart pub global activate`). 14.7 is the release the Rust
+  # port in rust/ was made from.
+  analyzer: ^14.7.0
 dev_dependencies:
   lints: ^4.0.0
   # Used by semantics_capture_server_test to make real requests against the
