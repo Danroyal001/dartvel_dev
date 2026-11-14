@@ -321,13 +321,35 @@ void main() {
     final DVSyntaxReport withHelper =
         await dvCheckSyntaxOf(scratch.path, relative, helper: DVSyntaxHelper(helper));
     final DVSyntaxReport withoutHelper = await dvCheckSyntaxOf(scratch.path, relative);
+    final Set<String> vouched = (await DVSyntaxHelper(helper)
+            .cleanAmong(<String>[for (final String name in relative) p.join(scratch.path, name)]))
+        .map((String path) => p.relative(path, from: scratch.path))
+        .toSet();
+
+    // Whether the Dart analyzer runs out of stack on a file nested a few
+    // thousand deep depends on how much stack is in use when it starts, so
+    // two Dart-only runs can disagree about such a file (function types 1,500
+    // deep did, under load). Those files are checked for what matters -- the
+    // helper never vouched for them -- and every other file must get the
+    // same findings with and without the helper.
+    final Set<String> unsteady = <String>{
+      for (final String note in <String>[...withHelper.notes, ...withoutHelper.notes]) note.split(' ').first,
+    };
+    List<String> steady(DVSyntaxReport report) => <String>[
+          for (final DVSyntaxFinding finding in report.findings)
+            if (!unsteady.contains(finding.path)) '$finding',
+        ];
+    final Set<String> foundWithoutHelper = <String>{
+      for (final DVSyntaxFinding finding in withoutHelper.findings) finding.path,
+    };
     // ignore: avoid_print
-    print('nesting: ${relative.length} files, ${withHelper.cleanByHelper} answered clean by the helper, '
-        '${withoutHelper.findings.length} findings and ${withoutHelper.notes.length} notes either way');
-    expect(withHelper.findings.map((DVSyntaxFinding finding) => '$finding').toList(),
-        withoutHelper.findings.map((DVSyntaxFinding finding) => '$finding').toList());
-    expect(withHelper.notes, withoutHelper.notes);
-    expect(withHelper.cleanByHelper, greaterThan(0));
+    print('nesting: ${relative.length} files, ${vouched.length} answered clean by the helper, '
+        '${withoutHelper.findings.length} findings and ${withoutHelper.notes.length} notes without it; '
+        '${unsteady.length} files the analyzer could not always parse');
+    expect(vouched, isNotEmpty);
+    expect(vouched.intersection(foundWithoutHelper), isEmpty, reason: 'the helper vouched for a file with errors');
+    expect(vouched.intersection(unsteady), isEmpty, reason: 'the helper vouched for a file Dart cannot parse');
+    expect(steady(withHelper), steady(withoutHelper));
   });
 
   test('a project with errors gets the same report with and without the helper', () async {
