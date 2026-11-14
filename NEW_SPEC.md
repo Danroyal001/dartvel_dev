@@ -13550,7 +13550,8 @@ studio` command.
 `dartvel upgrade --plan`, `dartvel compatibility-check` and `dartvel
 migrate-code` complete the last step. All three exist. `dartvel upgrade`
 without `--plan` upgrades the CLI binary
-transactionally; applying a project plan remains manual. `dartvel update`
+transactionally, and `dartvel upgrade --project` moves the project's Dartvel
+packages to the CLI's release; the rest of a project plan is applied by hand. `dartvel update`
 also upgrades the CLI; `dartvel updates` ships application patches.
 
 During development, generation happens incrementally through `dartvel dev`.
@@ -16613,8 +16614,20 @@ names `migrate-code` would rewrite, the generated files this CLI's generator
 would change with the lines each gains and loses, the protocol lockfile, and
 each mounted module's Dartvel constraints. An area it cannot check is listed as
 not checked, never as unchanged, and a project already newer than the CLI is
-blocked rather than planned backwards. Applying the project plan remains
-manual; upgrading the CLI does not modify project source or dependencies.
+blocked rather than planned backwards. Upgrading the CLI does not modify
+project source or dependencies.
+
+`dartvel upgrade --project` applies the dependency part of the plan: it
+rewrites each hosted Dartvel constraint in `pubspec.yaml` that excludes the
+CLI's release to a caret on it, does the same in each module whose source is a
+folder of the project, and resolves the packages, putting every file back if
+they do not resolve. A path, git or overridden dependency is reported and left
+alone, and a project newer than the CLI is refused. The rest of the plan is
+applied by hand.
+
+A Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>` from
+3.47.0, the release after 0.13.51. A caret does not cross that line, so
+`dartvel upgrade --project` is how a project on 0.13.x moves.
 
 `dartvel migrate-code` is a dry run that prints every rewritten line;
 `--apply` writes them, and writes nothing if a file changed after the plan was

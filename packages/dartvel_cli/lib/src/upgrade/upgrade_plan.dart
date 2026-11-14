@@ -483,8 +483,8 @@ DVUpgradeItem? _dartvelPackage(
       'dependencies',
       name,
       DVUpgradeOutcome.changes,
-      'constraint "$text" excludes $targetText; change it to ^$targetText '
-          'and run pub upgrade',
+      'constraint "$text" excludes $targetText; `dartvel upgrade --project` '
+          'changes it to ^$targetText and resolves it',
     );
   }
   if (resolved == target) {
@@ -669,7 +669,8 @@ List<DVUpgradeItem> _modules(String root, Map<String, String> locked) {
           subject,
           DVUpgradeOutcome.blocked,
           '${blocked.join('; ')}; the module has to move first, or the parent '
-              'cannot resolve with it mounted',
+              'cannot resolve with it mounted (`dartvel upgrade --project` '
+              'moves a module whose source is a folder of this project)',
         ),
       );
     } else if (fine.isEmpty) {

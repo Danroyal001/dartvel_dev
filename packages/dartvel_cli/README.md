@@ -171,6 +171,7 @@ had.
 | `init` | Add Dartvel to an existing project: the dependency and the `dartvel:` key, then the same coding-agent files. `--dry-run`, `--yes`. |
 | `doctor` | Check the environment and the project. `--target <t>` checks one build target's toolchain. |
 | `upgrade --plan` | Report what upgrading this project to this CLI's release changes. Writes nothing. |
+| `upgrade --project` | Move the Dartvel packages in `pubspec.yaml`, and in the project's local modules, to this CLI's release and resolve them. How a project on 0.13.x moves to 3.47 and later. |
 | `migrate-code` | Rewrite deprecated Dartvel names. A dry run unless `--apply`. |
 | `update` | Update the CLI itself. `--check` reports without installing. |
 | `version` | Print the CLI version. |
@@ -533,7 +534,7 @@ identical inputs, so `dartvel generate --check` can fail CI when committed
 output is stale.
 
 `dartvel_generator`'s `build_runner` builders are retired: they still run and
-warn on every build, and are removed in `dartvel_generator` 2.0.0. Do not add
+warn on every build, and are removed in a later release. Do not add
 `build_runner` to an application for Dartvel's sake. `dartvel build` and
 `dartvel dev` still run it, after Dartvel's own generation, when a project
 declares it for another package's builders.

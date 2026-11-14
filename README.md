@@ -1523,9 +1523,26 @@ and PATH configuration if a step fails. Open a new terminal to refresh PATH.
 Windows deletes locked rename-aside binaries on a later CLI invocation.
 
 `dartvel update` uses the same flow, with `--check` and `--force`.
-`dartvel upgrade --plan` still reports project changes without writing them;
-applying that project plan remains manual. For a pub installation, use
-`dart pub global activate dartvel_cli`. See [CLI upgrade](docs/cli-upgrade.md).
+`dartvel upgrade --plan` reports project changes without writing them.
+`dartvel upgrade --project` moves the Dartvel packages in `pubspec.yaml` (and
+in modules whose source is a folder of the project) to the CLI's release and
+resolves them; the rest of the plan is still applied by hand. For a pub
+installation, use `dart pub global activate dartvel_cli`. See
+[CLI upgrade](docs/cli-upgrade.md).
+
+### Versions
+
+From 3.47.0 a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel
+release>`: 3.47.x is built on Flutter 3.47, and the last number counts
+Dartvel's own releases on it. Every published package and the CLI carry the
+same version. The release before 3.47.0 was 0.13.51, and a caret does not
+cross that line (`^0.13.51` stops below 0.14.0), so an existing project moves
+with:
+
+```bash
+npm install -g dartvel_dev@latest   # or: dartvel update, brew upgrade dartvel_dev
+dartvel upgrade --project
+```
 
 Prebuilt authentication pages and generated data-model forms share keyboard, pending-save and theme behavior. See [auth and form UX](docs/auth-forms-ux.md) for branding options, the custom panel slot, and current server-rendering limitations.
 

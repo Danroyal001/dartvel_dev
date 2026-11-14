@@ -1036,9 +1036,10 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'upgrade',
-    description: 'Upgrade the CLI, or plan a project upgrade with --plan.',
+    description: 'Upgrade the CLI, plan a project upgrade with --plan, or move a project to this CLI\'s release with --project.',
     options: <String>[
-      '    --plan    Report what the upgrade changes across the toolchain, dependencies, source, generated code, protocol, database, modules, plugins and deployment. Writes nothing.',
+      '    --plan       Report what the upgrade changes across the toolchain, dependencies, source, generated code, protocol, database, modules, plugins and deployment. Writes nothing.',
+      '    --project    Move the Dartvel packages in this project\'s pubspec.yaml (and its local modules) to this CLI\'s release, then resolve them. This is how a project on 0.13.x moves to 3.47 and later, which `pub upgrade` alone cannot do.',
     ],
   ),
   DocsCliCommand(

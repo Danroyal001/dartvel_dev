@@ -551,8 +551,9 @@ const List<(String, String, String)> partial = <(String, String, String)>[
     'The Golden Path',
     'create to deploy',
     'Present: create, dev, generate, db migrate, test, build, deploy and '
-        'upgrade --plan. Absent: applying an upgrade, so you make the changes '
-        'the plan lists.',
+        'upgrade --plan, and upgrade --project for the Dartvel packages. Absent: '
+        'applying the rest of an upgrade, so you make the other changes the '
+        'plan lists.',
   ),
   (
     'Adoption',

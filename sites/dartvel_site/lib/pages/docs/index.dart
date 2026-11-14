@@ -239,8 +239,9 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
         DocsStatus(
           'The Golden Path',
           missing: <String>[
-            '`dartvel upgrade` updates the CLI. Applying the project changes '
-                'listed by upgrade --plan is Planned; the plan is read-only.',
+            '`dartvel upgrade` updates the CLI and `dartvel upgrade --project` '
+                'moves the project\'s Dartvel packages to its release. Applying '
+                'the other changes listed by upgrade --plan is Planned.',
           ],
         ),
       ],

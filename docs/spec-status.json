@@ -1896,7 +1896,7 @@
         "packages/dartvel_cli/test/compatibility_check_command_test.dart",
         "packages/dartvel_cli/test/migrate_code_test.dart"
       ],
-      "absent": "Every step is a real command: create, init, dev, generate, db migrate, test, build, deploy, logs, and for the last step dartvel upgrade --plan, dartvel compatibility-check and dartvel migrate-code. Absent: applying a project upgrade plan. dartvel upgrade without --plan installs the latest CLI transactionally; the plan lists project changes the developer applies, with migrate-code --apply for source rewrites. What the three commands check and do not check is recorded under Unified Development, Transparency, and Contracts and Protocol Versioning and Client Compatibility."
+      "absent": "Every step is a real command: create, init, dev, generate, db migrate, test, build, deploy, logs, and for the last step dartvel upgrade --plan, dartvel compatibility-check and dartvel migrate-code. Absent: applying a whole project upgrade plan. dartvel upgrade without --plan installs the latest CLI transactionally; dartvel upgrade --project moves the Dartvel package constraints to the CLI's release and resolves them; the plan lists the other project changes the developer applies, with migrate-code --apply for source rewrites. What the three commands check and do not check is recorded under Unified Development, Transparency, and Contracts and Protocol Versioning and Client Compatibility."
     },
     {
       "section": "Adoption",
