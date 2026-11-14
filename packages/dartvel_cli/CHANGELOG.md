@@ -1,3 +1,7 @@
+## 3.47.1 — unreleased
+
+- `dartvel build` and `dartvel doctor` check that the project's Dart sources parse, before anything is generated, and report each syntax error with its file, line and column; the build stops on them (exit 65). Release binaries answer most files with a Rust port of the analyzer's parser carried inside the CLI; `package:analyzer` (a new dependency) decides every file it does not vouch for, and every file when it is absent. See the repository CHANGELOG.
+
 ## 3.47.0 — 2026-11-14
 
 - The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.

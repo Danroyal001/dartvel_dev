@@ -79,6 +79,10 @@ jobs:
           set -euo pipefail
           cd packages/dartvel_cli
           dart pub get
+          # The Rust syntax helper goes inside the executable: built here by
+          # cargo, written into a Dart source file, compiled in. A failure
+          # stops the release rather than shipping a binary without it.
+          dart run tool/embed_syntax_helper.dart
           dart build cli --target bin/dartvel.dart
 
       # Where `dart build` writes depends on the host, and guessing the
