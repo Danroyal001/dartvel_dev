@@ -1,6 +1,9 @@
-## Unreleased
+## 3.47.0 — 2026-11-14
 
+- The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
+- Moving from 0.13.x: a caret does not cross the line (`^0.13.51` stops below 0.14.0), so `pub upgrade` alone keeps a project on 0.13.51. Install the 3.47.0 CLI (`npm install -g dartvel_dev@latest`, `dartvel update` or `brew upgrade dartvel_dev`) and run `dartvel upgrade --project` in the project.
 - `DV.Auth.restore()`, `DV.Auth.restored`, `DV.Auth.restoring` and `DV.Auth.user` (a signal with `watch(context)`): the signed-in person after a reload, from one request, signed out quietly on 401. Guards wait for it. It runs by itself at start and does not depend on boot order: called from `@DVBoot`, before the session client exists, it no longer leaves the app signed out; a failure other than 401 is logged as a warning.
+- On a host of `dartvel.hosts`, `DV.Navigation.navigate`, `push` and `context.navigateToPage` open a route another host owns at its public URL in the same tab, as `DVNavLink` already did. On a mounted host they routed it in the page's own router, which read it as a path under the mount and drew the not-found page. A redirect or guard that sends the router outside the mount leaves for that page too. Without `dartvel.hosts` nothing changes.
 
 ## 0.13.51 — 2026-11-13
 

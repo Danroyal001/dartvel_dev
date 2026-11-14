@@ -1,3 +1,9 @@
+## 3.47.0 — 2026-11-14
+
+- The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
+- Moving from 0.13.x: a caret does not cross the line (`^0.13.51` stops below 0.14.0), so `pub upgrade` alone keeps a project on 0.13.51. Install the 3.47.0 CLI (`npm install -g dartvel_dev@latest`, `dartvel update` or `brew upgrade dartvel_dev`) and run `dartvel upgrade --project` in the project.
+- Mounted hosts: the web-server binary serves a page on a mounted host of `dartvel.hosts` with its links to routes outside the mount pointing at the host that owns them, streamed or not. The build captures each page once, on the primary host, so those links were paths the mounted host does not have: every site navigation and footer link on a subdomain answered 404. The primary host's output, and an application without `dartvel.hosts`, are unchanged.
+
 ## 0.13.48 — 2026-11-13
 
 - A contact card (`.vcf`, `.vcard`) is served as `text/vcard` and a calendar invite (`.ics`) as `text/calendar`, so a phone offers to add them instead of saving an unknown file.

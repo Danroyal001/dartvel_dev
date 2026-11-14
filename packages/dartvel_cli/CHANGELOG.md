@@ -1,7 +1,12 @@
-## Unreleased
+## 3.47.0 — 2026-11-14
 
+- The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
+- Moving from 0.13.x: a caret does not cross the line (`^0.13.51` stops below 0.14.0), so `pub upgrade` alone keeps a project on 0.13.51. Install the 3.47.0 CLI (`npm install -g dartvel_dev@latest`, `dartvel update` or `brew upgrade dartvel_dev`) and run `dartvel upgrade --project` in the project.
 - The generated backend installs the session scope `dartvel.hosts` and `dartvel.auth` describe: one `__Secure-dv_session` for hosts on one registrable domain, refused at build time when `sessionDomain` is a public suffix or not a parent of every host. Where hosts are declared, a state-changing request from an origin that is not one of them (or in `dartvel.server.cors`) is refused with 403.
 - The generated client asks who is signed in at start on every target, the web included (`DV.Auth.restore()`).
+- `dartvel upgrade --project` moves the Dartvel packages in a project's `pubspec.yaml`, and in modules whose source is a folder of the project, to the CLI's release and resolves them. Only the constraint is rewritten; a path, git or overridden dependency is reported and left alone, a project newer than the CLI is refused, and every file is put back if the packages do not resolve. `dartvel upgrade --plan` names it where a constraint excludes the release.
+- Mounted hosts: `dartvel dev --release` serves a page on a mounted host of `dartvel.hosts` with its links to routes outside the mount pointing at the host that owns them, as the web-server binary does. They were paths the mounted host does not have, so a site's navigation and footer links on a subdomain answered 404.
+- `dartvel_generator`'s retirement notice no longer names 2.0.0 as the release that removes the builders; it says a later release.
 
 ## 0.13.51 — 2026-11-13
 

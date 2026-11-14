@@ -1,8 +1,11 @@
-## Unreleased
+## 3.47.0 — 2026-11-14
 
+- The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
+- Moving from 0.13.x: a caret does not cross the line (`^0.13.51` stops below 0.14.0), so `pub upgrade` alone keeps a project on 0.13.51. Install the 3.47.0 CLI (`npm install -g dartvel_dev@latest`, `dartvel update` or `brew upgrade dartvel_dev`) and run `dartvel upgrade --project` in the project.
 - `DVSessionScope` (from `dartvel.hosts` and `dartvel.auth.sessionScope`/`sessionDomain`) and `DVSessionCookie(scope:)`: a host the scope covers gets `__Secure-dv_session; Domain=<registrable domain>`, every other host keeps `__Host-`. `clearHeaders`, `carried` and `migration` clear both names and move a person from the old `__Host-` cookie without signing them out; `DVSessionAuthenticationResult.setCookies` carries them. `DVSessionScope.allowsOrigin` accepts the application's own hosts and nothing else.
 - `dvRegistrableDomain` and `dvIsPublicSuffix`, over a bundled copy of the Public Suffix List (both sections; `dart tool/update_public_suffix_list.dart` refreshes it).
 - `GET /auth/session` answers the signed-in `user` (id, email, name) with the session.
+- `DVHosts.linkFrom(host, location)`: where a link to a route points when it is followed on a host of `dartvel.hosts`. A path without the mount when that host owns the route, the route's public URL on the owning host otherwise. `DVHostedRequest.withLinks(html, isRoute:)` applies it to the links of a page about to be served; files, fragments and full URLs are left as written.
 
 ## 0.13.51 — 2026-11-13
 

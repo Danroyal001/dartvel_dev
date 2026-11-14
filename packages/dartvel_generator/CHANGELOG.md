@@ -1,3 +1,9 @@
+## 3.47.0 — 2026-11-14
+
+- The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
+- Moving from 0.13.x: a caret does not cross the line (`^0.13.51` stops below 0.14.0), so `pub upgrade` alone keeps a project on 0.13.51. Install the 3.47.0 CLI (`npm install -g dartvel_dev@latest`, `dartvel update` or `brew upgrade dartvel_dev`) and run `dartvel upgrade --project` in the project.
+- The retirement notice says the `build_runner` builders are removed in a later release. It named `dartvel_generator` 2.0.0, a version this numbering skips.
+
 ## 0.13.44 — 2026-11-12
 
 - Version aligned with dartvel_core 0.13.44.
