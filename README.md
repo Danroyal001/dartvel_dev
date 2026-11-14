@@ -304,7 +304,10 @@ Flutter 3.47. Details are in [docs/build-targets.md](docs/build-targets.md).
 ### 1. Install
 
 The CLI is a single self-contained binary. The Dart runtime and the Rust
-server library are linked into it, so nothing has to be installed first —
+server library are linked into it, and it carries its Rust syntax checker
+inside itself (a port of the Dart analyzer's parser that `dartvel build` and
+`dartvel doctor` ask first; see [`rust/`](rust/README.md)), so nothing has to
+be installed first —
 **you do not need Dart or Flutter to run `dartvel`.** You do need Flutter to
 *build* an application, for whichever target you are building.
 

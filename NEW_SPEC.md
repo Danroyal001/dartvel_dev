@@ -16401,6 +16401,25 @@ The selected application requires Bluetooth, but the sony-elinux device profile
 does not provide a Bluetooth adapter or fallback implementation.
 ```
 
+The first thing validated is the source itself. Before anything is generated,
+`dartvel build` parses every Dart file the project wrote under `lib/`
+(generated files excepted, since the build writes them again) and stops on a
+syntax error with its file, line and column, exit 65:
+
+```text
+❌ 1 syntax error(s) in the project: Nothing was generated or built.
+   lib/pages/index.dart:12:18  Expected to find ';'. [expected_token]
+```
+
+`dartvel doctor` lists the same errors. They are the Dart analyzer's
+(`parseString`), word for word. A CLI binary carries a Rust port of that
+parser as a helper program and asks it first which files are clean; a file it
+flags, declines or dies on is parsed by the Dart analyzer, and only the
+analyzer's findings are shown, so the helper can make the check faster and
+cannot change what it says. A CLI without the helper (`dart pub global
+activate`, `dart run`) parses every file in Dart. `rust/README.md` records
+what the port covers and how it is checked against the analyzer.
+
 Validation is also available through `dartvel doctor --target` with
 `webos`, `tizen`, `sony-elinux`, `tvos`, `fuchsia`, `vscode`,
 `chrome-extension`, `firefox-extension`, `horizon`, `visionos` or a terminal

@@ -1,3 +1,8 @@
+## 3.47.1 — unreleased
+
+- `dartvel build` checks that the project's Dart sources parse before it generates anything. Every Dart file under `lib/` that the project wrote (generated files excepted) is parsed, and a syntax error stops the build with its file, line and column (exit 65) instead of failing minutes later inside the compiler or as generated code that does not compile. `dartvel doctor` lists the same errors. The errors are the Dart analyzer's own, word for word.
+- The first Rust port of Dart in a shipped Dartvel build. The CLI binaries (npm, GitHub release, Homebrew) carry a Rust port of the Dart analyzer's scanner, parser and `parseString` (`rust/`, ported from dart-lang/sdk `ceea75dd2b82`) and ask it first which files are clean; a file it flags or declines, or every file if it is missing or misbehaves, is parsed by `package:analyzer`, and only the analyzer's findings are shown, so it makes the check faster and cannot change what it says. It runs as a separate program written to `~/.dartvel/native/` on first use and checked against a SHA-256 compiled into the CLI before every run. `dart pub global activate dartvel_cli` and `dart run` carry none and parse in Dart, with the same result. `DARTVEL_SYNTAX_ENGINE=dart` turns it off.
+
 ## 3.47.0 — 2026-11-14
 
 - The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.

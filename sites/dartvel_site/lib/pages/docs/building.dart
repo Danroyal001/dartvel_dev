@@ -65,6 +65,31 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'syntax',
+      title: 'Syntax errors stop the build first',
+      children: <Widget>[
+        DocsText('Before it generates anything, dartvel build parses every '
+            'Dart file under lib/ that you wrote. A file that does not parse '
+            'stops the build at once, with the file, line and column, instead '
+            'of failing minutes later inside the compiler. dartvel doctor '
+            'lists the same errors.'),
+        DocsShell(<String>[
+          '❌ 1 syntax error(s) in the project: Nothing was generated or built.',
+          "   lib/pages/index.dart:12:18  Expected to find ';'. [expected_token]",
+        ]),
+        Bullets(<String>[
+          'The errors are the Dart analyzer\'s own, word for word.',
+          'An installed dartvel binary first asks a parser written in Rust, '
+              'a port of the analyzer\'s, which files are clean. Only the '
+              'files it does not vouch for are parsed again in Dart, and '
+              'only what the Dart analyzer says is shown.',
+          'dartvel run from source, or installed with dart pub global '
+              'activate, parses everything in Dart. The result is the same.',
+          'Generated files are not checked: the build writes them again.',
+        ]),
+      ],
+    ),
+    DocsSection(
       id: 'tools',
       title: 'Check tools before you build',
       children: <Widget>[
