@@ -198,6 +198,7 @@ Future<Response> _fromManifest(
   // on the origin of the host that owns it. Without hosts `hosted` is null
   // and every value below is what it always was.
   final DVHosts hosts = DVHosts.fromJson(manifest['hosts']);
+  bool isRoute(String p) => dvMatchRoute(p, routeMap.keys) != null;
   final DVHostedRequest? hosted = hosts.isEmpty
       ? null
       : dvHostedRequest(
@@ -205,7 +206,7 @@ Future<Response> _fromManifest(
           host: _requestHost(req),
           rawPath: raw,
           query: req.url.query,
-          isRoute: (String p) => dvMatchRoute(p, routeMap.keys) != null,
+          isRoute: isRoute,
         );
   final String? hostedRedirect = hosted?.redirect;
   if (hostedRedirect != null) {
@@ -245,6 +246,7 @@ Future<Response> _fromManifest(
         siteUrl: pageSiteUrl,
         site: pageSite,
         preloads: preloads,
+        links: hosted == null ? null : (String html) => hosted.withLinks(html, isRoute: isRoute),
       );
       if (early != null) return early;
     }
@@ -328,7 +330,11 @@ Future<Response> _fromManifest(
   final bool missing = matched == null &&
       routeMap.isNotEmpty &&
       !(await publishedRoutes?.call() ?? const <String>{}).contains(path);
-  return _html(dvMinifyHtml(dvWithPreloads(page, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
+  // On a mounted host a link to a route outside the mount is that route's
+  // URL on the host that owns it; left a path, it names a page this host
+  // does not have.
+  final String linked = hosted?.withLinks(page, isRoute: isRoute) ?? page;
+  return _html(dvMinifyHtml(dvWithPreloads(linked, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
 /// The page for [path] as three writes, the first before the data: the
@@ -343,6 +349,7 @@ Response? _shellFirst({
   required String? siteUrl,
   required DVSiteSeo site,
   required String preloads,
+  String Function(String html)? links,
 }) {
   final String? shellTitle = RegExp(r'<title>(.*?)</title>', dotAll: true).firstMatch(shell)?.group(1)?.trim();
   final String title = route?['title'] is String ? route!['title']! as String : (shellTitle ?? path);
@@ -367,7 +374,8 @@ Response? _shellFirst({
       ..set('content-type', 'text/html; charset=utf-8')
       ..set('cache-control', 'no-store'),
     isStream: true,
-    body: chunks.map<List<int>>(utf8.encode),
+    // Each chunk is whole tags, so a link is never split across two.
+    body: (links == null ? chunks : chunks.map(links)).map<List<int>>(utf8.encode),
   );
 }
 

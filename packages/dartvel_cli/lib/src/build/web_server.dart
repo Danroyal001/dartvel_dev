@@ -483,6 +483,7 @@ Handler dvWebServerHandler({
     // dartvel.hosts: the route this host's path means, a 301 when another
     // host owns it, and the page rendered at its own path on its owner's
     // origin -- dvHostedRequest, which the deployed server calls too.
+    bool isRoute(String route) => dvMatchRoute(route, routeMap.keys) != null;
     final DVHostedRequest? hosted = hosts.isEmpty
         ? null
         : dvHostedRequest(
@@ -490,7 +491,7 @@ Handler dvWebServerHandler({
             host: _shelfRequestHost(request),
             rawPath: path,
             query: request.url.query,
-            isRoute: (String route) => dvMatchRoute(route, routeMap.keys) != null,
+            isRoute: isRoute,
           );
     final String? hostedRedirect = hosted?.redirect;
     if (hostedRedirect != null) {
@@ -568,7 +569,12 @@ Handler dvWebServerHandler({
         preloads: routePreloads,
       );
       if (chunks != null) {
-        return Response.ok(chunks.map<List<int>>(utf8.encode),
+        return Response.ok(
+            (hosted == null
+                    ? chunks
+                    : chunks.map((String chunk) =>
+                        hosted.withLinks(chunk, isRoute: isRoute)))
+                .map<List<int>>(utf8.encode),
             headers: htmlHeaders);
       }
     }
@@ -643,8 +649,10 @@ Handler dvWebServerHandler({
           );
 
     // The route's own parts and images at the end of its head, as the
-    // deployed server writes them.
-    final String served = dvMinifyHtml(dvWithPreloads(page, routePreloads));
+    // deployed server writes them, and its links as that server writes
+    // them for the host asked.
+    final String served = dvMinifyHtml(dvWithPreloads(
+        hosted?.withLinks(page, isRoute: isRoute) ?? page, routePreloads));
 
     // A path nothing serves is a 404, with the shell still the body so the
     // app draws its not-found page. Answering 200 was a soft 404: a crawler

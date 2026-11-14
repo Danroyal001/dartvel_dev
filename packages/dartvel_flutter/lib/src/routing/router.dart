@@ -19,8 +19,13 @@ import 'package:go_router/go_router.dart';
 import '../../dartvel_flutter.dart'
     show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
 import 'client_hosts.dart'
-    show dvHostsMapLocations, dvLocationFromPlatform, dvLocationToPlatform;
+    show
+        dvCurrentHost,
+        dvHostsMapLocations,
+        dvLocationFromPlatform,
+        dvLocationToPlatform;
 import 'first_frame_gate.dart' show dvHoldWebFirstFrame, dvWatchWebFirstFrame;
+import 'nav_link.dart' show dvLeaveForOwningHost;
 
 class DVRouter extends GoRouter {
   DVRouter({
@@ -50,7 +55,7 @@ class DVRouter extends GoRouter {
          routingConfig: _FixedRoutingConfig(
            RoutingConfig(
              routes: routes,
-             redirect: redirect ?? _noRedirect,
+             redirect: _onThisHost(redirect ?? _noRedirect),
              redirectLimit: redirectLimit,
            ),
          ),
@@ -59,7 +64,29 @@ class DVRouter extends GoRouter {
          observers: observers,
          restorationScopeId: restorationScopeId,
          requestFocus: requestFocus,
-       );
+       ) {
+    // A new router has reported nothing yet.
+    _shown = null;
+  }
+
+  /// [redirect], asked only about locations this host shows.
+  ///
+  /// On a mounted host of dartvel.hosts a location outside the mount is
+  /// another host's page, however the router was sent there: go_router's own
+  /// API, a redirect, a guard sending a reader to sign in. It is opened on
+  /// the host that owns it and the router stays where it was, so the address
+  /// bar never names a page this host does not serve.
+  static GoRouterRedirect _onThisHost(GoRouterRedirect redirect) =>
+      (BuildContext context, GoRouterState state) {
+        if (dvHostsMapLocations && dvLeaveForOwningHost('${state.uri}')) {
+          return _shown ?? dvCurrentHost!.mount;
+        }
+        return redirect(context, state);
+      };
+
+  /// The last location a mounted host reported to the address bar: where the
+  /// router stays when it is sent to another host's page.
+  static String? _shown;
 
   static FutureOr<String?> _noRedirect(
     BuildContext context,
@@ -146,6 +173,7 @@ class _DVHostParser extends GoRouteInformationParser {
   RouteInformation? restoreRouteInformation(RouteMatchList configuration) {
     final RouteInformation? restored = super.restoreRouteInformation(configuration);
     if (restored == null) return null;
+    DVRouter._shown = '${restored.uri}';
     return RouteInformation(
       uri: restored.uri.replace(path: dvLocationToPlatform(restored.uri.path)),
       state: restored.state,

@@ -48,6 +48,17 @@ const String _sitemap =
     '  <url>\n    <loc>https://foo.apps.example.com/settings</loc>\n  </url>\n'
     '</urlset>\n';
 
+const String _capturedLinks =
+    '<nav><a href="/">Home</a><a href="/pricing">Pricing</a>'
+    '<a href="/sign-in?from=/pricing">Sign in</a>'
+    '<a href="https://docs.example.com/x">X</a>'
+    '<a href="https://foo.apps.example.com/settings">Foo</a>'
+    '<a href="/files/guide.pdf">Guide</a></nav>';
+
+List<String> links(String html) => <String>[
+  for (final RegExpMatch m in RegExp(r'<a [^>]*href="([^"]*)"').allMatches(html)) m[1]!,
+];
+
 Directory site({bool hosts = true}) {
   final Directory root = Directory.systemTemp.createTempSync('dartvel_hosts_');
   addTearDown(() => root.deleteSync(recursive: true));
@@ -83,6 +94,26 @@ Directory site({bool hosts = true}) {
           ).toJson(),
         },
         '/docs/private': <String, Object?>{'title': 'Private', 'guarded': true},
+        '/docs/links': <String, Object?>{
+          'title': 'Links',
+          // As the build captures it: read on the primary host, so a
+          // primary route is a path and a mounted one its public URL.
+          'page': const DVRoutePage(
+            route: '/docs/links',
+            title: 'Links',
+            siteUrl: 'https://example.com',
+            html: _capturedLinks,
+          ).toJson(),
+        },
+        '/links': <String, Object?>{
+          'title': 'Links',
+          'page': const DVRoutePage(
+            route: '/links',
+            title: 'Links',
+            siteUrl: 'https://example.com',
+            html: _capturedLinks,
+          ).toJson(),
+        },
         '/apps/foo': <String, Object?>{'title': 'Foo'},
         '/apps/foo/settings': <String, Object?>{'title': 'Foo settings'},
       },
@@ -204,6 +235,53 @@ void main() {
         site().path,
       );
       expect(other.status, 404);
+    });
+  });
+
+  group('links to routes outside the host\'s mount', () {
+    test('on a mounted host they are URLs on the host that owns them', () async {
+      final Response r = await handleSsrFallback(
+        request('https://docs.example.com/links'),
+        site().path,
+      );
+      expect(r.status, 200);
+      expect(links(await body(r)), <String>[
+        'https://example.com',
+        'https://example.com/pricing',
+        'https://example.com/sign-in?from=/pricing',
+        'https://docs.example.com/x',
+        'https://foo.apps.example.com/settings',
+        '/files/guide.pdf',
+      ]);
+    });
+
+    test('every link a mounted host serves is answered where it points', () async {
+      final Directory root = site();
+      final String html = await body(
+        await handleSsrFallback(request('https://docs.example.com/links'), root.path),
+      );
+      for (final String link in links(html)) {
+        if (link.endsWith('.pdf')) continue;
+        final Uri target = Uri.parse('https://docs.example.com/links').resolve(link);
+        final Response followed = await handleSsrFallback(request('$target'), root.path);
+        expect(followed.status, 200, reason: '$link -> $target');
+      }
+    });
+
+    test('on the primary host the same document is as it was captured', () async {
+      final Response r = await handleSsrFallback(
+        request('https://example.com/links'),
+        site().path,
+      );
+      expect(links(await body(r)), links(_capturedLinks));
+    });
+
+    test('without hosts nothing is rewritten', () async {
+      final Response r = await handleSsrFallback(
+        request('https://docs.example.com/docs/links'),
+        site(hosts: false).path,
+      );
+      expect(links(await body(r)), links(_capturedLinks));
     });
   });
 

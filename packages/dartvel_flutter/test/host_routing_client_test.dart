@@ -341,6 +341,115 @@ void main() {
     });
   });
 
+  group('navigating to a route another host owns', () {
+    final List<(String, bool)> opened = <(String, bool)>[];
+    setUp(() {
+      opened.clear();
+      DVLinkOpener.install((String path, {bool newTab = false}) {
+        opened.add((path, newTab));
+      });
+    });
+    tearDown(DVLinkOpener.reset);
+
+    testWidgets('DV.Navigation leaves a mounted host for the primary', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts(), host: 'docs.example.com');
+      final DVRouter router = await pumpRouter(tester);
+      DV.Navigation.navigate(const DVRouteTarget('/pricing?plan=pro'));
+      await tester.pumpAndSettle();
+      expect(opened, <(String, bool)>[
+        ('https://example.com/pricing?plan=pro', false),
+      ]);
+      expect(router.state.uri.path, '/docs', reason: 'not routed on this host');
+      expect(find.text('page /docs'), findsOneWidget);
+    });
+
+    testWidgets('a push and a context navigation leave as well', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts(), host: 'foo.apps.example.com');
+      final DVRouter router = await pumpRouter(tester);
+      unawaited(DV.Navigation.push<void>(const DVRouteTarget('/docs/x')));
+      tester
+          .element(find.text('page /apps/foo'))
+          .navigateToPage(const DVRouteTarget('/'));
+      await tester.pumpAndSettle();
+      expect(opened, <(String, bool)>[
+        ('https://docs.example.com/x', false),
+        ('https://example.com', false),
+      ]);
+      expect(router.state.uri.path, '/apps/foo');
+    });
+
+    testWidgets('a route of this host is still routed here', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts(), host: 'foo.apps.example.com');
+      final DVRouter router = await pumpRouter(tester);
+      DV.Navigation.navigate(const DVRouteTarget('/apps/foo/settings'));
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+      expect(find.text('page /apps/foo/settings'), findsOneWidget);
+      expect(addressBar(router), '/settings');
+    });
+
+    testWidgets('the primary host goes straight to the mounted host', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts(), host: 'example.com');
+      final DVRouter router = await pumpRouter(tester);
+      DV.Navigation.navigate(const DVRouteTarget('/docs/x'));
+      await tester.pumpAndSettle();
+      expect(opened, <(String, bool)>[('https://docs.example.com/x', false)]);
+      expect(router.state.uri.path, '/');
+    });
+
+    testWidgets(
+      'a redirect to another host\'s page leaves for it, and the address '
+      'bar never names a page this host does not serve',
+      (WidgetTester tester) async {
+        dvUseHosts(hosts(), host: 'docs.example.com');
+        // A guard sending a reader to sign in, a moved page: the router is
+        // sent outside the mount by a redirect, not by a link.
+        final DVRouter router = DVRouter(
+          routes: <RouteBase>[
+            ...routes(label),
+            GoRoute(
+              path: '/docs/members',
+              redirect: (BuildContext context, GoRouterState state) =>
+                  '/pricing?from=members',
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+        await tester.pumpAndSettle();
+        router.go('/docs/x');
+        await tester.pumpAndSettle();
+        router.go('/docs/members');
+        await tester.pumpAndSettle();
+        expect(opened, <(String, bool)>[
+          ('https://example.com/pricing?from=members', false),
+        ]);
+        expect(find.text('page /docs/x'), findsOneWidget);
+        expect(router.state.uri.path, '/docs/x');
+        expect(addressBar(router), '/x');
+      },
+    );
+
+    testWidgets('off the web every route is this app\'s own', (
+      WidgetTester tester,
+    ) async {
+      dvUseHosts(hosts());
+      await pumpRouter(tester);
+      DV.Navigation.navigate(const DVRouteTarget('/docs/x'));
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+      expect(find.text('page /docs/x'), findsOneWidget);
+    });
+  });
+
   group('prefetch across hosts', () {
     final List<String> fetched = <String>[];
     setUp(() {

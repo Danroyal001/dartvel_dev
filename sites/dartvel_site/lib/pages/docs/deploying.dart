@@ -135,6 +135,10 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               '    redirects: { /tools: https://example.com/tools }',
             ]),
             Bullets(<String>[
+              'A link to a page another domain shows is written with that '
+                  'domain, in the page as served and in the running app: on '
+                  'docs.example.com a link to /pricing goes to '
+                  'https://example.com/pricing.',
               'A redirecting domain serves no pages: every path is sent on with a '
                   'permanent (301) redirect, keeping the query string.',
               'redirects sends exact paths somewhere of their own.',

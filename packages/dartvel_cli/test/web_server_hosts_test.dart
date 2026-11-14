@@ -202,7 +202,7 @@ void main() {
       );
       File(p.join(root.path, 'dartvel_routes.json')).writeAsStringSync(
         dvWebServerManifest(
-          routes: <String>[..._routes, '/docs/private', '/sign-in'],
+          routes: <String>[..._routes, '/docs/private', '/docs/links', '/sign-in'],
           titles: const <String, String>{
             '/docs': 'Docs home',
             '/apps/foo/settings': 'Foo settings',
@@ -219,6 +219,14 @@ void main() {
               title: 'X',
               description: 'The page about X.',
               siteUrl: 'https://example.com',
+            ),
+            // As the build captures it, on the primary host.
+            '/docs/links': const DVRoutePage(
+              route: '/docs/links',
+              title: 'Links',
+              siteUrl: 'https://example.com',
+              html: '<nav><a href="/">Home</a><a href="/pricing">Pricing</a>'
+                  '<a href="https://docs.example.com/x">X</a></nav>',
             ),
           },
         ),
@@ -269,6 +277,21 @@ void main() {
       final http.Response x = await get('docs.example.com', '/x');
       expect(canonical(x.body), 'https://docs.example.com/x');
       expect(x.body, contains('content="The page about X."'));
+    });
+
+    test('a mounted host links a route outside its mount on its own host', () async {
+      final http.Response r = await get('docs.example.com', '/links');
+      expect(r.statusCode, 200);
+      expect(
+        <String>[
+          for (final RegExpMatch m in RegExp(r'<a [^>]*href="([^"]*)"').allMatches(r.body)) m[1]!,
+        ],
+        <String>[
+          'https://example.com',
+          'https://example.com/pricing',
+          'https://docs.example.com/x',
+        ],
+      );
     });
 
     test('a wildcard host shows its label', () async {
