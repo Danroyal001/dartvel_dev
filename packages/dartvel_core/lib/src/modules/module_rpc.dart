@@ -11,8 +11,11 @@
 /// `Uint8List` comes back as one rather than as a list of numbers.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+
+import '../http/wintercg.dart' show Request;
 
 /// Sends one module call to the backend and answers with its JSON result.
 ///
@@ -30,6 +33,26 @@ abstract final class DVModuleRpc {
 
   /// How a call reaches the backend. Installed by the generated client.
   static DVModuleRpcTransport? transport;
+
+  static final Object _requestKey = Object();
+
+  /// The request the operation now running on the backend arrived on, or
+  /// null anywhere else.
+  ///
+  /// For an operation that has to know who asked: one that sends a
+  /// conversion on to an advertising API passes the browser's user agent and
+  /// address with it. Read the address through `DVClientAddress`, which knows
+  /// which proxies the application trusts; a forwarding header read directly
+  /// is whatever the caller typed.
+  static Request? get request => Zone.current[_requestKey] as Request?;
+
+  /// Runs [operation] with [request] as [DVModuleRpc.request]. Called by the
+  /// generated backend around the module's dispatcher.
+  static Future<T> withRequest<T>(
+    Request request,
+    Future<T> Function() operation,
+  ) =>
+      runZoned(operation, zoneValues: <Object?, Object?>{_requestKey: request});
 
   /// Sends [operation] of [module] to the backend with [arguments].
   static Future<Object?> call(
