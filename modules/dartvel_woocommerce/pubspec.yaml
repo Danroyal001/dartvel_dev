@@ -1,0 +1,68 @@
+name: dartvel_woocommerce
+description: WooCommerce for Dartvel apps — a typed REST API v3 client for the backend, and checkout through the store's own payment gateways, confirmed by webhook.
+version: 0.13.51
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
+topics:
+  - dartvel
+  - woocommerce
+  - payments
+environment:
+  # One floor for every Dartvel package, deliberately.
+  sdk: ">=3.13.0 <4.0.0"
+
+# Declared, because pub.dev infers platforms from imports and follows
+# ones that only run on their own platform (see
+# tool/pubspec_platforms_check.dart).
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+dependencies:
+  dartvel_core: ^0.13.51
+  crypto: ^3.0.7
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.28.0
+
+dartvel:
+  module:
+    id: woocommerce
+    name: WooCommerce
+    version: 0.13.51
+    surface: WooCommerce
+    # Run once the module is registered, to read the settings the
+    # application gave at the mount.
+    start: startWooCommerce
+    exports:
+      pages: false
+      # lib/backend/functions/woocommerce/webhook.post.dart: where the store
+      # says an order changed.
+      functions: true
+    # The store's consumer key and secret exist only on the backend, so
+    # every operation runs there. The four a storefront needs are carried
+    # to it from a client; the rest are the backend's alone.
+    operations:
+      products:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
+      product:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
+      startCheckout:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
+      orderStatus:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
+      watchOrder: { native: real, web: real, backend: real }
+      onOrderPaid: { native: real, web: real, backend: real }
