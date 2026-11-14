@@ -1,6 +1,8 @@
 ## 3.47.1 — unreleased
 
 - `dartvel build` and `dartvel doctor` check that the project's Dart sources parse, before anything is generated, and report each syntax error with its file, line and column; the build stops on them (exit 65). Release binaries answer most files with a Rust port of the analyzer's parser carried inside the CLI; `package:analyzer` (a new dependency) decides every file it does not vouch for, and every file when it is absent. See the repository CHANGELOG.
+- `dartvel.android.launcher: true`: the generated MainActivity tells the app about Home, Back, Recents ("recentapps"), every close-system-dialogs reason, pause, stop, user-leave hint and focus changes as they happen (`dev.dartvel/system_keys`), and hears the broadcast for as long as the app runs rather than only while visible. An activity written by 0.13.51 is brought up to date.
+- `dartvel.android.recentsService: true` (with `launcher: true`): the build writes an opt-in accessibility service, `DartvelRecentsService`. A home app can never be the phone's Recents; once the person turns the service on in Accessibility settings, the Recents key, the Recents button or the system's Recents window opening brings the home app forward to show its own. It asks for window changes, clicks and keys only, never for what is on the screen. Turning the setting off removes the service, its resources and its manifest entry.
 
 ## 3.47.0 — 2026-11-14
 
