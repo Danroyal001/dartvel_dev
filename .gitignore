@@ -17,6 +17,10 @@
 # runtime job. The cache key in platform-build-matrix.yml already hashed
 # this file, which was not in the repository.
 !packages/dartvel_core/rust/Cargo.lock
+# And for the workspace the CLI's syntax helper is built from: the release
+# build passes --locked, so the file has to be here.
+!rust/Cargo.lock
+/rust/target/
 *.log
 *.pyc
 *.swp

@@ -1,0 +1,17 @@
+[package]
+name = "dartvel_syntax"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "The dartvel CLI's syntax check: which Dart files parse without a diagnostic."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "dartvel_syntax"
+path = "src/main.rs"
+
+[dependencies]
+analyzer = { path = "../analyzer" }

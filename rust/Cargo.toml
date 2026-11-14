@@ -1,0 +1,17 @@
+# Cargo workspace for the Rust that ships inside the `dartvel` CLI.
+#
+# `fe_analyzer_shared` and `analyzer` are ports of the Dart SDK packages of
+# those names; `dartvel_syntax` is the helper program the CLI runs. See
+# README.md for where each file comes from and how the helper is shipped.
+[workspace]
+resolver = "2"
+members = ["fe_analyzer_shared", "analyzer", "dartvel_syntax"]
+
+[profile.release]
+debug = false
+lto = "fat"
+codegen-units = 1
+strip = true
+# Unwinding is kept on purpose: the helper catches a panic per file and
+# hands that file to the Dart analyzer instead of dying.
+panic = "unwind"

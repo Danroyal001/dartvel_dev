@@ -1,0 +1,10 @@
+[package]
+name = "fe_analyzer_shared"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of the Dart SDK's pkg/_fe_analyzer_shared (scanner and parser), file by file."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
