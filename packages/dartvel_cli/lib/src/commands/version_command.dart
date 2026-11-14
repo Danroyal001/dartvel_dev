@@ -17,7 +17,7 @@ import '../utils/logger.dart';
 ///
 /// A test asserts this equals what pubspec.yaml declares, so the two cannot
 /// come apart without the suite saying so.
-const String dartvelCliVersion = '0.13.51';
+const String dartvelCliVersion = '3.47.0';
 
 class VersionCommand extends Command<void> {
   @override

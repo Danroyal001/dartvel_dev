@@ -12,9 +12,15 @@
 // CLI source that no pubspec mentions -- is how that happens. This does all of
 // it, then check_constraints says whether it worked.
 //
-//   dart tool/bump_version.dart 0.4.0
-//   dart tool/bump_version.dart 0.4.0 --set dartvel_shelf=0.5.0
-//   dart tool/bump_version.dart 0.4.0 --dry-run
+// From 3.47.0 the family version is `<Flutter major>.<Flutter minor>.<Dartvel
+// release>`: the first two numbers are the Flutter stable Dartvel builds on
+// (`flutter --version`), the last counts Dartvel's own releases on it and
+// starts again at 0 when Flutter's minor moves. The release before 3.47.0 was
+// 0.13.51.
+//
+//   dart tool/bump_version.dart 3.47.1
+//   dart tool/bump_version.dart 3.47.1 --set dartvel_shelf=3.47.2
+//   dart tool/bump_version.dart 3.47.1 --dry-run
 //
 // `--set` because the versions are not all the same: dartvel_shelf and
 // dartvel_generator have their own histories and their own numbers, and
