@@ -65,7 +65,7 @@ final checkout = await DV.Modules.woocommerce.startCheckout(
   billing: WooAddress(firstName: 'Ada', email: 'ada@example.com'),
   idempotencyKey: cart.id,
 );
-DV.Platform.openUrl(checkout.paymentUrl);
+openLink(checkout.paymentUrl);   // however the application opens a link
 
 // 2. Wait for the store to say it is paid.
 await for (final order in DV.Modules.woocommerce

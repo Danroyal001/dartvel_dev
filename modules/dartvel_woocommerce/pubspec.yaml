@@ -34,7 +34,6 @@ dartvel:
   module:
     id: woocommerce
     name: WooCommerce
-    version: 0.13.51
     surface: WooCommerce
     # Run once the module is registered, to read the settings the
     # application gave at the mount.

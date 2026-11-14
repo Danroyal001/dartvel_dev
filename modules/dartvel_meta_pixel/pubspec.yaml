@@ -41,7 +41,6 @@ dartvel:
   module:
     id: metaPixel
     name: Meta Pixel
-    version: 0.13.51
     surface: MetaPixel
     # Run once the module is registered, in the client and in the server:
     # the client starts listening for page views, the server for purchases

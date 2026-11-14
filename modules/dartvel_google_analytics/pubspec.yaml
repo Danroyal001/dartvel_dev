@@ -40,7 +40,6 @@ dartvel:
   module:
     id: googleAnalytics
     name: Google Analytics
-    version: 0.13.51
     surface: GoogleAnalytics
     # Run once the module is registered, in the client and in the server:
     # the client starts listening for page views, the server for purchases
