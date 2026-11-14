@@ -11605,6 +11605,37 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     router?.routeInformationProvider.addListener(_followAddress);
   }
 
+  /// Whether a page view report is already waiting for the frame to end.
+  bool _pageViewPending = false;
+
+  /// Reports this page to [DVPageViews] once the frame is drawn, if it is
+  /// still the page on top then.
+  ///
+  /// After the frame rather than during it: whoever listens is somebody
+  /// else's code, and it does not run inside a build. Asked for on every
+  /// build of a page that is on top -- the first, the one after a route
+  /// above it is popped, the one after its address changes -- and the same
+  /// address twice running is one view, which [DVPageViews] sees to.
+  void _schedulePageView() {
+    if (_pageViewPending) return;
+    _pageViewPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _pageViewPending = false;
+      if (!mounted || !_onTop) return;
+      DVPageViews.report(_pageAddress(), title: spec.title);
+    });
+  }
+
+  /// This page's own address: the route it was matched for, which for a page
+  /// pushed over another is not the address the router reports.
+  Uri _pageAddress() {
+    try {
+      return GoRouterState.of(context).uri;
+    } on Object {
+      return _addressed?.routeInformationProvider.value.uri ?? Uri.base;
+    }
+  }
+
   /// Scrolls to the heading the address names after `#`, if it names one.
   ///
   /// On the page's first frame and whenever the address changes, as a
@@ -11837,6 +11868,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     if (onTop) _everOnTop = true;
     // The page the browser's find reads is the one on top.
     _onTop = onTop;
+    // And the one a reader is looking at, which is a page view. Not on
+    // Studio's canvas, where the page is a drawing of itself.
+    if (onTop && !DVPagePreviewScope.of(context)) _schedulePageView();
     final Widget keyed = KeyedSubtree(key: _contentKey, child: body);
     // The arrow keys, Page Up, Page Down, Home, End and the space bar. Above
     // the page rather than inside it, so a focused control still gets its own
