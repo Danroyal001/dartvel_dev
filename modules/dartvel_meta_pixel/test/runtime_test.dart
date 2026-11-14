@@ -254,7 +254,7 @@ void main() {
           .track(MetaPixelEvent.lead());
       expect(browser.log, isEmpty);
       expect(relayed.single['name'], 'Lead');
-      expect(relayed.single['source'], 'app');
+      expect(relayed.single['source'], 'device');
     });
   });
 

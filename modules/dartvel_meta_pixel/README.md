@@ -159,6 +159,7 @@ Under `dartvel.modules.metaPixel.config`, or as `MetaPixelConfig` passed to
 ## Not covered
 
 - App install attribution and SKAdNetwork: a device's events are sent with
-  `action_source: app` and no `app_data`. Use Meta's SDK for those.
+  `action_source: other`, since Meta's `app` source needs app data this
+  module does not collect. Use Meta's SDK for those.
 - A visitor with JavaScript off sends no page view: there is no
   `<noscript>` image.

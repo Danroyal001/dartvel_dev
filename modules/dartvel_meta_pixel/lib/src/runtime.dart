@@ -176,7 +176,7 @@ final class MetaPixelRuntime {
       'fbp': ?_guardedValue(() => browser.cookie('_fbp')),
       'fbc': ?_clickId(),
       'agent': ?_guardedValue(() => browser.userAgent),
-      'source': browser.available ? 'website' : 'app',
+      'source': browser.available ? 'website' : 'device',
     });
   }
 
@@ -371,7 +371,7 @@ final class MetaPixelRuntime {
     final Request? request = DVModuleRpc.request;
     final String? agent = request?.headers.get('user-agent') ??
         (arguments['agent'] is String ? arguments['agent'] as String : null);
-    final bool website = arguments['source'] != 'app';
+    final bool website = arguments['source'] != 'device';
     final MetaConversionsResult result = await MetaConversionsApi(
       config,
       clock: _clock,
@@ -380,7 +380,9 @@ final class MetaPixelRuntime {
         name: name,
         time: time,
         eventId: id as String?,
-        actionSource: website ? 'website' : 'app',
+        // A device's event is not a website event, and Meta's app event
+        // needs app data this module does not collect.
+        actionSource: website ? 'website' : 'other',
         sourceUrl: sourceUrl,
         user: MetaUserData(
           clientIpAddress: request == null
