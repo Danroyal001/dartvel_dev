@@ -63,7 +63,7 @@ A tap that leaves the application, such as a WhatsApp button:
 ```dart
 .onTap(() {
   DV.Modules.metaPixel.outboundClick(whatsApp);   // a Contact
-  DV.Platform.openUrl(whatsApp);
+  openLink(whatsApp);   // however the application opens a link
 })
 ```
 

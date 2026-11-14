@@ -210,7 +210,7 @@ final class MetaPixel {
   /// ```dart
   /// .onTap(() {
   ///   DV.Modules.metaPixel.outboundClick(whatsApp);
-  ///   DV.Platform.openUrl(whatsApp);
+  ///   openLink(whatsApp);   // however the application opens a link
   /// })
   /// ```
   Future<void> outboundClick(Uri destination, {MetaPixelEvent? event}) =>

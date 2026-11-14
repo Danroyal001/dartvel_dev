@@ -20,7 +20,7 @@
 ///   cart: [WooCartLine(productId: 12, quantity: 1)],
 ///   idempotencyKey: cart.id,
 /// );
-/// DV.Platform.openUrl(checkout.paymentUrl);
+/// openLink(checkout.paymentUrl);   // however the application opens a link
 /// await for (final order in DV.Modules.woocommerce
 ///     .watchOrder(checkout.orderId, checkout.orderKey)) {
 ///   if (order.paid) { /* thank them */ }
