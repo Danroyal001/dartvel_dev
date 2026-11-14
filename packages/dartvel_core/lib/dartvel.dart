@@ -255,6 +255,7 @@ export 'src/modules/manifest.dart';
 export 'src/modules/module_outcome.dart';
 export 'src/modules/module_rpc.dart';
 export 'src/modules/modules.dart';
+export 'src/modules/page_views.dart';
 // The device side of push. Exported by nothing until now, so the API that
 // registers a device, requests permission and subscribes to a topic was
 // written, tested through a src/ import, and callable by no application.
