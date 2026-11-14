@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../database/adapter.dart';
 import '../lifecycle/lifecycle.dart';
 
@@ -433,8 +435,69 @@ class DVModuleRegistry {
     return module;
   }
 
+  final Map<String, List<FutureOr<void> Function(Object? payload)>>
+      _subscribers = <String, List<FutureOr<void> Function(Object? payload)>>{};
+
+  /// Calls [listener] with whatever is published to [topic], and returns the
+  /// function that stops it.
+  ///
+  /// How one module tells the others something without importing them. A
+  /// store module that confirms a payment publishes `commerce.purchase`, and
+  /// whichever analytics modules the application mounted report it; mount
+  /// none and the publish reaches nobody. A topic's name and the shape of its
+  /// payload are the publishing module's to document, and a payload is plain
+  /// data -- maps, lists, strings, numbers -- so neither side needs the
+  /// other's types.
+  void Function() subscribe(
+    String topic,
+    FutureOr<void> Function(Object? payload) listener,
+  ) {
+    (_subscribers[topic] ??= <FutureOr<void> Function(Object? payload)>[])
+        .add(listener);
+    return () => _subscribers[topic]?.remove(listener);
+  }
+
+  /// Hands [payload] to every subscriber of [topic], in subscription order,
+  /// and completes when the last has finished.
+  ///
+  /// Each subscriber is started before this returns, so one that is
+  /// synchronous has run by then: a publisher may pass a map round for
+  /// subscribers to fill in and read it on the next line.
+  ///
+  /// A subscriber that throws is reported to [onError] and does not keep the
+  /// rest from hearing: what a subscriber does with the news is its own
+  /// business, and the publisher's work has already happened.
+  Future<void> publish(
+    String topic,
+    Object? payload, {
+    void Function(Object error, StackTrace stack)? onError,
+  }) {
+    final List<FutureOr<void> Function(Object? payload)> listeners =
+        List<FutureOr<void> Function(Object? payload)>.of(
+            _subscribers[topic] ??
+                const <FutureOr<void> Function(Object? payload)>[]);
+    final List<Future<void>> pending = <Future<void>>[];
+    for (final FutureOr<void> Function(Object? payload) listener
+        in listeners) {
+      try {
+        final FutureOr<void> result = listener(payload);
+        if (result is Future<void>) {
+          pending.add(result.catchError((Object error, StackTrace stack) {
+            onError?.call(error, stack);
+          }));
+        }
+      } on Object catch (error, stack) {
+        onError?.call(error, stack);
+      }
+    }
+    return Future.wait<void>(pending).then((_) {});
+  }
+
   /// Test-only: empties the registry.
-  void resetForTesting() => _modules.clear();
+  void resetForTesting() {
+    _modules.clear();
+    _subscribers.clear();
+  }
 }
 
 /// The process-wide module registry.
