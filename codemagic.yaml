@@ -29,6 +29,8 @@ workflows:
           set -euo pipefail
           cd packages/dartvel_cli
           dart pub get
+          # The Rust syntax helper goes inside the executable (see the tool).
+          dart run tool/embed_syntax_helper.dart
           dart build cli --target bin/dartvel.dart
       - name: Locate and stage binary
         script: |
@@ -97,6 +99,9 @@ workflows:
           set -euo pipefail
           cd packages/dartvel_cli
           dart pub get
+          # The Rust syntax helper goes inside the executable (see the tool).
+          rustup target add x86_64-apple-darwin
+          dart run tool/embed_syntax_helper.dart --rust-target x86_64-apple-darwin
           dart build cli --target bin/dartvel.dart --target-arch x64
       - name: Locate and stage binary
         script: |
@@ -163,6 +168,8 @@ workflows:
           set -euo pipefail
           cd packages/dartvel_cli
           dart pub get
+          # The Rust syntax helper goes inside the executable (see the tool).
+          dart run tool/embed_syntax_helper.dart
           dart build cli --target bin/dartvel.dart
       - name: Locate and stage binary
         script: |

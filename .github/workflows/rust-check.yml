@@ -17,11 +17,17 @@ on:
     paths:
       - 'packages/dartvel_shelf/rust/**'
       - 'packages/dartvel_core/rust/**'
+      - 'rust/**'
+      - 'packages/dartvel_cli/lib/src/analysis/syntax_check.dart'
+      - 'packages/dartvel_cli/test/syntax_*'
       - '.github/workflows/rust-check.yml'
   pull_request:
     paths:
       - 'packages/dartvel_shelf/rust/**'
       - 'packages/dartvel_core/rust/**'
+      - 'rust/**'
+      - 'packages/dartvel_cli/lib/src/analysis/syntax_check.dart'
+      - 'packages/dartvel_cli/test/syntax_*'
   workflow_dispatch:
 
 # On main a run that has started finishes, so main always has a verdict on a
@@ -144,3 +150,82 @@ jobs:
                 exit 1
               fi ;;
           esac
+
+  # The CLI's syntax helper: the ports of the Dart SDK's scanner, parser and
+  # parseString under rust/, and the program the CLI runs. Its own tests feed
+  # it malformed and mutated sources; then the Dart side checks it against
+  # package:analyzer over this repository's Dart, file by file.
+  syntax-helper:
+    name: syntax helper — test, and compare with the Dart analyzer
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+          rustc --version && cargo --version
+
+      - name: Cache cargo and target
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            rust/target
+          key: rust-syntax-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: rust-syntax-${{ runner.os }}-
+
+      - name: cargo test
+        working-directory: rust
+        run: cargo test --release --locked -- --nocapture
+
+      # The ported crates keep upstream's shape and allow the lints that
+      # shape trips; the helper is ours and is held to all of them.
+      - name: cargo clippy (the helper)
+        working-directory: rust
+        run: cargo clippy --release --locked -p dartvel_syntax --all-targets -- -D warnings
+
+      - name: no unsafe code
+        run: |
+          set -euo pipefail
+          for root in rust/fe_analyzer_shared/src/lib.rs rust/analyzer/src/lib.rs rust/dartvel_syntax/src/lib.rs rust/dartvel_syntax/src/main.rs; do
+            grep -q '^#!\[forbid(unsafe_code)\]' "$root" || {
+              echo "::error::$root no longer forbids unsafe code"
+              exit 1
+            }
+          done
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.4
+
+      - name: Compare with the Dart analyzer
+        working-directory: packages/dartvel_cli
+        env:
+          DARTVEL_REQUIRE_SYNTAX_HELPER: '1'
+        run: |
+          set -euo pipefail
+          dart pub get
+          dart test test/syntax_check_test.dart test/syntax_differential_test.dart
+
+      # What a release does: put the helper inside the CLI, compile, and
+      # check that the compiled CLI finds a syntax error through it.
+      - name: A CLI that carries the helper uses it
+        working-directory: packages/dartvel_cli
+        run: |
+          set -euo pipefail
+          dart run tool/embed_syntax_helper.dart
+          dart build cli --target bin/dartvel.dart
+          BUILT=$(find build/cli -type f -name dartvel | head -1)
+          PROJECT=$(mktemp -d)
+          mkdir -p "$PROJECT/lib"
+          printf 'name: broken\ndartvel:\n' > "$PROJECT/pubspec.yaml"
+          printf 'void main() {\n  var count = 1\n}\n' > "$PROJECT/lib/main.dart"
+          export HOME="$PROJECT/home"
+          mkdir -p "$HOME"
+          (cd "$PROJECT" && "$OLDPWD/$BUILT" doctor 2>&1 || true) | tee "$PROJECT/doctor.txt"
+          grep -q "lib/main.dart:2:15  Expected to find ';'. \[expected_token\]" "$PROJECT/doctor.txt"
+          ls "$HOME/.dartvel/native/" | grep -q '^dartvel_syntax-'
+          git checkout -- lib/src/analysis/syntax_helper_carried.g.dart
