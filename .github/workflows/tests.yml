@@ -158,6 +158,45 @@ jobs:
             dart test
           fi
 
+  # The first-party modules, which live in modules/ rather than packages/.
+  # Pure Dart, each with a faked vendor API, so they need nothing but an SDK.
+  modules:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - dartvel_meta_pixel
+          - dartvel_google_analytics
+          - dartvel_woocommerce
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: modules/${{ matrix.module }}
+        run: dart pub get
+      - name: Analyze
+        working-directory: modules/${{ matrix.module }}
+        run: dart analyze --fatal-warnings lib test
+      - name: Test
+        working-directory: modules/${{ matrix.module }}
+        run: dart test
+      # The browser half is compiled, not only analysed: the web carrier is
+      # behind a conditional import the VM suites never take.
+      - name: Compile the browser carrier
+        working-directory: modules/${{ matrix.module }}
+        run: |
+          set -eo pipefail
+          mkdir -p .dart_tool/webcheck
+          printf "import 'package:%s/%s.dart';\nvoid main() {}\n" "${{ matrix.module }}" "${{ matrix.module }}" > .dart_tool/webcheck/main.dart
+          dart compile js -O1 -o .dart_tool/webcheck/out.js .dart_tool/webcheck/main.dart
+
   # The framework's own tables on a real PostgreSQL.
   #
   # Every other job runs the stores on SQLite and the in-memory adapter, where
