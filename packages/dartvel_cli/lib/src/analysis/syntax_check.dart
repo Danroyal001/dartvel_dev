@@ -218,17 +218,19 @@ Future<DVSyntaxReport> dvCheckSyntaxOf(
 /// stack; in this process that would take the CLI down with it. Out there
 /// it costs the helper, and the files it did not answer are parsed in Dart.
 class DVSyntaxHelper {
-  DVSyntaxHelper(this.executable, {this.stallTimeout = const Duration(seconds: 20)});
+  DVSyntaxHelper(this.executable, {this.stallTimeout = const Duration(seconds: 10)});
 
   final String executable;
 
-  /// How long the helper may go without answering before it is killed.
+  /// How long the helper may go without answering before it is killed and
+  /// the file it was on is parsed in Dart. The largest file in the SDK (1.7
+  /// MB) takes it about 0.3 s.
   final Duration stallTimeout;
 
   /// The protocol this CLI speaks; `PROTOCOL_VERSION` in the helper.
   static const String greeting = 'dartvel_syntax\t1';
 
-  /// A helper that dies is started again after the file it died on, this
+  /// A helper that dies or stalls is started again after that file, this
   /// many times. A project with more hostile files than that is parsed in
   /// Dart from there on.
   static const int restarts = 3;
@@ -312,10 +314,15 @@ class DVSyntaxHelper {
     if (stalled || !believable) {
       process.kill(ProcessSignal.sigkill);
       await process.exitCode;
-      return const _HelperRun.unbelievable();
     }
+    if (!believable || !greeted) return const _HelperRun.unbelievable();
+    // A stall is treated as a death on the file after the last answer: the
+    // answers before it stand, and the helper is started again after it.
+    // The parser is upstream's, and some sources send it into a search that
+    // grows faster than the file (type arguments nested thousands deep);
+    // Dart stops on those when its stack runs out, this parser has more.
+    if (stalled) return _HelperRun(clean: clean, answered: answered, finished: false);
     final int exitCode = await process.exitCode;
-    if (!greeted) return const _HelperRun.unbelievable();
     final bool finished = exitCode == 0;
     if (finished && answered != paths.length) return const _HelperRun.unbelievable();
     return _HelperRun(clean: clean, answered: answered, finished: finished);

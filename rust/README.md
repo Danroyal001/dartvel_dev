@@ -72,6 +72,12 @@ repository, on every change (`.github/workflows/rust-check.yml`):
   does the same, but other shapes (type arguments, conditionals, prefix
   operators) recurse without that guard. The Dart VM turns running out of
   stack into an error the analyzer survives; a Rust process just dies.
+- **Time on hostile nesting.** Some shapes make upstream's parser search
+  in time that grows faster than the file: type arguments nested 5,000
+  deep take the helper 3.5 s, 50,000 deep more than two minutes. Dart stops
+  on those at about 3,000 levels, when its stack runs out; this parser has
+  a larger stack and keeps going. The stall timeout below bounds what it
+  costs. Every other shape measured, at 50,000 deep, took under 7 s.
 - **Encodings.** Dart decides what a byte order mark or a byte sequence
   that is not UTF-8 means.
 
@@ -81,10 +87,11 @@ So the CLI never takes the helper's word that a file is wrong:
    a file that is not plain UTF-8, is larger than 16 MiB, made the parser
    panic, or parsed into a tree more than 500 nodes deep.
 2. A `clean` file is done. **Every other file is parsed by
-   `package:analyzer`**, and only what the analyzer reports is shown: also
-   every file after a helper that died, stalled for 20 seconds or broke its
-   protocol. A helper that dies is started again after the file it died on,
-   up to three times.
+   `package:analyzer`**, and only what the analyzer reports is shown. A
+   helper that dies, or answers nothing for 10 seconds, is killed: its
+   answers so far stand, the file it was on goes to Dart, and it is started
+   again after that file, up to three times. A helper that breaks its
+   protocol is not believed about anything in that run.
 3. The helper is a separate process, so nothing it does can take the CLI
    down.
 

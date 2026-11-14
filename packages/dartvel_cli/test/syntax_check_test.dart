@@ -272,6 +272,29 @@ done''');
       expect(report.findings, hasLength((await dartOnly(root)).findings.length));
     }, testOn: '!windows');
 
+    test('a helper that stalls on one file keeps its earlier answers and is started again after it', () async {
+      final Directory root = _project(<String, Object>{
+        'lib/a.dart': _clean,
+        'lib/b.dart': _clean,
+        'lib/c.dart': _clean,
+        'lib/d.dart': _clean,
+      });
+      // Hangs on any file named b.dart, as the real helper can on a source
+      // that sends the parser into a long search; answers the rest clean.
+      final DVSyntaxHelper helper = _scriptedHelper('''
+$_greet
+index=0
+while IFS= read -r path; do
+  case "\$path" in *b.dart) exec sleep 600 ;; esac
+  printf 'clean\\t%s\\n' "\$index"
+  index=\$((index+1))
+done''', stallTimeout: const Duration(milliseconds: 500));
+      final DVSyntaxReport report = await dvCheckProjectSyntax(root.path, helper: helper);
+      expect(report.findings, isEmpty);
+      expect(report.cleanByHelper, 3, reason: 'a, c and d; b went to Dart');
+      expect(report.parsedInDart, 1);
+    }, testOn: '!windows');
+
     test('a helper that is not there is the same as no helper', () async {
       final Directory root = _project(mixedProject);
       final DVSyntaxReport report =
