@@ -1,0 +1,77 @@
+name: dartvel_meta_pixel
+description: Meta (Facebook) Pixel for Dartvel apps — page views and events in the browser, the Conversions API from the backend, de-duplicated, consent-aware.
+version: 0.13.51
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
+topics:
+  - dartvel
+  - analytics
+  - facebook
+environment:
+  # One floor for every Dartvel package, deliberately.
+  sdk: ">=3.13.0 <4.0.0"
+
+# Declared, because pub.dev infers platforms from imports and follows
+# ones that only run on their own platform (see
+# tool/pubspec_platforms_check.dart).
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+dependencies:
+  dartvel_core: ^0.13.51
+  crypto: ^3.0.7
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.28.0
+
+# The browser half is one small script: Meta's own base code, which defines
+# fbq and loads fbevents.js. Served from the application's own origin, so a
+# page policy needs no 'unsafe-inline' for it.
+flutter:
+  assets:
+    - assets/meta_pixel.js
+
+dartvel:
+  module:
+    id: metaPixel
+    name: Meta Pixel
+    version: 0.13.51
+    surface: MetaPixel
+    # Run once the module is registered, in the client and in the server:
+    # the client starts listening for page views, the server for purchases
+    # another module confirms.
+    start: startMetaPixel
+    exports:
+      pages: false
+    # What the pixel's own script loads from and reports to. Added to the
+    # page policy the application declares; nothing is added without one.
+    csp:
+      script-src:
+        - https://connect.facebook.net
+      connect-src:
+        - https://www.facebook.com
+      img-src:
+        - https://www.facebook.com
+    operations:
+      pageView: { native: real, web: real, backend: noop }
+      track: { native: real, web: real, backend: real }
+      trackCustom: { native: real, web: real, backend: real }
+      viewContent: { native: real, web: real, backend: real }
+      lead: { native: real, web: real, backend: real }
+      contact: { native: real, web: real, backend: real }
+      initiateCheckout: { native: real, web: real, backend: real }
+      purchase: { native: real, web: real, backend: real }
+      outboundClick: { native: real, web: real, backend: noop }
+      # Internal: how a client's event reaches the Conversions API. The
+      # access token is the server's, so the client sends the event to the
+      # application's own backend and the backend sends it on.
+      collect:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
