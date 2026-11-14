@@ -1,3 +1,9 @@
+## 3.47.1 — unreleased
+
+- `DV.Platform.apps.homePresses` and `recentsPresses` hear the press as it happens: the launcher MainActivity tells the app over a channel instead of leaving a stamp to be read on the next resume and by a poll four times a second. `recentsPresses` also fires when the opt-in Recents service (`dartvel.android.recentsService: true`) put the app in front in place of the system's Recents.
+- `DV.Platform.apps.homeAppSignals`: everything the system tells a home app, as `DVHomeAppSignal(name, at, detail)`: Home, Back, each close-system-dialogs broadcast with its reason, pause, stop, user-leave hint, focus gained and lost, and the windows and system-button presses the Recents service sees. Phones differ in what they send for the Recents button; a diagnostics screen built on this shows what one phone really does.
+- `DV.Platform.apps.isRecentsServiceOn` and `openRecentsServiceSettings()`: whether the person turned the Recents service on, and the Accessibility settings where they do.
+
 ## 3.47.0 — 2026-11-14
 
 - The version now follows Flutter's. From this release a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>`: 3.47.0 is the first release numbered on Flutter 3.47, and the last number counts Dartvel's own releases on it. The release before this one was 0.13.51. Every published package, the CLI, the npm packages and the Homebrew formula carry the same version.
