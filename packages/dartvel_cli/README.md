@@ -638,3 +638,15 @@ published identifiers carry a suffix: `dartvel_cli` for this package and
 - [What is built, per spec section](https://github.com/Danroyal001/dartvel_dev/blob/main/docs/spec-status.json)
 - [Releases](https://github.com/Danroyal001/dartvel_dev/releases)
 - [Issues](https://github.com/Danroyal001/dartvel_dev/issues)
+
+## First-party modules
+
+`dartvel add <name>` adds a module Dartvel maintains itself: a hosted dependency at this CLI's version and a `package:` mount.
+
+```bash
+dartvel add meta-pixel          # DV.Modules.metaPixel
+dartvel add google-analytics    # DV.Modules.googleAnalytics
+dartvel add woocommerce         # DV.Modules.woocommerce
+```
+
+They live in [`modules/`](https://github.com/Danroyal001/dartvel_dev/tree/main/modules) of the Dartvel repository; each one's README lists its settings and the secrets the server's environment supplies.

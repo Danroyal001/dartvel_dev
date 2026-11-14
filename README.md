@@ -143,6 +143,50 @@ and return `DVPageData` with a `document` of headings, paragraphs and links.
 
 ---
 
+## 🧩 Modules
+
+A module is a whole Dartvel application mounted inside another, or a
+capability behind one Dart surface, added with `dartvel add` and reached as
+`DV.Modules.<id>`. See [the Modules docs](https://dartvel.dev/docs/modules).
+
+### First-party modules
+
+The modules Dartvel maintains itself live in [`modules/`](modules/README.md)
+and are published to pub.dev with every release.
+
+| Module | Add it | Reached as | What it is |
+|---|---|---|---|
+| [`dartvel_meta_pixel`](modules/dartvel_meta_pixel/README.md) | `dartvel add meta-pixel` | `DV.Modules.metaPixel` | Meta (Facebook) Pixel: a page view per route and standard and custom events in the browser, and the same events through your backend to the Conversions API with the same event id, so an in-app browser that blocks the pixel still reports |
+| [`dartvel_google_analytics`](modules/dartvel_google_analytics/README.md) | `dartvel add google-analytics` | `DV.Modules.googleAnalytics` | Google Analytics 4: gtag in the browser with a `page_view` per route and the recommended events, and the Measurement Protocol from your backend and from devices |
+| [`dartvel_woocommerce`](modules/dartvel_woocommerce/README.md) | `dartvel add woocommerce` | `DV.Modules.woocommerce` | WooCommerce: a typed REST API v3 client for the backend, and checkout through the store's own payment gateways, confirmed by the store's signed webhook or by asking it |
+
+All three wait for the visitor's consent where the application declares a
+consent policy (`dartvel.analytics.consent`), add the origins they need to
+the page policy you declared (`dartvel.security.pageCsp`), do nothing when
+they are not configured, and read their secrets only from the server's
+environment. Mount WooCommerce beside the two analytics modules and a
+purchase is reported to both when the store confirms the payment, not when
+the buyer comes back.
+
+```yaml
+dartvel:
+  modules:
+    metaPixel:
+      package: dartvel_meta_pixel
+      backendPolicy: public
+      config: { pixelId: "1234567890" }
+    googleAnalytics:
+      package: dartvel_google_analytics
+      backendPolicy: public
+      config: { measurementId: G-XXXXXXXXXX }
+    woocommerce:
+      package: dartvel_woocommerce
+      backendPolicy: public
+      config: { storeUrl: https://shop.example.com }
+```
+
+---
+
 ## 🛠️ CLI Commands
 
 A selection. `dartvel --help` lists every command and `dartvel help <command>`

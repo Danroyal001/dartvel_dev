@@ -14240,6 +14240,73 @@ dartvel:
         inherit: [auth, theme, currentTenant]
 ```
 
+## What a module brings with it
+
+Three things a module declares so the application that mounts it does not
+have to repeat them, all in the module's own `pubspec.yaml`:
+
+```yaml
+dartvel:
+  module:
+    id: metaPixel
+    surface: MetaPixel
+    start: startMetaPixel
+    csp:
+      script-src: [https://connect.facebook.net]
+      connect-src: [https://www.facebook.com]
+```
+
+- **`csp`** names the third-party origins the module's scripts need, by
+  Content-Security-Policy directive. The build adds them to the page policy
+  the application declares (`dartvel.security.pageCsp`): to the directive it
+  has, or to a new one started from what `default-src` allowed. A directive
+  the policy leaves unrestricted stays unrestricted, an application with no
+  page policy is sent none, and a federated module adds nothing, since its
+  pages are served under its own. Origins only: `'unsafe-inline'`, a bare
+  scheme or `*` in a module's declaration is refused and nothing from that
+  declaration is used.
+- **`start`** names a top-level function in the module's main library,
+  called with the registered `DVModule` in the client and in the server. A
+  module that listens -- for page views, for another module's topic -- starts
+  listening there, without the application remembering to call it. The main
+  library is therefore one both processes can load: no Flutter import, and a
+  conditional import for anything that needs a browser.
+- **Settings** are the application's to give, at the mount:
+
+  ```yaml
+  dartvel:
+    modules:
+      metaPixel:
+        package: dartvel_meta_pixel
+        config:
+          pixelId: "1234567890"
+  ```
+
+  They reach `DV.Modules.<id>.config['config']`. A mount is compiled into
+  the client, so a setting is never a secret; a module reads secrets from
+  the server's environment by name.
+
+**Page views are the framework's to report.** The page shell says which page
+is on screen -- the first page, each route change, a page pushed over another
+and the one uncovered when it is popped -- through `DVPageViews` in
+`dartvel_core`, and a module that measures them listens. No page calls
+anything, and a page drawn on Studio's canvas is not a view.
+
+**Modules talk through topics, not imports.** `DV.Modules.publish(topic,
+payload)` hands a payload to every subscriber and `DV.Modules.subscribe(topic,
+listener)` hears it. A store module that confirms a payment publishes
+`commerce.purchase`; whichever analytics modules the application mounted
+report it; mount none and the publish reaches nobody. A payload is plain data
+-- maps, lists, strings, numbers -- so neither side needs the other's types,
+and a topic's name and shape are the publishing module's to document. A
+synchronous subscriber has run by the time `publish` returns, so a publisher
+may pass a map round to be filled in.
+
+**A carried operation can read its request.** An operation declared
+`{ compat: backend }` runs on the backend with the server's authority, and
+`DVModuleRpc.request` is the request it arrived on, for one that must pass on
+the caller's user agent and address. A module mounted as a dependency
+(`package:`) has its carried operations served like one mounted from a path.
 
 ## What a module may be made of
 
@@ -14624,6 +14691,37 @@ recipe, and the next team's `dartvel add` uses it. One official module may
 resolve several platform sources behind one Dart surface, and a module that
 starts single-platform may gain implementations later without its surface
 changing.
+
+The official modules written by hand rather than generated from a recipe are
+the **first-party modules**. They live in the repository's `modules/` folder,
+one package each, are versioned and published with the framework, and are
+added by name:
+
+```bash
+dartvel add meta-pixel          # DV.Modules.metaPixel
+dartvel add google-analytics    # DV.Modules.googleAnalytics
+dartvel add woocommerce         # DV.Modules.woocommerce
+```
+
+`dartvel add <name>` writes a hosted dependency at the CLI's own version and
+a `package:` mount, with `backendPolicy: public` where the module carries
+operations to the backend. A directory of that name beside the project is the
+source instead: what is on disk was put there by whoever is asking. The names
+are a catalogue in the CLI, and a test fails when the catalogue and the
+folder disagree.
+
+| Module | What it is |
+|---|---|
+| `dartvel_meta_pixel` | Meta Pixel in the browser and the Conversions API from the backend, de-duplicated by event id |
+| `dartvel_google_analytics` | Google Analytics 4: gtag in the browser, the Measurement Protocol from the backend and devices |
+| `dartvel_woocommerce` | A typed WooCommerce REST API v3 client for the backend, and checkout through the store's own payment gateways |
+
+A first-party module obeys rules a generated one cannot be held to: it does
+nothing and throws nothing when unconfigured; a third party's script or
+endpoint failing never fails a page or an order; where the application
+declares a consent policy nothing is sent before the module's category is
+granted; and a secret is read from the server's environment by name and
+appears in no client bundle, log line or error message.
 
 **A component library is a module**, declared with `exports: components:`, which
 is what makes the module system Dartvel's component registry as well as its

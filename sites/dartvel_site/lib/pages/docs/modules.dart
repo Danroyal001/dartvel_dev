@@ -65,6 +65,94 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'first-party',
+      title: 'First-party modules',
+      children: <Widget>[
+        DocsText(
+          'The modules Dartvel maintains itself are in the repository\'s '
+          'modules/ folder and are published to pub.dev with every release. '
+          'Add one by name.',
+        ),
+        DocsShell(<String>[
+          'dartvel add meta-pixel',
+          'dartvel add google-analytics',
+          'dartvel add woocommerce',
+        ]),
+        Bullets(<String>[
+          'Meta Pixel (DV.Modules.metaPixel): a page view per route and '
+              'standard and custom events through the browser pixel, and the '
+              'same events through your backend to the Conversions API with '
+              'the same event id, so Meta counts each once and an in-app '
+              'browser that blocks the pixel still reports.',
+          'Google Analytics 4 (DV.Modules.googleAnalytics): gtag in the '
+              'browser with a page_view per route and the recommended events, '
+              'and the Measurement Protocol from your backend and from '
+              'devices.',
+          'WooCommerce (DV.Modules.woocommerce): a typed REST API v3 client '
+              'for the backend, and checkout through the store\'s own payment '
+              'gateways. The store prices the order and takes the money; the '
+              'payment is confirmed by its signed webhook, or by asking it.',
+        ]),
+        DocsShell(<String>[
+          '# pubspec.yaml',
+          'dartvel:',
+          '  modules:',
+          '    metaPixel:',
+          '      package: dartvel_meta_pixel',
+          '      backendPolicy: public',
+          '      config:',
+          '        pixelId: "1234567890"',
+          '    googleAnalytics:',
+          '      package: dartvel_google_analytics',
+          '      backendPolicy: public',
+          '      config:',
+          '        measurementId: G-XXXXXXXXXX',
+          '    woocommerce:',
+          '      package: dartvel_woocommerce',
+          '      backendPolicy: public',
+          '      config:',
+          '        storeUrl: https://shop.example.com',
+        ]),
+        DocsShell(<String>[
+          '# .env on the server. Never in pubspec.yaml: a mount is compiled',
+          '# into the client.',
+          'META_CONVERSIONS_API_TOKEN=...',
+          'GA4_API_SECRET=...',
+          'WOOCOMMERCE_CONSUMER_KEY=ck_...',
+          'WOOCOMMERCE_CONSUMER_SECRET=cs_...',
+          'WOOCOMMERCE_WEBHOOK_SECRET=...',
+        ]),
+        Bullets(<String>[
+          'Page views need no code: the page shell reports the first page '
+              'and every route change, and the analytics modules listen.',
+          'Where the application declares a consent policy under '
+              'dartvel.analytics.consent, nothing is loaded or sent until '
+              'the module\'s category is granted: marketing for Meta Pixel, '
+              'product for Google Analytics. With no policy declared they '
+              'send from the first page.',
+          'The origins each module needs are added to the page policy you '
+              'declared in dartvel.security.pageCsp. There is nothing to '
+              'edit, and no unsafe-inline.',
+          'With WooCommerce mounted beside them, a purchase is reported to '
+              'both once the store confirms the payment, which a buyer coming '
+              'back does not prove, and only for a buyer who had consented.',
+          'Unconfigured, each does nothing and throws nothing.',
+        ]),
+        DocsText(
+          'A checkout is two calls: DV.Modules.woocommerce.startCheckout '
+          'makes the order and answers with the store\'s own payment page, '
+          'and watchOrder yields each change until the store says it is '
+          'paid. Give startCheckout an idempotencyKey kept with the cart, '
+          'so a double tap or a retry is one order.',
+        ),
+        DocsNote(
+          'Each module\'s README',
+          'Every setting, what is sent where, and the store-side setup '
+              'are in modules/<name>/README.md in the Dartvel repository.',
+        ),
+      ],
+    ),
+    DocsSection(
       id: 'trust',
       title: 'Publish a signed module, and pin what you mount',
       children: <Widget>[
