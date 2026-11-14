@@ -284,6 +284,11 @@ class MainActivity : FlutterActivity() {
       final String activityOut = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\nclass MainActivity : FlutterActivity()\n', enabled: true)!;
       expect(activityOut, contains('var dartvelHomeFromServiceUntil'));
       expect(activityOut, contains('dartvelSystemKey("homeByService", pressedAt)'));
+      // On a slow phone the service's Home arrived 17 s after the press on the
+      // Android 12 emulator: the window is generous, and it ends at the first
+      // Home or at the service's own request, whichever comes first.
+      expect(source, contains('MainActivity.dartvelHomeFromServiceUntil = now + 30000'));
+      expect(activityOut, contains('            dartvelHomeFromServiceUntil = 0L\n            dartvelSystemKey("recentsReplaced"'));
     });
 
     test('the MainActivity hears the service and the other Recents signals', () {

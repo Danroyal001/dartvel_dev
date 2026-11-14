@@ -6440,6 +6440,7 @@ class DVApps {
     StreamSubscription<DVHomeAppSignal>? keys;
     Timer? pending;
     int? seen;
+    int? replacedSeen;
     final AppLifecycleState? now = WidgetsBinding.instance.lifecycleState;
     bool inFront = now == null || now == AppLifecycleState.resumed;
     Future<int> stamp() async {
@@ -6469,8 +6470,10 @@ class DVApps {
           if (key.name == 'recents') heard(key.at);
           // The Recents service already put the app in front, in place of
           // the system's Recents: nothing to wait for.
-          if (key.name == 'recentsReplaced' && key.at != seen && !controller.isClosed) {
-            seen = key.at;
+          // Kept apart from [seen]: the resume that follows the service's
+          // new intent reads the same stamp, and may read it first.
+          if (key.name == 'recentsReplaced' && key.at != replacedSeen && !controller.isClosed) {
+            replacedSeen = key.at;
             pending?.cancel();
             controller.add(null);
           }

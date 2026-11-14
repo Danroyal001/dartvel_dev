@@ -289,6 +289,26 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     });
 
+    testWidgets('the Recents service press counts even when the resume read the same stamp first', (WidgetTester tester) async {
+      // Android 12 emulator: the activity stamps the intent, is paused and
+      // resumed, and the resume's read of the stamp can land before the
+      // channel message. The press must still be one event.
+      int stamp = 0;
+      DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => stamp);
+      final List<int> presses = <int>[];
+      final subscription = const DVApps().recentsPresses.listen((_) => presses.add(1));
+      await tester.pump(const Duration(seconds: 1));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      stamp = 900;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      await systemKey(tester, 'recentsReplaced:900:button');
+      expect(presses.length, 1);
+      subscription.cancel();
+      await tester.pump(const Duration(seconds: 1));
+    });
+
     testWidgets('every signal reaches homeAppSignals with its name, time and detail', (WidgetTester tester) async {
       DVNativeBridge.register('apps.homePressedAt', (Object? _) => 0);
       final List<DVHomeAppSignal> heard = <DVHomeAppSignal>[];
