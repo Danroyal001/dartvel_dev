@@ -1,7 +1,7 @@
 // Times the syntax check with and without the Rust helper.
 //
 //   dart compile exe tool/syntax_check_bench.dart -o /tmp/syntax_check_bench
-//   /tmp/syntax_check_bench ../../rust/target/release/dartvel_syntax <root>...
+//   /tmp/syntax_check_bench ../../rust/target/release/dartvel_syntax [--rounds N] <root>...
 //
 // Compile it: the CLI people run is compiled, and the Dart analyzer under
 // `dart run` is several times slower than it is there. Every `.dart` file
@@ -33,8 +33,15 @@ Future<void> main(List<String> arguments) async {
     exit(64);
   }
   final DVSyntaxHelper helper = DVSyntaxHelper(arguments.first);
-  const int rounds = 9;
-  for (final String root in arguments.skip(1)) {
+  // `--rounds 1` is what one `dartvel build` does: one check, from cold.
+  // Run it as several processes for that number.
+  final int roundsAt = arguments.indexOf('--rounds');
+  final int rounds = roundsAt < 0 ? 9 : int.parse(arguments[roundsAt + 1]);
+  final List<String> roots = <String>[
+    for (int index = 1; index < arguments.length; index++)
+      if (index != roundsAt && index != roundsAt + 1) arguments[index],
+  ];
+  for (final String root in roots) {
     final List<String> files = <String>[];
     _collect(Directory(root), files);
     files.sort();
