@@ -1,0 +1,80 @@
+name: dartvel_google_analytics
+description: Google Analytics 4 for Dartvel apps — gtag in the browser, the Measurement Protocol from the backend and from devices, consent-aware.
+version: 0.13.51
+repository: https://github.com/Danroyal001/dartvel_dev
+homepage: https://dartvel.dev
+topics:
+  - dartvel
+  - analytics
+  - google-analytics
+environment:
+  # One floor for every Dartvel package, deliberately.
+  sdk: ">=3.13.0 <4.0.0"
+
+# Declared, because pub.dev infers platforms from imports and follows
+# ones that only run on their own platform (see
+# tool/pubspec_platforms_check.dart).
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+dependencies:
+  dartvel_core: ^0.13.51
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.28.0
+
+# The browser half starts with one small script: the two lines of Google's
+# tag that define dataLayer and gtag. Served from the application's own
+# origin, so a page policy needs no 'unsafe-inline' for it.
+flutter:
+  assets:
+    - assets/google_analytics.js
+
+dartvel:
+  module:
+    id: googleAnalytics
+    name: Google Analytics
+    version: 0.13.51
+    surface: GoogleAnalytics
+    # Run once the module is registered, in the client and in the server:
+    # the client starts listening for page views, the server for purchases
+    # another module confirms.
+    start: startGoogleAnalytics
+    exports:
+      pages: false
+    # What Google's CSP guide lists for Google Analytics without Ads
+    # features. Added to the page policy the application declares; nothing
+    # is added without one.
+    csp:
+      script-src:
+        - https://www.googletagmanager.com
+      img-src:
+        - https://www.googletagmanager.com
+        - https://*.google-analytics.com
+      connect-src:
+        - https://www.googletagmanager.com
+        - https://*.google-analytics.com
+        - https://*.google.com
+    operations:
+      pageView: { native: real, web: real, backend: noop }
+      track: { native: real, web: real, backend: real }
+      generateLead: { native: real, web: real, backend: real }
+      beginCheckout: { native: real, web: real, backend: real }
+      purchase: { native: real, web: real, backend: real }
+      viewItem: { native: real, web: real, backend: real }
+      signUp: { native: real, web: real, backend: real }
+      login: { native: real, web: real, backend: real }
+      # Internal: how a device's event reaches the Measurement Protocol.
+      # The API secret is the server's, so the device sends the event to
+      # the application's own backend and the backend sends it on. A
+      # browser does not use it: there gtag reports the event itself.
+      collect:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real
