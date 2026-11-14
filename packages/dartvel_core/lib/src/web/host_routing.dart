@@ -440,8 +440,8 @@ final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRed
     final int at = location.indexOf(RegExp('[?#]'));
     final String path = at < 0 ? location : location.substring(0, at);
     final String rest = at < 0 ? '' : location.substring(at);
-    final DVHostMatch m = owner(path);
-    if (m.origin == from.origin) return '${from.hostPath(path) ?? path}$rest';
+    final DVHostMatch owningHost = owner(path);
+    if (owningHost.origin == from.origin) return '${from.hostPath(path) ?? path}$rest';
     final int hash = rest.indexOf('#');
     final String query = hash < 0 ? rest : rest.substring(0, hash);
     final String fragment = hash < 0 ? '' : rest.substring(hash);
@@ -552,17 +552,17 @@ final class const DVHostedRequest({
   }) {
     if (!html.contains('<a ')) return html;
     bool changed = false;
-    final String linked = html.replaceAllMapped(_anchorPath, (Match m) {
-      final String href = m[2]!;
+    final String linked = html.replaceAllMapped(_anchorPath, (Match anchor) {
+      final String href = anchor[2]!;
       final int at = href.indexOf(RegExp('[?#]'));
       final String path = at < 0 ? href : href.substring(0, at);
       if (!isRoute(path == '/' ? path : path.replaceAll(RegExp(r'/+$'), ''))) {
-        return m[0]!;
+        return anchor[0]!;
       }
       final String link = hosts.linkFrom(requested, href);
-      if (link == href) return m[0]!;
+      if (link == href) return anchor[0]!;
       changed = true;
-      return '${m[1]}$link"';
+      return '${anchor[1]}$link"';
     });
     return changed ? linked : html;
   }
