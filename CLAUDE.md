@@ -201,6 +201,16 @@ gap.
 - The exception is a third-party build system running its own scripts: the
   Flutter engine build invokes Chromium's `install-sysroot.py`, which is
   upstream's and not ours to rewrite.
+- Rust is the one other language, and only for code that ships inside a
+  build: a package's native library under `packages/<name>/rust/` (the Axum
+  runtime, the HTTP client), and the ports of the Dart SDK and Flutter under
+  `rust/` (first: the CLI's syntax helper; `rust/README.md` says where each
+  file comes from). A port enters `rust/` together with the tests that check
+  it against the Dart it stands in for. Where a port is not yet proven on
+  everything it can be given, that Dart stays in the build and decides: Rust
+  may make an answer faster, never different. Ports that nothing shipped uses
+  yet stay on their branch. Tools and CI programs are still Dart, and Python
+  is still refused everywhere.
 - `dart run tool/ci/no_python_check.dart` fails when a tracked `.py` file or
   an inline `python3` appears, because a rule nothing checks drifts back.
 
