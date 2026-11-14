@@ -17,6 +17,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../module_trust/module_trust.dart' show dvResolvePackageRoot;
+
 /// One carried operation, and who may call it.
 class DVModuleRpcRoute {
   const DVModuleRpcRoute({
@@ -63,8 +65,15 @@ List<DVModuleRpcRoute> dvModuleRpcRoutes(String root) {
   for (final MapEntry<Object?, Object?> entry in modules.entries) {
     final Object? body = entry.value;
     if (body is! Map) continue;
+    // From a path beside the application, or from a dependency wherever pub
+    // resolved it: a module carries its operations the same way either way.
     final Object? source = body['source'];
-    final Object? path = source is Map ? source['path'] : null;
+    final Object? package = body['package'];
+    final Object? path = package is String && package.isNotEmpty
+        ? dvResolvePackageRoot(root, package)
+        : source is Map
+            ? source['path']
+            : source;
     if (path is! String) continue;
     final File modulePubspec = File(p.join(root, path, 'pubspec.yaml'));
     if (!modulePubspec.existsSync()) continue;
@@ -149,7 +158,7 @@ $guard    if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     }
     final Object? result;
     try {
-      result = await ${r.alias}.dvModuleDispatch('${r.operation}', arguments);
+      result = await core.DVModuleRpc.withRequest(req, () async => await ${r.alias}.dvModuleDispatch('${r.operation}', arguments));
     } on TypeError {
       return _dvModuleRpcBadRequest();
     }

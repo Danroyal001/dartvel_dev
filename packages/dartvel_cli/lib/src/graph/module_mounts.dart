@@ -98,7 +98,36 @@ class DVModuleMount {
     this.kind,
     this.surface,
     this.http,
+    this.csp = const <String, List<String>>{},
+    this.start,
+    this.config = const <String, Object?>{},
   });
+
+  /// The origins the module's third-party scripts need, by
+  /// Content-Security-Policy directive, from `dartvel.module.csp` in the
+  /// module's own pubspec.
+  ///
+  /// Added to the page policy the application declares
+  /// (`dartvel.security.pageCsp`), so mounting a module that loads an
+  /// analytics tag does not also mean editing a policy by hand. Origins
+  /// only: a module cannot ask for `'unsafe-inline'`.
+  final Map<String, List<String>> csp;
+
+  /// A top-level function in the module's main library, from
+  /// `dartvel.module.start`, called with the registered `DVModule` in the
+  /// client and in the server.
+  ///
+  /// For a module that has to begin something -- listening for page views,
+  /// subscribing to another module's topic -- without the application
+  /// remembering to call it.
+  final String? start;
+
+  /// The settings the application gives the module where it mounts it:
+  /// `dartvel.modules.<id>.config`. They reach `DV.Modules.<id>.config`.
+  ///
+  /// Compiled into the client, so never a secret: a module reads those from
+  /// the server's environment.
+  final Map<String, Object?> config;
 
   /// Whether the module is mounted as a dependency (`package:`) rather than
   /// from a source path beside the parent.
@@ -491,10 +520,95 @@ List<DVModuleMount> dvDiscoverModuleMounts(String root) {
       http: moduleSection['http'] is Map
           ? moduleSection['http']! as Map<Object?, Object?>
           : null,
+      csp: _cspOf(moduleDeclaration, problems, id),
+      start: _startOf(moduleDeclaration, problems, id),
+      config: _configOf(body, problems, id),
     ));
   });
   mounts.sort((DVModuleMount a, DVModuleMount b) => a.id.compareTo(b.id));
   return mounts;
+}
+
+/// `dartvel.module.csp`: directive names to the origins the module needs.
+///
+/// A module's pubspec is somebody else's text that ends up in a security
+/// header, so anything that is not a plain origin under a fetch directive is
+/// refused by name and nothing from that declaration is used.
+Map<String, List<String>> _cspOf(
+  Map<Object?, Object?> declaration,
+  List<String> problems,
+  String id,
+) {
+  final Object? csp = declaration['csp'];
+  if (csp == null) return const <String, List<String>>{};
+  if (csp is! Map) {
+    problems.add('Module $id: dartvel.module.csp must map a directive, such '
+        'as script-src, to a list of origins.');
+    return const <String, List<String>>{};
+  }
+  final Map<String, List<String>> out = <String, List<String>>{};
+  for (final MapEntry<Object?, Object?> entry in csp.entries) {
+    final String directive = '${entry.key}'.trim().toLowerCase();
+    final Object? sources = entry.value;
+    if (!RegExp(r'^[a-z-]+-src$').hasMatch(directive) || sources is! List) {
+      problems.add('Module $id: dartvel.module.csp.${entry.key} must be a '
+          'fetch directive, such as script-src, with a list of origins.');
+      return const <String, List<String>>{};
+    }
+    for (final Object? source in sources) {
+      if (source is! String || !dvIsContentSecurityPolicyOrigin(source)) {
+        problems.add('Module $id: dartvel.module.csp.$directive lists '
+            '"$source", which is not an origin such as '
+            'https://cdn.example.com. A module may add origins to the page '
+            'policy and nothing else.');
+        return const <String, List<String>>{};
+      }
+      (out[directive] ??= <String>[]).add(source);
+    }
+  }
+  return out;
+}
+
+/// `dartvel.module.start`: the name of a top-level function, or null.
+String? _startOf(
+  Map<Object?, Object?> declaration,
+  List<String> problems,
+  String id,
+) {
+  final Object? start = declaration['start'];
+  if (start == null) return null;
+  if (start is! String || !RegExp(r'^[A-Za-z][A-Za-z0-9_]*$').hasMatch(start)) {
+    problems.add('Module $id: dartvel.module.start is "$start", which is not '
+        'the name of a top-level function in the module\'s main library.');
+    return null;
+  }
+  return start;
+}
+
+/// `dartvel.modules.<id>.config`: what the application tells the module.
+Map<String, Object?> _configOf(
+  Map<Object?, Object?> body,
+  List<String> problems,
+  String id,
+) {
+  final Object? config = body['config'];
+  if (config == null) return const <String, Object?>{};
+  if (config is! Map) {
+    problems.add('dartvel.modules.$id.config must be a map of settings, not '
+        '"$config".');
+    return const <String, Object?>{};
+  }
+  Object? plain(Object? value) => switch (value) {
+        final Map<Object?, Object?> map => <String, Object?>{
+            for (final MapEntry<Object?, Object?> e in map.entries)
+              '${e.key}': plain(e.value),
+          },
+        final List<Object?> list => <Object?>[
+            for (final Object? item in list) plain(item),
+          ],
+        _ => value,
+      };
+  return plain(config)! as Map<String, Object?>;
 }
 
 /// One boolean under `exports` in [declaration], defaulting to true.
