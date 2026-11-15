@@ -130,7 +130,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --device-profile             Named embedded device profile from pubspec.yaml',
       '    --simulator                  Build for a simulator rather than a device (iOS, tvOS). On tvOS device builds are AOT and need a configured Xcode signing team, so this is the only unsigned path.',
       '    --build-timeout              Minutes before a stalled build is killed (0 disables). A build that stops producing output is the failure mode worth guarding: it looks identical to a slow one and costs far more.',
-      '    --arch                       Target architecture for embedded builds',
+      '    --arch                       Target architecture: for embedded builds, and on an Android build the one ABI to build (all three without it)',
       '                                 [arm, arm64 (default), x64]',
       '    --[no-]split-per-abi         Split APKs per ABI (Android)',
       '    --[no-]cache                 Reuse a step whose inputs are byte-for-byte unchanged (the Flutter web build, each route\'s semantics capture, the web-server backend compile). Kept in .dartvel/cache; --no-cache builds everything afresh.',
