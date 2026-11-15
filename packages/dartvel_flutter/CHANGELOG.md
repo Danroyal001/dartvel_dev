@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dvRunApplication` takes an `entry`. An embedded entry (`DVEntry.embedded`) boots with that entry and skips the launch negotiation, for an app started inside a native host by `dartvel build --brownfield`.
+
 ## 3.47.2 — 2026-11-15
 
 - The page shell reports each page shown to `DVPageViews` once its frame is drawn (not on Studio's canvas).

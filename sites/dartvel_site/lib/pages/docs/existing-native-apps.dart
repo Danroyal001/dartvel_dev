@@ -3,26 +3,68 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Embed Dartvel in an existing native app: planned',
+  title: 'Embed Dartvel in an existing native app',
   description:
-      'Native host artifact generation and typed host APIs are '
-      'planned. Adopt Dartvel in a Flutter app today with dartvel init.',
+      'Build a Dartvel project as an Android library or Apple frameworks '
+      'with --brownfield, and start it inside a native app you already have.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
 Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
   page: DVRoutes.docsexistingnativeapps,
   lead: <String>[
-    'For an existing Flutter app, run `dartvel init` to adopt Dartvel '
-        'without replacing its router.',
-    'Generating artifacts that a Kotlin, Swift, desktop or browser host '
-        'embeds is planned. The adoption command does not generate '
-        'an add-to-app host.',
+    'Add `--brownfield` to `dartvel build` to get what a native app embeds: '
+        'an Android library, or XCFrameworks for iOS and macOS.',
+    'It extends Flutter\'s add-to-app, so the host starts the project the '
+        'way it would start any Flutter module.',
   ],
   sections: <DocsSection>[
     DocsSection(
-      id: 'today',
-      title: 'Adopt an existing Flutter application today',
+      id: 'build',
+      title: 'Build the artifact a host embeds',
+      children: <Widget>[
+        DocsShell(<String>[
+          'dartvel build android --brownfield',
+          'dartvel build ios --brownfield',
+          'dartvel build macos --brownfield',
+        ]),
+        DocsText(
+          'Each command generates the client, then builds the project as a '
+          'Flutter module in build/brownfield and leaves the result in '
+          'build/brownfield/<target>: a Maven repository for Android, '
+          'XCFrameworks for iOS and macOS. Your project is not changed.',
+        ),
+        Bullets(<String>[
+          'Next to the artifact, HOST.md says how the host adds it and which '
+              'entry point to start.',
+          'iOS and macOS frameworks are built with Xcode, so those two '
+              'commands need a Mac, or `--cloud`.',
+          'Add `--debug` or `--profile` for another build mode. Release is '
+              'the default.',
+        ]),
+      ],
+    ),
+    DocsSection(
+      id: 'start',
+      title: 'Start the project from the host',
+      children: <Widget>[
+        DocsText(
+          'Every project gets an entry point named '
+          'dartvelEmbeddedEntry_<package>. Start an engine there, or start '
+          'main, which runs the same entry. The project boots as an embedded '
+          'entry: no single-instance lock and no window of its own, because '
+          'the host owns the process.',
+        ),
+        DocsText(
+          'On Android, start several projects from one FlutterEngineGroup '
+          'so each extra engine costs a few megabytes. On iOS and macOS, '
+          'call run(withEntrypoint:) on a FlutterEngine.',
+        ),
+      ],
+    ),
+    DocsSection(
+      id: 'flutter',
+      title: 'Adopt an existing Flutter application',
       children: <Widget>[
         DocsShell(<String>['dartvel init', 'dartvel dev']),
         DocsText(
@@ -36,25 +78,25 @@ Widget _docsExistingNativeAppsPage(BuildContext context) => const DocsArticle(
     ),
     DocsSection(
       id: 'planned',
-      title: 'Planned native host integration',
+      title: 'Planned host integration',
       children: <Widget>[
         DocsNote(
-          'Planned',
-          'Not yet implemented: a build mode that '
-              'produces Android AARs, Apple frameworks, desktop host '
-              'libraries or browser custom elements with generated host APIs.',
+          'Not yet implemented',
+          'Brownfield builds for the web (a script and an element the host '
+              'page places), Linux and Windows. The CLI refuses those '
+              'targets with the reason instead of building an app a host '
+              'cannot embed.',
         ),
         Bullets(<String>[
-          'Typed mount, unmount and message APIs for native hosts.',
+          'A generated, typed host API: mount and unmount routes, and '
+              'messages both ways.',
           'Host back navigation, lifecycle and verified session hand-off.',
-          'Multiple projects in a host, with version compatibility checks '
-              'and isolated or shared engine arrangements.',
-          'Vendor embedder integration for TV and embedded hosts.',
+          'Several projects in one module (--integrated), and projects on '
+              'different versions side by side.',
         ]),
         DocsText(
-          'These design goals are planned. The APIs and commands an '
-          'application can use today are described above. The Brownfield section in '
-          'NEW_SPEC.md records the draft design.',
+          'The Brownfield section in NEW_SPEC.md records the full design and '
+          'the order it is built in.',
         ),
       ],
     ),

@@ -33,7 +33,7 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
   DocsPageInfo(
     DVRoutes.docsexistingnativeapps,
     'Existing Native apps',
-    'Embed Dartvel inside an Android, iOS, web or desktop host',
+    'Embed Dartvel in an Android, iOS or macOS app with --brownfield',
     'Getting started',
   ),
   DocsPageInfo(

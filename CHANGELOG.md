@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel build android|ios|macos --brownfield` builds what an existing native app embeds, through Flutter's own add-to-app: an AAR (a Maven repository) on Android, XCFrameworks on iOS and macOS, in `build/brownfield/<target>` with a `HOST.md` saying how the host adds it. The project is staged as a Flutter module under `build/brownfield/module` and never changed. The host starts `dartvelEmbeddedEntry_<package>` (or `main`), which boots the Dartvel runtime as `DVEntry.embedded`: no single-instance lock and no launch negotiation, because the host owns the process. The web, Linux and Windows are refused with the reason (exit 69) until their slices land. iOS and macOS need a Mac.
+
 ## 3.47.2 — 2026-11-15
 
 - First-party modules, published with every release from `modules/`: `dartvel_meta_pixel` (Meta Pixel in the browser and the Conversions API from the backend, one event id so Meta counts each event once), `dartvel_google_analytics` (gtag in the browser, the Measurement Protocol from the backend and devices) and `dartvel_woocommerce` (a typed WooCommerce REST v3 client, checkout through the store's own payment gateways by `payment_url`, a signed webhook with a polling fallback, and a `commerce.purchase` topic the two analytics modules report). `dartvel add meta-pixel | google-analytics | woocommerce` writes the dependency and the mount. All three are tested against faked vendor hosts only; no real browser run, store or vendor call has been made yet (see each README).

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEntry;
+import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEmbeddedEntry, DVEntry;
 import 'package:dartvel_core/framework.dart'
     show DVBootStep, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/material.dart';
@@ -29,6 +29,7 @@ Future<void> dvRunApplication(
   required Widget Function() root,
   List<DVBootStep> boot = const [],
   FutureOr<void> Function(List<String>)? launch,
+  DVEntry entry = const DVEntry.app(),
 }) async {
   if (_running) {
     DV.log.warn(
@@ -45,11 +46,13 @@ Future<void> dvRunApplication(
       try {
         WidgetsFlutterBinding.ensureInitialized();
         DV.lifecycle.setApp(.initializing);
-        if (launch != null) await launch(args);
+        // A host application owns the process an embedded entry runs in:
+        // no single-instance lock, no argv to open, no window of its own.
+        if (launch != null && entry is! DVEmbeddedEntry) await launch(args);
         DV.lifecycle.setApp(.booting);
         // The same runner a server, a worker or a command boots through;
         // only the entry differs.
-        await dvRunBoot(boot, DVBoot(entry: const DVEntry.app(), args: _args));
+        await dvRunBoot(boot, DVBoot(entry: entry, args: _args));
         final previousFlutterError = FlutterError.onError;
         FlutterError.onError = (details) {
           DV.log.error(
