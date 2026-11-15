@@ -255,6 +255,7 @@ export 'src/modules/manifest.dart';
 export 'src/modules/module_outcome.dart';
 export 'src/modules/module_rpc.dart';
 export 'src/modules/modules.dart';
+export 'src/modules/page_views.dart';
 // The device side of push. Exported by nothing until now, so the API that
 // registers a device, requests permission and subscribes to a topic was
 // written, tested through a src/ import, and callable by no application.
@@ -337,6 +338,7 @@ export 'src/web/public_suffix.dart' show dvRegistrableDomain, dvIsPublicSuffix;
 export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
 export 'src/web/inline_script_csp.dart';
+export 'src/web/csp_sources.dart';
 export 'src/web/minify.dart';
 export 'src/web/route_page.dart';
 export 'src/web/site_pages.dart';

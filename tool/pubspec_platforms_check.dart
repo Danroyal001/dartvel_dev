@@ -36,6 +36,10 @@ const Map<String, List<String>> _expected = <String, List<String>>{
   'dartvel_shelf': _everywhere,
   'dartvel_cli': <String>['linux', 'macos', 'windows'],
   'dartvel_generator': <String>['linux', 'macos', 'windows'],
+  // The first-party modules, in modules/.
+  'dartvel_meta_pixel': _everywhere,
+  'dartvel_google_analytics': _everywhere,
+  'dartvel_woocommerce': _everywhere,
 };
 
 void main(List<String> arguments) {
@@ -43,7 +47,11 @@ void main(List<String> arguments) {
   final List<String> problems = <String>[];
   final Set<String> seen = <String>{};
 
-  for (final Directory dir in packages.listSync().whereType<Directory>()) {
+  final Directory modules = Directory('${_repoRoot().path}/modules');
+  for (final Directory dir in <Directory>[
+    ...packages.listSync().whereType<Directory>(),
+    if (modules.existsSync()) ...modules.listSync().whereType<Directory>(),
+  ]) {
     final File pubspec = File('${dir.path}/pubspec.yaml');
     if (!pubspec.existsSync()) continue;
     final List<String> lines = pubspec.readAsLinesSync();

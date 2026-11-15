@@ -16,6 +16,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVPlatformApiConfig,
         DVWebhooksConfig,
         DVWebhooksConfigException,
+        dvAddContentSecurityPolicySources,
         dvMiddlewareKeysAlwaysOn,
         dvMiddlewareKeysAtRequest,
         dvMiddlewareKeysBuilt,
@@ -1057,7 +1058,13 @@ $openApiJson\'\'\';
               "'${esc(csp)}';";
     // dartvel.security.pageCsp: the policy sent with the server's own pages,
     // its 'inline-scripts' source filled in per page by serve().
-    final String? pageCsp = _dvSecurityString(root, 'pageCsp');
+    // With the origins each mounted module's own scripts need, so mounting
+    // one that loads an analytics tag is not also a policy to edit by hand.
+    // Only into a policy the application declared: none is invented.
+    final String? declaredPageCsp = _dvSecurityString(root, 'pageCsp');
+    final String? pageCsp = declaredPageCsp == null
+        ? null
+        : dvPageCspWithModules(declaredPageCsp, dvDiscoverModuleMounts(root));
     final String pageCspLiteral = pageCsp == null ? 'null' : "'${esc(pageCsp)}'";
 
     // Every mounted module's models, for Studio beside the application's:
@@ -5274,6 +5281,21 @@ void _dartvelConfigureWebhooks() {
 /// header while the annotation says it sends one.
 String? _dvContentSecurityPolicy(String root) {
   return _dvSecurityString(root, 'csp');
+}
+
+/// [policy] with the origins every mounted module in [mounts] declares under
+/// `dartvel.module.csp`.
+///
+/// A federated module's pages are served by its own deployment under its own
+/// policy, so it adds nothing here.
+String dvPageCspWithModules(String policy, List<DVModuleMount> mounts) {
+  String merged = policy;
+  for (final DVModuleMount mount in mounts) {
+    if (!mount.mounted || mount.csp.isEmpty) continue;
+    if (mount.deployment == DVModuleDeployment.federated) continue;
+    merged = dvAddContentSecurityPolicySources(merged, mount.csp);
+  }
+  return merged;
 }
 
 /// A string under `dartvel.security` in pubspec.yaml, trimmed, or null when it

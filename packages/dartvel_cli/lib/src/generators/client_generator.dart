@@ -3381,7 +3381,21 @@ void startDartvelKiosk() {
       // required to analyze clean.
       ..write(modules.isEmpty
           ? ''
-          : "import 'package:dartvel_core/dartvel.dart';\n")
+          : "import 'package:dartvel_core/dartvel.dart';\n");
+    // A module that declares a start function is told it has been
+    // registered, here, because this is the one file both the client runtime
+    // and the server run. Its main library is imported under a prefix and
+    // only for that function: a module names its types after its own domain.
+    final List<DVModuleMount> started = <DVModuleMount>[
+      for (final DVModuleMount m in modules)
+        if (m.mounted && m.start != null) m,
+    ];
+    for (int i = 0; i < started.length; i++) {
+      out.writeln("import 'package:${started[i].packageName}/"
+          "${started[i].packageName}.dart' as dvModuleStart$i "
+          'show ${started[i].start};');
+    }
+    out
       ..writeln()
       ..writeln('/// Registers every module this application mounts.')
       ..writeln('///')
@@ -3390,8 +3404,11 @@ void startDartvelKiosk() {
       ..writeln('/// mounted in both processes rather than an unknown id.')
       ..writeln('void registerDartvelModules() {');
     for (final DVModuleMount m in modules) {
+      final int startIndex = started.indexOf(m);
       out
-        ..writeln('  dvModuleRegistry.register(')
+        ..writeln(startIndex < 0
+            ? '  dvModuleRegistry.register('
+            : '  dvModuleStart$startIndex.${m.start}(dvModuleRegistry.register(')
         ..writeln("    id: '${m.id}',")
         ..writeln("    mountPath: '${m.mount}',")
         ..writeln('    config: const <String, Object?>{')
@@ -3430,6 +3447,10 @@ void startDartvelKiosk() {
       if (m.backend != null) out.writeln("      'backend': '${m.backend}',");
       if (m.name != null) out.writeln("      'name': '${m.name}',");
       if (m.version != null) out.writeln("      'version': '${m.version}',");
+      // What the application told the module where it mounted it.
+      if (m.config.isNotEmpty) {
+        out.writeln("      'config': ${_dartLiteral(m.config, 3)},");
+      }
       out.writeln('    },');
       if (m.assets.isNotEmpty) {
         // The module's own paths to the ones that find the files here, so
@@ -3441,7 +3462,7 @@ void startDartvelKiosk() {
         });
         out.writeln('    },');
       }
-      out.writeln('  );');
+      out.writeln(startIndex < 0 ? '  );' : '  ));');
     }
     out.writeln('}');
     return out.toString();

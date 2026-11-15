@@ -1,0 +1,7 @@
+# Local development only. pub reads this and never publishes it.
+#
+# The module declares a hosted constraint on dartvel_core so it can be
+# published. This puts the working tree back.
+dependency_overrides:
+  dartvel_core:
+    path: ../../packages/dartvel_core

@@ -1,3 +1,10 @@
+## Unreleased
+
+- `dvAddContentSecurityPolicySources` and `dvIsContentSecurityPolicyOrigin`: add a module's origins to a page policy.
+- `DVPageViews`: the page on screen, reported by the page shell, for modules that measure page views.
+- `DV.Modules.publish` and `subscribe`: topics between modules that do not import each other.
+- `DVModuleRpc.request`: the request a carried module operation arrived on.
+
 ## 3.47.1 — 2026-11-14
 
 - Version aligned with dartvel_core 3.47.1.

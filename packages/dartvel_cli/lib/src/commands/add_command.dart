@@ -30,6 +30,7 @@ import 'package:yaml/yaml.dart';
 
 import '../module_trust/module_lock.dart';
 import '../modules/described_api.dart';
+import '../modules/first_party.dart';
 import '../modules/foreign/apple_module.dart';
 import '../modules/foreign/apple_surface.dart';
 import '../modules/foreign/dart_package_module.dart';
@@ -75,7 +76,16 @@ class DVAddPlan {
     this.from,
     this.pin,
     this.outcomes = const <String>[],
+    this.firstParty,
+    this.constraint,
   });
+
+  /// The first-party module this plan installs, or null for any other
+  /// source. Mounted as the package pub fetches rather than from a path.
+  final DVFirstPartyModule? firstParty;
+
+  /// The version constraint written for a package that comes from pub.dev.
+  final String? constraint;
 
   /// The lock entry a foreign source is pinned by, written with the module.
   final DVModulePin? pin;
@@ -112,6 +122,26 @@ class DVAddPlan {
   /// passed: a command that changes five things about a project without
   /// showing them first is a command teams learn not to run.
   List<String> get lines {
+    final DVFirstPartyModule? official = firstParty;
+    if (official != null) {
+      return <String>[
+        'module   $id',
+        'from     $packageName $constraint  (a first-party Dartvel module: '
+            '${official.summary})',
+        'package  $packageName',
+        'writes   pubspec.yaml: dependencies.$packageName, '
+            'dartvel.modules.$id',
+        if (official.backendPolicy != null)
+          'policy   backendPolicy: ${official.backendPolicy}  (who may call '
+              'the operations it carries to the backend)',
+        if (official.settings.isNotEmpty)
+          'config   dartvel.modules.$id.config: '
+              '${official.settings.join(', ')}',
+        if (official.secrets.isNotEmpty)
+          'secrets  in the server\'s environment, never in pubspec.yaml: '
+              '${official.secrets.join(', ')}',
+      ];
+    }
     final DVGeneratedModule? module = generated;
     if (module == null) {
       return <String>[
@@ -196,7 +226,10 @@ class AddCommand extends Command<void> {
     }
     final String target = root ?? Directory.current.path;
     final String source = withScheme(target, rest.single);
-    final DVAddPlan plan = isForeign(source)
+    final DVAddPlan? official = planFirstParty(target, rest.single,
+        id: argResults?['as'] as String?);
+    final DVAddPlan plan = official ??
+        (isForeign(source)
         ? await planForeign(target, source,
             id: argResults?['as'] as String?,
             mount: argResults?['mount'] as String?,
@@ -210,7 +243,7 @@ class AddCommand extends Command<void> {
         : planFor(target, source,
             id: argResults?['as'] as String?,
             mount: argResults?['mount'] as String?,
-            url: argResults?['url'] as String?);
+            url: argResults?['url'] as String?));
 
     for (final String line in plan.lines) {
       Logger.log('  $line');
@@ -223,8 +256,41 @@ class AddCommand extends Command<void> {
     _depend(target, plan);
     _mount(target, plan);
     _pin(target, plan);
-    Logger.log('Mounted ${plan.id} at ${plan.mount}. '
-        'Run dartvel routes to regenerate the client.');
+    Logger.log(plan.firstParty != null
+        ? 'Added ${plan.id}. Run pub get, then dartvel routes to regenerate '
+            'the client.'
+        : 'Mounted ${plan.id} at ${plan.mount}. '
+            'Run dartvel routes to regenerate the client.');
+  }
+
+  /// The plan for a module Dartvel maintains, added by name, or null when
+  /// [name] is not one -- or is also a directory beside the project, which
+  /// is then the source: what is on disk was put there by whoever is asking.
+  ///
+  /// The constraint is this CLI's own version, because the first-party
+  /// modules are released with it.
+  static DVAddPlan? planFirstParty(String root, String name, {String? id}) {
+    final DVFirstPartyModule? module = dvFirstPartyModule(name);
+    if (module == null) return null;
+    if (FileSystemEntity.typeSync(p.join(root, name)) !=
+        FileSystemEntityType.notFound) {
+      return null;
+    }
+    final String moduleId = id ?? module.id;
+    if (_modulesOf(root).containsKey(moduleId)) {
+      throw DVAddRefused(
+        'DV-MODULE-011: dartvel.modules.$moduleId is already mounted. '
+        'Nothing was written: remove it first, or pass --as with another id.',
+      );
+    }
+    return DVAddPlan(
+      id: moduleId,
+      path: '',
+      mount: '/',
+      packageName: module.package,
+      firstParty: module,
+      constraint: '^$dartvelCliVersion',
+    );
   }
 
   /// The schemes a foreign source is resolved from here.
@@ -827,8 +893,10 @@ class AddCommand extends Command<void> {
     if (dependencies is Map && dependencies.containsKey(plan.packageName)) {
       return;
     }
-    final String entry = '  ${plan.packageName}:\n'
-        '    path: ${plan.path}\n';
+    final String entry = plan.constraint != null
+        ? '  ${plan.packageName}: ${plan.constraint}\n'
+        : '  ${plan.packageName}:\n'
+            '    path: ${plan.path}\n';
 
     final RegExp key = RegExp(r'^dependencies:\s*$', multiLine: true);
     final RegExpMatch? existing = key.firstMatch(text);
@@ -854,10 +922,16 @@ class AddCommand extends Command<void> {
   static void _mount(String root, DVAddPlan plan) {
     final File file = File(p.join(root, 'pubspec.yaml'));
     final String text = file.readAsStringSync();
-    final String entry = '    ${plan.id}:\n'
-        '      source:\n'
-        '        path: ${plan.path}\n'
-        '      mount: ${plan.mount}\n';
+    final DVFirstPartyModule? official = plan.firstParty;
+    final String entry = official != null
+        // No mount point: a first-party module has no pages of its own.
+        ? '    ${plan.id}:\n'
+            '      package: ${plan.packageName}\n'
+            '${official.backendPolicy == null ? '' : '      backendPolicy: ${official.backendPolicy}\n'}'
+        : '    ${plan.id}:\n'
+            '      source:\n'
+            '        path: ${plan.path}\n'
+            '      mount: ${plan.mount}\n';
 
     final RegExp modulesKey = RegExp(r'^  modules:\s*$', multiLine: true);
     final RegExpMatch? existing = modulesKey.firstMatch(text);

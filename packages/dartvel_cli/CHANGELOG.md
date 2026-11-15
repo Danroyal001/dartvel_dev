@@ -1,5 +1,7 @@
 ## Unreleased
 
+- `dartvel add meta-pixel`, `dartvel add google-analytics` and `dartvel add woocommerce` add a first-party module by name: the pub dependency at this CLI's release and a `package:` mount with the policy its carried operations need. The plan lists the module's settings and the secrets the server's environment supplies.
+- A module's `dartvel.module.csp` origins are added to `dartvel.security.pageCsp`; `dartvel.module.start` is called from the generated `registerDartvelModules`; `dartvel.modules.<id>.config` is compiled into the module's registration; carried operations are served for `package:` mounts and run with `DVModuleRpc.request` set.
 - `dartvel upgrade --project` moves a project whose constraints already admit the release but whose `pubspec.lock` is behind it (`^3.47.0` locked at 3.47.0, with 3.47.1 out). It said "Nothing was changed" and left the lock where it was; it now runs `pub upgrade` on the Dartvel packages.
 
 ## 3.47.1 — 2026-11-14
