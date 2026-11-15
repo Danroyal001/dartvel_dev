@@ -187,10 +187,14 @@ jobs:
         working-directory: rust
         run: cargo clippy --release --locked -p dartvel_syntax --all-targets -- -D warnings
 
+      - name: cargo clippy (the compiler)
+        working-directory: rust
+        run: cargo clippy --release --locked -p dartvel_aot --all-targets -- -D warnings
+
       - name: no unsafe code
         run: |
           set -euo pipefail
-          for root in rust/fe_analyzer_shared/src/lib.rs rust/analyzer/src/lib.rs rust/dartvel_syntax/src/lib.rs rust/dartvel_syntax/src/main.rs; do
+          for root in rust/fe_analyzer_shared/src/lib.rs rust/analyzer/src/lib.rs rust/dartvel_syntax/src/lib.rs rust/dartvel_syntax/src/main.rs rust/dartvel_aot/src/lib.rs rust/dartvel_aot/src/main.rs; do
             grep -q '^#!\[forbid(unsafe_code)\]' "$root" || {
               echo "::error::$root no longer forbids unsafe code"
               exit 1

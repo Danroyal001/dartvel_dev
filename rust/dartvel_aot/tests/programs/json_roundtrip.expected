@@ -1,0 +1,9 @@
+{"id":1042,"customer":"Ada \"the countess\" Lovelace","paid":true,"coupon":null,"lines":[{"sku":"tea-01","qty":2,"price":350},{"sku":"mug-07","qty":1,"price":1200}],"tags":["gift","express","tab\there","line\nbreak"]}
+Ada "the countess" Lovelace
+total: 1900
+lines: 2, tags: [gift, express, tab	here, line
+break]
+paid is bool: true, coupon: null
+round trip identical
+{a: [1, -2, [], {}], b: A/\}
+{"a":[1,-2,[],{}],"b":"A/\\"}

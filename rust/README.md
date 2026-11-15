@@ -9,9 +9,12 @@ before anything is generated.
 | `fe_analyzer_shared/` | Port of `pkg/_fe_analyzer_shared`: the scanner and the parser | about 36,000 |
 | `analyzer/` | Port of `pkg/analyzer`, only what `parseString` runs: the AST, the `AstBuilder`, the diagnostics | about 65,000 (47,000 generated) |
 | `dartvel_syntax/` | Ours: the helper program the CLI runs, and its tests | about 300 |
+| `dartvel_aot/` | Ours: a whole-program Dart compiler on top of the ported parser, with tree shaking (closed-world reachability, rapid type analysis) and a C back end; see `dartvel_aot/README.md` | about 3,000 |
 
-No crate depends on anything outside this folder, and all three forbid
-`unsafe` code.
+No crate depends on anything outside this folder, and all four forbid
+`unsafe` code. `dartvel_aot` is not in the CLI yet: it is the first
+increment of compiling Dart without the VM runtime, and it needs a C
+compiler (`$CC` or `cc`) at build time.
 
 ## Where the ports come from
 
