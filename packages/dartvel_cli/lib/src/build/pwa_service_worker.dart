@@ -869,10 +869,29 @@ const String dvServiceWorkerAssetsFile = 'dartvel_sw_assets.json';
 /// versioned the same way, or it and the loader's request would be two
 /// downloads of the largest file on the page. Deferred parts are not: the
 /// compiled app asks for them by their plain name.
-String dvVersionIndexHtml(String html, String build) => html.replaceAllMapped(
-      RegExp(r'''((?:src|href)=["'](?:\./)?)(flutter_bootstrap\.js|main\.dart\.(?:js|mjs|wasm))(?:\?v=[^"']*)?(["'])'''),
-      (Match m) => '${m[1]}${m[2]}?v=${Uri.encodeQueryComponent(build)}${m[3]}',
-    );
+///
+/// That includes a preload a page script adds -- the splash's
+/// `hint("preload","main.dart.wasm","fetch")`, which picks the wasm or the
+/// dart2js app by the loader's own test. It named the files plainly while
+/// the loader asked for `?v=<build>`, so every visitor on Blink downloaded
+/// the 1 MB app twice (sigmadev.digital, Meta ad visitors on Android). Only
+/// the string literals of inline scripts are rewritten: text on the page
+/// that mentions `main.dart.js` is content, not a request.
+String dvVersionIndexHtml(String html, String build) {
+  final String version = Uri.encodeQueryComponent(build);
+  final String attributes = html.replaceAllMapped(
+    RegExp(r'''((?:src|href)=["'](?:\./)?)(flutter_bootstrap\.js|main\.dart\.(?:js|mjs|wasm))(?:\?v=[^"']*)?(["'])'''),
+    (Match m) => '${m[1]}${m[2]}?v=$version${m[3]}',
+  );
+  return attributes.replaceAllMapped(
+    RegExp(r'''(<script(?:\s+type=["'](?:text/javascript|module)["'])?\s*>)([\s\S]*?)(</script>)''',
+        caseSensitive: false),
+    (Match script) => '${script[1]}${script[2]!.replaceAllMapped(
+      RegExp(r'''(["'])((?:\./)?(?:flutter_bootstrap\.js|main\.dart\.(?:js|mjs|wasm)))(?:\?v=[^"']*)?\1'''),
+      (Match m) => '${m[1]}${m[2]}?v=$version${m[1]}',
+    )}${script[3]}',
+  );
+}
 
 /// [bootstrap] (`flutter_bootstrap.js`) asking for the app's code at
 /// `?v=<build>`: `mainJsPath` for dart2js, `mainWasmPath` and
