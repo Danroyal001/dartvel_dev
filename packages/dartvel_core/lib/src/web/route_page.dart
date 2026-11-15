@@ -11,6 +11,7 @@ library;
 
 import 'dart:convert';
 
+import 'error_routes.dart' show dvNotFoundRoute;
 import 'minify.dart';
 import 'page_data.dart' show dvApplyFavicon;
 import 'page_text.dart';
@@ -279,4 +280,55 @@ String dvRenderRoutePage(
     body = dvApplyPageText(head, page.text, path: page.route);
   }
   return dvMinifyHtml(body);
+}
+
+/// The application's not-found page, as the build captured it at
+/// [dvNotFoundRoute], for a request of [path] that nothing serves.
+///
+/// A missing path was answered with the bare shell: a 404, the splash and
+/// an empty body until Flutter drew the page, and nothing at all for a
+/// reader without JavaScript or a crawler. Every other route is a real
+/// document from the first frame, so this one is too, rendered by
+/// [dvRenderRoutePage] like the rest -- the same page `dartvel build web`
+/// writes as `404.html` for a static host.
+///
+/// The page is the one captured at `/404`, which names the path it was
+/// asked for; the router draws it naming the path the reader typed. Where
+/// the captured document's text says `/404`, the server says [shown], so
+/// the first frame and the page Flutter draws over it read the same. Only
+/// text is touched, never markup, and [shown] is escaped like any text.
+/// [path] is where the page is rendered (its canonical address), and
+/// [siteUrl] the origin of the host asked.
+DVRoutePage dvNotFoundRoutePage(
+  DVRoutePage notFound, {
+  required String path,
+  String? shown,
+  String? siteUrl,
+}) {
+  final String asked = shown ?? path;
+  final RegExp named = RegExp('(?<![\\w/.-])${RegExp.escape(dvNotFoundRoute)}(?![\\w/-])');
+  String inText(String text, String replacement) =>
+      text.replaceAll(named, replacement);
+  final String? captured = notFound.html;
+  final String escaped = const HtmlEscape().convert(asked);
+  final DVRoutePage at = notFound.at(path, siteUrl: siteUrl);
+  return DVRoutePage(
+    route: at.route,
+    title: at.title,
+    description: at.description,
+    siteUrl: at.siteUrl,
+    image: at.image,
+    siteName: at.siteName,
+    alternates: at.alternates,
+    defaultAlternate: at.defaultAlternate,
+    favicon: at.favicon,
+    schemaType: at.schemaType,
+    robots: at.robots,
+    content: at.content,
+    html: captured?.replaceAllMapped(
+      RegExp(r'>([^<]+)<'),
+      (Match text) => '>${inText(text[1]!, escaped)}<',
+    ),
+    text: <String>[for (final String line in at.text) inText(line, asked)],
+  );
 }
