@@ -9,6 +9,28 @@ import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// Scrolls every vertical scroller on screen to its end and back, the way a
+/// reader goes down the page. A DVBox list longer than 24 builds each row
+/// once it comes near the screen and keeps it (DVNearScreen), so a row past
+/// the first screens exists only after the page has been scrolled to it.
+Future<void> scrollThrough(WidgetTester tester) async {
+  final List<ScrollableState> scrollers = tester
+      .stateList<ScrollableState>(find.byType(Scrollable))
+      .where((ScrollableState s) => s.position.axis == Axis.vertical)
+      .toList();
+  for (final ScrollableState scroller in scrollers) {
+    final ScrollPosition position = scroller.position;
+    while (position.pixels < position.maxScrollExtent) {
+      position.jumpTo((position.pixels + position.viewportDimension)
+          .clamp(0, position.maxScrollExtent)
+          .toDouble());
+      await tester.pump();
+    }
+    position.jumpTo(0);
+    await tester.pump();
+  }
+}
+
 Future<GoRouter> pumpIndex(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -35,6 +57,7 @@ Future<GoRouter> pumpIndex(WidgetTester tester, Size size) async {
   DVNavigation.attach(router);
   await tester.pumpWidget(MaterialApp.router(routerConfig: router));
   await tester.pumpAndSettle();
+  await scrollThrough(tester);
   return router;
 }
 

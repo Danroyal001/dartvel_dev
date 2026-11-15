@@ -89,6 +89,28 @@ Future<void> settle(WidgetTester tester) async {
   }
 }
 
+/// Scrolls every vertical scroller on screen to its end and back, the way a
+/// reader goes down the page. A DVBox list longer than 24 builds each row
+/// once it comes near the screen and keeps it (DVNearScreen), so a row past
+/// the first screens exists only after the page has been scrolled to it.
+Future<void> scrollThrough(WidgetTester tester) async {
+  final List<ScrollableState> scrollers = tester
+      .stateList<ScrollableState>(find.byType(Scrollable))
+      .where((ScrollableState s) => s.position.axis == Axis.vertical)
+      .toList();
+  for (final ScrollableState scroller in scrollers) {
+    final ScrollPosition position = scroller.position;
+    while (position.pixels < position.maxScrollExtent) {
+      position.jumpTo((position.pixels + position.viewportDimension)
+          .clamp(0, position.maxScrollExtent)
+          .toDouble());
+      await tester.pump();
+    }
+    position.jumpTo(0);
+    await tester.pump();
+  }
+}
+
 Future<GoRouter> pumpDocs(WidgetTester tester, String path, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -140,6 +162,7 @@ void main() {
     for (final String path in docsWidgets.keys) {
       testWidgets('$path renders every section on a $name', (WidgetTester tester) async {
         await pumpDocs(tester, path, size);
+        await scrollThrough(tester);
         expect(tester.takeException(), isNull);
         final List<DocsSection> sections = tester
             .widgetList<DocsSection>(find.byType(DocsSection, skipOffstage: false))
@@ -201,6 +224,7 @@ void main() {
   testWidgets('next and previous walk the pages in order', (WidgetTester tester) async {
     final GoRouter router = await pumpDocs(tester, '/docs', const Size(1440, 900));
     for (int i = 1; i < kDocsPages.length; i++) {
+      await scrollThrough(tester);
       final Finder next = find.descendant(
         of: find.byType(DocsPager),
         matching: find.text(kDocsPages[i].title),
