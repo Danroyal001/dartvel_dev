@@ -227,8 +227,9 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
         DocsText(
           'Prefer classes? Every sample written as a function has a '
           'Class tab beside it. A page is a class extending '
-          'DVClassWidget with @DVPage on it, and a widget is an ordinary '
-          'StatelessWidget. Both shapes build and route the same way.',
+          'DVClassWidget with @DVPage on it, and a reusable widget is a '
+          'DVClassWidget without it. Both shapes build and route the same '
+          'way; Class widgets has the details.',
         ),
         DocsText(
           'A long page can have a round "To the bottom / Back to top" '
