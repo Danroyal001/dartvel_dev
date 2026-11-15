@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.2 — 2026-11-15
 
 - `dvAddContentSecurityPolicySources` and `dvIsContentSecurityPolicyOrigin`: add a module's origins to a page policy.
 - `DVPageViews`: the page on screen, reported by the page shell, for modules that measure page views.
