@@ -111,6 +111,30 @@ $source
 }
 
 void main() {
+  test('the application can be started as an embedded entry, for a '
+      'brownfield host, with the same root and boot steps and no launch', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    await _routerFor(root);
+    final output = File(p.join(root.path, 'lib/dartvel_client/application.g.dart'))
+        .readAsStringSync();
+    final RegExpMatch? embedded = RegExp(
+      r'Future<void> dartvelRunEmbedded\(String project\) => dvRunApplication\((.*?)\);',
+    ).firstMatch(output);
+    expect(embedded, isNotNull, reason: output);
+    final String call = embedded!.group(1)!;
+    expect(call, contains('root: () => createDartvelApp()'));
+    expect(call, contains('boot: _dvBootSteps'));
+    expect(call, contains('entry: core.DVEntry.embedded(project)'));
+    expect(call, isNot(contains('launch:')));
+    // The framework's door for the brownfield entry, not a call an
+    // application makes: the barrel every page imports does not show it.
+    final barrel = File(p.join(root.path, 'lib/dartvel_client/dartvel_client.dart'))
+        .readAsStringSync();
+    expect(barrel, contains("export 'application.g.dart' hide dartvelRunEmbedded;"));
+  });
+
   test('pure application generates its root without an app argument', () async {
     final root = await _project();
     addTearDown(() => root.deleteSync(recursive: true));
