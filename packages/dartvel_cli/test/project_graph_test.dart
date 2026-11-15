@@ -211,6 +211,46 @@ dartvel:
       final DartvelProjectGraph graph = await graphFor(<String, String>{});
       expect(graph.routes, isEmpty);
     });
+
+    // Studio's routes tab and the admin dashboard read this graph, and the
+    // graph found pages with its own scan: every file under lib/, routed as
+    // if it were under lib/pages, function pages only. The router is made by
+    // the client generator from dartvel.pagesDir, class pages included, so
+    // the two disagreed about which pages the application has.
+    test('pages are the ones the generated router serves, from dartvel.pagesDir', () async {
+      final DartvelProjectGraph graph = await graphFor(<String, String>{
+        'pubspec.yaml': 'name: graph_app\ndartvel:\n  pagesDir: lib/screens\n',
+        'lib/screens/index.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVPage(title: 'Home')
+Widget _homePage(BuildContext context) => const DVText('hi');
+''',
+        'lib/screens/(marketing)/pricing.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVPage(title: 'Pricing')
+class PricingPage extends DVClassWidget {
+  const PricingPage({super.key});
+}
+''',
+        // Not a page of this application: outside dartvel.pagesDir, so the
+        // router has no route for it.
+        'lib/widgets/card_preview.dart': '''
+import 'package:flutter/widgets.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
+
+@DVPage(title: 'Preview')
+Widget _cardPreview(BuildContext context) => const DVText('card');
+''',
+      });
+
+      expect(graph.routes.map((DVGraphRoute r) => r.path), <String>['/', '/pricing']);
+      expect(graph.routes.map((DVGraphRoute r) => r.page), <String>['homePage', 'PricingPage']);
+      expect(graph.routes.last.source, 'lib/screens/(marketing)/pricing.dart:4');
+    });
   });
 
   group('backend functions', () {

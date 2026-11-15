@@ -8,6 +8,7 @@ import 'package:yaml/yaml.dart';
 
 import '../generators/account_generator.dart';
 import '../generators/annotation_args.dart';
+import '../adoption/adoption_build_checks.dart' show dvGeneratedPageRoutes;
 import '../generators/route_utils.dart';
 import '../generators/primary_constructors.dart';
 import 'module_mounts.dart';
@@ -73,10 +74,10 @@ class DartvelProjectGraph {
       jobs.addAll(_jobsIn(dvDesugarPrimaryConstructors(source), rel));
       if (rel.contains('/backend/functions/')) {
         functions.addAll(_functionsIn(source, rel));
-      } else {
-        routes.addAll(_routesIn(source, rel));
       }
     }
+
+    routes.addAll(_pageRoutesIn(root));
 
     routes.addAll(_accountRoutesIn(root));
     routes.addAll(_moduleRoutesIn(root));
@@ -209,30 +210,40 @@ class DartvelProjectGraph {
     dotAll: true,
   );
 
-  static List<DVGraphRoute> _routesIn(String source, String rel) {
-    // Matched against a copy whose annotation arguments are blanked to
-    // spaces, because this pattern steps over `@DVPage(...)` to reach the
-    // function under it and `[^)]*` stops inside a nested call -- so a page
-    // declaring `sitemap: DVPageSitemap(...)` was not in the graph at all,
-    // and the admin dashboard and the studio both simply did not show it.
-    final Match? match =
-        _pagePattern.firstMatch(dvMaskAnnotationArgs(source, 'DVPage'));
-    if (match == null) return const <DVGraphRoute>[];
-    // Routes are derived from the file's location, never written out as a
-    // string: a repeated route drifts the moment the page file moves.
-    String path;
-    try {
-      path = RouteUtils.routeFor(rel, 'lib/pages');
-    } on Object {
-      return const <DVGraphRoute>[];
+  /// A class page: `class X extends DartvelPage` or `DVClassWidget`, as the
+  /// client generator reads one.
+  static final RegExp _classPagePattern = RegExp(
+    r'class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(?:DartvelPage|DVClassWidget)\b',
+  );
+
+  /// The pages the generated router serves: the files the client generator
+  /// routes (under `dartvel.pagesDir`, through [dvGeneratedPageRoutes]), each
+  /// named by its function or class.
+  ///
+  /// This used to be a scan of its own over every file under lib/, routed as
+  /// if it sat under lib/pages and matching function pages only. Studio's
+  /// routes tab and the admin dashboard read the graph, so a project with its
+  /// pages elsewhere, or with a class page, was shown routes the router does
+  /// not have and missing ones it does.
+  static List<DVGraphRoute> _pageRoutesIn(String root) {
+    final Object? declared = _dartvelSection(root)?['pagesDir'];
+    final String pagesDir =
+        declared is String && declared.isNotEmpty ? declared : 'lib/pages';
+    final List<DVGraphRoute> routes = <DVGraphRoute>[];
+    for (final (String path, String source) in dvGeneratedPageRoutes(root, pagesDir)) {
+      final String rel = source.substring(0, source.lastIndexOf(':'));
+      // Matched against a copy whose annotation arguments are blanked to
+      // spaces, because this pattern steps over `@DVPage(...)` to reach the
+      // function under it and `[^)]*` stops inside a nested call.
+      final String text = dvDesugarPrimaryConstructors(
+          File(p.join(root, rel)).readAsStringSync());
+      final String masked = dvMaskAnnotationArgs(text, 'DVPage');
+      final String? name = _pagePattern.firstMatch(masked)?.group(1) ??
+          _classPagePattern.firstMatch(masked)?.group(1);
+      if (name == null) continue;
+      routes.add(DVGraphRoute(path: path, page: _publicName(name), source: source));
     }
-    return <DVGraphRoute>[
-      DVGraphRoute(
-        path: path,
-        page: _publicName(match.group(1)!),
-        source: '$rel:${_lineOf(source, match.start)}',
-      ),
-    ];
+    return routes;
   }
 
   /// The `dartvel:` section of the project's pubspec.yaml, or null when the
