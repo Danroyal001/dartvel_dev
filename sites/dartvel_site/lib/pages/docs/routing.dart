@@ -270,6 +270,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                   'used instead.',
               'For a page of your own anywhere else, put one at the route you '
                   'redirect to.',
+              'The web-server build answers an unknown path with this page '
+                  'and a 404 status, rendered on the server like every other '
+                  'page, so it is readable before the app loads.',
               'On a static host, `dartvel build web` also writes 404/index.html '
                   'for paths the app never loads.',
               'See Static web hosting for the Apache rules.',

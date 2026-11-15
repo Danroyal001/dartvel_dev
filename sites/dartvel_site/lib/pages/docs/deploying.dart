@@ -133,6 +133,7 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               '  old-example.net:',
               '    redirect: https://example.com/about',
               '    redirects: { /tools: https://example.com/tools }',
+              '  www.example.com: { redirect: https://example.com, keepPath: true }',
             ]),
             Bullets(<String>[
               'A link to a page another domain shows is written with that '
@@ -142,6 +143,9 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'A redirecting domain serves no pages: every path is sent on with a '
                   'permanent (301) redirect, keeping the query string.',
               'redirects sends exact paths somewhere of their own.',
+              'keepPath: true keeps the path asked for: with www.example.com: '
+                  '{ redirect: https://example.com, keepPath: true }, '
+                  'www.example.com/docs?x=1 goes to https://example.com/docs?x=1.',
               'Hosts on one registrable domain share one sign-in: signed in '
                   'on example.com is signed in on docs.example.com. See Auth, '
                   'Stay signed in across your hosts.',

@@ -510,7 +510,8 @@ dartvel:
 | `seo` | empty | `siteName`, `defaultTitle`, `defaultDescription`, `defaultImage`, `twitterHandle`. |
 | `transitions` | `fade`, `220`, `easeInOut` | Default page transition: `default`, `durationMs`, `curve`. |
 | `routingNormalizeTrailingSlash` | `true` | Treat `/about/` as `/about`. |
-| `notFoundRedirect` | empty | Where an unknown route redirects. |
+| `notFoundRedirect` | empty | Where an unknown route redirects. Without it an unknown path renders the not-found page at `/404`; a `web-server` build answers it on the server, with a 404 and the page as a real document. |
+| `hosts` | empty | Domains one `web-server` binary answers: `mount`, `siteUrl`, or a redirecting host (`redirect`, `redirects`, `keepPath: true` to keep the path asked for). See `docs/web-server-binary.md`. |
 | `startRoutes` | empty | The page an installed target opens on, e.g. `{linux: /editor}`. The web opens at its address. |
 | `plugins` | `[]` | Enabled Dartvel plugins. |
 | `ota` | `false` | Over-the-air updates. |
