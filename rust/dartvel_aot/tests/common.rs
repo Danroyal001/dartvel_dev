@@ -49,5 +49,10 @@ pub fn run(exe: &Path) -> (Vec<u8>, i32) {
 /// The stock Dart SDK, when one is on PATH (or in $DART).
 pub fn dart() -> Option<String> {
     let dart = std::env::var("DART").unwrap_or_else(|_| "dart".into());
-    Command::new(&dart).arg("--version").output().ok().filter(|o| o.status.success()).map(|_| dart)
+    Command::new(&dart)
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|_| dart)
 }

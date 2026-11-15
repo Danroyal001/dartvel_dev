@@ -59,17 +59,26 @@ impl Compiled {
 
 fn syntax_error(file: &str, errors: Vec<syntax::SyntaxError>) -> CompileError {
     let first = &errors[0];
-    CompileError { file: file.to_string(), offset: first.offset, message: format!("syntax error: {}", first.message) }
+    CompileError {
+        file: file.to_string(),
+        offset: first.offset,
+        message: format!("syntax error: {}", first.message),
+    }
 }
 
 /// Compiles the Dart program [source] (read from [path]) to C.
 pub fn compile(source: &str, path: &str, mode: Mode) -> Result<Compiled, CompileError> {
-    let prelude = syntax::parse(PRELUDE, "prelude.dart").map_err(|e| syntax_error("prelude.dart", e))?;
+    let prelude =
+        syntax::parse(PRELUDE, "prelude.dart").map_err(|e| syntax_error("prelude.dart", e))?;
     let user = syntax::parse(source, path).map_err(|e| syntax_error(path, e))?;
     let program = lower::lower(&prelude, &user, path)?;
     let reach = shake::analyse(&program, mode);
     let c_source = emit::emit(&program, &reach)?;
-    Ok(Compiled { c_source, program, reach })
+    Ok(Compiled {
+        c_source,
+        program,
+        reach,
+    })
 }
 
 /// The flags the C compiler gets: size first, no unwind tables (nothing
@@ -96,7 +105,8 @@ pub const C_FLAGS: &[&str] = &[
 /// `cc`) on it.
 pub fn build_executable(c_source: &str, output: &Path) -> Result<(), String> {
     let c_path = output.with_extension("c");
-    std::fs::write(&c_path, c_source).map_err(|e| format!("cannot write {}: {e}", c_path.display()))?;
+    std::fs::write(&c_path, c_source)
+        .map_err(|e| format!("cannot write {}: {e}", c_path.display()))?;
     let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
     let result = Command::new(&cc)
         .args(C_FLAGS)
@@ -106,7 +116,10 @@ pub fn build_executable(c_source: &str, output: &Path) -> Result<(), String> {
         .output()
         .map_err(|e| format!("cannot run the C compiler `{cc}`: {e}"))?;
     if !result.status.success() {
-        return Err(format!("the C compiler failed:\n{}", String::from_utf8_lossy(&result.stderr)));
+        return Err(format!(
+            "the C compiler failed:\n{}",
+            String::from_utf8_lossy(&result.stderr)
+        ));
     }
     Ok(())
 }

@@ -24,7 +24,10 @@ fn hello_world_is_at_most_24_kib() {
     let dir = scratch("size-hello");
     let (exe, _) = build("hello", Mode::Types, &dir);
     let bytes = size(&exe);
-    assert!(bytes <= HELLO_LIMIT, "hello world is {bytes} bytes, over {HELLO_LIMIT}");
+    assert!(
+        bytes <= HELLO_LIMIT,
+        "hello world is {bytes} bytes, over {HELLO_LIMIT}"
+    );
     assert_eq!(run(&exe).0, b"Hello, World!\n");
     std::fs::remove_dir_all(dir).ok();
 }
@@ -58,12 +61,21 @@ fn shaking_by_types_is_never_larger_and_smaller_overall() {
         let (calls, _) = build(&name, Mode::Calls, &dir);
         let (types, _) = build(&name, Mode::Types, &dir);
         let (none, calls, types) = (size(&none), size(&calls), size(&types));
-        assert!(types <= none, "{name}: types {types} is larger than none {none}");
-        assert!(types <= calls, "{name}: types {types} is larger than calls {calls}");
+        assert!(
+            types <= none,
+            "{name}: types {types} is larger than none {none}"
+        );
+        assert!(
+            types <= calls,
+            "{name}: types {types} is larger than calls {calls}"
+        );
         total_none += none;
         total_types += types;
     }
-    assert!(total_types < total_none, "shaking saved nothing: {total_types} against {total_none}");
+    assert!(
+        total_types < total_none,
+        "shaking saved nothing: {total_types} against {total_none}"
+    );
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -72,14 +84,33 @@ fn hello_world_keeps_no_json_no_maps_and_no_class_names() {
     let dir = scratch("size-report");
     let (_, compiled) = build("hello", Mode::Types, &dir);
     let report = compiled.report();
-    for function in ["jsonEncode", "jsonDecode", "_JsonParser.parseValue", "int.parse", "Map.toString", "List.join"] {
-        assert!(!kept(&report, "function", function), "hello world keeps {function}:\n{report}");
+    for function in [
+        "jsonEncode",
+        "jsonDecode",
+        "_JsonParser.parseValue",
+        "int.parse",
+        "Map.toString",
+        "List.join",
+    ] {
+        assert!(
+            !kept(&report, "function", function),
+            "hello world keeps {function}:\n{report}"
+        );
     }
     for class in ["Map", "List", "_JsonParser", "StringBuffer"] {
-        assert!(!kept(&report, "class", class), "hello world keeps class {class}:\n{report}");
+        assert!(
+            !kept(&report, "class", class),
+            "hello world keeps class {class}:\n{report}"
+        );
     }
-    assert!(report.contains("class-names dropped"), "hello world keeps class names:\n{report}");
-    assert!(!compiled.c_source.contains("dv_names"), "the C still has a class-name table");
+    assert!(
+        report.contains("class-names dropped"),
+        "hello world keeps class names:\n{report}"
+    );
+    assert!(
+        !compiled.c_source.contains("dv_names"),
+        "the C still has a class-name table"
+    );
     assert!(kept(&report, "function", "print"));
     std::fs::remove_dir_all(dir).ok();
 }
@@ -94,13 +125,25 @@ fn a_class_never_instantiated_keeps_none_of_its_members() {
     assert!(!kept(&report, "function", "Unused.name"), "{report}");
     // Instantiated subclasses keep their overrides, the inherited method
     // they all use, and the toString override interpolation reaches.
-    for function in ["Rect.area", "Square.name", "Triangle.area", "Shape.describe", "Triangle.toString"] {
-        assert!(kept(&report, "function", function), "{function} was dropped:\n{report}");
+    for function in [
+        "Rect.area",
+        "Square.name",
+        "Triangle.area",
+        "Shape.describe",
+        "Triangle.toString",
+    ] {
+        assert!(
+            kept(&report, "function", function),
+            "{function} was dropped:\n{report}"
+        );
     }
     // `print(Point(1, 2))` reaches the default toString, so names stay,
     // but only for classes that exist at run time.
     assert!(report.contains("class-names kept"), "{report}");
-    assert!(!compiled.c_source.contains("\"Unused\""), "a name for a class never instantiated was emitted");
+    assert!(
+        !compiled.c_source.contains("\"Unused\""),
+        "a name for a class never instantiated was emitted"
+    );
     // Calls-only shaking keeps Unused, since it assumes every class exists.
     let (_, calls) = build("shapes", Mode::Calls, &dir);
     assert!(kept(&calls.report(), "function", "Unused.area"));

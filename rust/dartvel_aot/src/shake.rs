@@ -76,7 +76,11 @@ fn expr_facts(e: &Expr, f: &mut Facts) {
     match e {
         Expr::Int(_) | Expr::Bool(_) | Expr::Null | Expr::Local(_) | Expr::This => {}
         Expr::Str(_) => f.makes_string = true,
-        Expr::SetLocal(_, v) | Expr::Unary(_, v) | Expr::Not(v) | Expr::Is(v, _, _) | Expr::As(v, _) => expr_facts(v, f),
+        Expr::SetLocal(_, v)
+        | Expr::Unary(_, v)
+        | Expr::Not(v)
+        | Expr::Is(v, _, _)
+        | Expr::As(v, _) => expr_facts(v, f),
         Expr::Global(g) => f.globals.push(*g),
         Expr::SetGlobal(g, v) => {
             f.globals.push(*g);
@@ -158,7 +162,11 @@ fn func_facts(prog: &Program, func: &Func) -> Facts {
     }
     match &func.body {
         Body::Stmts(stmts) => stmts.iter().for_each(|s| stmt_facts(s, &mut f)),
-        Body::Ctor { field_inits, super_call, body } => {
+        Body::Ctor {
+            field_inits,
+            super_call,
+            body,
+        } => {
             field_inits.iter().for_each(|(_, e)| expr_facts(e, &mut f));
             if let Some((target, args)) = super_call {
                 f.calls.push(*target);
@@ -167,7 +175,8 @@ fn func_facts(prog: &Program, func: &Func) -> Facts {
             body.iter().for_each(|s| stmt_facts(s, &mut f));
         }
         Body::Native(name) => {
-            let native = natives::find(name).unwrap_or_else(|| panic!("no C body for native {name}"));
+            let native =
+                natives::find(name).unwrap_or_else(|| panic!("no C body for native {name}"));
             for m in native.makes {
                 match m {
                     Makes::String => f.makes_string = true,
@@ -224,10 +233,10 @@ impl<'p> Analysis<'p> {
         while let Some(id) = self.queue.pop() {
             let func = &self.prog.funcs[id];
             let facts = func_facts(self.prog, func);
-            if let Body::Native(name) = &func.body {
-                if name == "_className" {
-                    self.reach.class_names = true;
-                }
+            if let Body::Native(name) = &func.body
+                && name == "_className"
+            {
+                self.reach.class_names = true;
             }
             for c in facts.calls {
                 self.add_func(c);
@@ -261,7 +270,11 @@ impl<'p> Analysis<'p> {
 }
 
 pub fn analyse(prog: &Program, mode: Mode) -> Reach {
-    let mut analysis = Analysis { prog, reach: Reach::default(), queue: vec![] };
+    let mut analysis = Analysis {
+        prog,
+        reach: Reach::default(),
+        queue: vec![],
+    };
     // Null, bool and int values come from every comparison, literal and
     // default, so they are always possible.
     for c in [prog.null, prog.bool_, prog.int] {

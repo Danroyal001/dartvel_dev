@@ -52,7 +52,11 @@ struct Emitter<'p> {
 }
 
 fn program_error(message: String) -> CompileError {
-    CompileError { file: "<program>".into(), offset: 0, message }
+    CompileError {
+        file: "<program>".into(),
+        offset: 0,
+        message,
+    }
 }
 
 pub fn emit(prog: &Program, reach: &Reach) -> Result<String, CompileError> {
@@ -62,13 +66,15 @@ pub fn emit(prog: &Program, reach: &Reach) -> Result<String, CompileError> {
         for &c in &reach.classes {
             if let Some(f) = prog.lookup(c, s) {
                 let n = prog.funcs[f].params.len();
-                if let Some((m, other)) = found {
-                    if m != n {
-                        return Err(program_error(format!(
-                            "unsupported: `{}` and `{}` implement `{}` with different parameter counts",
-                            prog.funcs[other].name, prog.funcs[f].name, &s[s.find(':').unwrap() + 1..]
-                        )));
-                    }
+                if let Some((m, other)) = found
+                    && m != n
+                {
+                    return Err(program_error(format!(
+                        "unsupported: `{}` and `{}` implement `{}` with different parameter counts",
+                        prog.funcs[other].name,
+                        prog.funcs[f].name,
+                        &s[s.find(':').unwrap() + 1..]
+                    )));
                 }
                 found = Some((n, f));
             }
@@ -77,14 +83,24 @@ pub fn emit(prog: &Program, reach: &Reach) -> Result<String, CompileError> {
             Some((n, _)) => n,
             None => reach.call_arity.get(s).copied().unwrap_or(0),
         };
-        if let Some(&called) = reach.call_arity.get(s) {
-            if called > n {
-                return Err(program_error(format!("too many arguments to `{}`", &s[s.find(':').unwrap() + 1..])));
-            }
+        if let Some(&called) = reach.call_arity.get(s)
+            && called > n
+        {
+            return Err(program_error(format!(
+                "too many arguments to `{}`",
+                &s[s.find(':').unwrap() + 1..]
+            )));
         }
         arity.insert(s.clone(), n);
     }
-    let mut e = Emitter { prog, reach, arity, literals: vec![], literal_index: BTreeMap::new(), temp: 0 };
+    let mut e = Emitter {
+        prog,
+        reach,
+        arity,
+        literals: vec![],
+        literal_index: BTreeMap::new(),
+        temp: 0,
+    };
     e.program()
 }
 
@@ -121,7 +137,14 @@ impl<'p> Emitter<'p> {
 
     fn signature(&self, name: &str, count: usize) -> String {
         let params: Vec<String> = (0..count).map(|i| format!("V l{i}")).collect();
-        format!("static V {name}({})", if params.is_empty() { "void".to_string() } else { params.join(", ") })
+        format!(
+            "static V {name}({})",
+            if params.is_empty() {
+                "void".to_string()
+            } else {
+                params.join(", ")
+            }
+        )
     }
 
     /// Calls [callee] with [args] evaluated left to right, as Dart does;
@@ -147,11 +170,19 @@ impl<'p> Emitter<'p> {
     }
 
     fn arg(&mut self, e: &Expr) -> (String, bool) {
-        let pure = matches!(e, Expr::Int(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null | Expr::Local(_) | Expr::This);
+        let pure = matches!(
+            e,
+            Expr::Int(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null | Expr::Local(_) | Expr::This
+        );
         (self.expr(e), pure)
     }
 
-    fn padded(&mut self, prefix: Vec<(String, bool)>, args: &[Expr], count: usize) -> Vec<(String, bool)> {
+    fn padded(
+        &mut self,
+        prefix: Vec<(String, bool)>,
+        args: &[Expr],
+        count: usize,
+    ) -> Vec<(String, bool)> {
         let mut out = prefix;
         for a in args {
             out.push(self.arg(a));
@@ -169,7 +200,11 @@ impl<'p> Emitter<'p> {
             TypeTest::Null => format!("{value}.c == CID_NULL"),
             TypeTest::Class { class, nullable } => {
                 if *class == self.prog.object {
-                    return if *nullable { "1".into() } else { format!("{value}.c != CID_NULL") };
+                    return if *nullable {
+                        "1".into()
+                    } else {
+                        format!("{value}.c != CID_NULL")
+                    };
                 }
                 let mut terms: Vec<String> = self
                     .reach
@@ -181,7 +216,11 @@ impl<'p> Emitter<'p> {
                 if *nullable {
                     terms.push(format!("{value}.c == CID_NULL"));
                 }
-                if terms.is_empty() { "0".into() } else { terms.join(" || ") }
+                if terms.is_empty() {
+                    "0".into()
+                } else {
+                    terms.join(" || ")
+                }
             }
         }
     }
@@ -207,7 +246,11 @@ impl<'p> Emitter<'p> {
             Expr::New(class, ctor, args) => {
                 let fields = self.prog.classes[*class].fields.len();
                 let count = self.func_arity(*ctor);
-                let list = self.padded(vec![(format!("dv_new({class}, {fields})"), false)], args, count);
+                let list = self.padded(
+                    vec![(format!("dv_new({class}, {fields})"), false)],
+                    args,
+                    count,
+                );
                 self.call(&format!("f{ctor}"), list)
             }
             Expr::Invoke(receiver, selector, args) => {
@@ -249,7 +292,11 @@ impl<'p> Emitter<'p> {
                     }
                 }
             }
-            Expr::Unary(op, v) => format!("{}({})", if op == "-" { "dv_neg" } else { "dv_bnot" }, self.expr(v)),
+            Expr::Unary(op, v) => format!(
+                "{}({})",
+                if op == "-" { "dv_neg" } else { "dv_bnot" },
+                self.expr(v)
+            ),
             Expr::Not(v) => format!("mkbool(!dv_truth({}))", self.expr(v)),
             Expr::And(a, b) => {
                 let (a, b) = (self.expr(a), self.expr(b));
@@ -267,7 +314,10 @@ impl<'p> Emitter<'p> {
                 let t = self.t();
                 let value = self.expr(v);
                 let cond = self.type_cond(&t, test);
-                format!("({{ V {t} = {value}; mkbool({}({cond})); }})", if *negate { "!" } else { "" })
+                format!(
+                    "({{ V {t} = {value}; mkbool({}({cond})); }})",
+                    if *negate { "!" } else { "" }
+                )
             }
             Expr::As(v, test) => {
                 let t = self.t();
@@ -312,7 +362,12 @@ impl<'p> Emitter<'p> {
                     let _ = write!(out, "V {t} = {v}; ");
                     names.push(t);
                 }
-                let _ = write!(out, "dv_concatn({}, (V[]){{{}}}); }})", names.len(), names.join(", "));
+                let _ = write!(
+                    out,
+                    "dv_concatn({}, (V[]){{{}}}); }})",
+                    names.len(),
+                    names.join(", ")
+                );
                 out
             }
             Expr::Let(s, v, body) => {
@@ -359,7 +414,10 @@ impl<'p> Emitter<'p> {
                     Some(c) => format!("dv_truth({})", self.expr(c)),
                     None => String::new(),
                 };
-                let u: Vec<String> = updates.iter().map(|u| format!("(void){}", self.expr(u))).collect();
+                let u: Vec<String> = updates
+                    .iter()
+                    .map(|u| format!("(void){}", self.expr(u)))
+                    .collect();
                 let _ = writeln!(out, "  for (; {c}; {}) {{", u.join(", "));
                 self.stmts(body, out);
                 out.push_str("  }\n  }\n");
@@ -383,13 +441,23 @@ impl<'p> Emitter<'p> {
         let func = &self.prog.funcs[id];
         let count = self.func_arity(id);
         if let Body::Native(name) = &func.body {
-            let native = natives::find(name).unwrap_or_else(|| panic!("no C body for native {name}"));
+            let native =
+                natives::find(name).unwrap_or_else(|| panic!("no C body for native {name}"));
             let params: Vec<String> = (0..count).map(|i| format!("V a{i}")).collect();
-            let params = if params.is_empty() { "void".to_string() } else { params.join(", ") };
+            let params = if params.is_empty() {
+                "void".to_string()
+            } else {
+                params.join(", ")
+            };
             let _ = writeln!(out, "static V n{name}({params}) {{\n  {}\n}}", native.body);
             return;
         }
-        let _ = writeln!(out, "/* {} */\n{} {{", func.name, self.signature(&format!("f{id}"), count));
+        let _ = writeln!(
+            out,
+            "/* {} */\n{} {{",
+            func.name,
+            self.signature(&format!("f{id}"), count)
+        );
         for slot in count..func.locals.max(count) {
             let _ = writeln!(out, "  V l{slot} = NUL;");
         }
@@ -408,7 +476,11 @@ impl<'p> Emitter<'p> {
             Body::FieldSet(slot) => {
                 let _ = writeln!(out, "  F(l0)[{slot}] = l1;\n  return l1;");
             }
-            Body::Ctor { field_inits, super_call, body } => {
+            Body::Ctor {
+                field_inits,
+                super_call,
+                body,
+            } => {
                 for (slot, e) in field_inits {
                     let e = self.expr(e);
                     let _ = writeln!(out, "  F(l0)[{slot}] = {e};");
@@ -430,7 +502,12 @@ impl<'p> Emitter<'p> {
     fn program(&mut self) -> Result<String, CompileError> {
         let prog = self.prog;
         let reach = self.reach;
-        let funcs: Vec<FuncId> = reach.funcs.iter().copied().filter(|&f| !matches!(prog.funcs[f].body, Body::Abstract)).collect();
+        let funcs: Vec<FuncId> = reach
+            .funcs
+            .iter()
+            .copied()
+            .filter(|&f| !matches!(prog.funcs[f].body, Body::Abstract))
+            .collect();
 
         let mut functions = String::new();
         for &f in &funcs {
@@ -447,7 +524,11 @@ impl<'p> Emitter<'p> {
                     targets.entry(f).or_default().push(c);
                 }
             }
-            let _ = writeln!(dispatchers, "{} {{\n  switch (l0.c) {{", self.signature(&name, n + 1));
+            let _ = writeln!(
+                dispatchers,
+                "{} {{\n  switch (l0.c) {{",
+                self.signature(&name, n + 1)
+            );
             let args: Vec<String> = (0..=n).map(|i| format!("l{i}")).collect();
             for (f, classes) in targets {
                 for c in classes {
@@ -457,7 +538,11 @@ impl<'p> Emitter<'p> {
                 let _ = writeln!(dispatchers, " return {callee}({});", args.join(", "));
             }
             let display = &s[s.find(':').unwrap() + 1..];
-            let _ = writeln!(dispatchers, "  default: return dv_nsm({}, l0);\n  }}\n}}", c_string(display));
+            let _ = writeln!(
+                dispatchers,
+                "  default: return dv_nsm({}, l0);\n  }}\n}}",
+                c_string(display)
+            );
         }
 
         let mut out = String::new();
@@ -479,12 +564,16 @@ impl<'p> Emitter<'p> {
             let _ = writeln!(out, "static V g{g}(void);\nstatic V gset{g}(V value);");
         }
         if reach.selectors.contains("m:toString") {
-            let _ = writeln!(out, "static V dv_tostr(V v) {{ return v.c == CID_STRING ? v : {}(v); }}", mangle("m:toString"));
+            let _ = writeln!(
+                out,
+                "static V dv_tostr(V v) {{ return v.c == CID_STRING ? v : {}(v); }}",
+                mangle("m:toString")
+            );
         }
         if reach.class_names {
             let mut names = String::new();
             for &c in &reach.classes {
-                let _ = write!(names, "  [{c}] = {},\n", c_string(&prog.classes[c].name));
+                let _ = writeln!(names, "  [{c}] = {},", c_string(&prog.classes[c].name));
             }
             let _ = writeln!(out, "static const char *const dv_names[] = {{\n{names}}};");
         }
@@ -507,12 +596,28 @@ impl<'p> Emitter<'p> {
         out.push_str(&dispatchers);
         out.push_str(&functions);
         if reach.keep_all {
-            let mut names: Vec<String> = funcs.iter().map(|&f| format!("(void *){}", self.func_name(f))).collect();
-            names.extend(reach.selectors.iter().map(|s| format!("(void *){}", mangle(s))));
+            let mut names: Vec<String> = funcs
+                .iter()
+                .map(|&f| format!("(void *){}", self.func_name(f)))
+                .collect();
+            names.extend(
+                reach
+                    .selectors
+                    .iter()
+                    .map(|s| format!("(void *){}", mangle(s))),
+            );
             names.extend(reach.globals.iter().map(|g| format!("(void *)g{g}")));
-            let _ = writeln!(out, "__attribute__((used)) static void *const dv_keep[] = {{\n  {}\n}};", names.join(",\n  "));
+            let _ = writeln!(
+                out,
+                "__attribute__((used)) static void *const dv_keep[] = {{\n  {}\n}};",
+                names.join(",\n  ")
+            );
         }
-        let _ = writeln!(out, "int main(void) {{\n  f{}();\n  fflush(stdout);\n  return 0;\n}}", prog.main);
+        let _ = writeln!(
+            out,
+            "int main(void) {{\n  f{}();\n  fflush(stdout);\n  return 0;\n}}",
+            prog.main
+        );
         Ok(out)
     }
 }

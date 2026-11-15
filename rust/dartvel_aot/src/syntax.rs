@@ -26,7 +26,10 @@ pub enum Child {
 
 impl Node {
     pub fn child(&self, name: &str) -> Option<&Child> {
-        self.children.iter().find(|(n, _)| *n == name).map(|(_, c)| c)
+        self.children
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, c)| c)
     }
     pub fn node(&self, name: &str) -> Option<&Node> {
         match self.child(name) {
@@ -54,7 +57,12 @@ impl Node {
     }
     /// Pretty-prints the tree, for `dartvel_aot dump`.
     pub fn dump(&self, depth: usize, out: &mut String) {
-        out.push_str(&format!("{}{} @{}\n", "  ".repeat(depth), self.kind, self.offset));
+        out.push_str(&format!(
+            "{}{} @{}\n",
+            "  ".repeat(depth),
+            self.kind,
+            self.offset
+        ));
         for (name, child) in &self.children {
             let pad = "  ".repeat(depth + 1);
             match child {
@@ -90,7 +98,10 @@ pub fn parse(source: &str, path: &str) -> Result<Node, Vec<SyntaxError>> {
         return Err(result
             .errors
             .iter()
-            .map(|d| SyntaxError { offset: d.offset as i32, message: d.message.to_string() })
+            .map(|d| SyntaxError {
+                offset: d.offset,
+                message: d.message.to_string(),
+            })
             .collect());
     }
     let ast = Ast::new(&result.ast, &result.tokens);
@@ -112,5 +123,9 @@ fn copy(ast: Ast<'_>, id: NodeId) -> Node {
         };
         children.push((entity.name, child));
     }
-    Node { kind, offset: ast.offset(id), children }
+    Node {
+        kind,
+        offset: ast.offset(id),
+        children,
+    }
 }

@@ -20,10 +20,18 @@ fn recorded_outputs_are_the_stock_sdks() {
     };
     for name in programs() {
         let path = programs_dir().join(format!("{name}.dart"));
-        let out = std::process::Command::new(&dart).arg("run").arg(&path).output().unwrap();
+        let out = std::process::Command::new(&dart)
+            .arg("run")
+            .arg(&path)
+            .output()
+            .unwrap();
         assert!(out.status.success(), "stock dart failed on {name}");
         let expected = std::fs::read(programs_dir().join(format!("{name}.expected"))).unwrap();
-        assert_eq!(String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&expected), "{name}.expected is stale");
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&expected),
+            "{name}.expected is stale"
+        );
     }
 }
 

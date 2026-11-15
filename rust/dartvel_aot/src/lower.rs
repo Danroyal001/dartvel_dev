@@ -48,9 +48,24 @@ struct Lib<'a> {
 
 /// A body still to lower, once every declaration is known.
 enum Job<'a> {
-    Function { func: FuncId, lib: usize, class: Option<ClassId>, params: Option<&'a Node>, body: &'a Node },
-    Ctor { func: FuncId, lib: usize, class: ClassId, node: Option<&'a Node> },
-    GlobalInit { func: FuncId, lib: usize, init: Option<&'a Node> },
+    Function {
+        func: FuncId,
+        lib: usize,
+        class: Option<ClassId>,
+        params: Option<&'a Node>,
+        body: &'a Node,
+    },
+    Ctor {
+        func: FuncId,
+        lib: usize,
+        class: ClassId,
+        node: Option<&'a Node>,
+    },
+    GlobalInit {
+        func: FuncId,
+        lib: usize,
+        init: Option<&'a Node>,
+    },
 }
 
 struct Lowering<'a> {
@@ -64,7 +79,11 @@ struct Lowering<'a> {
 }
 
 fn err<T>(file: &str, node: &Node, message: impl Into<String>) -> R<T> {
-    Err(CompileError { file: file.to_string(), offset: node.offset, message: message.into() })
+    Err(CompileError {
+        file: file.to_string(),
+        offset: node.offset,
+        message: message.into(),
+    })
 }
 
 pub fn lower(prelude: &Node, user: &Node, user_file: &str) -> R<Program> {
@@ -83,8 +102,18 @@ pub fn lower(prelude: &Node, user: &Node, user_file: &str) -> R<Program> {
     };
     let mut lowering = Lowering {
         libs: vec![
-            Lib { unit: prelude, prelude: true, file: "prelude.dart".into(), scope: HashMap::new() },
-            Lib { unit: user, prelude: false, file: user_file.into(), scope: HashMap::new() },
+            Lib {
+                unit: prelude,
+                prelude: true,
+                file: "prelude.dart".into(),
+                scope: HashMap::new(),
+            },
+            Lib {
+                unit: user,
+                prelude: false,
+                file: user_file.into(),
+                scope: HashMap::new(),
+            },
         ],
         prog: empty,
         jobs: vec![],
@@ -98,7 +127,13 @@ pub fn lower(prelude: &Node, user: &Node, user_file: &str) -> R<Program> {
     lowering.lower_bodies()?;
     let main = match lowering.libs[1].scope.get("main") {
         Some(Decl::Func(f)) => *f,
-        _ => return err(user_file, user, "the program has no top-level function `main`"),
+        _ => {
+            return err(
+                user_file,
+                user,
+                "the program has no top-level function `main`",
+            );
+        }
     };
     if !lowering.prog.funcs[main].params.is_empty() {
         return err(user_file, user, "unsupported: `main` with parameters");
@@ -115,7 +150,12 @@ fn new_func(name: String, from_prelude: bool, kind: FuncKind, class: Option<Clas
         class,
         has_this: matches!(
             kind,
-            FuncKind::Method | FuncKind::Getter | FuncKind::Setter | FuncKind::Operator | FuncKind::Ctor | FuncKind::Field
+            FuncKind::Method
+                | FuncKind::Getter
+                | FuncKind::Setter
+                | FuncKind::Operator
+                | FuncKind::Ctor
+                | FuncKind::Field
         ),
         params: vec![],
         locals: 0,
@@ -141,7 +181,11 @@ impl<'a> Lowering<'a> {
 
     fn declare(&mut self, lib: usize, node: &Node, name: &str, decl: Decl) -> R<()> {
         let file = self.libs[lib].file.clone();
-        if self.libs[lib].scope.insert(name.to_string(), decl).is_some() {
+        if self.libs[lib]
+            .scope
+            .insert(name.to_string(), decl)
+            .is_some()
+        {
             return err(&file, node, format!("`{name}` is declared twice"));
         }
         Ok(())
@@ -153,22 +197,47 @@ impl<'a> Lowering<'a> {
             let file = self.libs[lib].file.clone();
             let prelude = self.libs[lib].prelude;
             for directive in unit.list("directives") {
-                let uri = directive.node("uri").and_then(|u| u.token("literal")).unwrap_or("");
+                let uri = directive
+                    .node("uri")
+                    .and_then(|u| u.token("literal"))
+                    .unwrap_or("");
                 let uri = uri.trim_matches(|c| c == '\'' || c == '"');
-                if directive.kind != "ImportDirective" || !(uri == "dart:convert" || uri == "dart:core") {
-                    return err(&file, directive, format!("unsupported directive: only `import 'dart:convert';` and `import 'dart:core';` are understood, not {uri:?}"));
+                if directive.kind != "ImportDirective"
+                    || !(uri == "dart:convert" || uri == "dart:core")
+                {
+                    return err(
+                        &file,
+                        directive,
+                        format!(
+                            "unsupported directive: only `import 'dart:convert';` and `import 'dart:core';` are understood, not {uri:?}"
+                        ),
+                    );
                 }
-                if directive.token("prefixName").is_some() || !directive.list("combinators").is_empty() {
-                    return err(&file, directive, "unsupported: import prefixes and show/hide");
+                if directive.token("prefixName").is_some()
+                    || !directive.list("combinators").is_empty()
+                {
+                    return err(
+                        &file,
+                        directive,
+                        "unsupported: import prefixes and show/hide",
+                    );
                 }
             }
             for decl in unit.list("declarations2") {
                 match decl.kind.as_str() {
                     "ClassDeclaration2" => {
-                        let name = decl.node("namePart").and_then(|n| n.token("typeName")).unwrap_or("").to_string();
+                        let name = decl
+                            .node("namePart")
+                            .and_then(|n| n.token("typeName"))
+                            .unwrap_or("")
+                            .to_string();
                         for clause in ["withClause", "implementsClause"] {
                             if decl.node(clause).is_some() {
-                                return err(&file, decl, format!("unsupported: `{name}` uses with/implements"));
+                                return err(
+                                    &file,
+                                    decl,
+                                    format!("unsupported: `{name}` uses with/implements"),
+                                );
                             }
                         }
                         let id = self.prog.classes.len();
@@ -200,10 +269,18 @@ impl<'a> Lowering<'a> {
                     }
                     "TopLevelFunctionDeclaration" => {
                         let name = decl.token("name").unwrap_or("").to_string();
-                        if decl.token("propertyKeyword").is_some() || decl.token("getKeyword").is_some() || decl.token("setKeyword").is_some() {
+                        if decl.token("propertyKeyword").is_some()
+                            || decl.token("getKeyword").is_some()
+                            || decl.token("setKeyword").is_some()
+                        {
                             return err(&file, decl, "unsupported: top-level getters and setters");
                         }
-                        let id = self.add_func(new_func(name.clone(), prelude, FuncKind::TopLevel, None));
+                        let id = self.add_func(new_func(
+                            name.clone(),
+                            prelude,
+                            FuncKind::TopLevel,
+                            None,
+                        ));
                         self.declare(lib, decl, &name, Decl::Func(id))?;
                         if decl.token("externalKeyword").is_some() {
                             if !prelude {
@@ -213,22 +290,47 @@ impl<'a> Lowering<'a> {
                             self.set_params_only(id, lib, decl.node("formalParameters"))?;
                         } else {
                             let body = decl.node("body").expect("function body");
-                            self.jobs.push(Job::Function { func: id, lib, class: None, params: decl.node("formalParameters"), body });
+                            self.jobs.push(Job::Function {
+                                func: id,
+                                lib,
+                                class: None,
+                                params: decl.node("formalParameters"),
+                                body,
+                            });
                         }
                     }
                     "TopLevelVariablesDeclaration" => {
-                        let list = decl.node("variables").map(|v| v.list("variables")).unwrap_or(decl.list("variables"));
+                        let list = decl
+                            .node("variables")
+                            .map(|v| v.list("variables"))
+                            .unwrap_or(decl.list("variables"));
                         let keyword = decl.token("constFinalOrVarKeyword").unwrap_or("");
                         if decl.token("lateKeyword").is_some() || keyword == "const" {
-                            return err(&file, decl, "unsupported: late and const top-level variables");
+                            return err(
+                                &file,
+                                decl,
+                                "unsupported: late and const top-level variables",
+                            );
                         }
                         for variable in list {
                             let name = variable.token("name").unwrap_or("").to_string();
-                            let init = self.add_func(new_func(name.clone(), prelude, FuncKind::GlobalInit, None));
+                            let init = self.add_func(new_func(
+                                name.clone(),
+                                prelude,
+                                FuncKind::GlobalInit,
+                                None,
+                            ));
                             let id = self.prog.globals.len();
-                            self.prog.globals.push(Global { name: name.clone(), init });
+                            self.prog.globals.push(Global {
+                                name: name.clone(),
+                                init,
+                            });
                             self.declare(lib, variable, &name, Decl::Global(id))?;
-                            self.jobs.push(Job::GlobalInit { func: init, lib, init: variable.node("initializer") });
+                            self.jobs.push(Job::GlobalInit {
+                                func: init,
+                                lib,
+                                init: variable.node("initializer"),
+                            });
                         }
                     }
                     other => return err(&file, decl, format!("unsupported declaration: {other}")),
@@ -243,12 +345,23 @@ impl<'a> Lowering<'a> {
             let lib = self.class_lib[&class];
             let node = self.class_nodes[&class];
             let file = self.libs[lib].file.clone();
-            let superclass = match node.node("extendsClause").and_then(|e| e.node("superclass")) {
+            let superclass = match node
+                .node("extendsClause")
+                .and_then(|e| e.node("superclass"))
+            {
                 Some(named) => {
                     let name = named.token("name").unwrap_or("");
                     match self.lookup(lib, name) {
-                        Some(Decl::Class(c)) if !BUILTINS.contains(&name) || name == "Object" => Some(c),
-                        Some(Decl::Class(_)) => return err(&file, named, format!("unsupported: extending the built-in class `{name}`")),
+                        Some(Decl::Class(c)) if !BUILTINS.contains(&name) || name == "Object" => {
+                            Some(c)
+                        }
+                        Some(Decl::Class(_)) => {
+                            return err(
+                                &file,
+                                named,
+                                format!("unsupported: extending the built-in class `{name}`"),
+                            );
+                        }
                         _ => return err(&file, named, format!("unknown class `{name}`")),
                     }
                 }
@@ -265,7 +378,11 @@ impl<'a> Lowering<'a> {
                 seen += 1;
                 if seen > self.prog.classes.len() {
                     let file = self.libs[self.class_lib[&class]].file.clone();
-                    return err(&file, self.class_nodes[&class], "the class hierarchy has a cycle");
+                    return err(
+                        &file,
+                        self.class_nodes[&class],
+                        "the class hierarchy has a cycle",
+                    );
                 }
                 current = self.prog.classes[c].superclass;
             }
@@ -298,7 +415,11 @@ impl<'a> Lowering<'a> {
             for field in member.list("fields") {
                 let name = field.token("name").unwrap_or("").to_string();
                 if fields.contains(&name) {
-                    return err(&file, field, format!("unsupported: field `{name}` shadows an inherited field"));
+                    return err(
+                        &file,
+                        field,
+                        format!("unsupported: field `{name}` shadows an inherited field"),
+                    );
                 }
                 fields.push(name);
                 if let Some(init) = field.node("initializer") {
@@ -332,51 +453,107 @@ impl<'a> Lowering<'a> {
                 }
                 match member.kind.as_str() {
                     "FieldsDeclaration" => {
-                        let final_ = matches!(member.token("constFinalOrVarKeyword"), Some("final") | Some("const"));
+                        let final_ = matches!(
+                            member.token("constFinalOrVarKeyword"),
+                            Some("final") | Some("const")
+                        );
                         for field in member.list("fields") {
                             let fname = field.token("name").unwrap_or("").to_string();
-                            let slot = self.prog.classes[class].fields.iter().position(|f| *f == fname).unwrap();
-                            let mut getter = new_func(format!("{class_name}.{fname}"), prelude, FuncKind::Field, Some(class));
+                            let slot = self.prog.classes[class]
+                                .fields
+                                .iter()
+                                .position(|f| *f == fname)
+                                .unwrap();
+                            let mut getter = new_func(
+                                format!("{class_name}.{fname}"),
+                                prelude,
+                                FuncKind::Field,
+                                Some(class),
+                            );
                             getter.body = Body::FieldGet(slot);
                             getter.locals = 1;
                             let g = self.add_func(getter);
                             self.add_member(class, &file, field, format!("g:{fname}"), g)?;
                             if !final_ {
-                                let mut setter = new_func(format!("{class_name}.{fname}="), prelude, FuncKind::Field, Some(class));
+                                let mut setter = new_func(
+                                    format!("{class_name}.{fname}="),
+                                    prelude,
+                                    FuncKind::Field,
+                                    Some(class),
+                                );
                                 setter.body = Body::FieldSet(slot);
-                                setter.params = vec![Param { name: "value".into(), default: None }];
+                                setter.params = vec![Param {
+                                    name: "value".into(),
+                                    default: None,
+                                }];
                                 setter.locals = 2;
                                 let s = self.add_func(setter);
                                 self.add_member(class, &file, field, format!("s:{fname}"), s)?;
                             }
                         }
                     }
-                    "MethodDeclaration2" | "GetterDeclaration" | "SetterDeclaration" | "OperatorDeclaration" => {
+                    "MethodDeclaration2"
+                    | "GetterDeclaration"
+                    | "SetterDeclaration"
+                    | "OperatorDeclaration" => {
                         let (kind, selector, display) = match member.kind.as_str() {
-                            "MethodDeclaration2" if is_static => (FuncKind::Static, name.clone(), name.clone()),
-                            "MethodDeclaration2" => (FuncKind::Method, format!("m:{name}"), name.clone()),
-                            "GetterDeclaration" => (FuncKind::Getter, format!("g:{name}"), name.clone()),
-                            "SetterDeclaration" => (FuncKind::Setter, format!("s:{name}"), format!("{name}=")),
+                            "MethodDeclaration2" if is_static => {
+                                (FuncKind::Static, name.clone(), name.clone())
+                            }
+                            "MethodDeclaration2" => {
+                                (FuncKind::Method, format!("m:{name}"), name.clone())
+                            }
+                            "GetterDeclaration" => {
+                                (FuncKind::Getter, format!("g:{name}"), name.clone())
+                            }
+                            "SetterDeclaration" => {
+                                (FuncKind::Setter, format!("s:{name}"), format!("{name}="))
+                            }
                             _ => {
                                 let op = member.token("operator").unwrap_or("").to_string();
                                 if !OPERATORS.contains(&op.as_str()) {
-                                    return err(&file, member, format!("unsupported: declaring `operator {op}`"));
+                                    return err(
+                                        &file,
+                                        member,
+                                        format!("unsupported: declaring `operator {op}`"),
+                                    );
                                 }
-                                (FuncKind::Operator, format!("op:{op}"), format!("operator {op}"))
+                                (
+                                    FuncKind::Operator,
+                                    format!("op:{op}"),
+                                    format!("operator {op}"),
+                                )
                             }
                         };
                         if is_static && kind != FuncKind::Static {
                             return err(&file, member, "unsupported: static getters and setters");
                         }
-                        let id = self.add_func(new_func(format!("{class_name}.{display}"), prelude, kind, Some(class)));
+                        let id = self.add_func(new_func(
+                            format!("{class_name}.{display}"),
+                            prelude,
+                            kind,
+                            Some(class),
+                        ));
                         let body = member.node("body").expect("member body");
                         if body.kind == "EmptyFunctionBody" {
                             if !self.prog.classes[class].is_abstract {
-                                return err(&file, member, format!("`{class_name}.{display}` has no body in a class that is not abstract"));
+                                return err(
+                                    &file,
+                                    member,
+                                    format!(
+                                        "`{class_name}.{display}` has no body in a class that is not abstract"
+                                    ),
+                                );
                             }
                             self.set_params_only(id, lib, member.node("formalParameters"))?;
                         } else {
-                            self.jobs.push(Job::Function { func: id, lib, class: Some(class), params: member.node("formalParameters"), body });
+                            self.jobs.push(Job::Function {
+                                func: id,
+                                lib,
+                                class: Some(class),
+                                params: member.node("formalParameters"),
+                                body,
+                            });
                         }
                         if kind == FuncKind::Static {
                             self.prog.classes[class].statics.insert(selector, id);
@@ -385,34 +562,80 @@ impl<'a> Lowering<'a> {
                         }
                     }
                     "ConstructorDeclaration2" => {
-                        if member.token("factoryKeyword").is_some() || member.token("constKeyword").is_some() {
-                            return err(&file, member, "unsupported: factory and const constructors");
+                        if member.token("factoryKeyword").is_some()
+                            || member.token("constKeyword").is_some()
+                        {
+                            return err(
+                                &file,
+                                member,
+                                "unsupported: factory and const constructors",
+                            );
                         }
                         has_ctor = true;
                         let id = self.add_func(new_func(
-                            if name.is_empty() { class_name.clone() } else { format!("{class_name}.{name}") },
+                            if name.is_empty() {
+                                class_name.clone()
+                            } else {
+                                format!("{class_name}.{name}")
+                            },
                             prelude,
                             FuncKind::Ctor,
                             Some(class),
                         ));
                         self.prog.classes[class].ctors.insert(name.clone(), id);
-                        self.jobs.push(Job::Ctor { func: id, lib, class, node: Some(member) });
+                        self.jobs.push(Job::Ctor {
+                            func: id,
+                            lib,
+                            class,
+                            node: Some(member),
+                        });
                     }
-                    other => return err(&file, member, format!("unsupported class member: {other}")),
+                    other => {
+                        return err(&file, member, format!("unsupported class member: {other}"));
+                    }
                 }
             }
             if !has_ctor && !(prelude && BUILTINS.contains(&class_name.as_str())) {
-                let id = self.add_func(new_func(class_name.clone(), prelude, FuncKind::Ctor, Some(class)));
+                let id = self.add_func(new_func(
+                    class_name.clone(),
+                    prelude,
+                    FuncKind::Ctor,
+                    Some(class),
+                ));
                 self.prog.classes[class].ctors.insert(String::new(), id);
-                self.jobs.push(Job::Ctor { func: id, lib, class, node: None });
+                self.jobs.push(Job::Ctor {
+                    func: id,
+                    lib,
+                    class,
+                    node: None,
+                });
             }
         }
         Ok(())
     }
 
-    fn add_member(&mut self, class: ClassId, file: &str, node: &Node, selector: String, id: FuncId) -> R<()> {
-        if self.prog.classes[class].members.insert(selector.clone(), id).is_some() {
-            return err(file, node, format!("`{}` declares `{}` twice", self.prog.classes[class].name, &selector[selector.find(':').unwrap() + 1..]));
+    fn add_member(
+        &mut self,
+        class: ClassId,
+        file: &str,
+        node: &Node,
+        selector: String,
+        id: FuncId,
+    ) -> R<()> {
+        if self.prog.classes[class]
+            .members
+            .insert(selector.clone(), id)
+            .is_some()
+        {
+            return err(
+                file,
+                node,
+                format!(
+                    "`{}` declares `{}` twice",
+                    self.prog.classes[class].name,
+                    &selector[selector.find(':').unwrap() + 1..]
+                ),
+            );
         }
         Ok(())
     }
@@ -432,7 +655,13 @@ impl<'a> Lowering<'a> {
         let jobs = std::mem::take(&mut self.jobs);
         for job in jobs {
             match job {
-                Job::Function { func, lib, class, params, body } => {
+                Job::Function {
+                    func,
+                    lib,
+                    class,
+                    params,
+                    body,
+                } => {
                     let has_this = self.prog.funcs[func].has_this;
                     let mut fx = Fx::new(self, lib, class, has_this);
                     let lowered_params = fx.params(params, &mut vec![])?;
@@ -454,13 +683,24 @@ impl<'a> Lowering<'a> {
                     f.body = Body::Stmts(vec![Stmt::Return(Some(value))]);
                     f.locals = locals;
                 }
-                Job::Ctor { func, lib, class, node } => self.lower_ctor(func, lib, class, node)?,
+                Job::Ctor {
+                    func,
+                    lib,
+                    class,
+                    node,
+                } => self.lower_ctor(func, lib, class, node)?,
             }
         }
         Ok(())
     }
 
-    fn lower_ctor(&mut self, func: FuncId, lib: usize, class: ClassId, node: Option<&'a Node>) -> R<()> {
+    fn lower_ctor(
+        &mut self,
+        func: FuncId,
+        lib: usize,
+        class: ClassId,
+        node: Option<&'a Node>,
+    ) -> R<()> {
         let file = self.libs[lib].file.clone();
         let decl_inits = self.field_inits.get(&class).cloned().unwrap_or_default();
         let superclass = self.prog.classes[class].superclass;
@@ -471,9 +711,16 @@ impl<'a> Lowering<'a> {
             field_inits.push((slot, fx.expr(init)?));
         }
         let mut this_params = vec![];
-        let params = fx.params(node.and_then(|n| n.node("formalParameters")), &mut this_params)?;
+        let params = fx.params(
+            node.and_then(|n| n.node("formalParameters")),
+            &mut this_params,
+        )?;
         for (field_name, slot_of_param, at) in &this_params {
-            match fx.lowering.prog.classes[class].fields.iter().position(|f| f == field_name) {
+            match fx.lowering.prog.classes[class]
+                .fields
+                .iter()
+                .position(|f| f == field_name)
+            {
                 Some(field_slot) => field_inits.push((field_slot, Expr::Local(*slot_of_param))),
                 None => return err(&file, at, format!("`this.{field_name}` names no field")),
             }
@@ -485,36 +732,64 @@ impl<'a> Lowering<'a> {
                 match init.kind.as_str() {
                     "SuperConstructorInvocation" => {
                         super_seen = true;
-                        let ctor_name = init.token("constructorName").or(init.node("constructorName").and_then(|c| c.token("name"))).unwrap_or("");
-                        let Some(s) = superclass else { return err(&file, init, "no superclass") };
+                        let ctor_name = init
+                            .token("constructorName")
+                            .or(init.node("constructorName").and_then(|c| c.token("name")))
+                            .unwrap_or("");
+                        let Some(s) = superclass else {
+                            return err(&file, init, "no superclass");
+                        };
                         let Some(&target) = fx.lowering.prog.classes[s].ctors.get(ctor_name) else {
-                            return err(&file, init, format!("the superclass has no constructor `{ctor_name}`"));
+                            return err(
+                                &file,
+                                init,
+                                format!("the superclass has no constructor `{ctor_name}`"),
+                            );
                         };
                         let args = fx.arguments(init.node("argumentList"))?;
                         super_call = Some((target, args));
                     }
                     "ConstructorFieldInitializer" => {
                         let field_name = init.token("fieldName").unwrap_or("").to_string();
-                        let value = fx.expr(init.node("expression").or(init.node("expression2")).expect("initializer value"))?;
-                        match fx.lowering.prog.classes[class].fields.iter().position(|f| *f == field_name) {
+                        let value = fx.expr(
+                            init.node("expression")
+                                .or(init.node("expression2"))
+                                .expect("initializer value"),
+                        )?;
+                        match fx.lowering.prog.classes[class]
+                            .fields
+                            .iter()
+                            .position(|f| *f == field_name)
+                        {
                             Some(slot) => field_inits.push((slot, value)),
-                            None => return err(&file, init, format!("`{field_name}` names no field")),
+                            None => {
+                                return err(&file, init, format!("`{field_name}` names no field"));
+                            }
                         }
                     }
-                    other => return err(&file, init, format!("unsupported constructor initializer: {other}")),
+                    other => {
+                        return err(
+                            &file,
+                            init,
+                            format!("unsupported constructor initializer: {other}"),
+                        );
+                    }
                 }
             }
         }
-        if !super_seen {
-            if let Some(s) = superclass {
-                if s != fx.lowering.prog.object {
-                    match fx.lowering.prog.classes[s].ctors.get("") {
-                        Some(&target) => super_call = Some((target, vec![])),
-                        None => {
-                            let at = node.unwrap_or(fx.lowering.class_nodes[&class]);
-                            return err(&file, at, "the superclass has no unnamed constructor to call");
-                        }
-                    }
+        if !super_seen
+            && let Some(s) = superclass
+            && s != fx.lowering.prog.object
+        {
+            match fx.lowering.prog.classes[s].ctors.get("") {
+                Some(&target) => super_call = Some((target, vec![])),
+                None => {
+                    let at = node.unwrap_or(fx.lowering.class_nodes[&class]);
+                    return err(
+                        &file,
+                        at,
+                        "the superclass has no unnamed constructor to call",
+                    );
                 }
             }
         }
@@ -530,7 +805,11 @@ impl<'a> Lowering<'a> {
         let f = &mut self.prog.funcs[func];
         f.params = params;
         f.locals = locals;
-        f.body = Body::Ctor { field_inits, super_call, body };
+        f.body = Body::Ctor {
+            field_inits,
+            super_call,
+            body,
+        };
         Ok(())
     }
 }
@@ -551,7 +830,14 @@ struct Fx<'l, 'a> {
 
 impl<'l, 'a> Fx<'l, 'a> {
     fn new(lowering: &'l Lowering<'a>, lib: usize, class: Option<ClassId>, has_this: bool) -> Self {
-        Fx { lowering, lib, class, has_this, scopes: vec![HashMap::new()], next: if has_this { 1 } else { 0 } }
+        Fx {
+            lowering,
+            lib,
+            class,
+            has_this,
+            scopes: vec![HashMap::new()],
+            next: if has_this { 1 } else { 0 },
+        }
     }
 
     fn file(&self) -> &str {
@@ -569,7 +855,10 @@ impl<'l, 'a> Fx<'l, 'a> {
 
     fn bind(&mut self, name: &str) -> Slot {
         let slot = self.slot();
-        self.scopes.last_mut().unwrap().insert(name.to_string(), slot);
+        self.scopes
+            .last_mut()
+            .unwrap()
+            .insert(name.to_string(), slot);
         slot
     }
 
@@ -588,7 +877,9 @@ impl<'l, 'a> Fx<'l, 'a> {
         if !self.has_this {
             return false;
         }
-        let Some(class) = self.class else { return false };
+        let Some(class) = self.class else {
+            return false;
+        };
         let prog = &self.lowering.prog;
         let mut current = Some(class);
         while let Some(c) = current {
@@ -601,14 +892,23 @@ impl<'l, 'a> Fx<'l, 'a> {
     }
 
     fn static_member(&self, name: &str) -> Option<FuncId> {
-        self.class.and_then(|c| self.lowering.prog.classes[c].statics.get(name).copied())
+        self.class
+            .and_then(|c| self.lowering.prog.classes[c].statics.get(name).copied())
     }
 
     /// Binds the parameters; `this.x` ones are reported in [this_params].
-    fn params(&mut self, list: Option<&'a Node>, this_params: &mut Vec<(String, Slot, &'a Node)>) -> R<Vec<Param>> {
+    fn params(
+        &mut self,
+        list: Option<&'a Node>,
+        this_params: &mut Vec<(String, Slot, &'a Node)>,
+    ) -> R<Vec<Param>> {
         let Some(list) = list else { return Ok(vec![]) };
         let mut out = vec![];
-        let mut all: Vec<(&'a Node, bool)> = list.list("requiredPositionalFormalParameters").iter().map(|p| (p, false)).collect();
+        let mut all: Vec<(&'a Node, bool)> = list
+            .list("requiredPositionalFormalParameters")
+            .iter()
+            .map(|p| (p, false))
+            .collect();
         if let Some(delimited) = list.node("delimitedFormalParameters") {
             if delimited.token("leftDelimiter") != Some("[") {
                 return self.fail(delimited, "unsupported: named parameters");
@@ -627,7 +927,10 @@ impl<'l, 'a> Fx<'l, 'a> {
             let default = if optional {
                 Some(match param.node("defaultClause") {
                     Some(clause) => {
-                        let value = clause.node("value").or(clause.node("defaultValue")).or_else(|| first_node(clause));
+                        let value = clause
+                            .node("value")
+                            .or(clause.node("defaultValue"))
+                            .or_else(|| first_node(clause));
                         match value {
                             Some(v) => self.expr(v)?,
                             None => Expr::Null,
@@ -653,7 +956,9 @@ impl<'l, 'a> Fx<'l, 'a> {
         }
         match body.kind.as_str() {
             "BlockFunctionBody" => self.block(body.node("block").expect("block")),
-            "ExpressionFunctionBody" => Ok(vec![Stmt::Return(Some(self.expr(body.node("expression2").expect("expression"))?))]),
+            "ExpressionFunctionBody" => Ok(vec![Stmt::Return(Some(
+                self.expr(body.node("expression2").expect("expression"))?,
+            ))]),
             "EmptyFunctionBody" => Ok(vec![]),
             other => self.fail(body, format!("unsupported function body: {other}")),
         }
@@ -700,9 +1005,13 @@ impl<'l, 'a> Fx<'l, 'a> {
     fn stmt(&mut self, s: &'a Node) -> R<Stmt> {
         Ok(match s.kind.as_str() {
             "Block" => Stmt::Block(self.block(s)?),
-            "ExpressionStatement" => Stmt::Expr(self.expr(s.node("expression2").expect("expression"))?),
+            "ExpressionStatement" => {
+                Stmt::Expr(self.expr(s.node("expression2").expect("expression"))?)
+            }
             "EmptyStatement" => Stmt::Block(vec![]),
-            "LocalVariablesDeclarationStatement" => Stmt::Block(self.locals_decl(s.node("declaration").expect("declaration"))?),
+            "LocalVariablesDeclarationStatement" => {
+                Stmt::Block(self.locals_decl(s.node("declaration").expect("declaration"))?)
+            }
             "IfStatement" => {
                 if s.node("caseClause").is_some() {
                     return self.fail(s, "unsupported: if-case");
@@ -728,8 +1037,13 @@ impl<'l, 'a> Fx<'l, 'a> {
                 let result = match parts.kind.as_str() {
                     "ForPartsWithDeclarations" | "ForPartsWithExpression" => {
                         let init = match parts.kind.as_str() {
-                            "ForPartsWithDeclarations" => self.locals_decl(parts.node("variables2").expect("variables"))?,
-                            _ => match parts.node("initialization2").or(parts.node("initialization")) {
+                            "ForPartsWithDeclarations" => {
+                                self.locals_decl(parts.node("variables2").expect("variables"))?
+                            }
+                            _ => match parts
+                                .node("initialization2")
+                                .or(parts.node("initialization"))
+                            {
                                 Some(e) => vec![Stmt::Expr(self.expr(e)?)],
                                 None => vec![],
                             },
@@ -748,16 +1062,37 @@ impl<'l, 'a> Fx<'l, 'a> {
                     "ForEachPartsWithDeclaration" => {
                         let iterable = self.expr(parts.node("iterable2").expect("iterable"))?;
                         let iterator = self.slot();
-                        let name = parts.node("loopVariable").and_then(|v| v.token("name")).unwrap_or("");
+                        let name = parts
+                            .node("loopVariable")
+                            .and_then(|v| v.token("name"))
+                            .unwrap_or("");
                         let variable = self.bind(name);
                         let mut body = vec![Stmt::Expr(Expr::SetLocal(
                             variable,
-                            Box::new(Expr::Invoke(Box::new(Expr::Local(iterator)), "g:current".into(), vec![])),
+                            Box::new(Expr::Invoke(
+                                Box::new(Expr::Local(iterator)),
+                                "g:current".into(),
+                                vec![],
+                            )),
                         ))];
                         body.extend(self.scoped(s.node("body2").expect("body"))?);
                         Stmt::Block(vec![
-                            Stmt::Expr(Expr::SetLocal(iterator, Box::new(Expr::Invoke(Box::new(iterable), "g:iterator".into(), vec![])))),
-                            Stmt::While(Expr::Invoke(Box::new(Expr::Local(iterator)), "m:moveNext".into(), vec![]), body),
+                            Stmt::Expr(Expr::SetLocal(
+                                iterator,
+                                Box::new(Expr::Invoke(
+                                    Box::new(iterable),
+                                    "g:iterator".into(),
+                                    vec![],
+                                )),
+                            )),
+                            Stmt::While(
+                                Expr::Invoke(
+                                    Box::new(Expr::Local(iterator)),
+                                    "m:moveNext".into(),
+                                    vec![],
+                                ),
+                                body,
+                            ),
                         ])
                     }
                     other => return self.fail(parts, format!("unsupported for loop: {other}")),
@@ -773,7 +1108,11 @@ impl<'l, 'a> Fx<'l, 'a> {
                 if s.token("label").is_some() || s.node("label").is_some() {
                     return self.fail(s, "unsupported: labelled break and continue");
                 }
-                if s.kind == "BreakStatement" { Stmt::Break } else { Stmt::Continue }
+                if s.kind == "BreakStatement" {
+                    Stmt::Break
+                } else {
+                    Stmt::Continue
+                }
             }
             other => return self.fail(s, format!("unsupported statement: {other}")),
         })
@@ -798,7 +1137,10 @@ impl<'l, 'a> Fx<'l, 'a> {
             return None;
         }
         let name = node.token("name")?;
-        if self.local(name).is_some() || self.member(&format!("g:{name}")) || self.member(&format!("m:{name}")) {
+        if self.local(name).is_some()
+            || self.member(&format!("g:{name}"))
+            || self.member(&format!("m:{name}"))
+        {
             return None;
         }
         match self.lowering.lookup(self.lib, name) {
@@ -810,11 +1152,20 @@ impl<'l, 'a> Fx<'l, 'a> {
     fn new_instance(&mut self, at: &Node, class: ClassId, ctor: &str, args: Vec<Expr>) -> R<Expr> {
         let c = &self.lowering.prog.classes[class];
         if c.is_abstract {
-            return self.fail(at, format!("abstract class `{}` cannot be instantiated", c.name));
+            return self.fail(
+                at,
+                format!("abstract class `{}` cannot be instantiated", c.name),
+            );
         }
         match c.ctors.get(ctor) {
             Some(&f) => Ok(Expr::New(class, f, args)),
-            None => self.fail(at, format!("unsupported: `{}` has no constructor `{ctor}` dartvel_aot can call", c.name)),
+            None => self.fail(
+                at,
+                format!(
+                    "unsupported: `{}` has no constructor `{ctor}` dartvel_aot can call",
+                    c.name
+                ),
+            ),
         }
     }
 
@@ -831,7 +1182,11 @@ impl<'l, 'a> Fx<'l, 'a> {
                     return self.fail(operand, "unsupported: calling a function value");
                 }
                 if self.member(&format!("m:{name}")) {
-                    return Ok(Expr::Invoke(Box::new(Expr::This), format!("m:{name}"), args));
+                    return Ok(Expr::Invoke(
+                        Box::new(Expr::This),
+                        format!("m:{name}"),
+                        args,
+                    ));
                 }
                 if let Some(f) = self.static_member(name) {
                     return Ok(Expr::Call(f, args));
@@ -839,7 +1194,9 @@ impl<'l, 'a> Fx<'l, 'a> {
                 match self.lowering.lookup(self.lib, name) {
                     Some(Decl::Func(f)) => Ok(Expr::Call(f, args)),
                     Some(Decl::Class(c)) => self.new_instance(operand, c, "", args),
-                    Some(Decl::Global(_)) => self.fail(operand, "unsupported: calling a function value"),
+                    Some(Decl::Global(_)) => {
+                        self.fail(operand, "unsupported: calling a function value")
+                    }
                     None => self.fail(operand, format!("unknown function `{name}`")),
                 }
             }
@@ -872,14 +1229,20 @@ impl<'l, 'a> Fx<'l, 'a> {
         let name = ty.token("name").unwrap_or("");
         let nullable = ty.token("question").is_some();
         if for_is && ty.node("typeArguments").is_some() {
-            return self.fail(ty, "unsupported: `is` with type arguments (types are erased in this increment)");
+            return self.fail(
+                ty,
+                "unsupported: `is` with type arguments (types are erased in this increment)",
+            );
         }
         Ok(match name {
             "dynamic" => TypeTest::Any,
             "Object" if nullable => TypeTest::Any,
             "Object" => TypeTest::NonNull,
             "Null" => TypeTest::Null,
-            "num" => TypeTest::Class { class: self.lowering.prog.int, nullable },
+            "num" => TypeTest::Class {
+                class: self.lowering.prog.int,
+                nullable,
+            },
             _ => match self.lowering.lookup(self.lib, name) {
                 Some(Decl::Class(c)) => TypeTest::Class { class: c, nullable },
                 _ => return self.fail(ty, format!("unsupported type `{name}`")),
@@ -898,7 +1261,10 @@ impl<'l, 'a> Fx<'l, 'a> {
                 };
                 match value {
                     Some(v) => Expr::Int(v),
-                    None => return self.fail(e, format!("integer literal {text} does not fit in 64 bits")),
+                    None => {
+                        return self
+                            .fail(e, format!("integer literal {text} does not fit in 64 bits"));
+                    }
                 }
             }
             "DoubleLiteral" => return self.fail(e, "unsupported: double (not in this increment)"),
@@ -910,7 +1276,9 @@ impl<'l, 'a> Fx<'l, 'a> {
                 }
                 Expr::This
             }
-            "SimpleStringLiteral" => Expr::Str(self.string_literal(e, e.token("literal").unwrap_or(""))?),
+            "SimpleStringLiteral" => {
+                Expr::Str(self.string_literal(e, e.token("literal").unwrap_or(""))?)
+            }
             "AdjacentStrings" => {
                 let mut parts = vec![];
                 for s in e.list("strings") {
@@ -956,7 +1324,10 @@ impl<'l, 'a> Fx<'l, 'a> {
             }
             "BinaryOperatorInvocation" => {
                 let op = e.token("operator").unwrap_or("").to_string();
-                const OPS: [&str; 17] = ["+", "-", "*", "~/", "%", "==", "!=", "<", "<=", ">", ">=", "&", "|", "^", "<<", ">>", ">>>"];
+                const OPS: [&str; 17] = [
+                    "+", "-", "*", "~/", "%", "==", "!=", "<", "<=", ">", ">=", "&", "|", "^",
+                    "<<", ">>", ">>>",
+                ];
                 if !OPS.contains(&op.as_str()) {
                     return self.fail(e, format!("unsupported operator `{op}`"));
                 }
@@ -982,7 +1353,11 @@ impl<'l, 'a> Fx<'l, 'a> {
             "LogicalAnd" | "LogicalOr" => {
                 let left = Box::new(self.expr(e.node("leftOperand").expect("left"))?);
                 let right = Box::new(self.expr(e.node("rightOperand").expect("right"))?);
-                if e.kind == "LogicalAnd" { Expr::And(left, right) } else { Expr::Or(left, right) }
+                if e.kind == "LogicalAnd" {
+                    Expr::And(left, right)
+                } else {
+                    Expr::Or(left, right)
+                }
             }
             "ConditionalExpression" => Expr::Cond(
                 Box::new(self.expr(e.node("condition2").expect("condition"))?),
@@ -993,11 +1368,19 @@ impl<'l, 'a> Fx<'l, 'a> {
                 let left = self.expr(e.node("leftOperand").expect("left"))?;
                 let right = self.expr(e.node("rightOperand").expect("right"))?;
                 let t = self.slot();
-                Expr::Let(t, Box::new(left), Box::new(Expr::Cond(
-                    Box::new(Expr::Binary("==".into(), Box::new(Expr::Local(t)), Box::new(Expr::Null))),
-                    Box::new(right),
-                    Box::new(Expr::Local(t)),
-                )))
+                Expr::Let(
+                    t,
+                    Box::new(left),
+                    Box::new(Expr::Cond(
+                        Box::new(Expr::Binary(
+                            "==".into(),
+                            Box::new(Expr::Local(t)),
+                            Box::new(Expr::Null),
+                        )),
+                        Box::new(right),
+                        Box::new(Expr::Local(t)),
+                    )),
+                )
             }
             "IsExpression" => {
                 let value = self.expr(e.node("expression2").expect("operand"))?;
@@ -1016,7 +1399,10 @@ impl<'l, 'a> Fx<'l, 'a> {
                 let mut items = vec![];
                 for item in e.list("elements2") {
                     if !is_expression(item) {
-                        return self.fail(item, format!("unsupported collection element: {}", item.kind));
+                        return self.fail(
+                            item,
+                            format!("unsupported collection element: {}", item.kind),
+                        );
                     }
                     items.push(self.expr(item)?);
                 }
@@ -1026,7 +1412,10 @@ impl<'l, 'a> Fx<'l, 'a> {
                 if e.token("constKeyword").is_some() {
                     return self.fail(e, "unsupported: const collections");
                 }
-                let type_args = e.node("typeArguments").map(|t| t.list("arguments").len()).unwrap_or(2);
+                let type_args = e
+                    .node("typeArguments")
+                    .map(|t| t.list("arguments").len())
+                    .unwrap_or(2);
                 let elements = e.list("elements2");
                 if type_args == 1 || elements.iter().any(|x| x.kind != "MapLiteralEntry") {
                     return self.fail(e, "unsupported: set literals and collection if/for/spread");
@@ -1042,17 +1431,31 @@ impl<'l, 'a> Fx<'l, 'a> {
             "DirectAssignment" | "CompoundAssignment" => self.assignment(e)?,
             "IncrementOrDecrementExpression" => {
                 let target = e.node("target").expect("target");
-                let delta = if e.token("operator") == Some("++") { "+" } else { "-" };
-                let prefix = e.children.iter().position(|(n, _)| *n == "operator") < e.children.iter().position(|(n, _)| *n == "target");
+                let delta = if e.token("operator") == Some("++") {
+                    "+"
+                } else {
+                    "-"
+                };
+                let prefix = e.children.iter().position(|(n, _)| *n == "operator")
+                    < e.children.iter().position(|(n, _)| *n == "target");
                 let place = self.place(target)?;
                 if prefix {
-                    let value = Expr::Binary(delta.into(), Box::new(place.read()), Box::new(Expr::Int(1)));
+                    let value =
+                        Expr::Binary(delta.into(), Box::new(place.read()), Box::new(Expr::Int(1)));
                     place.wrap(self.write(&place, value))
                 } else {
                     let old = self.slot();
-                    let value = Expr::Binary(delta.into(), Box::new(Expr::Local(old)), Box::new(Expr::Int(1)));
+                    let value = Expr::Binary(
+                        delta.into(),
+                        Box::new(Expr::Local(old)),
+                        Box::new(Expr::Int(1)),
+                    );
                     let write = self.write(&place, value);
-                    place.wrap(Expr::Let(old, Box::new(place.read()), Box::new(Expr::Seq(vec![write, Expr::Local(old)]))))
+                    place.wrap(Expr::Let(
+                        old,
+                        Box::new(place.read()),
+                        Box::new(Expr::Seq(vec![write, Expr::Local(old)])),
+                    ))
                 }
             }
             other => return self.fail(e, format!("unsupported expression: {other}")),
@@ -1068,11 +1471,19 @@ impl<'l, 'a> Fx<'l, 'a> {
         } else if op == "??=" {
             let current = self.slot();
             let write = self.write(&place, value);
-            Expr::Let(current, Box::new(place.read()), Box::new(Expr::Cond(
-                Box::new(Expr::Binary("==".into(), Box::new(Expr::Local(current)), Box::new(Expr::Null))),
-                Box::new(write),
-                Box::new(Expr::Local(current)),
-            )))
+            Expr::Let(
+                current,
+                Box::new(place.read()),
+                Box::new(Expr::Cond(
+                    Box::new(Expr::Binary(
+                        "==".into(),
+                        Box::new(Expr::Local(current)),
+                        Box::new(Expr::Null),
+                    )),
+                    Box::new(write),
+                    Box::new(Expr::Local(current)),
+                )),
+            )
         } else {
             let binary = op.trim_end_matches('=').to_string();
             const OPS: [&str; 11] = ["+", "-", "*", "~/", "%", "&", "|", "^", "<<", ">>", ">>>"];
@@ -1106,7 +1517,10 @@ impl<'l, 'a> Fx<'l, 'a> {
                 }
                 let receiver = self.expr(target.node("operand").expect("receiver"))?;
                 let slot = self.slot();
-                Place::Member(Some((slot, receiver)), target.token("name").unwrap_or("").to_string())
+                Place::Member(
+                    Some((slot, receiver)),
+                    target.token("name").unwrap_or("").to_string(),
+                )
             }
             "ReceiverIndexAssignmentTarget" => {
                 let receiver = self.expr(target.node("receiver").expect("receiver"))?;
@@ -1129,24 +1543,39 @@ impl<'l, 'a> Fx<'l, 'a> {
                     None => Expr::This,
                 };
                 let t = self.slot();
-                Expr::Let(t, Box::new(value), Box::new(Expr::Seq(vec![
-                    Expr::Invoke(Box::new(r), format!("s:{name}"), vec![Expr::Local(t)]),
-                    Expr::Local(t),
-                ])))
+                Expr::Let(
+                    t,
+                    Box::new(value),
+                    Box::new(Expr::Seq(vec![
+                        Expr::Invoke(Box::new(r), format!("s:{name}"), vec![Expr::Local(t)]),
+                        Expr::Local(t),
+                    ])),
+                )
             }
             Place::Index(r, _, i, _) => {
                 let t = self.slot();
-                Expr::Let(t, Box::new(value), Box::new(Expr::Seq(vec![
-                    Expr::Invoke(Box::new(Expr::Local(*r)), "op:[]=".into(), vec![Expr::Local(*i), Expr::Local(t)]),
-                    Expr::Local(t),
-                ])))
+                Expr::Let(
+                    t,
+                    Box::new(value),
+                    Box::new(Expr::Seq(vec![
+                        Expr::Invoke(
+                            Box::new(Expr::Local(*r)),
+                            "op:[]=".into(),
+                            vec![Expr::Local(*i), Expr::Local(t)],
+                        ),
+                        Expr::Local(t),
+                    ])),
+                )
             }
         }
     }
 
     fn interpolation(&mut self, e: &'a Node) -> R<Expr> {
         let elements = e.list("elements");
-        let first = elements.first().and_then(|x| x.token("contents")).unwrap_or("");
+        let first = elements
+            .first()
+            .and_then(|x| x.token("contents"))
+            .unwrap_or("");
         let quote = string_opening(first);
         let mut parts = vec![];
         let count = elements.len();
@@ -1167,8 +1596,15 @@ impl<'l, 'a> Fx<'l, 'a> {
                         parts.push(Expr::Str(value));
                     }
                 }
-                "InterpolationExpression" => parts.push(self.expr(element.node("expression2").expect("expression"))?),
-                other => return self.fail(element, format!("unsupported interpolation element: {other}")),
+                "InterpolationExpression" => {
+                    parts.push(self.expr(element.node("expression2").expect("expression"))?)
+                }
+                other => {
+                    return self.fail(
+                        element,
+                        format!("unsupported interpolation element: {other}"),
+                    );
+                }
             }
         }
         Ok(Expr::Interp(parts))
@@ -1199,7 +1635,9 @@ impl<'l, 'a> Fx<'l, 'a> {
                 'v' => out.push('\u{b}'),
                 'x' => {
                     let hex: String = (0..2).filter_map(|_| chars.next()).collect();
-                    out.push(char::from_u32(u32::from_str_radix(&hex, 16).unwrap_or(0)).unwrap_or('\0'));
+                    out.push(
+                        char::from_u32(u32::from_str_radix(&hex, 16).unwrap_or(0)).unwrap_or('\0'),
+                    );
                 }
                 'u' => {
                     let hex: String = if chars.peek() == Some(&'{') {
@@ -1208,7 +1646,9 @@ impl<'l, 'a> Fx<'l, 'a> {
                     } else {
                         (0..4).filter_map(|_| chars.next()).collect()
                     };
-                    out.push(char::from_u32(u32::from_str_radix(&hex, 16).unwrap_or(0)).unwrap_or('\0'));
+                    out.push(
+                        char::from_u32(u32::from_str_radix(&hex, 16).unwrap_or(0)).unwrap_or('\0'),
+                    );
                 }
                 '\n' => {}
                 other => out.push(other),
@@ -1225,7 +1665,11 @@ impl<'l, 'a> Fx<'l, 'a> {
 fn string_opening(lexeme: &str) -> String {
     let raw = lexeme.starts_with(['r', 'R']);
     let rest = if raw { &lexeme[1..] } else { lexeme };
-    let quote = if rest.starts_with("'''") || rest.starts_with("\"\"\"") { &rest[..3] } else { &rest[..1.min(rest.len())] };
+    let quote = if rest.starts_with("'''") || rest.starts_with("\"\"\"") {
+        &rest[..3]
+    } else {
+        &rest[..1.min(rest.len())]
+    };
     format!("{}{quote}", if raw { &lexeme[..1] } else { "" })
 }
 
@@ -1257,16 +1701,26 @@ impl Place {
         match self {
             Place::Local(s) => Expr::Local(*s),
             Place::Global(g) => Expr::Global(*g),
-            Place::Member(Some((slot, _)), name) => Expr::Invoke(Box::new(Expr::Local(*slot)), format!("g:{name}"), vec![]),
-            Place::Member(None, name) => Expr::Invoke(Box::new(Expr::This), format!("g:{name}"), vec![]),
-            Place::Index(r, _, i, _) => Expr::Invoke(Box::new(Expr::Local(*r)), "op:[]".into(), vec![Expr::Local(*i)]),
+            Place::Member(Some((slot, _)), name) => {
+                Expr::Invoke(Box::new(Expr::Local(*slot)), format!("g:{name}"), vec![])
+            }
+            Place::Member(None, name) => {
+                Expr::Invoke(Box::new(Expr::This), format!("g:{name}"), vec![])
+            }
+            Place::Index(r, _, i, _) => Expr::Invoke(
+                Box::new(Expr::Local(*r)),
+                "op:[]".into(),
+                vec![Expr::Local(*i)],
+            ),
         }
     }
 
     /// Evaluates the receiver and index before [inner].
     fn wrap(&self, inner: Expr) -> Expr {
         match self {
-            Place::Member(Some((slot, receiver)), _) => Expr::Let(*slot, Box::new(receiver.clone()), Box::new(inner)),
+            Place::Member(Some((slot, receiver)), _) => {
+                Expr::Let(*slot, Box::new(receiver.clone()), Box::new(inner))
+            }
             Place::Index(r, receiver, i, index) => Expr::Let(
                 *r,
                 Box::new(receiver.clone()),

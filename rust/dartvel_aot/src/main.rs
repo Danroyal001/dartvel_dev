@@ -10,7 +10,9 @@ use std::process::exit;
 use dartvel_aot::Mode;
 
 fn usage() -> ! {
-    eprintln!("usage: dartvel_aot build <file.dart> -o <exe> [--tree-shake=none|calls|types] [--emit-c <file.c>] [--report]\n       dartvel_aot dump <file.dart>");
+    eprintln!(
+        "usage: dartvel_aot build <file.dart> -o <exe> [--tree-shake=none|calls|types] [--emit-c <file.c>] [--report]\n       dartvel_aot dump <file.dart>"
+    );
     exit(64);
 }
 
@@ -62,7 +64,9 @@ fn main() {
                 }
                 i += 1;
             }
-            let (Some(input), Some(output)) = (input, output) else { usage() };
+            let (Some(input), Some(output)) = (input, output) else {
+                usage()
+            };
             let source = std::fs::read_to_string(&input).unwrap_or_else(|e| {
                 eprintln!("cannot read {input}: {e}");
                 exit(66)

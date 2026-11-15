@@ -22,7 +22,11 @@ pub const NATIVES: &[Native] = &[
         makes: &[],
         body: "Str *s = dv_str_check(a0); fwrite(s->s, 1, (size_t)s->n, stdout); fputc('\\n', stdout); return NUL;",
     },
-    Native { name: "_throw", makes: &[], body: "return dv_throw_str(a0);" },
+    Native {
+        name: "_throw",
+        makes: &[],
+        body: "return dv_throw_str(a0);",
+    },
     Native {
         name: "_className",
         makes: &[Makes::String],
@@ -34,7 +38,11 @@ pub const NATIVES: &[Native] = &[
         makes: &[Makes::String],
         body: "char buffer[24]; int n = snprintf(buffer, sizeof buffer, \"%lld\", (long long)dv_int(a0)); return dv_str_from(buffer, n);",
     },
-    Native { name: "_strLen", makes: &[], body: "return mkint(dv_str_check(a0)->n);" },
+    Native {
+        name: "_strLen",
+        makes: &[],
+        body: "return mkint(dv_str_check(a0)->n);",
+    },
     Native {
         name: "_strSub",
         makes: &[Makes::String],
@@ -92,8 +100,16 @@ pub const NATIVES: &[Native] = &[
                if (i) { memcpy(at, sep->s, (size_t)sep->n); at += sep->n; }\n    \
                memcpy(at, S(l->a[i])->s, (size_t)S(l->a[i])->n); at += S(l->a[i])->n;\n  }\n  return out;",
     },
-    Native { name: "_listLen", makes: &[], body: "return mkint(dv_list_check(a0)->n);" },
-    Native { name: "_listAdd", makes: &[], body: "dv_list_push(a0, a1); return NUL;" },
+    Native {
+        name: "_listLen",
+        makes: &[],
+        body: "return mkint(dv_list_check(a0)->n);",
+    },
+    Native {
+        name: "_listAdd",
+        makes: &[],
+        body: "dv_list_push(a0, a1); return NUL;",
+    },
     Native {
         name: "_listGet",
         makes: &[],
@@ -114,13 +130,21 @@ pub const NATIVES: &[Native] = &[
         makes: &[],
         body: "Map *m = dv_map_check(a0); int64_t e = dv_map_find(m, a1); return e < 0 ? NUL : m->v[e];",
     },
-    Native { name: "_mapSet", makes: &[], body: "dv_map_set(a0, a1, a2); return NUL;" },
+    Native {
+        name: "_mapSet",
+        makes: &[],
+        body: "dv_map_set(a0, a1, a2); return NUL;",
+    },
     Native {
         name: "_mapContainsKey",
         makes: &[],
         body: "return mkbool(dv_map_find(dv_map_check(a0), a1) >= 0);",
     },
-    Native { name: "_mapLen", makes: &[], body: "return mkint(dv_map_check(a0)->live);" },
+    Native {
+        name: "_mapLen",
+        makes: &[],
+        body: "return mkint(dv_map_check(a0)->live);",
+    },
     Native {
         name: "_mapKeyList",
         makes: &[Makes::List],
