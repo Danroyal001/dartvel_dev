@@ -177,7 +177,7 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
               'It is one request to /auth/session. Nobody signed in, or no '
                   'network, leaves the app signed out without an error.',
               'DV.Auth.restoring is true until the answer arrives, so a page '
-                  'can show neither state rather than flash "Sign in".',
+                  'can show neither state, and no "Sign in" flashes up.',
               'Guarded pages wait for it before sending anyone to sign in.',
               'It runs by itself. You do not call it, and calling '
                   'DV.Auth.restore() from boot code is harmless.',
