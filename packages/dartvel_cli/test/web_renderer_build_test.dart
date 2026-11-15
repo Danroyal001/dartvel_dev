@@ -86,6 +86,33 @@ void main() {
     expect(build, isNot(contains('--wasm')));
   });
 
+  // Flutter's --wasm compiles the app twice over: dart2js, and one dart2wasm
+  // module the build then throws away for its own deferred-loading compile.
+  // Flutter's module is asked for unoptimised, which skips binaryen, and
+  // dart2js is pinned to the level it had anyway, so dart2js is unchanged and
+  // the deferred compile gets the optimisation Flutter's module used to have.
+  test('a WebAssembly release build asks for an unoptimised throwaway module '
+      'and leaves dart2js as it was', () async {
+    final Directory root = _project(null);
+    addTearDown(() => root.deleteSync(recursive: true));
+    final List<List<String>> started = await _build(root);
+    final List<String> build = started.singleWhere(
+        (List<String> args) => args.take(2).join(' ') == 'build web');
+    expect(build, contains('--optimization-level=0'));
+    expect(build, contains('--dart2js-optimization=O4'));
+  });
+
+  test('a JavaScript-only build skips the WebAssembly dry run and keeps its '
+      'optimisation levels', () async {
+    final Directory root = _project('false');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final List<List<String>> started = await _build(root);
+    final List<String> build = started.singleWhere(
+        (List<String> args) => args.take(2).join(' ') == 'build web');
+    expect(build, contains('--no-wasm-dry-run'));
+    expect(build.where((String a) => a.contains('optimization')), isEmpty);
+  });
+
   test('a value it cannot read is refused before anything is generated', () async {
     final Directory root = _project('"off"');
     addTearDown(() => root.deleteSync(recursive: true));
