@@ -218,6 +218,68 @@ void main() {
       );
     });
 
+    test('opening waits out a lock held longer than one write waits',
+        () async {
+      // Every process of a deployment opens the shared file when it starts,
+      // often all at once after a deploy. Turning on WAL needs the file to
+      // itself, and after a restart the first connection rebuilds the WAL
+      // index, which takes seconds on a large log. A start that gave up after
+      // one write's busy timeout crashed with "database is locked"
+      // (SqliteException 261) on three of four portal processes.
+      final dir = Directory.systemTemp.createTempSync('dartvel_sqlite_open_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final path = '${dir.path}/open.db';
+      final setup = sqlite.sqlite3.open(path);
+      setup.execute('CREATE TABLE t (v INTEGER NOT NULL);');
+      setup.dispose();
+
+      final ReceivePort locked = ReceivePort();
+      final ReceivePort done = ReceivePort();
+      await Isolate.spawn<List<Object>>(
+        (List<Object> message) {
+          final db = sqlite.sqlite3.open(message[0] as String);
+          db.execute('BEGIN EXCLUSIVE');
+          db.execute('INSERT INTO t (v) VALUES (1)');
+          (message[1] as SendPort).send(true);
+          sleep(const Duration(milliseconds: 900));
+          db.execute('COMMIT');
+          db.dispose();
+        },
+        <Object>[path, locked.sendPort],
+        onExit: done.sendPort,
+      );
+      await locked.first;
+
+      final opened = SqliteDVDatabaseAdapter.file(
+        path,
+        busyTimeoutMilliseconds: 100,
+      );
+      addTearDown(opened.close);
+      await done.first;
+      expect(opened.isWalEnabled, isTrue);
+      expect((await opened.query('SELECT v FROM t')).single['v'], 1);
+      expect(
+        (await opened.query('PRAGMA busy_timeout')).single.values.first,
+        100,
+        reason: 'writes after the open keep their own timeout',
+      );
+    });
+
+    test('caps the WAL file so a busy store does not keep a huge log',
+        () async {
+      // Without a limit the -wal file stays at its largest size after every
+      // checkpoint (540 MB on the job portals), and every restart rebuilds an
+      // index over it.
+      final dir = Directory.systemTemp.createTempSync('dartvel_sqlite_cap_');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final opened = SqliteDVDatabaseAdapter.file('${dir.path}/cap.db');
+      addTearDown(opened.close);
+      expect(
+        (await opened.query('PRAGMA journal_size_limit')).single.values.first,
+        64 * 1024 * 1024,
+      );
+    });
+
     test('enforces foreign keys by default', () async {
       final dir = Directory.systemTemp.createTempSync('dartvel_sqlite_fk_');
       addTearDown(() => dir.deleteSync(recursive: true));
