@@ -267,12 +267,12 @@ pub fn analyse(prog: &Program, mode: Mode) -> Reach {
     for c in [prog.null, prog.bool_, prog.int] {
         analysis.add_class(c);
     }
-    // Nothing is shaken yet: every mode keeps everything, as `none` does.
-    let _ = mode;
-    for c in 0..prog.classes.len() {
-        analysis.add_class(c);
+    if mode != Mode::Types {
+        for c in 0..prog.classes.len() {
+            analysis.add_class(c);
+        }
     }
-    {
+    if mode == Mode::None {
         analysis.reach.keep_all = true;
         for (id, f) in prog.funcs.iter().enumerate() {
             if !matches!(f.body, Body::Abstract) {
