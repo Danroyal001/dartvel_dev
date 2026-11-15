@@ -200,7 +200,9 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'A release reaches people on their next visit. The page asks for '
               'the app at its build (main.dart.js?v=<build>), so new HTML '
               'is never paired with the old code, and only files whose '
-              'contents changed are downloaded again.',
+              'contents changed are downloaded again. Every early download '
+              'of the app asks for that same address, so each file comes '
+              'down once.',
           'On by default. `dartvel.pwa.enabled: false` turns it off; '
               '`dartvel.pwa.precacheRoutes` sets how many pages are saved '
               'on the first visit (25 by default, or `true` for all).',

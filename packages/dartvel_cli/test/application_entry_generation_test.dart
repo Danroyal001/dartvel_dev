@@ -18,6 +18,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/static_seo.dart';
+import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -53,6 +54,41 @@ Future<String> _routerFor(Directory root) async {
   );
   return File(p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'))
       .readAsStringSync();
+}
+
+/// Whether a top-level function [name] is declared in a file of the
+/// generated client that [file] reaches through its imports and their
+/// exports.
+bool _declaredThrough(Directory client, String file, String pkgName, String name) {
+  final Set<String> seen = <String>{};
+  bool visit(String rel, {required bool followImports}) {
+    if (!seen.add('$rel:$followImports')) return false;
+    final File source = File(p.join(client.path, rel));
+    if (!source.existsSync()) return false;
+    final String text = source.readAsStringSync();
+    if (rel != file &&
+        RegExp('^[\\w<>?, ]+\\s+${RegExp.escape(name)}\\s*\\(', multiLine: true).hasMatch(text)) {
+      return true;
+    }
+    final String directives = followImports ? '(?:import|export)' : 'export';
+    for (final RegExpMatch m in RegExp('^$directives\\s+[\'"]([^\'"]+)[\'"]([^;]*);', multiLine: true)
+        .allMatches(text)) {
+      final String uri = m.group(1)!;
+      final String clause = m.group(2)!;
+      if (clause.contains(' as ') || RegExp('\\bhide\\b[^;]*\\b$name\\b').hasMatch(clause)) continue;
+      if (clause.contains(' show ') && !RegExp('\\b$name\\b').hasMatch(clause)) continue;
+      final String prefix = 'package:$pkgName/dartvel_client/';
+      final String? target = uri.startsWith(prefix)
+          ? uri.substring(prefix.length)
+          : uri.contains(':')
+              ? null
+              : p.normalize(p.join(p.dirname(rel), uri)).replaceAll(r'\', '/');
+      if (target != null && visit(target, followImports: false)) return true;
+    }
+    return false;
+  }
+
+  return visit(file, followImports: true);
 }
 
 Future<Directory> _project() async {
@@ -249,6 +285,50 @@ void _start(DVBoot boot) { DV.log('boot ran'); }
     final int classStart = output.indexOf('abstract final class DV');
     expect(output.indexOf("DV.log('boot ran')"), greaterThanOrEqualTo(0));
     expect(output.indexOf("DV.log('boot ran')"), lessThan(classStart));
+  });
+  // A boot body is copied into application.g.dart, and its file's import of
+  // the client barrel was dropped on the way. So a boot function calling one
+  // of the application's own generated functions -- the SigmaDev site's
+  // `ownedProTools()` -- passed `dart analyze` in its own file and failed the
+  // web build with "Undefined name" in the generated one.
+  test('a boot body may call the application\'s generated functions', () async {
+    final root = await _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    _page(root, 'index.dart', '@DVPage() Widget _index() => DVText("Home");');
+    Directory(p.join(root.path, 'lib/backend/functions')).createSync(recursive: true);
+    File(p.join(root.path, 'lib/backend/functions/owned_pro_tools.dart')).writeAsStringSync('''
+import 'package:dartvel_core/dartvel.dart';
+@DVBackendFunction()
+Future<List<String>> _ownedProTools() async => <String>[];
+''');
+    File(p.join(root.path, 'lib/boot.dart')).writeAsStringSync('''
+import "dartvel_client/dartvel_client.dart";
+@DVBoot(entries: {DVEntryKind.app})
+Future<void> _loadPro(DVBoot boot) async { final tools = await ownedProTools(); DV.log('\${tools.length}'); }
+''');
+    await _routerFor(root);
+    // functions.g.dart, where the client function is, comes from the
+    // backend generator, which `dartvel build` runs after this one.
+    await BackendGenerator.generate(
+      root: root.path,
+      backendDir: 'lib/backend',
+      pkgName: 'middleware_app',
+      buildId: 'test-build',
+      backendHost: '127.0.0.1',
+      backendPort: 3000,
+      apiBasePath: '/api',
+    );
+    final Directory client = Directory(p.join(root.path, 'lib/dartvel_client'));
+    final String output = File(p.join(client.path, 'application.g.dart')).readAsStringSync();
+    expect(output, contains('await ownedProTools()'));
+    // What the generated library can see: its imports, and what they export,
+    // within the generated client.
+    expect(
+      _declaredThrough(client, 'application.g.dart', 'middleware_app', 'ownedProTools'),
+      isTrue,
+      reason: 'application.g.dart calls ownedProTools() and imports nothing that declares it:\n'
+          '${RegExp(r'^import .*$', multiLine: true).allMatches(output).map((m) => m.group(0)).join('\n')}',
+    );
   });
   test('a host root that drops the router is refused', () async {
     final root = await _project();

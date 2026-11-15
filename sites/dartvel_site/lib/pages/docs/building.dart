@@ -34,6 +34,10 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
           '--profile takes development, profile or release. release is the '
               'default.',
           'A target this host cannot build is skipped with the reason.',
+          'When the app does not compile, the build ends with the '
+              "compiler's own errors: file, line, message and the line of "
+              'code. A web build keeps the whole Flutter log in '
+              'build/flutter_web_build.log.',
         ]),
       ],
     ),

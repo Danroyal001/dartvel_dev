@@ -256,6 +256,10 @@ dartvel build android --profile development   # a build `dartvel dev` pairs with
 Android, iOS, macOS, Linux and Windows; used by project builds and Dartvel Preview),
 `profile`, or `release` (the default).
 
+When the app does not compile, `dartvel build` ends with the compiler's own
+errors (file, line, message and the source line) under "The app does not
+compile"; a web build's whole Flutter log is in `build/flutter_web_build.log`.
+
 Targets: `web`, `web-server`, `android`, `fireos`, `ios`, `macos`, `windows`,
 `linux`, `tvos`, `tizen` (alias `tpk`), `sony-elinux` (with `--format bundle|iso|img`)
 and `webos`. These are free.

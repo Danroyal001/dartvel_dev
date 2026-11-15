@@ -25,6 +25,19 @@ String dvPrefetchHref(String path) {
   return route == '/' ? './' : route.substring(1);
 }
 
+/// Whether [href] (what [dvPrefetchHref] returns) is the document already
+/// open at [open], resolved against the page's [base].
+///
+/// A link to the open page -- "Pricing" on the pricing page -- prefetched
+/// that page's HTML again, a second download of the document seconds after
+/// it loaded. The query and fragment pick data, not a document, and a
+/// trailing slash is the same page.
+bool dvIsOpenDocument(String href, {required Uri base, required Uri open}) {
+  final Uri target = base.resolve(href);
+  if (target.origin != open.origin) return false;
+  return _routeKey(target.path) == _routeKey(open.path);
+}
+
 /// The images the build recorded [path] painting on load, or none.
 ///
 /// An image drawn through a variant is recorded with the slot it was laid

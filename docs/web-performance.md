@@ -121,7 +121,9 @@ What changed:
   the manifest has no family by that name. A character the subset lacks is
   drawn by the engine's Noto fallback, fetched when it is needed.
 - **The service worker** (`pwa_service_worker.dart`): the page asks for its
-  boot files at `?v=<build>`; a page of a newer build than the worker's is
+  boot files at `?v=<build>`, and so does every preload of the app's code,
+  the splash's wasm/dart2js script included (an unversioned preload and a
+  versioned loader request are two downloads of the 1 MB app); a page of a newer build than the worker's is
   served from the network and the worker replaces itself, an open tab of the
   previous build keeps its own cache, and a page of the worker's build is
   served from the cache with no network. Precaching is per file and never

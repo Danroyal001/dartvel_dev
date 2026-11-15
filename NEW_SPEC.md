@@ -271,6 +271,9 @@ void _registerClock(DVBoot boot) => DV.global<Clock>(SystemClock());
   `DV-SECRETS-001` uses.
 - Several `@DVBoot` functions run in declaration order across files, sorted by
   path, so the order is stable and reviewable.
+- A boot function sees what its own file imports, the client barrel included:
+  it may call the application's generated functions and data models, and what
+  analyses clean in its file builds for every target.
 - `DV.lifecycle.app.listen(...)` keeps working for code that would rather
   observe. `@DVBoot` exists because a listener registered in `main` is never
   registered in a generated entry.
@@ -510,7 +513,9 @@ The table is the contract. Each row says which entries a target has, what
   from one build. A value other than true or false fails the build before
   generation. Flutter 3.47's `build web` cannot pass dart2wasm's
   `--enable-deferred-loading`, so the build runs Flutter verbose (log in
-  `build/flutter_web_build.log`), reruns the exact dart2wasm command it logged
+  `build/flutter_web_build.log`; when the app does not compile, the build
+  prints the compiler's own errors, file, line, message and the source line,
+  last, under "The app does not compile"), reruns the exact dart2wasm command it logged
   with deferred loading and a deferred map, writes the modules beside
   `main.dart.wasm`, and gives `main.dart.mjs` a default module loader (flutter.js
   passes none). The loader fetches and instantiates each module once: every
@@ -5329,7 +5334,10 @@ Repeat visits load from the device, and a release always applies:
   renderer (also when it comes from gstatic, kept by its versioned URL) and
   whatever the first, uncontrolled visit downloaded, which the page reports
   to it. Pages are network first, with the offline route as the fallback.
-* The page asks for its boot files with `?v=<build>`. A page of a newer build
+* The page asks for its boot files with `?v=<build>`. Every preload of the app's code,
+  the splash script's included, names the same `?v=<build>` URL the loader
+  fetches, so each file downloads once; a link to the page already open does
+  not prefetch it again. A page of a newer build
   than the worker's is answered from the network and the worker replaces
   itself; an open tab of the previous build keeps its own cache; a page of
   the worker's build is answered from the cache with no network.

@@ -1595,7 +1595,7 @@ Prebuilt authentication pages and generated data-model forms share keyboard, pen
 
 Application entry is `void main(List<String> args) => DV.run(args);`, importing the generated client.
 Pure Dartvel apps use the generated themed root and `pages/index.dart`. Startup
-functions use `@DVBoot()`; `@DVAppRoot()` is optional for an existing Flutter host.
+functions use `@DVBoot()` and may call the app's generated functions and data models; `@DVAppRoot()` is optional for an existing Flutter host.
 Backend function callers pass typed arguments and receive generated data models;
 serialization belongs to generation. Page and backend middleware is the
 annotation's `middleware: [...]` field.

@@ -39,7 +39,14 @@ Future<String?> Function() dvPrefetchManifestLoader = _loadManifest;
 /// Prefetches [path]'s document and its images, and completes with the
 /// images the browser now has.
 Future<List<String>> dvPrefetchDocument(String path) async {
-  unawaited(_prefetch(dvPrefetchHref(path)));
+  final String href = dvPrefetchHref(path);
+  // Not the page that is open: the browser already has it, and a prefetch
+  // is a second download of it.
+  if (!dvIsOpenDocument(href,
+      base: Uri.parse(web.document.baseURI),
+      open: Uri.parse(web.window.location.href))) {
+    unawaited(_prefetch(href));
+  }
   final List<String> images = dvPrefetchImages(
     await (_manifest ??= dvPrefetchManifestLoader()),
     path,

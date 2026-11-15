@@ -9,6 +9,7 @@ import 'package:dartvel_shelf/native_codec.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/compiler_diagnostics.dart';
 import '../build/display_settings.dart';
 import '../build/node_runtime_bundle.dart';
 import '../build/web_fonts.dart';
@@ -1469,6 +1470,7 @@ class BuildCommand extends Command<void> {
                   workingDirectory: _projectRoot))
               .exitCode;
       Future<int>? earlyWasm;
+      Future<List<void>>? streamsDone;
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
       final proc = await (_processStart ?? Process.start)(
@@ -1504,23 +1506,32 @@ class BuildCommand extends Command<void> {
               );
             }
           }
-          final String shown =
-              line.replaceFirst(RegExp(r'^\[\s*\+?\d+\s*ms\]\s?'), '');
+          final String shown = dvWithoutLogStamp(line);
+          // The compiler's own errors too (`lib/x.dart:3:5: Error: ...`),
+          // which start with the file rather than with a word.
           if (RegExp(r'^(Compiling |✓ |Font asset|Expected to find|'
-                  r'Error|error|Warning|warning|Target )')
-              .hasMatch(shown)) {
+                      r'Error|error|Warning|warning|Target )')
+                  .hasMatch(shown) ||
+              dvIsCompilerError(shown)) {
             stdout.writeln(shown);
           }
         }
 
-        proc.stdout
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())
-            .listen(keep);
-        proc.stderr
-            .transform(utf8.decoder)
-            .transform(const LineSplitter())
-            .listen(keep);
+        // Read to the end before the log is used: the process can exit with
+        // its last lines -- the compiler's error among them -- still in the
+        // pipe.
+        streamsDone = Future.wait(<Future<void>>[
+          proc.stdout
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .listen(keep)
+              .asFuture<void>(),
+          proc.stderr
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())
+              .listen(keep)
+              .asFuture<void>(),
+        ]);
       } else {
         proc.stdout.listen((data) => stdout.add(data));
         proc.stderr.listen((data) => stderr.add(data));
@@ -1532,6 +1543,8 @@ class BuildCommand extends Command<void> {
         description: 'flutter build $platform',
       );
       if (exitCode == null) return DVBuildTargetResult.failed;
+      await streamsDone?.timeout(const Duration(seconds: 30),
+          onTimeout: () => <void>[]);
 
       if (splitWasm) {
         final File logFile =
@@ -1546,6 +1559,19 @@ class BuildCommand extends Command<void> {
             stderr.writeln(line);
           }
           Logger.log('   The whole Flutter log: ${logFile.path}');
+          // Last, where it is read first: what the compiler said, file, line
+          // and message. The tail above is the Flutter tool's own stack
+          // trace, and "ProcessException ... exit code 254" was all a failed
+          // build used to show.
+          final List<String> compilerErrors =
+              dvCompilerErrors(verboseLog.toString());
+          if (compilerErrors.isNotEmpty) {
+            stderr.writeln('');
+            Logger.error('The app does not compile:');
+            for (final String line in compilerErrors) {
+              stderr.writeln('   $line');
+            }
+          }
           // Not left running after a failed build.
           await earlyWasm;
         } else {
