@@ -333,6 +333,48 @@ dv_slugify_module:
       expect(out.join('\n'), contains('pubspec.yaml'));
     });
 
+    test(
+        'a constraint that already admits this release but a lock behind it '
+        'is resolved forward, not reported as current', () async {
+      const String admitting = '''
+name: shop
+dependencies:
+  flutter:
+    sdk: flutter
+  dartvel_core: ">=3.0.0 <4.0.0"
+  dartvel_flutter: ">=3.0.0 <4.0.0"
+''';
+      write('pubspec.yaml', admitting);
+      write('pubspec.lock', '''
+packages:
+  dartvel_core:
+    dependency: "direct main"
+    source: hosted
+    version: "3.0.0"
+  dartvel_flutter:
+    dependency: "direct main"
+    source: hosted
+    version: "3.0.0"
+''');
+      final List<String> out = <String>[];
+      final List<String> resolved = <String>[];
+      final int code = await dvRunUpgrade(
+        root.path,
+        plan: false,
+        project: true,
+        out: out.add,
+        resolve: (String directory, {required bool flutter}) async {
+          resolved.add(directory);
+          return null;
+        },
+      );
+      expect(code, 0);
+      expect(resolved, <String>[root.path]);
+      expect(read('pubspec.yaml'), admitting);
+      expect(out.join('\n'), contains('dartvel_core 3.0.0'));
+      expect(out.join('\n'), isNot(contains('Nothing was changed')));
+    });
+
     test('already on this release: nothing written, nothing resolved',
         () async {
       final String current = _app01351.replaceAll('0.13.51', _target);

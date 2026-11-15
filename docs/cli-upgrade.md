@@ -28,7 +28,14 @@ hosted Dartvel constraint in `pubspec.yaml` that excludes the CLI's release to
 a caret on it (`dartvel_core`, `dartvel_shelf`, `dartvel_flutter`,
 `dartvel_scene`, `dartvel_generator`, `dartvel_cli`, `dartvel_dev`), does the
 same in each module whose source is a folder of the project, then runs
-`flutter pub get` (`dart pub get` for a project without Flutter).
+`flutter pub upgrade` on the Dartvel packages (`dart pub upgrade` for a
+project without Flutter).
+
+- A constraint that already admits the release does not move the lock
+  (`^3.47.0` admits 3.47.1, and pub keeps the 3.47.0 it resolved), so the
+  command also reads `pubspec.lock` and upgrades any Dartvel package resolved
+  below the release. It says "Nothing was changed" only when the lock is
+  already there.
 
 - Only the constraint changes. Comments, order and every other dependency are
   left as written, in both the short form and the long form with `version:`.

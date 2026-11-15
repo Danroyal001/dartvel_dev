@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel upgrade --project` moves a project whose constraints already admit the release but whose `pubspec.lock` is behind it (`^3.47.0` locked at 3.47.0, with 3.47.1 out). It said "Nothing was changed" and left the lock where it was; it now runs `pub upgrade` on the Dartvel packages.
+
 ## 3.47.1 — 2026-11-14
 
 - `dartvel build` and `dartvel doctor` check that the project's Dart sources parse, before anything is generated, and report each syntax error with its file, line and column; the build stops on them (exit 65). Release binaries answer most files with a Rust port of the analyzer's parser carried inside the CLI; `package:analyzer` (a new dependency) decides every file it does not vouch for, and every file when it is absent. See the repository CHANGELOG.

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:pub_semver/pub_semver.dart';
 import 'package:yaml/yaml.dart';
 
 import '../graph/module_mounts.dart';
@@ -60,8 +61,10 @@ class UpgradeCommand extends Command<void> {
 
 /// Resolves the project in [directory] after its constraints moved: null when
 /// it resolved, otherwise what the resolver said.
-typedef DVProjectResolve =
-    Future<String?> Function(String directory, {required bool flutter});
+typedef DVProjectResolve = Future<String?> Function(
+  String directory, {
+  required bool flutter,
+});
 
 /// The body of `dartvel upgrade`: 0 when the plan has nothing blocked or the
 /// project moved, 1 when it was blocked or refused.
@@ -80,7 +83,17 @@ Future<int> dvRunUpgrade(
     return 1;
   }
   if (project) {
-    return _upgradeProject(root, out: out, resolve: resolve ?? _pubGet);
+    return _upgradeProject(
+      root,
+      out: out,
+      resolve:
+          resolve ??
+          (String directory, {required bool flutter}) => _pubUpgrade(
+            directory,
+            flutter: flutter,
+            packages: _lockedDartvel(directory).keys.toList(),
+          ),
+    );
   }
   if (!plan) {
     if (selfUpgrade != null) {
@@ -195,13 +208,29 @@ Future<int> _upgradeProject(
       changed = true;
     }
   }
-  if (!changed) {
+  // A constraint that admits the release does not move the lock: `^3.47.0`
+  // admits 3.47.1, and pub keeps the 3.47.0 it already resolved. So the
+  // lock is read too, and a Dartvel package resolved below this release is
+  // upgraded to it.
+  final List<String> behind = <String>[
+    for (final MapEntry<String, Version> locked in _lockedDartvel(root).entries)
+      if (locked.value < Version.parse(_releaseOf(locked.key)))
+        '${locked.key} ${locked.value} → ${_releaseOf(locked.key)}',
+  ];
+  if (!changed && behind.isEmpty) {
     out('');
     out(
-      'Every Dartvel constraint already admits $dartvelPackageVersion. '
-      'Nothing was changed.',
+      'Every Dartvel constraint already admits $dartvelPackageVersion '
+      'and resolves to it. Nothing was changed.',
     );
     return 0;
+  }
+  if (behind.isNotEmpty) {
+    out('');
+    out('pubspec.lock');
+    for (final String line in behind) {
+      out('  $line');
+    }
   }
 
   final String? refusal = await resolve(
@@ -238,22 +267,54 @@ bool _usesFlutter(String pubspecText) {
   }
 }
 
-Future<String?> _pubGet(String directory, {required bool flutter}) async {
+String _releaseOf(String package) =>
+    package == 'dartvel_shelf' ? dartvelShelfVersion : dartvelPackageVersion;
+
+/// The released Dartvel packages pubspec.lock resolves, and to what.
+Map<String, Version> _lockedDartvel(String root) {
+  final File lock = File(p.join(root, 'pubspec.lock'));
+  if (!lock.existsSync()) return const <String, Version>{};
+  try {
+    final Object? doc = loadYaml(lock.readAsStringSync());
+    final Object? packages = doc is YamlMap ? doc['packages'] : null;
+    if (packages is! YamlMap) return const <String, Version>{};
+    return <String, Version>{
+      for (final String name in dvReleasedPackages)
+        if (packages[name] is YamlMap &&
+            (packages[name] as YamlMap)['source'] == 'hosted' &&
+            (packages[name] as YamlMap)['version'] is String)
+          name: Version.parse((packages[name] as YamlMap)['version'] as String),
+    };
+  } on Object {
+    return const <String, Version>{};
+  }
+}
+
+/// `pub upgrade` of the Dartvel packages, which moves a lock that `pub get`
+/// would keep; `pub get` when the lock names none.
+Future<String?> _pubUpgrade(
+  String directory, {
+  required bool flutter,
+  required List<String> packages,
+}) async {
   final String tool = flutter ? 'flutter' : 'dart';
+  final List<String> args = packages.isEmpty
+      ? <String>['pub', 'get']
+      : <String>['pub', 'upgrade', ...packages];
   final ProcessResult result;
   try {
     result = await Process.run(
       tool,
-      <String>['pub', 'get'],
+      args,
       workingDirectory: directory,
       runInShell: Platform.isWindows,
     );
   } on ProcessException catch (e) {
-    return '`$tool pub get` could not be run: ${e.message}';
+    return '`$tool ${args.join(' ')}` could not be run: ${e.message}';
   }
   if (result.exitCode == 0) return null;
   final String said = '${result.stderr}'.trim().isEmpty
       ? '${result.stdout}'
       : '${result.stderr}';
-  return '`$tool pub get` failed:\n$said';
+  return '`$tool ${args.join(' ')}` failed:\n$said';
 }
