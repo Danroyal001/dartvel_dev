@@ -52,6 +52,15 @@ new binary, so it needs no sudo. It then checks that the home page and
 `/studio` render on the server, that `sitemap.xml` is served and that a
 signed-out `/__studio/` is sent to `/__studio/login`, and swaps the previous release back in if
 any of that fails.
+Before and after the switch it fetches every page in the sitemap and an address
+nothing serves: a changed status swaps the previous release back in, and each
+page whose text changed is printed. Five releases stay installed for
+`--rollback`.
+
+www.dartvel.dev reaches the same binary through nginx; `dartvel.hosts` in
+`pubspec.yaml` answers it with a 301 to the same path on dartvel.dev. An
+address nothing serves gets the site's not-found page, rendered on the server,
+with a 404.
 
 The static bundle the site used to be served from is still at
 `/var/www/dartvel.dev`. nginx keeps it as a rollback: the static server block
