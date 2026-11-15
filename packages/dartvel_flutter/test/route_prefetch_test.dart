@@ -82,6 +82,31 @@ void main() {
     });
   });
 
+  // A nav link to the page already open -- "Pricing" on the pricing page --
+  // prefetched that page again: its HTML downloaded twice on every visit
+  // (sigmadev.digital, a second GET of the landing page seconds after it
+  // loaded). The page that is open is never prefetched.
+  group('the page that is already open', () {
+    test('is not prefetched again', () {
+      final Uri base = Uri.parse('https://example.com/');
+      expect(dvIsOpenDocument('pricing', base: base, open: Uri.parse('https://example.com/pricing?fbclid=x')), isTrue);
+      expect(dvIsOpenDocument('pricing', base: base, open: Uri.parse('https://example.com/pricing/')), isTrue);
+      expect(dvIsOpenDocument('./', base: base, open: Uri.parse('https://example.com/')), isTrue);
+    });
+
+    test('another page is', () {
+      final Uri base = Uri.parse('https://example.com/');
+      expect(dvIsOpenDocument('contact', base: base, open: Uri.parse('https://example.com/pricing')), isFalse);
+      expect(dvIsOpenDocument('./', base: base, open: Uri.parse('https://example.com/pricing')), isFalse);
+    });
+
+    test('under a base path, by the address the link would fetch', () {
+      final Uri base = Uri.parse('https://example.com/app/');
+      expect(dvIsOpenDocument('docs', base: base, open: Uri.parse('https://example.com/app/docs')), isTrue);
+      expect(dvIsOpenDocument('docs', base: base, open: Uri.parse('https://example.com/docs')), isFalse);
+    });
+  });
+
   group('the images the build listed for a route', () {
     test('are read from the manifest', () {
       expect(dvPrefetchImages(manifest, '/docs'), <String>[

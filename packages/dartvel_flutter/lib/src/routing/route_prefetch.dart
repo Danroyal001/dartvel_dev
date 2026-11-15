@@ -19,7 +19,7 @@ import 'package:flutter/widgets.dart';
 import 'route_prefetch_stub.dart'
     if (dart.library.js_interop) 'route_prefetch_web.dart';
 
-export 'route_prefetch_paths.dart' show dvPrefetchHref, dvPrefetchImages;
+export 'route_prefetch_paths.dart' show dvIsOpenDocument, dvPrefetchHref, dvPrefetchImages;
 
 /// The two steps of a document prefetch, replaceable for tests and for a
 /// host that serves its pages some other way.
