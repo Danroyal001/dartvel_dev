@@ -102,6 +102,7 @@ import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/widgets/password_reveal.dart';
+import 'src/widgets/search_clear.dart';
 import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 import 'src/windowing/window.dart';
 
@@ -932,6 +933,7 @@ export 'src/updates/shorebird_updates.dart'
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/context_menu.dart';
 export 'src/widgets/home_widgets.dart';
+export 'src/widgets/search_clear.dart';
 export 'src/widgets/shortcuts.dart';
 export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 export 'src/windowing/app_launch.dart';
@@ -1242,6 +1244,17 @@ class DVModifier {
 
   final ValueChanged<String>? inputChanged;
 
+  /// A search box: announced as one (`<input type="search">` on the web),
+  /// with a clear control by default. See [input].
+  final bool inputSearch;
+
+  /// What clears a search field: [DVClearButton.x] unless `.input()` says
+  /// otherwise. Nothing draws on a field that is not a search field.
+  final DVClearButton inputClearButton;
+
+  /// Called after a search field is cleared, by its clear control or Escape.
+  final VoidCallback? inputCleared;
+
   const DVModifier({
     this.dropTargetValue,
     this.draggableValue,
@@ -1303,6 +1316,9 @@ class DVModifier {
     this.inputSubmitted,
     this.inputErrorText,
     this.inputChanged,
+    this.inputSearch = false,
+    this.inputClearButton = DVClearButton.x,
+    this.inputCleared,
   });
 
   const DVModifier.fromStyle()
@@ -1365,7 +1381,10 @@ class DVModifier {
         inputMultiline = false,
         inputSubmitted = null,
         inputErrorText = null,
-        inputChanged = null;
+        inputChanged = null,
+        inputSearch = false,
+        inputClearButton = DVClearButton.x,
+        inputCleared = null;
 
   DVModifier _copyWith({
     DVDropTargetSpec? dropTargetValue,
@@ -1429,6 +1448,9 @@ class DVModifier {
     VoidCallback? inputSubmitted,
     Object? inputErrorText = _unset,
     ValueChanged<String>? inputChanged,
+    bool? inputSearch,
+    DVClearButton? inputClearButton,
+    VoidCallback? inputCleared,
   }) {
     assert(
       _heightIsABox(
@@ -1523,6 +1545,9 @@ class DVModifier {
           ? this.inputErrorText
           : inputErrorText as String?,
       inputChanged: inputChanged ?? this.inputChanged,
+      inputSearch: inputSearch ?? this.inputSearch,
+      inputClearButton: inputClearButton ?? this.inputClearButton,
+      inputCleared: inputCleared ?? this.inputCleared,
     );
   }
 
@@ -1886,6 +1911,10 @@ class DVModifier {
         inputHelperValue: other.inputHelperValue ?? inputHelperValue,
         inputObscureText: other.inputObscureText || inputObscureText,
         inputChanged: other.inputChanged ?? inputChanged,
+        inputSearch: other.inputSearch || inputSearch,
+        inputClearButton:
+            other.inputSearch ? other.inputClearButton : inputClearButton,
+        inputCleared: other.inputCleared ?? inputCleared,
       );
 
   /// The box's height in points.
@@ -1969,6 +1998,15 @@ class DVModifier {
   /// [multiline] is for a field that takes more than one line, where Enter is
   /// a newline and must not submit anything. [error] is what is wrong with
   /// what has been typed here, shown under the field and announced with it.
+  ///
+  /// [search] makes it a search box: announced as one (an
+  /// `<input type="search">` on the web, in the server-rendered document too),
+  /// with Search on the keyboard's action key, and a [DVClearButton.x] by
+  /// default -- an "x", named "Clear search", shown while there is text, that
+  /// empties the field, keeps the focus in it and calls [onChanged] with `''`
+  /// and then [onCleared]. Escape in the field clears it the same way while
+  /// there is text. [clearButton] `.none` turns both off and `.custom(builder)`
+  /// draws a control of your own in place of the "x".
   DVModifier input({
     String? label,
     String? hint,
@@ -1979,6 +2017,9 @@ class DVModifier {
     String? error,
     VoidCallback? onSubmitted,
     ValueChanged<String>? onChanged,
+    bool search = false,
+    DVClearButton? clearButton,
+    VoidCallback? onCleared,
   }) =>
       _copyWith(
         inputValue: true,
@@ -1994,6 +2035,9 @@ class DVModifier {
         inputSubmitted: onSubmitted,
         inputErrorText: error,
         inputChanged: onChanged,
+        inputSearch: search,
+        inputClearButton: clearButton ?? DVClearButton.x,
+        inputCleared: onCleared,
       );
 
   /// The image behind a box: a bundled one, or one a model holds.
@@ -4194,34 +4238,47 @@ class _DVInputFieldState extends State<_DVInputField>
     // A field that is not the last of a form offers Next on the keyboard: it
     // is what the key means here, and it is what makes Enter walk the form
     // rather than submit from the middle of it.
+    final bool search = modifier.inputSearch && !modifier.inputMultiline;
     final TextInputAction action = modifier.inputMultiline
         ? TextInputAction.newline
         : (scope != null && !scope.isLast(_focus)
             ? TextInputAction.next
-            : TextInputAction.done);
-    return TextField(
+            // A search box's action key says what pressing it does.
+            : (search ? TextInputAction.search : TextInputAction.done));
+    Widget field(Widget? clear) => TextField(
+          controller: _controller,
+          focusNode: _focus,
+          obscureText: _obscure,
+          maxLines: modifier.inputMultiline ? null : 1,
+          minLines: modifier.inputMultiline ? 3 : 1,
+          textInputAction: action,
+          decoration: InputDecoration(
+            labelText: modifier.inputLabelValue,
+            hintText: modifier.inputHintValue,
+            helperText: modifier.inputErrorText == null
+                ? modifier.inputHelperValue
+                : null,
+            // The message a refused save left on this field. Also read out
+            // with it, so a reader is told what is wrong where they are
+            // rather than being sent to a line under the form to find it.
+            errorText: modifier.inputErrorText,
+            suffixIcon: _toggle() ?? clear,
+          ),
+          onChanged: modifier.inputChanged,
+          onSubmitted: modifier.inputSubmitted == null && scope == null
+              ? null
+              : _onSubmitted,
+        );
+    if (!search) return field(null);
+    // A search box: the "x" while there is text, Escape to clear, and
+    // announced as a search box (type="search" on the web).
+    return DVSearchClearBuilder(
       controller: _controller,
       focusNode: _focus,
-      obscureText: _obscure,
-      maxLines: modifier.inputMultiline ? null : 1,
-      minLines: modifier.inputMultiline ? 3 : 1,
-      textInputAction: action,
-      decoration: InputDecoration(
-        labelText: modifier.inputLabelValue,
-        hintText: modifier.inputHintValue,
-        helperText: modifier.inputErrorText == null
-            ? modifier.inputHelperValue
-            : null,
-        // The message a refused save left on this field. Also read out with
-        // it, so a reader is told what is wrong where they are rather than
-        // being sent to a line under the form to find it.
-        errorText: modifier.inputErrorText,
-        suffixIcon: _toggle(),
-      ),
+      clearButton: modifier.inputClearButton,
       onChanged: modifier.inputChanged,
-      onSubmitted: modifier.inputSubmitted == null && scope == null
-          ? null
-          : _onSubmitted,
+      onCleared: modifier.inputCleared,
+      builder: (BuildContext context, Widget? clear) => field(clear),
     );
   }
 }

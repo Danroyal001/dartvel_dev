@@ -1019,6 +1019,10 @@ class DVStudioTextInput extends StatefulWidget {
   /// it again.
   final bool obscureText;
 
+  /// A search box: an "x" that clears it while there is text, Escape to clear,
+  /// and announced as a search box. See [DVSearchClearBuilder].
+  final bool search;
+
   const DVStudioTextInput({
     super.key,
     this.value = '',
@@ -1030,6 +1034,7 @@ class DVStudioTextInput extends StatefulWidget {
     this.semanticLabel,
     this.suffix,
     this.obscureText = false,
+    this.search = false,
   });
 
   @override
@@ -1077,7 +1082,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    Widget box(Widget? clear) => GestureDetector(
       onTap: _focus.requestFocus,
       child: Container(
         height: 32,
@@ -1143,9 +1148,19 @@ class _DVStudioTextInputState extends State<DVStudioTextInput>
                 color: DVStudioStyle.faint,
                 size: 15,
               ),
+            ?clear,
           ],
         ),
       ),
+    );
+    if (!widget.search) return box(null);
+    return DVSearchClearBuilder(
+      controller: _text,
+      focusNode: _focus,
+      onChanged: widget.onChanged,
+      color: DVStudioStyle.faint,
+      size: 15,
+      builder: (BuildContext context, Widget? clear) => box(clear),
     );
   }
 }

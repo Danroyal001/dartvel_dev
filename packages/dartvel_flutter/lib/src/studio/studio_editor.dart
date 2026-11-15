@@ -523,6 +523,7 @@ class _DVStudioPaletteState extends State<DVStudioPalette> {
             Padding(
               padding: const .fromLTRB(12, 12, 12, 4),
               child: DVStudioTextInput(
+                search: true,
                 icon: DVStudioIcons.search,
                 placeholder: 'Search elements',
                 onChanged: (String value) => setState(() => _query = value),

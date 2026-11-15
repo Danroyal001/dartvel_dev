@@ -1668,6 +1668,7 @@ class _DVStudioModelsSectionState extends State<DVStudioModelsSection> {
                                     DVStudioTextInput(
                                       key: const ValueKey<String>(
                                           'dv-studio-records-search'),
+                                      search: true,
                                       value: _query,
                                       placeholder:
                                           'Search ${records.length} records',
