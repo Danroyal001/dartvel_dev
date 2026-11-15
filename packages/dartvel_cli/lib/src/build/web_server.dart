@@ -42,6 +42,7 @@ import 'package:dartvel_core/dartvel.dart' as core
     show
         DVHostRedirect,
         dvHostRedirectTarget,
+        dvRedirectLocation,
         DVSessionAuthentication,
         DVSessionAuthenticationResult,
         DVSessionCookie,
@@ -465,15 +466,15 @@ Handler dvWebServerHandler({
       rawPath: '/${request.url.path}',
     );
     if (hostTarget != null) {
-      final String target = request.url.hasQuery && !hostTarget.contains('?') ? '$hostTarget?${request.url.query}' : hostTarget;
-      return Response(301, headers: <String, String>{'location': target});
+      return Response(301, headers: <String, String>{'location': core.dvRedirectLocation(hostTarget, request.url.query)});
     }
 
     // dartvel.redirects, as the deployed server answers them (dartvel_shelf).
     final core.DVConfiguredRedirect? configured =
         core.dvConfiguredRedirect(manifest['redirects'], '/${request.url.path}');
     if (configured != null) {
-      return Response(configured.status, headers: <String, String>{'location': configured.to});
+      return Response(configured.status,
+          headers: <String, String>{'location': core.dvRedirectLocation(configured.to, request.url.query)});
     }
 
     if (!shellFile.existsSync()) {

@@ -1227,3 +1227,15 @@ DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
   if (to is! String || to.isEmpty) return null;
   return DVConfiguredRedirect(to, status is int ? status : 301);
 }
+
+/// Where a redirect answered for a request with [query] sends it: [to], with
+/// the request's query carried over when [to] has none of its own.
+///
+/// One rule for every redirect a Dartvel server answers -- `dartvel.redirects`
+/// and the `dartvel.hosts` entries that only redirect -- in the deployed
+/// server and in `dartvel dev --release`'s preview alike. Each used to spell
+/// it out inline, and the preview's dartvel.redirects did not carry the query
+/// at all: `/old?ref=mail` reached `/new?ref=mail` in production and `/new`
+/// in the preview.
+String dvRedirectLocation(String to, String query) =>
+    query.isEmpty || to.contains('?') ? to : '$to?$query';
