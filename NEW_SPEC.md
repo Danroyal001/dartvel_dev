@@ -2259,6 +2259,69 @@ change that, so it cannot get the state wrong. Nothing draws on a field that
 is not obscured: `.eye` is a promise about a password field, and a field
 showing its text has nothing to reveal.
 
+## A search box can be cleared
+
+Stability: `Contract` · Status: `Shipped`
+
+A field drawn `.input(search: true)` is a search box, and every search box
+has an "x" that empties it, by default. It is the control every platform's
+own search box has: without it a reader selects what they typed and deletes it
+to search again.
+
+- It is shown only while the field holds text.
+- Pressing it empties the field and keeps the focus in it, so the next search
+  is typed straight away. The field's `onChanged` is called with `''`, and
+  `onCleared`, when given, after it.
+- It is a button, not an icon: Tab reaches it from the field, Enter or Space
+  presses it. Its name is "Clear search", which is also its tooltip and, in
+  the server-rendered document, its `title` and `aria-label`.
+- Escape in the field clears it too, while there is text. In an empty field
+  Escape is left alone, so it still closes the dialog the field is in.
+- The field is announced as a search box; on the web it is an
+  `<input type="search">`, and the keyboard's action key reads Search.
+
+It works before Flutter has painted. The server-rendered document writes a
+search field as a native `<input type="search">` followed by its own clear
+button -- `<button type="button" class="dv-clear" aria-label="Clear search"
+title="Clear search" hidden>` -- which typing shows and pressing hides again
+after emptying the field, firing an `input` event and putting the focus back.
+Escape in the document's field does the same. With scripting off the button
+stays hidden, since it could not work, and the browser's own search box does
+the clearing: Escape, and the native cancel control in Chromium and Safari.
+
+Studio's search boxes (records, the element palette, the command palette) are
+the same control. Fields an application draws with its own `TextField` get
+the behaviour from `DVSearchClearBuilder`, which hands the field its "x" and
+handles Escape and the focus.
+
+`DVClearButton` is the option:
+
+```dart
+DVModifier().input(
+  label: 'Search',
+  search: true,                                    // the "x" is the default
+  onChanged: (query) => results.value = query,
+  onCleared: () => results.value = '',
+)
+
+DVModifier().input(
+  label: 'Filter',
+  search: true,
+  clearButton: .none,                              // turned off
+)
+
+DVModifier().input(
+  label: 'Search',
+  search: true,
+  clearButton: .custom((context, clear) =>
+      DVText('Reset').modifier(DVModifier().onPressed(clear))),
+)
+```
+
+The custom builder is given the call that clears, so it empties the field,
+keeps the focus and fires the callbacks exactly as the "x" does. Nothing draws
+on a field that is not a search field.
+
 ---
 
 # Backend
@@ -8230,7 +8293,9 @@ Runtime and tooling:
   focusable button with a visible focus ring and a name, and a refused save is
   announced in a live region and puts the focus on the field at fault. An
   obscured field starts with a Show password control, turnable off or
-  replaceable with `DVVisibilityToggle`
+  replaceable with `DVVisibilityToggle`, and a search field
+  (`.input(search: true)`) has a "Clear search" button and clears on Escape,
+  turnable off or replaceable with `DVClearButton`
 - **everything hoverable has a tooltip, and the tooltip is the control's name.**
   There are no guess games and no opt-out: an icon button, a chip, a toolbar or
   navigation item, a menu trigger, an icon-only link, anything with `.onTap()`,

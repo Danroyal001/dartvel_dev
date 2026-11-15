@@ -122,6 +122,35 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'search',
+      title: 'Search boxes clear with one press',
+      children: <Widget>[
+        DocsText(
+          'A field drawn with .input(search: true) is a search box, and '
+          'every search box has an x that empties it. Nothing has to be '
+          'asked for.',
+        ),
+        Bullets(<String>[
+          'The x shows only while there is text in the field.',
+          'Pressing it empties the field and leaves the focus in it, so '
+              'the next search is typed straight away. onChanged is called '
+              "with '' and onCleared after it.",
+          'It is a real button named Clear search, which is also its '
+              'tooltip. Tab reaches it from the field, and Enter or Space '
+              'presses it.',
+          'Escape in the field clears it too while there is text. In an '
+              'empty field Escape is left alone, so it still closes the '
+              'dialog the search is in.',
+          'It is there before the app has loaded. The page the server '
+              'sends draws the field as a native search input with the '
+              'same Clear search button.',
+          'Studio\'s searches have it too: records, elements and the '
+              'command palette.',
+        ]),
+        DocsCode('forms-search-clear'),
+      ],
+    ),
+    DocsSection(
       id: 'sensitive',
       title: 'Sensitive fields are write-only',
       children: <Widget>[
