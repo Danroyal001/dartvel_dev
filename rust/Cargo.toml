@@ -5,7 +5,7 @@
 # README.md for where each file comes from and how the helper is shipped.
 [workspace]
 resolver = "2"
-members = ["fe_analyzer_shared", "analyzer", "dartvel_syntax"]
+members = ["fe_analyzer_shared", "analyzer", "dartvel_syntax", "dartvel_aot"]
 
 [profile.release]
 debug = false

@@ -1,0 +1,42 @@
+HTTP/1.1 200 OK
+content-type: text/plain
+content-length: 2
+
+ok
+---
+HTTP/1.1 201 Created
+content-type: application/json
+content-length: 40
+
+{"id":1,"title":"buy milk","done":false}
+---
+HTTP/1.1 201 Created
+content-type: application/json
+content-length: 44
+
+{"id":2,"title":"call \"mum\"","done":false}
+---
+HTTP/1.1 400 Bad Request
+content-type: text/plain
+content-length: 13
+
+expected json
+---
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 87
+
+[{"id":1,"title":"buy milk","done":false},{"id":2,"title":"call \"mum\"","done":false}]
+---
+HTTP/1.1 405 Method Not Allowed
+content-type: text/plain
+content-length: 18
+
+method not allowed
+---
+HTTP/1.1 404 Not Found
+content-type: text/plain
+content-length: 21
+
+no route for /missing
+---
