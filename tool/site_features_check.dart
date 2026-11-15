@@ -158,8 +158,17 @@ int _check() {
       ('sections shipped', shipped.length),
       ('sections partial', partial),
     ]) {
-      final RegExpMatch? m =
+      // The figure is typed as a number, or interpolates one of the counts
+      // declared in components/site.dart, and then that count is held.
+      RegExpMatch? m =
           RegExp("Stat\\('(\\d+)', '${figure.$1}'\\)").firstMatch(source);
+      final RegExpMatch? named =
+          RegExp("Stat\\('\\\$(k\\w+)', '${figure.$1}'\\)").firstMatch(source);
+      if (m == null && named != null) {
+        m = RegExp('const int ${named.group(1)} = (\\d+);').firstMatch(
+            File('${root.path}/sites/dartvel_site/lib/components/site.dart')
+                .readAsStringSync());
+      }
       if (m == null) {
         problems.add('the home page no longer states "${figure.$1}"');
       } else if (int.parse(m.group(1)!) != figure.$2) {

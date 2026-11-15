@@ -347,6 +347,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Accessibility': 'Shipped',
   'Admin, Devtools, and Scaffolding': 'Shipped',
   'Adoption': 'Partial',
+  'Agent Driver': 'Partial',
   'Application Entry': 'Partial',
   'AI Operations': 'Partial',
   'AI': 'Partial',

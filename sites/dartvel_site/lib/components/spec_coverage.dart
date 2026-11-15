@@ -295,6 +295,8 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'A test with fakes', anchor: 'example'),
   SpecCoverage('Coding Agent Documentation', 'Reference', DVRoutes.docsagents,
       'What gets written', anchor: 'setup'),
+  SpecCoverage('Agent Driver', 'Reference', DVRoutes.docsagents,
+      'Let an agent use the page', anchor: 'driver'),
 ];
 
 /// Built sections the site does not cover yet, with the group each belongs

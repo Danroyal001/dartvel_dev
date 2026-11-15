@@ -27,9 +27,9 @@ Widget _docsCliPage(BuildContext context) => DocsArticle(
     '`dartvel upgrade --project` moves the Dartvel packages in pubspec.yaml, and '
         'in the project\'s local modules, to the CLI\'s release and resolves them. '
         'From 3.47.0 a Dartvel version is Flutter\'s major and minor followed by '
-        'Dartvel\'s own release number; the release before it was 0.13.51, and '
-        'a project on 0.13.x moves across with this command, because a caret '
-        'on 0.13.51 stops below 0.14.0.',
+        'Dartvel\'s own release number. Releases until 0.13.51 were numbered '
+        '0.x, and a project still on 0.13.x moves across with this command, '
+        'because a caret constraint on 0.13.x never reaches 3.x.',
   ],
   sections: <DocsSection>[
     for (final DocsCliCommand command in kCliCommands)
