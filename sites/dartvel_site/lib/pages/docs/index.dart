@@ -196,7 +196,7 @@ Widget _docsPage(BuildContext context) => const DocsArticle(
       id: 'services',
       title: 'Choose your services at startup',
       children: <Widget>[
-        DocsText('Keep `main.dart` to one line, `void main(List<String> args) => DV.run(args)`. Set up auth and mail in a private @DVBoot() function. It runs in every entry its code can run in: the app, and the web server, worker and cron processes. A hook in a file that imports Flutter stays in the app. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
+        DocsText('Keep `main.dart` to one line, `void main(List<String> args) => DV.run(args)`. Set up auth and mail in a private @DVBoot() function; it may call your generated functions and data models. It runs in every entry its code can run in: the app, and the web server, worker and cron processes. A hook in a file that imports Flutter stays in the app. Pure Dartvel apps use the generated root; @DVAppRoot() is optional for an existing Flutter host.'),
         DocsCode('start-configure'),
         DocsStatus(
           'Application Entry',
