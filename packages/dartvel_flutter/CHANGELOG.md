@@ -1,3 +1,7 @@
+## Unreleased
+
+- The page shell reports each page shown to `DVPageViews` once its frame is drawn (not on Studio's canvas).
+
 ## 3.47.1 — 2026-11-14
 
 - `DV.Platform.apps.homePresses` and `recentsPresses` hear the press as it happens: the launcher MainActivity tells the app over a channel instead of leaving a stamp to be read on the next resume and by a poll four times a second. `recentsPresses` also fires when the opt-in Recents service (`dartvel.android.recentsService: true`) put the app in front in place of the system's Recents.
