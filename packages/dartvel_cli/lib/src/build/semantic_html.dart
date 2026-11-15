@@ -113,6 +113,9 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
     // writes the document's own, which works before Flutter has run; this one
     // would be a second button with the same name.
     if (node.role == 'reveal') continue;
+    // Likewise the "x" the running app drew in a search field: the field
+    // writes the document's own clear button.
+    if (node.role == 'clear') continue;
 
     if (node.role == 'textbox' && node.fieldType != null) {
       if (hasLabel) _writeField(out, node.fieldType!, label, ++fields.count);

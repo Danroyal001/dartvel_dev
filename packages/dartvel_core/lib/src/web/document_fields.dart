@@ -37,6 +37,34 @@ const String dvRevealScript =
 /// Hides the eye from a reader with scripting off.
 const String dvRevealNoscriptCss = '.dv-fallback .dv-reveal{display:none}';
 
+/// The search clear button's name, tooltip and `aria-label`: the words the
+/// running app's "x" (`DVSearchClear` in dartvel_flutter) uses too.
+const String dvClearSearchName = 'Clear search';
+
+/// What pressing the document's clear button does: empties the field it
+/// controls, tells the page with an `input` event, puts the focus back in the
+/// field and hides itself, since there is nothing left to clear. Inline, so it
+/// works before the application's own script has loaded.
+///
+/// The button starts `hidden` and is shown by typing ([dvClearShowScript]), so
+/// with scripting off it never appears: there the browser's own search box
+/// does the clearing (Escape, and the native cancel control where the browser
+/// draws one).
+const String dvClearScript =
+    "var f=document.getElementById(this.getAttribute('aria-controls'));"
+    "f.value='';f.dispatchEvent(new Event('input',{bubbles:true}));"
+    "this.hidden=true;f.focus()";
+
+/// On the search input: shows its clear button while there is text.
+const String dvClearShowScript =
+    "this.nextElementSibling.hidden=!this.value";
+
+/// On the search input: Escape with text in the field clears it, as the
+/// button does, in every browser (Chrome does this natively, Firefox does not).
+const String dvClearEscapeScript =
+    "if(event.key=='Escape'&&this.value){event.preventDefault();"
+    "this.nextElementSibling.click()}";
+
 /// One field, as a paragraph holding its label and its input.
 ///
 /// [type] is an `<input>` type (`text`, `email`, `password`, ...) or
@@ -66,7 +94,19 @@ String dvDocumentField({
   if (complete != null) {
     out.write(' autocomplete="${_attribute.convert(complete)}"');
   }
+  if (safeType == 'search') {
+    out.write(' oninput="$dvClearShowScript" '
+        'onkeydown="$dvClearEscapeScript"');
+  }
   out.write('>');
+  if (safeType == 'search') {
+    // The same "x" the running app draws in a search field, named the same
+    // way. Hidden until something is typed.
+    final String clear = _attribute.convert(dvClearSearchName);
+    out.write('<button type="button" class="dv-clear" aria-controls="$id" '
+        'title="$clear" aria-label="$clear" hidden '
+        'onclick="$dvClearScript">${_text.convert(dvClearSearchName)}</button>');
+  }
   if (safeType == 'password') {
     final String eye = _attribute.convert(dvRevealName);
     out.write('<button type="button" class="dv-reveal" aria-controls="$id" '
