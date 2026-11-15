@@ -4159,7 +4159,10 @@ void startDartvelKiosk() {
         final close = _matchingParen(source, open);
         final body = dvFunctionBodyAfter(source, close);
         if (body == null) throw StateError('@$kind requires a function body in $rel');
-        imports.addAll(_importsFor(source, rel, pkgName).where((i) => !i.contains('/dartvel_client.dart') && !i.contains("'dartvel_client/dartvel_client.dart'")));
+        // Every import of its file, the client barrel included: the body is
+        // copied, and the names it uses -- a generated function, a model --
+        // resolve through the same imports here as they did there.
+        imports.addAll(_importsFor(source, rel, pkgName));
         final params = dvSplitArgs(source.substring(open + 1, close));
         final expression = body.expression;
         final alias = 'entry${declarationIndex++}';
@@ -4240,7 +4243,13 @@ void startDartvelKiosk() {
         final params = dvSplitArgs(source.substring(open + 1, close));
         if (params.length != 1 || !params.first.startsWith('DVBoot ')) throw StateError('@DVBoot takes one DVBoot context in $rel');
         final name = params.first.split(' ').last;
-        final sourceImports = _importsFor(source, rel, pkgName).where((i) => !i.contains('/dartvel_client.dart') && !i.contains("'dartvel_client/dartvel_client.dart'")).toSet();
+        // Every import of its file, the client barrel included. The body is
+        // copied into application.g.dart, and with the barrel dropped a boot
+        // function calling one of the application's generated functions
+        // (`ownedProTools()`) analysed clean in its own file and failed the
+        // web build with "Undefined name". A server entry never sees these:
+        // a file importing the barrel is UI-bound, and refused there.
+        final sourceImports = _importsFor(source, rel, pkgName).toSet();
         // The SDK libraries the body uses (dart:io in a server boot, say),
         // which _importsFor leaves to callers that already import them.
         sourceImports.addAll(RegExp(r"^\s*import\s+'(dart:[\w:]+)'\s*;", multiLine: true).allMatches(source).map((RegExpMatch m) => "import '${m.group(1)}';"));
@@ -4832,11 +4841,13 @@ $code
     final String dir = p.dirname(rel).replaceAll('\\', '/');
 
     for (final RegExpMatch match in RegExp(
-      r"^\s*import\s+'([^']+)'([^;]*);",
+      // Either quote: a file written with double quotes is as valid, and its
+      // imports were dropped, leaving the copied body's names undefined.
+      r"""^\s*import\s+(['"])([^'"]+)\1([^;]*);""",
       multiLine: true,
     ).allMatches(source)) {
-      final String uri = match.group(1)!;
-      final String suffix = (match.group(2) ?? '').trim();
+      final String uri = match.group(2)!;
+      final String suffix = (match.group(3) ?? '').trim();
 
       if (suffix.contains('deferred')) continue;
 
