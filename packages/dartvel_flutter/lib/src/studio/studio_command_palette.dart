@@ -16,6 +16,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../widgets/search_clear.dart';
+
 /// Something the palette can do.
 class DVStudioCommand {
   const DVStudioCommand({
@@ -257,19 +259,27 @@ class _DVStudioCommandPaletteState extends State<DVStudioCommandPalette> {
             children: <Widget>[
               Padding(
                 padding: const .all(12),
-                child: TextField(
-                  key: DVStudioCommandPalette.searchKey,
+                // A search box like every other: the "x" while there is
+                // text, and Escape clears before it closes the palette.
+                child: DVSearchClearBuilder(
                   controller: _query,
                   focusNode: _focus,
-                  autofocus: true,
-                  textInputAction: .go,
                   onChanged: (_) => setState(() => _selected = 0),
-                  onSubmitted: (_) => _run(),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    hintText: 'Type a command, a page or an element',
-                    border: OutlineInputBorder(),
-                    isDense: true,
+                  builder: (BuildContext context, Widget? clear) => TextField(
+                    key: DVStudioCommandPalette.searchKey,
+                    controller: _query,
+                    focusNode: _focus,
+                    autofocus: true,
+                    textInputAction: .go,
+                    onChanged: (_) => setState(() => _selected = 0),
+                    onSubmitted: (_) => _run(),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: clear,
+                      hintText: 'Type a command, a page or an element',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                    ),
                   ),
                 ),
               ),
