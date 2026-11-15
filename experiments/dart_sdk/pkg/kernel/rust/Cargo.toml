@@ -16,3 +16,7 @@ path = "src/bin/kernel_roundtrip.rs"
 [[test]]
 name = "roundtrip_oracle"
 path = "tests/roundtrip_oracle.rs"
+
+[[test]]
+name = "malformed_input"
+path = "tests/malformed_input.rs"

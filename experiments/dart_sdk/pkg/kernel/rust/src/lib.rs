@@ -9,4 +9,6 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 #![allow(clippy::too_many_arguments, clippy::new_without_default)]
 
+pub mod ast;
 pub mod binary;
+pub mod canonical_name;

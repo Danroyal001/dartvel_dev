@@ -88,6 +88,10 @@ differ are kept, and the test names the first differing byte of each.
 - An instance member reference whose target is not in the component (an
   unlinked component) keeps the member-signature origin that was read;
   upstream cannot write such a component at all.
+- The reader and the writer recurse as upstream does, so a tree nested
+  deeply enough to exhaust the stack aborts the process (upstream throws a
+  stack overflow). Any other damaged input is refused with a `ParseError`
+  (`tests/malformed_input.rs`).
 - End-to-end checks through `gen_snapshot` (programs run, snapshot sizes)
   need a VM at this checkout's version. This box runs Dart 3.13.4 and the
   fork's C++ VM is not built here, so they wait until Dartvel moves to a
