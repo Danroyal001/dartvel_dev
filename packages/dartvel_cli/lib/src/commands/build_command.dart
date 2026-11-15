@@ -99,6 +99,7 @@ import '../build/renderer_hints.dart';
 import '../build/cross_origin_isolation.dart'
     show dvCrossOriginIsolationBlockers;
 import '../build/wasm_deferred.dart';
+import '../build/android_gradle_speed.dart';
 import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
@@ -449,7 +450,7 @@ class BuildCommand extends Command<void> {
       ..addOption('arch',
           allowed: ['arm', 'arm64', 'x64'],
           defaultsTo: 'arm64',
-          help: 'Target architecture for embedded builds')
+          help: 'Target architecture: for embedded builds, and on an Android build the one ABI to build (all three without it)')
       ..addFlag('split-per-abi',
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
       ..addFlag('cache',
@@ -1304,6 +1305,8 @@ class BuildCommand extends Command<void> {
           reason: noPush);
       // Gradle writes native debug symbols only when asked.
       _writeAndroidSymbolsRequest(_projectRoot);
+      // Gradle's build cache and parallel execution, before Gradle starts.
+      dvWriteAndroidGradleSpeed(_projectRoot);
     }
     // After every other manifest writer, so the INTERNET line and the
     // <application> attributes are decided on the manifest that ships.
@@ -1379,6 +1382,8 @@ class BuildCommand extends Command<void> {
         // server will guard them.
         studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
         wasm: webWasm,
+        // Only when --arch was typed: its default is for embedded builds.
+        androidArch: androidFamily && _options.archExplicit ? _options.arch : null,
       ),
       ...?variant?.flutterArguments,
       // dartvel.display: how big the app is drawn on a television, a signage
@@ -1462,6 +1467,20 @@ class BuildCommand extends Command<void> {
       // only Flutter's own progress lines reach the console.
       final bool splitWasm = webWasm &&
           (platform == 'web' || platform == 'web-server');
+      // Flutter's own dart2wasm module is replaced by the deferred compile,
+      // so it is compiled unoptimised; the deferred compile gets the
+      // optimisation instead. Only where the split runs.
+      final List<String> throwaway =
+          splitWasm ? dvThrowawayWasmArguments(buildMode) : const <String>[];
+      final String? wasmOptimization =
+          throwaway.isEmpty ? null : dvWasmReleaseOptimization;
+      // A JavaScript-only build: Flutter otherwise runs a dart2wasm dry run
+      // beside dart2js to warn about wasm incompatibilities, a compiler front
+      // end's worth of work whose only output is those warnings.
+      final List<String> noDryRun = !webWasm &&
+              (platform == 'web' || platform == 'web-server')
+          ? const <String>['--no-wasm-dry-run']
+          : const <String>[];
       final StringBuffer verboseLog = StringBuffer();
       final String wasmWork =
           p.join(_projectRoot, '.dart_tool', 'dartvel_wasm');
@@ -1477,8 +1496,8 @@ class BuildCommand extends Command<void> {
         'flutter',
         // -v straight after `build web`, leaving every argument as it was.
         splitWasm
-            ? <String>[...args.take(2), '-v', ...args.skip(2)]
-            : args,
+            ? <String>[...args.take(2), '-v', ...args.skip(2), ...throwaway]
+            : <String>[...args, ...noDryRun],
         workingDirectory: _projectRoot,
         runInShell: true,
         // The release key reaches Gradle through the environment only: never
@@ -1503,6 +1522,7 @@ class BuildCommand extends Command<void> {
                 command: command,
                 workRoot: wasmWork,
                 run: runCompiler,
+                optimization: wasmOptimization,
               );
             }
           }
@@ -1581,6 +1601,7 @@ class BuildCommand extends Command<void> {
             verboseLog: verboseLog.toString(),
             run: runCompiler,
             compiling: earlyWasm,
+            optimization: wasmOptimization,
           );
           Logger.log(split.problem == null
               ? '   WebAssembly: split into main.dart.wasm and '
@@ -6159,6 +6180,7 @@ List<String> resolveFlutterBuildArguments({
   String? exportOptionsPlist,
   bool studio = false,
   bool wasm = false,
+  String? androidArch,
 }) {
   final bool bundle = platform == 'android' && format == 'aab';
   final bool ipa = platform == 'ios' && format == 'ipa';
@@ -6232,6 +6254,12 @@ List<String> resolveFlutterBuildArguments({
 
   if (platform == 'android' && splitPerAbi && !bundle) {
     args.add('--split-per-abi');
+  }
+  // `--arch` on an Android build: that ABI alone. Flutter otherwise compiles
+  // the app ahead of time once per ABI (arm, arm64, x64) whether or not the
+  // build was asked for all three; the one asked for comes out the same.
+  if (androidArch != null && (command == 'apk' || command == 'appbundle')) {
+    args.addAll(<String>['--target-platform', 'android-$androidArch']);
   }
   if (ipa) {
     // Signed the way the project's Xcode signing is configured, or as the

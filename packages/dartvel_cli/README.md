@@ -430,6 +430,20 @@ moves it from route to route through a hook the app installs only in a
 browser under automation. A route that redirects, and an app without the
 hook, are loaded afresh; `--no-capture-in-app` loads every route afresh.
 
+A WebAssembly build does not pay for Flutter's own dart2wasm module, which the
+deferred-loading compile replaces: Flutter is asked for it at `-O0` (no
+binaryen), dart2js stays at the `-O4` it had, and the deferred compile runs at
+`-O2` with the command an optimised Flutter build led to. A JavaScript-only
+build (`dartvel.web.wasm: false`) leaves out Flutter's dart2wasm dry run.
+
+`dartvel build android --arch arm` (or `arm64`, `x64`) builds that one ABI;
+with `--split-per-abi` that is one APK instead of three, and a third of the
+ahead-of-time compiling. Without `--arch` every ABI is built. The Android
+project the build generates gets Gradle's build cache and parallel execution
+(`org.gradle.caching`, `org.gradle.parallel` in `android/gradle.properties`)
+unless it names them already, so tasks whose inputs are unchanged are taken
+from `~/.gradle/caches`, which outlives the regenerated `android/` folder.
+
 ### File types the app opens
 
 `dartvel.fileAssociations` (or the same field of a Dart config class) is

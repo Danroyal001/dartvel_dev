@@ -1490,6 +1490,12 @@ routes: 387 s before, 24 s now). Measured build times are in
 [docs/web-performance.md](docs/web-performance.md#build-time-after-01324);
 see the CLI README.
 
+A WebAssembly build no longer optimises Flutter's own dart2wasm module, which
+the deferred-loading compile replaces, and a JavaScript-only build skips
+Flutter's wasm dry run. `dartvel build android --arch arm` builds one ABI
+instead of three, and the generated Android project has Gradle's build cache
+and parallel execution on.
+
 **How this compares to Expo.** People looking for "Expo for Flutter" usually
 want some of these:
 

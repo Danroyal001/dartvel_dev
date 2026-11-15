@@ -205,6 +205,34 @@ For 221 routes (sigmadev.digital) the read at the sample's rate, six
 windows and one boot each, would be about two minutes; its pages are
 heavier than the sample's, so that is an estimate, not a measurement.
 
+## Where a cold build's time goes (3.47, 15 November 2026)
+
+Measured on the same 8-core host with load 18 to 20 from other builds and
+the production services, so read the shares rather than the seconds. A fresh
+`dartvel create` app (5 routes), `dartvel build web-server`, cold:
+
+| Step | Time |
+|---|---|
+| `dart run` compiling the CLI from source (a path dependency; once per CLI version when it comes from pub) | about 75 s |
+| Code generation | 19 s |
+| `web/` scaffold, viewport, cache key | 21 s |
+| `flutter build web --wasm`: dart2js (front end 68 s + compile 111 s), Flutter's dart2wasm (about 300 s) and Dartvel's deferred dart2wasm, all at once | 330 s |
+| Wasm split, fonts | 7 s |
+| Semantics read, 5 routes | 24 s |
+| Manifest, SEO head, splash, worker | 4 s |
+| Binary pack (the backend compile ran beside Flutter) | 35 s |
+
+sigmadev.digital (229 pages) on the same day: Flutter's compile 841 s of a
+1253 s build; its dart2wasm finished 305 s after dart2js.
+
+Flutter's own dart2wasm was the longest of the three compiles, and the build
+replaces its output with the deferred compile's. It is now asked for at
+`-O0`, which leaves out binaryen, with dart2js pinned to the `-O4` it had and
+the deferred compile at the `-O2` Flutter's module used to get, so the wasm
+and JavaScript that ship are compiled by the same commands as before. A
+JavaScript-only build leaves out Flutter's dart2wasm dry run. The times after
+this change have not been measured yet: the host had no build slot free.
+
 ## Still to do
 
 Ranked by what they would save:
