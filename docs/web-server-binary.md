@@ -30,6 +30,17 @@ server, not only by the client. A request with no live session gets a `302` to t
 is ever sent the guarded screen's HTML. An application with no sign-in page answers `401` with the bare
 shell. `dartvel dev --release` behaves the same.
 
+## Not found
+
+A path no route serves answers `404` with the application's own not-found page, the page the build
+captured at `/404` (the framework's, or the application's own page there), rendered by the same function
+as every other route. So the first frame is a real document in the app's theme, with its heading, text
+and link home selectable, findable with Ctrl+F and reachable with Tab, and a reader without JavaScript or
+a crawler gets the same page; Flutter then takes over in place. Where the captured page names `/404`, the
+server names the path that was asked for, as the router does. A record its page hides (`visibility:
+hidden`) gets the same page and status. A build whose manifest carries no captured `/404` page still
+answers `404` with the shell. `dartvel dev --release` behaves the same.
+
 ## Redirects
 
 `dartvel.redirects` in pubspec.yaml sends an address somewhere else before routing, the sign-in guard or
@@ -80,10 +91,17 @@ elsewhere. It serves no pages, so it has no `mount` or `siteUrl`:
       redirect: https://example.com/about      # every path, with a 301
       redirects:                               # optional: exact paths sent elsewhere
         /tools: https://tools.example.com/
+    www.example.com:
+      redirect: https://example.com
+      keepPath: true                           # www.example.com/docs?x=1 -> https://example.com/docs?x=1
 ```
 
 The server answers it before anything else, keeping the query string, and nothing else hosts do (mounts,
-canonical URLs, sitemaps) sees it. With only `redirects`, an unnamed path on that host is not redirected.
+canonical URLs, sitemaps) sees it. With `keepPath: true` the path asked for is kept on the `redirect` address, which is how a duplicate
+host such as `www.` is retired without losing a link; `redirects` still wins for the paths it names. The
+address then has no query or fragment. A configuration of nothing but redirecting hosts serves the
+application exactly as with no `dartvel.hosts`: no mounts, no per-host sitemaps, the same pages.
+With only `redirects`, an unnamed path on that host is not redirected.
 A redirect target is a full `http(s)` address; a `redirects` target may also be a path.
 
 The build refuses the configuration, naming each problem, when there is not exactly one primary host, a

@@ -16134,8 +16134,11 @@ served stale for `staleForSeconds` after that, which defaults to the ttl. With
 second instance serves what the first resolved. CI proves that against a real
 Redis. The resolver for a public model page is generated from the model
 (`model_pages.g.dart`), and `@DVModel(schemaType: 'Product')` sets the JSON-LD
-`@type`. Hidden pages answer 404 and unauthorized ones 401, each as the shell
-with none of the data.
+`@type`. Hidden pages answer 404 with the application's not-found page (the page
+captured at `/404`, rendered through the one render path), and unauthorized ones
+401 as the shell with none of the data. A path no route serves gets the same
+not-found page with a 404, naming the path that was asked for, so the first frame
+is a real document rather than the splash.
 
 An ordinary page resolves its own request-time data from
 `lib/backend/page_data/index.dart`, which exports

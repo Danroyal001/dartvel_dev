@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHostRedirect, dvHostRedirectTarget, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show dvNotFoundRoute, dvNotFoundRoutePage, DVHostRedirect, dvHostRedirectTarget, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -305,6 +305,12 @@ Future<Response> _fromManifest(
   final String? siteName = pageSite.name ?? shellTitle;
 
   if (data != null && data.visibility != DVPageVisibility.public) {
+    // Hidden is not found: the application's own not-found page, as for a
+    // path nothing serves, so a refused record and a missing one read alike.
+    final String? notFound = data.visibility == DVPageVisibility.hidden
+        ? _notFoundPage(routeMap, shell, req, pagePath: pagePath, siteUrl: hosted?.siteUrl)
+        : null;
+    if (notFound != null) return _html(notFound, status: 404);
     // No description and no image: they describe a page the reader is not
     // being shown.
     final String bare = dvMinifyHtml(dvRenderRoute(shell: shell, path: pagePath, title: shellTitle ?? title, siteUrl: pageSiteUrl, siteName: siteName));
@@ -333,7 +339,12 @@ Future<Response> _fromManifest(
   // On a mounted host a link to a route outside the mount is that route's
   // URL on the host that owns it; left a path, it names a page this host
   // does not have.
-  final String linked = hosted?.withLinks(page, isRoute: isRoute) ?? page;
+  //
+  // Missing, the page is the application's own not-found page as the build
+  // captured it, by the same function: a real document from the first frame
+  // instead of the splash over an empty body.
+  final String rendered = (missing ? _notFoundPage(routeMap, shell, req, pagePath: pagePath, siteUrl: hosted?.siteUrl) : null) ?? page;
+  final String linked = hosted?.withLinks(rendered, isRoute: isRoute) ?? rendered;
   return _html(dvMinifyHtml(dvWithPreloads(linked, preloads)), status: missing ? 404 : 200, streaming: settings.streaming);
 }
 
@@ -582,5 +593,30 @@ Future<Response?> dvHostSiteFile(Request req, String spaRoot) async {
     headers: Headers()
       ..set('content-type', file.contentType)
       ..set('cache-control', file.status == 200 ? 'public, no-cache' : 'no-store'),
+  );
+}
+
+/// The application's not-found page for [req], rendered at [pagePath] from
+/// what the build captured for [dvNotFoundRoute], or null when the manifest
+/// carries no captured not-found page (an older build, or a router that was
+/// not generated), and the caller answers with the shell as before.
+String? _notFoundPage(
+  Map<String, Object?> routeMap,
+  String shell,
+  Request req, {
+  required String pagePath,
+  String? siteUrl,
+}) {
+  final Object? captured = (routeMap[dvNotFoundRoute] as Map?)?['page'];
+  if (captured is! Map) return null;
+  final String raw = _rawPath(req);
+  return dvRenderRoutePage(
+    shell,
+    dvNotFoundRoutePage(
+      DVRoutePage.fromJson(captured.cast<String, Object?>()),
+      path: pagePath,
+      shown: req.url.hasQuery ? '$raw?${req.url.query}' : raw,
+      siteUrl: siteUrl,
+    ),
   );
 }

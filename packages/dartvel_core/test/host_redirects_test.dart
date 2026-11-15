@@ -62,4 +62,56 @@ void main() {
     expect(dvHostRedirectTarget(back, host: 'danieleffiong.com', rawPath: '/tools'), 'https://sigmadev.digital/tools');
     expect(DVHostRedirect.listFromJson(null), isEmpty);
   });
+
+  // www.dartvel.dev/docs?x=1 must land on https://dartvel.dev/docs?x=1, not
+  // on the home page: a duplicate host is retired by sending every link to
+  // the same page on the real one. The query is the server's to append, as
+  // it already does for every host redirect.
+  group('keepPath', () {
+    final DVHostsParse parsed = DVHosts.parse(<String, Object?>{
+      'www.dartvel.dev': <String, Object?>{'redirect': 'https://dartvel.dev/', 'keepPath': true},
+    });
+    final List<DVHostRedirect> redirects = parsed.hosts.redirectHosts;
+
+    test('the path asked for is kept on the target', () {
+      expect(parsed.problems, isEmpty);
+      expect(dvHostRedirectTarget(redirects, host: 'www.dartvel.dev', rawPath: '/docs'), 'https://dartvel.dev/docs');
+      expect(dvHostRedirectTarget(redirects, host: 'www.dartvel.dev', rawPath: '/docs/routing'), 'https://dartvel.dev/docs/routing');
+      expect(dvHostRedirectTarget(redirects, host: 'www.dartvel.dev', rawPath: '/'), 'https://dartvel.dev/');
+    });
+
+    test('a path it names still goes where it says', () {
+      final List<DVHostRedirect> named = DVHosts.parse(<String, Object?>{
+        'old.example.com': <String, Object?>{
+          'redirect': 'https://example.com/new',
+          'keepPath': true,
+          'redirects': <String, Object?>{'/blog': 'https://example.com/journal'},
+        },
+      }).hosts.redirectHosts;
+      expect(dvHostRedirectTarget(named, host: 'old.example.com', rawPath: '/blog'), 'https://example.com/journal');
+      expect(dvHostRedirectTarget(named, host: 'old.example.com', rawPath: '/a/b'), 'https://example.com/new/a/b');
+    });
+
+    test('it survives the manifest', () {
+      final List<DVHostRedirect> back = DVHostRedirect.listFromJson(parsed.hosts.redirectsToJson());
+      expect(dvHostRedirectTarget(back, host: 'www.dartvel.dev', rawPath: '/docs'), 'https://dartvel.dev/docs');
+    });
+
+    test('keepPath must be true or false, and needs a redirect target', () {
+      final List<String> problems = DVHosts.parse(<String, Object?>{
+        'a.example.com': <String, Object?>{'redirect': 'https://example.com', 'keepPath': 'yes'},
+        'b.example.com': <String, Object?>{'keepPath': true, 'redirects': <String, Object?>{'/x': '/y'}},
+      }).problems;
+      expect(problems, hasLength(2));
+      expect(problems.join('\n'), allOf(contains('a.example.com'), contains('b.example.com')));
+    });
+
+    // A redirect-only declaration serves no pages: the application is served
+    // exactly as with no dartvel.hosts at all.
+    test('a configuration of only redirecting hosts changes nothing else', () {
+      expect(parsed.hosts.isEmpty, isTrue);
+      expect(parsed.hosts.entries, isEmpty);
+      expect(parsed.hosts.toJson(), isEmpty);
+    });
+  });
 }

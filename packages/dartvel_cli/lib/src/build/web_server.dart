@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
-import 'package:dartvel_core/dartvel.dart' show DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
+import 'package:dartvel_core/dartvel.dart' show dvNotFoundRoute, dvNotFoundRoutePage, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVCacheAdapter, DVImageVariants, DVPageData, DVPageDataCache, DVPageDataMode, DVPageDataResolver, DVPageRequest, DVPageVisibility, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvGlobalPrivacyControl, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvWithPrivacyOptOut, dvWithRequestTenant;
 // dartvel.hosts, decided by the same core functions the deployed server uses.
 import 'package:dartvel_core/dartvel.dart'
     show
@@ -527,6 +527,18 @@ Handler dvWebServerHandler({
     };
 
     final String shell = shellFile.readAsStringSync();
+    // The application's not-found page at [pagePath], rendered from what
+    // the build captured for /404 by the function every route goes through,
+    // naming the path the reader asked for; null without a captured one.
+    String? notFoundPage(String pagePath, String? hostSiteUrl) {
+      final DVRoutePage? captured = pages[dvNotFoundRoute];
+      if (captured == null) return null;
+      final String asked = request.url.hasQuery
+          ? '/${request.url.path}?${request.url.query}'
+          : '/${request.url.path}';
+      return dvRenderRoutePage(shell, dvNotFoundRoutePage(captured, path: pagePath, shown: asked, siteUrl: hostSiteUrl));
+    }
+
     // What the head falls back to when the page says nothing itself: what
     // this server was constructed with, then what dartvel.seo declared and
     // the build carried in the manifest, then the shell's own title. Not
@@ -612,6 +624,11 @@ Handler dvWebServerHandler({
     // sign the person in. The site's description and image stay off too --
     // they describe a page the reader is not being shown.
     if (data != null && data.visibility != DVPageVisibility.public) {
+      // Hidden is not found: the application's own not-found page.
+      final String? notFound = data.visibility == DVPageVisibility.hidden
+          ? notFoundPage(pagePath, hosted?.siteUrl)
+          : null;
+      if (notFound != null) return Response.notFound(notFound, headers: htmlHeaders);
       final String bare = dvServeRoute(
         shell: shell,
         path: pagePath,
@@ -663,7 +680,14 @@ Handler dvWebServerHandler({
         routeMap.isNotEmpty &&
         !(await publishedPages?.routes() ?? const <String>{})
             .contains(cleanPath)) {
-      return Response.notFound(served, headers: htmlHeaders);
+      // The application's own not-found page, as the build captured it and
+      // as the deployed server answers: a document from the first frame.
+      final String? notFound = notFoundPage(pagePath, hosted?.siteUrl);
+      return Response.notFound(
+          notFound == null
+              ? served
+              : dvMinifyHtml(hosted?.withLinks(notFound, isRoute: isRoute) ?? notFound),
+          headers: htmlHeaders);
     }
 
     if (!stream) return Response.ok(served, headers: htmlHeaders);

@@ -90,6 +90,15 @@ dartvel:
     /docs/install: /docs
     /docs/installation: /docs
 
+  # www.dartvel.dev answers on the same binary (nginx proxies both names), so
+  # it sends every link to the same page on dartvel.dev with a 301 instead of
+  # serving a duplicate site. Only a redirecting host: dartvel.dev itself is
+  # served exactly as without dartvel.hosts.
+  hosts:
+    www.dartvel.dev:
+      redirect: https://dartvel.dev
+      keepPath: true
+
   # No account pages: no /login, /sign-up or /account. Studio signs its one
   # granted person in at its own /__studio/login.
   auth:

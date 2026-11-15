@@ -2,6 +2,10 @@
 # Deploys dartvel.dev: builds the site as a web-server binary, installs it
 # beside the previous ones, swaps it in atomically, restarts the service and
 # checks that it serves. A release that does not answer is swapped back out.
+# Every page in the sitemap (and an address nothing serves) is fetched before
+# and after the switch: a changed status swaps the release back out, and each
+# page whose text changed is printed. The previous release stays installed
+# for --rollback.
 #
 #   tool/deploy_site_server.sh               build, then deploy
 #   tool/deploy_site_server.sh --skip-build  deploy sites/dartvel_site/build/server as it is
@@ -61,6 +65,40 @@ activate() {
   mv -Tf "$ROOT/current.next" "$ROOT/current"
 }
 
+# snapshot DIR: every page in the live sitemap, plus an address nothing serves,
+# fetched as dartvel.dev; DIR/status.txt has "path code" per line and DIR/<n>.txt
+# the visible text of each page (scripts, styles and tags removed).
+snapshot() {
+  local dir="$1" path n=0
+  rm -rf "$dir"; mkdir -p "$dir"
+  { curl -s -m 20 -H "Host: dartvel.dev" "$BASE/sitemap.xml" \
+      | grep -o "<loc>[^<]*</loc>" | sed -E "s#</?loc>##g; s#^https?://[^/]+##; s#^\$#/#"
+    echo "/__deploy-check-missing"; } | while read -r path; do
+    n=$((n + 1))
+    code="$(curl -s -m 30 -H "Host: dartvel.dev" -H "X-Forwarded-Proto: https" \
+      -o "$dir/$n.html" -w "%{http_code}" "$BASE$path")"
+    echo "$path $code" >> "$dir/status.txt"
+    perl -0777 -pe 's/<script.*?<\/script>|<style.*?<\/style>/ /gis; s/<[^>]+>/ /g; s/\s+/ /g; s/(.{1,160})(\s|$)/$1\n/g' \
+      "$dir/$n.html" > "$dir/$n.txt"
+  done
+}
+
+# compare BEFORE AFTER: fails when any status changed; prints each page whose
+# text changed, so the deploy shows exactly what it changed.
+compare() {
+  local before="$1" after="$2" n=0 path code changed
+  if ! diff -q "$before/status.txt" "$after/status.txt" >/dev/null; then
+    say "status changed:"; diff "$before/status.txt" "$after/status.txt" || true
+    return 1
+  fi
+  while read -r path code; do
+    n=$((n + 1))
+    changed="$(diff "$before/$n.txt" "$after/$n.txt" | grep -c "^[<>]" || true)"
+    [ "$changed" = 0 ] || { say "text changed on $path ($changed lines):"; diff "$before/$n.txt" "$after/$n.txt" | grep "^[<>]" | head -6 | cut -c1-200; }
+  done < "$before/status.txt"
+  say "$(wc -l < "$after/status.txt") addresses compared, statuses unchanged"
+}
+
 previous_release() {
   local now
   now="$(readlink -f "$ROOT/current" || true)"
@@ -102,6 +140,9 @@ chmod 755 "$release/server.tmp"
 mv "$release/server.tmp" "$release/server"
 
 before="$(readlink -f "$ROOT/current" || true)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+snapshot "$work/before"
 say "installing $release"
 activate "$release"
 restart
@@ -117,8 +158,21 @@ if ! healthy; then
   exit 1
 fi
 
+# Before and after, page by page: a changed status is a regression and is
+# swapped back out; changed text is printed for the deployer to read.
+snapshot "$work/after"
+if ! compare "$work/before" "$work/after"; then
+  if [ -n "$before" ]; then
+    say "swapping back to $before"
+    activate "$before"
+    restart
+    healthy || say "the previous release does not answer either"
+  fi
+  exit 1
+fi
+
 # The newest $KEEP releases stay, and always the one running.
 ls -1d "$ROOT"/releases/*/ | sed 's#/$##' | sort | head -n -"$KEEP" | while read -r old; do
   [ "$old" = "$(readlink -f "$ROOT/current")" ] || rm -rf "$old"
 done
-say "live: $release on $BASE"
+say "live: $release on $BASE (rollback: ${before:-none}, or --rollback)"
