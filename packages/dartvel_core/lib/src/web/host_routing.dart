@@ -62,17 +62,22 @@ final class const DVHostEntry({
 /// A `dartvel.hosts` entry that only redirects: a domain kept for its links
 /// that now lives elsewhere. [paths] are exact paths sent somewhere of their
 /// own; every other path goes to [to], or is not redirected when [to] is null.
+/// With [keepPath] the path asked for is kept on [to]: `www.example.com/docs`
+/// goes to `https://example.com/docs`, not to the home page, which is how a
+/// duplicate host is retired without losing a single link.
 /// Answered with a 301 before any routing, and invisible to everything else
 /// hosts do: mounts, canonical URLs, sitemaps.
 final class const DVHostRedirect({
   required final String pattern,
   final String? to,
   final Map<String, String> paths = const <String, String>{},
+  final bool keepPath = false,
 }) {
   Map<String, Object?> toJson() => <String, Object?>{
     'pattern': pattern,
     if (to != null) 'to': to,
     if (paths.isNotEmpty) 'paths': paths,
+    if (keepPath) 'keepPath': true,
   };
 
   /// What [DVHosts.redirectsToJson] wrote; empty for anything else.
@@ -87,6 +92,7 @@ final class const DVHostRedirect({
                 paths: e['paths'] is Map
                     ? <String, String>{for (final MapEntry<Object?, Object?> p in (e['paths'] as Map).entries) '${p.key}': '${p.value}'}
                     : const <String, String>{},
+                keepPath: e['keepPath'] == true,
               ),
         ];
 }
@@ -98,7 +104,11 @@ String? dvHostRedirectTarget(List<DVHostRedirect> redirects, {required String? h
   if (name == null || redirects.isEmpty) return null;
   for (final DVHostRedirect redirect in redirects) {
     if (redirect.pattern != name) continue;
-    return redirect.paths[rawPath] ?? redirect.to;
+    final String? named = redirect.paths[rawPath];
+    if (named != null) return named;
+    final String? to = redirect.to;
+    if (to == null || !redirect.keepPath) return to;
+    return '${to.replaceAll(RegExp(r'/+$'), '')}${rawPath.startsWith('/') ? rawPath : '/$rawPath'}';
   }
   return null;
 }
@@ -171,6 +181,14 @@ final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRed
         if (to != null && !('$to'.startsWith('https://') || '$to'.startsWith('http://')) ) {
           problems.add('${where('redirect')} must be a full http(s) address, not "$to".');
         }
+        final Object? keepPath = settings['keepPath'];
+        if (keepPath != null && keepPath is! bool) {
+          problems.add('${where('keepPath')} must be true or false, not "$keepPath".');
+        } else if (keepPath == true && to == null) {
+          problems.add('${where('keepPath')} keeps the path on the redirect target, so it needs redirect: <address>.');
+        } else if (keepPath == true && '$to'.contains(RegExp(r'[?#]'))) {
+          problems.add('${where('keepPath')}: the path is put after the redirect address, so it cannot have a query or fragment ("$to").');
+        }
         final Map<String, String> paths = <String, String>{};
         final Object? rawPaths = settings['redirects'];
         if (rawPaths != null && rawPaths is! Map) {
@@ -189,7 +207,7 @@ final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRed
           }
         }
         if (problems.length == before.length) {
-          redirectHosts.add(DVHostRedirect(pattern: pattern, to: to == null ? null : '$to', paths: paths));
+          redirectHosts.add(DVHostRedirect(pattern: pattern, to: to == null ? null : '$to', paths: paths, keepPath: settings['keepPath'] == true));
         }
         continue;
       }
