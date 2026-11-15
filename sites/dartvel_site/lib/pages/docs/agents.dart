@@ -138,9 +138,13 @@ Widget _docsAgentsPage(BuildContext context) => const DocsArticle(
                   'valued.',
               'A ref that is gone, a disabled control, or a wait that cannot '
                   'settle each fail with a DV-DRIVER code saying why.',
-              'Today it runs on the headless test host. Development builds on '
-                  'the web and devices, the dartvel agent commands and the MCP '
-                  'tools are designed and not built yet.',
+            ]),
+            DocsStatus('Agent Driver', missing: <String>[
+              'It runs on the headless test host only. The driver in '
+                  'development builds on the web and devices is designed and '
+                  'not built yet.',
+              'No `dartvel agent` commands and no driver tools in '
+                  '`dartvel mcp` yet.',
             ]),
           ],
         ),

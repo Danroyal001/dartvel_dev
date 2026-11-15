@@ -548,10 +548,18 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'Absent: a check that the Swift compiles in Xcode.',
   ),
   (
+    'Application Entry',
+    'DV.run(args)',
+    'Present: DV.run(args) is the whole of main.dart, and @DVBoot hooks run '
+        'in the app and on the server. Absent: the other headless entries, a '
+        'native single-instance check, boot budgets and '
+        '`dartvel migrate-code`.',
+  ),
+  (
     'The Golden Path',
     'create to deploy',
-    'Present: create, dev, generate, db migrate, test, build, deploy and '
-        'upgrade --plan, and upgrade --project for the Dartvel packages. Absent: '
+    'Present: create, dev, generate, db migrate, test, build, deploy, and '
+        'upgrade with --plan and --project. Absent: '
         'applying the rest of an upgrade, so you make the other changes the '
         'plan lists.',
   ),
@@ -677,6 +685,13 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'architecture documents, per-module SKILL.md, the `dartvel agent` '
         'commands, and `llms.txt`.',
   ),
+  (
+    'Agent Driver',
+    'DV.Test.driver',
+    'Present: DV.Test.driver reads, taps, types, scrolls and waits through '
+        'the semantics tree in tests. Absent: the driver in development '
+        'builds, and the `dartvel agent` commands.',
+  ),
 ];
 
 @DVPage(
@@ -698,7 +713,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         Eyebrow('WHAT WORKS TODAY'),
         Heading('Twenty-four shipped sections.', level: 1),
         Bullets(<String>[
-          'Seventy-nine more are partial, and each card says what is missing.',
+          'Eighty-one more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
