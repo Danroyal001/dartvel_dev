@@ -34,6 +34,8 @@ class SqliteDVDatabaseAdapter
     bool walMode = true,
     bool foreignKeys = true,
     int busyTimeoutMilliseconds = 5000,
+    int openTimeoutMilliseconds = 60000,
+    int journalSizeLimitBytes = 64 * 1024 * 1024,
   }) =>
       SqliteDVDatabaseAdapter._(path);
 

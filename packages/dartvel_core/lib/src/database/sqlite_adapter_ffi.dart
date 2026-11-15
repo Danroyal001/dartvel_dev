@@ -41,12 +41,21 @@ class SqliteDVDatabaseAdapter
   /// supports it, and foreign keys are enforced.
   ///
   /// A write that meets another connection's lock waits up to
-  /// [busyTimeoutMilliseconds] for it rather than failing.
+  /// [busyTimeoutMilliseconds] for it rather than failing. Opening waits
+  /// longer, up to [openTimeoutMilliseconds]: every process of a deployment
+  /// opens the file as it starts, and the first one after a restart rebuilds
+  /// the WAL index, which takes seconds on a large log.
+  ///
+  /// The `-wal` file is cut back to [journalSizeLimitBytes] after each
+  /// checkpoint, so one large write does not leave a huge log behind for
+  /// every later start to scan.
   factory SqliteDVDatabaseAdapter.file(
     String path, {
     bool walMode = true,
     bool foreignKeys = true,
     int busyTimeoutMilliseconds = 5000,
+    int openTimeoutMilliseconds = 60000,
+    int journalSizeLimitBytes = 64 * 1024 * 1024,
   }) {
     final db = sqlite.sqlite3.open(path);
     // Before anything else touches the file. A file is shared by every
@@ -55,25 +64,41 @@ class SqliteDVDatabaseAdapter
     // occurrence -- and with no busy timeout a write that meets another
     // connection's lock fails at once with "database is locked" rather than
     // waiting the milliseconds the other write takes.
+    final openWait = openTimeoutMilliseconds > busyTimeoutMilliseconds
+        ? openTimeoutMilliseconds
+        : busyTimeoutMilliseconds;
+    db.execute('PRAGMA busy_timeout = $openWait;');
+    try {
+      if (walMode && !_journalModeIsWal(db)) {
+        // WAL is unavailable on some filesystems; SQLite reports the mode it
+        // actually applied rather than failing, so this is best effort by
+        // design. A file already in WAL is left alone: asking again waits on
+        // any recovery another process is running.
+        db.execute('PRAGMA journal_mode = WAL;');
+      }
+      if (journalSizeLimitBytes >= 0) {
+        db.execute('PRAGMA journal_size_limit = $journalSizeLimitBytes;');
+      }
+      if (foreignKeys) {
+        db.execute('PRAGMA foreign_keys = ON;');
+      }
+    } catch (_) {
+      db.dispose();
+      rethrow;
+    }
     db.execute('PRAGMA busy_timeout = $busyTimeoutMilliseconds;');
-    if (walMode) {
-      // WAL is unavailable on some filesystems; SQLite reports the mode it
-      // actually applied rather than failing, so this is best effort by design.
-      db.execute('PRAGMA journal_mode = WAL;');
-    }
-    if (foreignKeys) {
-      db.execute('PRAGMA foreign_keys = ON;');
-    }
     return SqliteDVDatabaseAdapter._(db, path);
   }
 
-  /// True when the connection applied write-ahead logging.
-  bool get isWalEnabled {
-    final rows = _db.select('PRAGMA journal_mode;');
+  static bool _journalModeIsWal(sqlite.Database db) {
+    final rows = db.select('PRAGMA journal_mode;');
     if (rows.isEmpty) return false;
     final mode = rows.first.values.first;
     return mode is String && mode.toLowerCase() == 'wal';
   }
+
+  /// True when the connection applied write-ahead logging.
+  bool get isWalEnabled => _journalModeIsWal(_db);
 
   @override
   Future<List<Map<String, Object?>>> query(
