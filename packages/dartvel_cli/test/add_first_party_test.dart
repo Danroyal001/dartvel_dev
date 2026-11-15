@@ -7,6 +7,7 @@
 // a policy.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/add_command.dart';
@@ -50,16 +51,19 @@ Future<int> _run(String root, List<String> args) async {
 String _pubspec(String root) =>
     File(p.join(root, 'pubspec.yaml')).readAsStringSync();
 
-/// This repository's root, from wherever the tests are run.
+/// This repository's root, from where pub resolved this package: the same
+/// answer whatever directory the tests run from, and without reading the
+/// process working directory, which working_directory_test guards.
 String _repository() {
-  Directory dir = Directory.current;
-  while (!Directory(p.join(dir.path, 'modules')).existsSync() ||
-      !Directory(p.join(dir.path, 'packages', 'dartvel_cli')).existsSync()) {
-    final Directory up = dir.parent;
-    if (up.path == dir.path) fail('modules/ was not found above the tests');
-    dir = up;
+  final Uri? library = Isolate.resolvePackageUriSync(
+      Uri.parse('package:dartvel_cli/dartvel_cli.dart'));
+  if (library == null) fail('dartvel_cli could not resolve its own package URI');
+  final String root =
+      p.normalize(p.join(p.dirname(library.toFilePath()), '..', '..', '..'));
+  if (!Directory(p.join(root, 'modules')).existsSync()) {
+    fail('modules/ was not found at $root');
   }
-  return dir.path;
+  return root;
 }
 
 void main() {

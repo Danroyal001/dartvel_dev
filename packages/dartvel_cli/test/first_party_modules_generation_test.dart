@@ -7,6 +7,7 @@
 // served.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dartvel_cli/src/generators/backend_generator.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
@@ -33,15 +34,19 @@ const Map<String, String> _secrets = <String, String>{
   'WOOCOMMERCE_WEBHOOK_SECRET': 'whsecretvalue0123456789zzzz',
 };
 
+/// This repository's root, from where pub resolved this package: the same
+/// answer whatever directory the tests run from, and without reading the
+/// process working directory, which working_directory_test guards.
 String _repository() {
-  Directory dir = Directory.current;
-  while (!Directory(p.join(dir.path, 'modules')).existsSync() ||
-      !Directory(p.join(dir.path, 'packages', 'dartvel_cli')).existsSync()) {
-    final Directory up = dir.parent;
-    if (up.path == dir.path) fail('modules/ was not found above the tests');
-    dir = up;
+  final Uri? library = Isolate.resolvePackageUriSync(
+      Uri.parse('package:dartvel_cli/dartvel_cli.dart'));
+  if (library == null) fail('dartvel_cli could not resolve its own package URI');
+  final String root =
+      p.normalize(p.join(p.dirname(library.toFilePath()), '..', '..', '..'));
+  if (!Directory(p.join(root, 'modules')).existsSync()) {
+    fail('modules/ was not found at $root');
   }
-  return dir.path;
+  return root;
 }
 
 Directory _application() {
