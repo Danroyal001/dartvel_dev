@@ -66,6 +66,15 @@ void main() {
       expect(dartvel['seo'], isNotNull);
     });
 
+    test('a list of the platforms the project builds for becomes the map, every target kept', () {
+      final String out = dvStudioPubspecWithPlatforms(
+          'name: shop\ndartvel:\n  platforms:\n    - web\n    - android\n', _document);
+      final YamlMap platforms = ((loadYaml(out) as YamlMap)['dartvel'] as YamlMap)['platforms'] as YamlMap;
+      expect(platforms.keys, <String>['web', 'android']);
+      expect(jsonDecode(jsonEncode(platforms['web'])), <String, Object?>{'document': _document});
+      expect(dvPlatformTargets(platforms), <String>['web', 'android']);
+    });
+
     test('a pubspec with no dartvel section gets one', () {
       final String out = dvStudioPubspecWithPlatforms('name: shop\n', _document);
       expect(((loadYaml(out) as YamlMap)['dartvel'] as YamlMap)['platforms'], isNotNull);

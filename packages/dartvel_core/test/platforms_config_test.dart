@@ -339,6 +339,28 @@ void main() {
       expect((section['web']! as Map<Object?, Object?>)['server'], <String, Object?>{'compression': 'zstd', 'x': 1});
     });
 
+    test('the list of targets a project builds for stays valid, and reads as targets', () {
+      final Map<Object?, Object?> listed = <Object?, Object?>{
+        'platforms': <String>['web', 'android'],
+      };
+      expect(dvWithPlatforms(listed), listed);
+      expect(DVPlatformSettings.fromPubspec(listed['platforms']).problems, isEmpty);
+      expect(dvPlatformTargets(listed['platforms']), <String>['web', 'android']);
+      expect(
+        dvPlatformTargets(<String, Object?>{'web': <String, Object?>{}, 'ios': null}),
+        <String>['web', 'ios'],
+      );
+    });
+
+    test('a list of targets beside an old platform key becomes the map, targets kept', () {
+      final Map<Object?, Object?> section = dvWithPlatforms(<Object?, Object?>{
+        'platforms': <String>['web', 'android'],
+        'web': <String, Object?>{'firstFrame': <String, Object?>{}},
+      });
+      expect(dvPlatformTargets(section['platforms']), containsAll(<String>['web', 'android']));
+      expect(((section['platforms']! as Map)['web']! as Map).keys, contains('firstFrame'));
+    });
+
     test('a section with neither is unchanged', () {
       final Map<Object?, Object?> section = <Object?, Object?>{'seo': <String, Object?>{}};
       expect(dvWithPlatforms(section), section);

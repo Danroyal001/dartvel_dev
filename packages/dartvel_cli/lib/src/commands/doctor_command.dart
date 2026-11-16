@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 // Shown, not whole: dartvel_core exports a Platform enum that would shadow
 // dart:io's Platform, which this file uses for environment and OS checks.
-import 'package:dartvel_core/dartvel.dart' show DVKioskTarget;
+import 'package:dartvel_core/dartvel.dart' show DVKioskTarget, dvPlatformTargets;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -467,10 +467,9 @@ class DoctorCommand extends Command<void> {
     // dartvel.memory against each device profile's declared RAM, and
     // touchPages against the platforms that refuse it.
     final Object? platforms = dartvel is Map ? dartvel['platforms'] : null;
-    final DVMemoryCheck memory = DVMemoryCheck.run(dartvel, <String>[
-      if (platforms is List)
-        for (final Object? p in platforms) '$p',
-    ]);
+    // Either shape of dartvel.platforms: the list of targets, or the map
+    // whose keys they are.
+    final DVMemoryCheck memory = DVMemoryCheck.run(dartvel, dvPlatformTargets(platforms));
     if (memory.lines.isNotEmpty) {
       Logger.log('');
       for (final String line in memory.lines) {
@@ -505,9 +504,8 @@ class DoctorCommand extends Command<void> {
       );
       final Object? dartvel = loaded is YamlMap ? loaded['dartvel'] : null;
       final Object? platforms = dartvel is Map ? dartvel['platforms'] : null;
-      if (platforms is! List) return const <DVKioskTarget>[];
       return <DVKioskTarget>[
-        for (final Object? entry in platforms)
+        for (final String entry in dvPlatformTargets(platforms))
           if (known['$entry'] != null) known['$entry']!,
       ];
     } on Object {

@@ -154,10 +154,12 @@ final class DVPlatformSettings {
   /// refused for the same reasons in the same words.
   static DVPlatformSettingsRead fromPubspec(Object? value) {
     final List<String> problems = <String>[];
-    if (value == null) return const DVPlatformSettingsRead(DVPlatformSettings(), <String>[]);
+    // The older shape: a list of the targets the project builds for, with no
+    // settings in it.
+    if (value == null || value is List) return const DVPlatformSettingsRead(DVPlatformSettings(), <String>[]);
     if (value is! Map) {
       return const DVPlatformSettingsRead(DVPlatformSettings(), <String>[
-        'dartvel.platforms must be a map of platforms, such as web.',
+        'dartvel.platforms must be a map of platforms, such as web, or a list of the platforms the project builds for.',
       ]);
     }
     final Object? web = value['web'];
@@ -286,9 +288,14 @@ const List<String> dvPlatformNames = <String>['web', 'android', 'ios', 'macos', 
 /// every one. Readers can then use either spelling and see the same values.
 Map<Object?, Object?> dvWithPlatforms(Map<Object?, Object?> section) {
   final Object? declared = section['platforms'];
+  // A list of targets with no settings anywhere is left as it is written.
+  if (declared is List && dvLegacyPlatformKeys(section).isEmpty) return section;
+  // A list of targets is the map with nothing set for each.
   final Map<Object?, Object?> grouped = declared is Map
       ? declared.cast<Object?, Object?>()
-      : const <Object?, Object?>{};
+      : declared is List
+          ? <Object?, Object?>{for (final Object? name in declared) '$name': <Object?, Object?>{}}
+          : const <Object?, Object?>{};
   final Map<Object?, Object?> merged = <Object?, Object?>{};
   for (final String name in dvPlatformNames) {
     final Object? old = section[name];
@@ -324,3 +331,12 @@ Map<Object?, Object?> _deepMerge(Map<Object?, Object?> base, Map<Object?, Object
   });
   return out;
 }
+
+/// The platforms a project says it builds for, from either shape of
+/// `dartvel.platforms`: the older list (`[web, android]`) or the map, whose
+/// keys are the platforms.
+List<String> dvPlatformTargets(Object? platforms) => switch (platforms) {
+      List<Object?>() => <String>[for (final Object? name in platforms) '$name'],
+      Map<Object?, Object?>() => <String>[for (final Object? name in platforms.keys) '$name'],
+      _ => const <String>[],
+    };

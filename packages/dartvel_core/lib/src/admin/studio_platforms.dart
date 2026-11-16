@@ -115,6 +115,13 @@ String dvStudioPubspecWithPlatforms(String pubspec, Map<String, Object?> documen
         editor.remove(<Object>['dartvel', 'platforms']);
       }
     }
+  } else if (platforms is List) {
+    // The older list of targets becomes the map: each target a key, so the
+    // project still says it builds for every one of them.
+    editor.update(<Object>['dartvel', 'platforms'], <String, Object?>{
+      for (final Object? name in platforms) '$name': '$name' == 'web' ? <String, Object?>{'document': value} : <String, Object?>{},
+      if (!platforms.map((Object? name) => '$name').contains('web')) 'web': <String, Object?>{'document': value},
+    });
   } else if (platforms is! Map) {
     editor.update(<Object>['dartvel', 'platforms'], <String, Object?>{
       'web': <String, Object?>{'document': value},
