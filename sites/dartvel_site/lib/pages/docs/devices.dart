@@ -63,8 +63,8 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
               'and the app replaces it. Screen readers hear how far it is.',
             ),
             Bullets(<String>[
-              'splash.progressColor sets the bar's colour.',
-              'splash.progress: false keeps the platform's launch screen '
+              "splash.progressColor sets the bar's colour.",
+              "splash.progress: false keeps the platform's launch screen "
                   'until the first screen, with no bar.',
             ]),
           ],
