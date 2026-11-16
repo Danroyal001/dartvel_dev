@@ -12,12 +12,14 @@ library dartvel.billing.config;
 import '../../dartvel.dart' show Entitlement, DVBillingProvider;
 import '../secrets/secrets.dart';
 import 'bachs.dart';
+import 'flutterwave.dart';
 import 'paddle.dart';
+import 'paystack.dart';
 import 'stripe.dart';
 import 'webhooks.dart';
 
 /// The official billing adapters.
-enum DVBillingProviderName { stripe, paddle, bachs }
+enum DVBillingProviderName { stripe, paddle, bachs, paystack, flutterwave }
 
 /// Thrown for a `dartvel.billing` block the reader does not understand.
 class DVBillingConfigException implements Exception {
@@ -70,6 +72,8 @@ class DVBillingConfig {
     DVBillingProviderName.stripe: 'STRIPE_SECRET_KEY',
     DVBillingProviderName.paddle: 'PADDLE_API_KEY',
     DVBillingProviderName.bachs: 'BACHS_SECRET_KEY',
+    DVBillingProviderName.paystack: 'PAYSTACK_SECRET_KEY',
+    DVBillingProviderName.flutterwave: 'FLUTTERWAVE_SECRET_KEY',
   };
 
   static const Map<DVBillingProviderName, String> _defaultWebhookSecret =
@@ -77,6 +81,10 @@ class DVBillingConfig {
     DVBillingProviderName.stripe: 'STRIPE_WEBHOOK_SECRET',
     DVBillingProviderName.paddle: 'PADDLE_WEBHOOK_SECRET',
     DVBillingProviderName.bachs: 'BACHS_WEBHOOK_SECRET',
+    // Paystack signs webhooks with the secret key itself.
+    DVBillingProviderName.paystack: 'PAYSTACK_SECRET_KEY',
+    // The secret hash saved with the webhook on Flutterwave's dashboard.
+    DVBillingProviderName.flutterwave: 'FLUTTERWAVE_WEBHOOK_HASH',
   };
 
   static const Set<String> _keys = <String>{
@@ -92,7 +100,7 @@ class DVBillingConfig {
   /// What a credential looks like when someone pastes the value where the
   /// name of a secret belongs.
   static final RegExp _credential = RegExp(
-      r'^(sk_|rk_|pk_|whsec_|pdl_|apikey_|ntfset_)', caseSensitive: false);
+      r'^(sk_|rk_|pk_|whsec_|pdl_|apikey_|ntfset_|flwseck)', caseSensitive: false);
 
   /// Reads [block], the value of `dartvel.billing`.
   ///
@@ -269,6 +277,23 @@ class DVBillingConfig {
           entitlements: byProviderId,
           successUrl: Uri.parse(successUrl!),
           cancelUrl: Uri.parse(cancelUrl!),
+          fetch: fetch,
+        );
+      case DVBillingProviderName.paystack:
+        return DVPaystackBillingProvider(
+          secretKey: key,
+          plans: prices,
+          entitlements: byProviderId,
+          callbackUrl: Uri.parse(successUrl!),
+          fetch: fetch,
+        );
+      case DVBillingProviderName.flutterwave:
+        return DVFlutterwaveBillingProvider(
+          secretKey: key,
+          webhookHash: webhook,
+          plans: prices,
+          entitlements: byProviderId,
+          redirectUrl: Uri.parse(successUrl!),
           fetch: fetch,
         );
     }

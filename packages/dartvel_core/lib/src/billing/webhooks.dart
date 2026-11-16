@@ -30,9 +30,20 @@ class DVBillingWebhookResult {
     this.granted = const <Entitlement>{},
     this.revoked = const <Entitlement>{},
     this.stale = false,
+    this.reference,
+    this.checkoutId,
+    this.eventId,
   });
 
   final String type;
+
+  /// For an event about a one-time order (DVOneTimeCheckout): the order's
+  /// reference, the provider's id for its checkout, and the event's own id.
+  /// The event says which order; whether it is paid is asked of the
+  /// provider's API (DVOneTimeCheckout.orderStatus), never read off the event.
+  final String? reference;
+  final String? checkoutId;
+  final String? eventId;
 
   /// Whether this provider acted on the event. False is still an
   /// acknowledgement: Stripe retries an unacknowledged webhook for days.

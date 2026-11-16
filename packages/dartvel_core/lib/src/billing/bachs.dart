@@ -35,6 +35,7 @@ import '../../dartvel.dart'
         dvBillingCustomerKey;
 import 'invoice.dart';
 import 'money.dart';
+import 'one_time.dart';
 import 'subscription_lifecycle.dart';
 import 'webhooks.dart';
 
@@ -84,7 +85,8 @@ class DVBachsBillingProvider
     implements
         DVBillingProvider,
         DVBillingWebhookReceiver,
-        DVSubscriptionLifecycle {
+        DVSubscriptionLifecycle,
+        DVOneTimeCheckout {
   DVBachsBillingProvider({
     required String secretKey,
     required String webhookSecret,
@@ -400,7 +402,15 @@ class DVBachsBillingProvider
         if (data is! Map) {
           throw DVBillingError('A $type event carried no checkout.');
         }
+        final DVBillingWebhookResult? order = _orderEvent(type, decoded, data);
+        if (order != null) return order;
         return _applyPurchase(type, data);
+      case 'collection.succeeded':
+        if (data is! Map) {
+          throw DVBillingError('A $type event carried no payment.');
+        }
+        return _orderEvent(type, decoded, data) ??
+            DVBillingWebhookResult(type: type, handled: false);
       default:
         return DVBillingWebhookResult(type: type, handled: false);
     }
@@ -495,6 +505,105 @@ class DVBachsBillingProvider
     };
     return DVBillingWebhookResult(
         type: type, handled: true, customer: customer, granted: granted);
+  }
+
+  /// An event about a one-time order: one carrying the order's reference and
+  /// not opened for a plan. Null for anything else, which the plan handling
+  /// takes. Either `checkout.completed` or `collection.succeeded` can arrive
+  /// first, and either more than once; both name the order, and the
+  /// application asks [orderStatus] before it believes either.
+  DVBillingWebhookResult? _orderEvent(
+      String type, Map<Object?, Object?> event, Map<Object?, Object?> data) {
+    final Object? metadata = data['metadata'];
+    if (metadata is Map && metadata['dartvel_plan'] is String) return null;
+    final String reference =
+        data['reference'] is String ? data['reference'] as String : '';
+    final String checkoutId =
+        data['checkout_id'] is String ? data['checkout_id'] as String : '';
+    if (reference.isEmpty && checkoutId.isEmpty) return null;
+    return DVBillingWebhookResult(
+      type: type,
+      handled: true,
+      reference: reference.isEmpty ? null : reference,
+      checkoutId: checkoutId.isEmpty ? null : checkoutId,
+      eventId: event['id'] is String ? event['id'] as String : null,
+    );
+  }
+
+  /// A checkout for [order] at the amount the application priced it.
+  ///
+  /// A raw amount (`pricing`), not a catalogue product: the order is priced
+  /// per purchase. Its reference is the checkout's, which Bachs keeps unique
+  /// for good, and the Idempotency-Key is derived from it, so a retry after a
+  /// timeout returns the same checkout. The success URL carries the
+  /// reference too: Bachs appends its own `checkout_id`, which its sandbox
+  /// fills with the hosted page's token rather than the `chk_` id.
+  @override
+  Future<DVBillingOrderCheckout> checkoutOrder(DVBillingOrder order) async {
+    final bool local =
+        dvBillingLoopback(order.successUrl) || dvBillingLoopback(order.cancelUrl);
+    final Map<String, Object?> json = await _request(
+      'POST',
+      '/v1/checkout-sessions',
+      body: <String, Object?>{
+        'pricing': <String, Object?>{
+          'currency': order.currency,
+          'amount': order.total.decimal,
+        },
+        'reference': order.reference,
+        'customer': <String, Object?>{
+          'email': order.customerEmail,
+          if (order.customerName != null) 'name': order.customerName,
+        },
+        if (!local) ...<String, Object?>{
+          'success_url': order.successUrl.replace(queryParameters: <String, String>{
+            ...order.successUrl.queryParameters,
+            'reference': order.reference,
+          }).toString(),
+          'cancel_url': order.cancelUrl.toString(),
+        },
+        'metadata': <String, Object?>{
+          ...order.metadata,
+          'dartvel_order': order.reference,
+          'description': order.description,
+        },
+      },
+      idempotencyKey: 'order-${order.reference}',
+    );
+    final Uri? url = Uri.tryParse('${json['checkout_url'] ?? ''}');
+    final String id = '${json['checkout_id'] ?? ''}';
+    if (url == null || !url.hasScheme || id.isEmpty) {
+      throw const DVBillingError('Bachs opened no checkout page for the order.');
+    }
+    return DVBillingOrderCheckout(reference: order.reference, id: id, url: url);
+  }
+
+  /// The checkout [checkoutId], as Bachs reports it: paid when it is
+  /// `completed`, with the amount read by its digits.
+  @override
+  Future<DVBillingOrderStatus> orderStatus({
+    required String reference,
+    String checkoutId = '',
+  }) async {
+    if (checkoutId.isEmpty) {
+      throw const DVBillingError(
+          'Bachs looks a payment up by its checkout id; keep the id checkoutOrder returned.');
+    }
+    final Map<String, Object?> json = await _request(
+        'GET', '/v1/checkout-sessions/${Uri.encodeComponent(checkoutId)}');
+    final Object? currency = json['currency'];
+    final int? minor = currency is String
+        ? _minorUnits('${json['amount'] ?? ''}', currency)
+        : null;
+    final Object? charge = json['charge'];
+    return DVBillingOrderStatus(
+      reference: '${json['reference'] ?? ''}',
+      checkoutId: '${json['checkout_id'] ?? checkoutId}',
+      // "Continue only if its status is completed" (Sell digital products).
+      paid: json['status'] == 'completed',
+      amount: minor == null ? null : DVMoney(amount: minor, currency: currency! as String),
+      transactionId: charge is Map ? '${charge['id'] ?? charge['payment_id'] ?? ''}' : null,
+    );
   }
 
   /// `t=<unix>,v1=<hex>[,v1=<hex>]`, each v1 = HMAC-SHA256(secret,

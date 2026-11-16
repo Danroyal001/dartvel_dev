@@ -105,14 +105,18 @@ class DVMoney {
     );
   }
 
-  @override
-  String toString() {
-    if (exponent == 0) return '$amount $currency';
+  /// The amount as a decimal string at the currency's precision, without
+  /// the code: `25000.00` for 2,500,000 kobo, `1500` for 1,500 yen. The form
+  /// Bachs takes, and the one that never passes through a double.
+  String get decimal {
+    if (exponent == 0) return '$amount';
     final int unit = _pow10(exponent);
-    final String minor =
-        (amount % unit).toString().padLeft(exponent, '0');
-    return '${amount ~/ unit}.$minor $currency';
+    final String minor = (amount % unit).toString().padLeft(exponent, '0');
+    return '${amount ~/ unit}.$minor';
   }
+
+  @override
+  String toString() => '$decimal $currency';
 
   @override
   bool operator ==(Object other) =>
