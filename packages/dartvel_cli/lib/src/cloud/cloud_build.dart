@@ -172,7 +172,7 @@ class DVCloudBuilder {
 
     // A repository is sent whole, so a path dependency on a sibling package
     // resolves on the worker as it does here.
-    final String? top = await _gitTop(root);
+    final String? top = await dvGitRepositoryOf(root);
     final String source = top ?? root;
     final String app = top == null
         ? '.'
@@ -301,18 +301,6 @@ class DVCloudBuilder {
       await Future<void>.delayed(retryDelay);
     }
     return null;
-  }
-
-  static Future<String?> _gitTop(String root) async {
-    try {
-      final ProcessResult r = await Process.run(
-          'git', <String>['rev-parse', '--show-toplevel'],
-          workingDirectory: root);
-      final String top = '${r.stdout}'.trim();
-      return r.exitCode == 0 && top.isNotEmpty ? p.normalize(Directory(top).resolveSymbolicLinksSync()) : null;
-    } on ProcessException {
-      return null;
-    }
   }
 
   static String _size(int bytes) => bytes < 1024 * 1024

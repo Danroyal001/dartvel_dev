@@ -154,15 +154,20 @@ void main() {
     // Reading the column straight through would hand back the ciphertext,
     // which is a plausible-looking String and so fails silently: the caller
     // gets a value, just not the one that was stored.
+    // A required column that is missing is refused by name rather than
+    // read as null; the decryption is what it guards.
+    String required(String field, String read) =>
+        "row['$field'] == null ? (throw StateError('Dartvel: User.$field is missing or null in record \${row['id']}; declare a default or backfill the record.')) : ($read)";
     expect(
       _rowBinding(fromRow, 'taxNumber'),
-      "DVFieldEncryption.decrypt('User', 'taxNumber', row['taxNumber'] as String?)!",
+      required('taxNumber',
+          "DVFieldEncryption.decrypt('User', 'taxNumber', row['taxNumber'] as String?)!"),
     );
     expect(
       _rowBinding(fromRow, 'recoveryToken'),
       "DVFieldEncryption.decrypt('User', 'recoveryToken', row['recoveryToken'] as String?)",
     );
-    expect(_rowBinding(fromRow, 'name'), "row['name'] as String");
+    expect(_rowBinding(fromRow, 'name'), required('name', "row['name'] as String"));
   });
 
   test('the model reports which of its fields are encrypted, so a migration '

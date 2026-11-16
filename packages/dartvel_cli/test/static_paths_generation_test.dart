@@ -480,7 +480,9 @@ class _Product {
                 'publicStaticPaths() async {'));
         expect(
           content,
-          contains("DV.Database.query('select * from "
+          // const DVDatabase(), not DV.Database: a backend is compiled
+          // without dartvel_flutter, where DV comes from.
+          contains("const DVDatabase().query('select * from "
               "\${dvTenantTable('products')}')"),
         );
         expect(content, contains('if (!model.published) continue;'));

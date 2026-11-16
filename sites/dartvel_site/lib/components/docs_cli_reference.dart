@@ -746,15 +746,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
   ),
   DocsCliCommand(
     name: 'prerender',
-    description: 'Prerender routes to static HTML for SEO.',
-    options: <String>[
-      '-p, --port        Port the app is serving on',
-      '                  (defaults to "8080")',
-      '-o, --output      Output directory',
-      '                  (defaults to "build/web")',
-      '    --base-url    Canonical base URL for sitemap.xml and robots.txt',
-      '                  (defaults to "http://localhost:8080")',
-    ],
+    description: 'Capture every route for crawlers and no-script readers (the same capture `dartvel build web` runs).',
   ),
   DocsCliCommand(
     name: 'privacy',

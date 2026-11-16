@@ -31,26 +31,27 @@ class _RecordingBuild extends Command<void> {
   Future<void> run() async => runs.add(<String>[...argResults!.rest]);
 }
 
+/// Runs [arguments] with the project at [root] as the working directory the
+/// command sees. Overridden in a zone rather than set: the process working
+/// directory is shared by every suite running beside this one
+/// (test/working_directory_test.dart).
+Future<void> _runIn(Directory root, CommandRunner<void> runner, List<String> arguments) =>
+    IOOverrides.runZoned(() => runner.run(arguments), getCurrentDirectory: () => root);
+
 void main() {
   late Directory root;
-  late Directory previous;
   setUp(() {
-    previous = Directory.current;
     root = Directory.systemTemp.createTempSync('dartvel_prerender_');
     Directory(p.join(root.path, 'build', 'web')).createSync(recursive: true);
-    Directory.current = root;
   });
-  tearDown(() {
-    Directory.current = previous;
-    root.deleteSync(recursive: true);
-  });
+  tearDown(() => root.deleteSync(recursive: true));
 
   test('dartvel prerender runs the build\'s capture and writes nothing itself', () async {
     final _RecordingBuild build = _RecordingBuild();
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
       ..addCommand(build)
       ..addCommand(PrerenderCommand());
-    await runner.run(<String>['prerender']);
+    await _runIn(root, runner, <String>['prerender']);
     expect(build.runs, <List<String>>[<String>['web']]);
     for (final String name in <String>['sitemap.xml', 'robots.txt']) {
       expect(File(p.join(root.path, 'build', 'web', name)).existsSync(), isFalse, reason: name);
@@ -63,14 +64,14 @@ void main() {
     final CommandRunner<void> runner = CommandRunner<void>('dartvel', 'test')
       ..addCommand(build)
       ..addCommand(PrerenderCommand());
-    await runner.run(<String>['prerender', '--base-url', 'http://localhost:8080']);
+    await _runIn(root, runner, <String>['prerender', '--base-url', 'http://localhost:8080']);
     expect(build.runs, hasLength(1));
     expect(File(p.join(root.path, 'build', 'web', 'sitemap.xml')).existsSync(), isFalse);
   });
 
   test('the build no longer sends people to dartvel prerender', () {
     final String capture =
-        File(p.join(previous.path, 'lib', 'src', 'build', 'semantics_capture.dart')).readAsStringSync();
+        File(p.join(Directory.current.path, 'lib', 'src', 'build', 'semantics_capture.dart')).readAsStringSync();
     expect(capture, isNot(contains('run `dartvel prerender`')));
   });
 }

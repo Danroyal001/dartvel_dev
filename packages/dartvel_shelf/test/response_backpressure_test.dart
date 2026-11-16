@@ -77,9 +77,26 @@ void main() {
           if (!pausedPhaseDone && receivedBytes >= 8 * 1024 * 1024) {
             pausedPhaseDone = true;
             socketSub.pause();
-            await Future<void>.delayed(const Duration(milliseconds: 100));
-            final genStart = generatedBytes;
-            await Future<void>.delayed(const Duration(milliseconds: 250));
+            // The kernel keeps accepting bytes for a paused reader until its
+            // buffers are full, and Linux grows a receive buffer up to
+            // tcp_rmem's maximum (32 MiB here), so how long that takes depends
+            // on the machine and its load. Wait for the producer to stall,
+            // then hold it to the bound: stalled before the end of the body,
+            // with no more in flight than the socket buffers and the bounded
+            // native queue can hold. An unbounded queue runs on to 200 MiB.
+            const Duration quiet = Duration(milliseconds: 250);
+            final Stopwatch waited = Stopwatch()..start();
+            int genStart = generatedBytes;
+            while (waited.elapsed < const Duration(seconds: 10)) {
+              await Future<void>.delayed(quiet);
+              if (generatedBytes == genStart) break;
+              genStart = generatedBytes;
+            }
+            expect(genStart, lessThan(totalBytes),
+                reason: 'Producer ran to the end of the body while the client was paused');
+            expect(genStart - receivedBytes, lessThan(48 * 1024 * 1024),
+                reason: 'Producer stalled only after ${genStart - receivedBytes} bytes in flight');
+            await Future<void>.delayed(quiet);
             final genEnd = generatedBytes;
             expect(genEnd, equals(genStart),
                 reason: 'Producer continued running while client was paused: generated $genEnd vs $genStart');

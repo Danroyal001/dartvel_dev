@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:dartvel_cli/src/build/sdk_floor.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -141,7 +142,7 @@ void main() {
 name: analytics_wiring_probe
 publish_to: none
 environment:
-  sdk: ^3.9.0
+  sdk: ^$dvDartFloor
 dependencies:
   flutter:
     sdk: flutter
