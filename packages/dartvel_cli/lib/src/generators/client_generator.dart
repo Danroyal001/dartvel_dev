@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart'
     show
@@ -49,7 +50,9 @@ import '../build/scene3d_native.dart' show dvScene3dEnabledIn;
 
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
-import '../build/native_splash.dart' show DVSplash;
+import '../build/native_splash.dart' show DVSplash, dvSplashLogicalWidth;
+import '../build/pwa_icons.dart'
+    show DVPngError, DVRgbaImage, dvPngDecode, dvPngEncode, dvResizeRgba;
 import '../build/page_text.dart';
 import '../build/render_backends.dart';
 
@@ -656,7 +659,7 @@ class ClientGenerator {
     }
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
-    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName);
+    _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName, dv: dv);
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -4168,9 +4171,10 @@ void startDartvelKiosk() {
   /// `@DVAppRoot` replaces the default `MaterialApp.router` for an existing
   /// Flutter application that keeps its own root; a pure Dartvel application
   /// declares none.
-  static void _generateApplicationEntry({required String root, required String pkgName, required String title}) {
+  static void _generateApplicationEntry({required String root, required String pkgName, required String title, required Map<Object?, Object?> dv}) {
     final imports = <String>{
       "import 'dart:async';",
+      "import 'dart:convert';",
       "import 'package:flutter/material.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart' hide DV;",
       "import 'package:dartvel_flutter/dartvel_flutter.dart' as runtime;",
@@ -4242,12 +4246,16 @@ void startDartvelKiosk() {
       // Outside the DV class: a boot body naming the application's own
       // Session, Auth or Cache would otherwise resolve to DV's static.
       ..writeln('final List<framework.DVBootStep> _dvBootSteps = <framework.DVBootStep>[${hooks.join(',')}];')
+      // The splash a device shows, with its loading bar, while the boot steps
+      // run: the launch screen's colours and picture, the picture carried here
+      // because a device build has nothing that serves dartvel-splash.png.
+      ..writeln('final runtime.DVStudioSplash? _dvBootSplash = ${_bootSplashSource(dv, root)};')
       // The door dartvel build --brownfield starts the project through: the same
       // root and boot steps as DV.run, entered as embedded and with no launch,
       // because the host application owns the process. Hidden from the barrel.
       ..writeln('Future<void> dartvelRunEmbedded(String project) => dvRunApplication(const <String>[], root: () => createDartvelApp(), boot: _dvBootSteps, entry: core.DVEntry.embedded(project));')
       ..writeln('abstract final class DV {')
-      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch);');
+      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch, splash: _dvBootSplash);');
     // Static members are not inherited in Dart, so the runtime's namespace is
     // forwarded member by member -- each with its declared type, or
     // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any
@@ -5398,6 +5406,51 @@ String _studioSplashArg(Map<Object?, Object?> dv, String root) {
     if (splash.loadingText case final String text) 'loadingText: ${quoted(text)}',
   ];
   return ', splash: const DVStudioSplash(${args.join(', ')})';
+}
+
+/// The splash a device draws while its boot steps run, as a Dart expression:
+/// `runtime.DVStudioSplash(...)`, or `null` when the project turned the splash
+/// or its loading bar off -- then the launch screen stays until the first
+/// frame, as it always has.
+///
+/// The picture is the launch screen's, at the width the launch screen draws
+/// it ([dvSplashLogicalWidth]) and three device pixels to each of those, the
+/// densest common screen, never wider than the picture itself. It is carried
+/// in the code because a device build has nothing that serves
+/// `dartvel-splash.png`, and an icon at that size is a few kilobytes.
+String _bootSplashSource(Map<Object?, Object?> dv, String root) {
+  final DVSplash splash = DVSplash.fromConfig(dv, root: root);
+  if (!splash.enabled || !splash.progress) return 'null';
+  String colour(String hex) =>
+      'Color(0xFF${hex.replaceFirst('#', '').toUpperCase()})';
+  int? width;
+  String? carried(File? file) {
+    if (file == null) return null;
+    try {
+      final DVRgbaImage source = dvPngDecode(file.readAsBytesSync());
+      final int logical = dvSplashLogicalWidth(splash, source);
+      width ??= logical;
+      final int pixels = math.min(logical * 3, source.width);
+      final int height = math.max(1, (pixels * source.height / source.width).round());
+      return base64Encode(dvPngEncode(dvResizeRgba(source, pixels, height)));
+    } on DVPngError {
+      // The splash step reports a picture it cannot read; the device splash
+      // goes without, as the launch screen does.
+      return null;
+    }
+  }
+
+  final String? light = carried(splash.image);
+  final String? dark = carried(splash.darkImage);
+  final List<String> args = <String>[
+    'color: ${colour(splash.color)}',
+    'darkColor: ${colour(splash.darkColor)}',
+    if (light != null) "imageBytes: base64Decode('$light')",
+    if (dark != null) "darkImageBytes: base64Decode('$dark')",
+    'imageWidth: ${_number(width ?? splash.imageWidth ?? 96)}',
+    'progressColor: ${colour(splash.progressColor)}',
+  ];
+  return 'runtime.DVStudioSplash(${args.join(', ')})';
 }
 
 /// [value] as Dart source: `96`, not `96.0`, for a whole number.

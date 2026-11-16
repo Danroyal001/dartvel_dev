@@ -13,6 +13,9 @@
 /// Studio's deferred library, and it holds nothing of Studio's own.
 library;
 
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 /// The page at `path` as its route draws it: the page, its layouts and its
@@ -157,6 +160,8 @@ class DVStudioSplash {
     required this.darkColor,
     this.image,
     this.darkImage,
+    this.imageBytes,
+    this.darkImageBytes,
     this.imageWidth = 96,
     this.progressColor,
     this.loadingText,
@@ -175,6 +180,12 @@ class DVStudioSplash {
   /// has no image.
   final String? image;
   final String? darkImage;
+
+  /// The picture itself, where nothing serves `dartvel-splash.png`: a device
+  /// build carries it in the generated code, at the size the launch screen
+  /// draws it. Used before [image] when both are given.
+  final Uint8List? imageBytes;
+  final Uint8List? darkImageBytes;
   final double imageWidth;
 
   /// The loading bar's colour; no bar when null.
@@ -184,9 +195,13 @@ class DVStudioSplash {
 /// [splash], filling the space it is given: the colour for the device's
 /// appearance, the picture in the middle, and a loading bar along the top.
 class DVStudioSplashView extends StatelessWidget {
-  const DVStudioSplashView(this.splash, {super.key});
+  const DVStudioSplashView(this.splash, {super.key, this.progress});
 
   final DVStudioSplash splash;
+
+  /// How far the load is, 0 to 1, for a bar that fills; a bar that slides
+  /// when null.
+  final ValueListenable<double>? progress;
 
   @override
   Widget build(BuildContext context) {
@@ -194,10 +209,30 @@ class DVStudioSplashView extends StatelessWidget {
         MediaQuery.platformBrightnessOf(context) == Brightness.dark;
     final String? image =
         dark ? (splash.darkImage ?? splash.image) : splash.image;
+    final Uint8List? bytes = dark
+        ? (splash.darkImageBytes ?? splash.imageBytes)
+        : splash.imageBytes;
     final Color? bar = splash.progressColor;
-    return Semantics(
-      label: 'Loading',
-      child: ColoredBox(
+    final ValueListenable<double>? load = progress;
+    if (load != null) {
+      // A screen reader hears how far it is, as it would from any
+      // progress bar, not only that something is loading.
+      return ValueListenableBuilder<double>(
+        valueListenable: load,
+        builder: (BuildContext context, double value, Widget? drawn) =>
+            Semantics(
+          label: 'Loading',
+          value: '${(value * 100).round()}%',
+          child: drawn,
+        ),
+        child: _drawn(context, dark, image, bytes, bar),
+      );
+    }
+    return Semantics(label: 'Loading', child: _drawn(context, dark, image, bytes, bar));
+  }
+
+  Widget _drawn(BuildContext context, bool dark, String? image, Uint8List? bytes, Color? bar) {
+    return ColoredBox(
         color: dark ? splash.darkColor : splash.color,
         child: Stack(
           fit: StackFit.expand,
@@ -206,7 +241,15 @@ class DVStudioSplashView extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  if (image != null)
+                  if (bytes != null)
+                    SizedBox(
+                      width: splash.imageWidth,
+                      child: Image.memory(
+                        bytes,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    )
+                  else if (image != null)
                     SizedBox(
                       width: splash.imageWidth,
                       child: Image.network(
@@ -232,16 +275,26 @@ class DVStudioSplashView extends StatelessWidget {
                 top: 0,
                 left: 0,
                 right: 0,
-                child: LinearProgressIndicator(
-                  minHeight: 3,
-                  color: bar,
-                  backgroundColor: const Color(0x00000000),
-                ),
+                child: progress == null
+                    ? LinearProgressIndicator(
+                        minHeight: 3,
+                        color: bar,
+                        backgroundColor: const Color(0x00000000),
+                      )
+                    : ValueListenableBuilder<double>(
+                        valueListenable: progress!,
+                        builder: (BuildContext context, double value, _) =>
+                            LinearProgressIndicator(
+                          minHeight: 3,
+                          value: value,
+                          color: bar,
+                          backgroundColor: const Color(0x00000000),
+                        ),
+                      ),
               ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

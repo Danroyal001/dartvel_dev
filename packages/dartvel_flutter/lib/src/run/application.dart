@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVBoot, DVEmbeddedEntry, DVEntry;
+import 'package:dartvel_core/dartvel.dart' show DVAppEntry, DVBoot, DVEmbeddedEntry, DVEntry, DVEntryKindOf;
 import 'package:dartvel_core/framework.dart'
     show DVBootStep, dvResetBootForTest, dvRunBoot;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -30,6 +31,7 @@ Future<void> dvRunApplication(
   List<DVBootStep> boot = const [],
   FutureOr<void> Function(List<String>)? launch,
   DVEntry entry = const DVEntry.app(),
+  DVStudioSplash? splash,
 }) async {
   if (_running) {
     DV.log.warn(
@@ -50,9 +52,10 @@ Future<void> dvRunApplication(
         // no single-instance lock, no argv to open, no window of its own.
         if (launch != null && entry is! DVEmbeddedEntry) await launch(args);
         DV.lifecycle.setApp(.booting);
+        final List<DVBootStep> steps = _withSplash(boot, entry: entry, splash: splash);
         // The same runner a server, a worker or a command boots through;
         // only the entry differs.
-        await dvRunBoot(boot, DVBoot(entry: entry, args: _args));
+        await dvRunBoot(steps, DVBoot(entry: entry, args: _args));
         final previousFlutterError = FlutterError.onError;
         FlutterError.onError = (details) {
           DV.log.error(
@@ -112,4 +115,54 @@ void dvResetApplicationEntryForTest() {
   _running = false;
   _args = const [];
   dvResetBootForTest();
+}
+
+/// Draws [splash] with its loading bar while the boot steps run, and
+/// returns the steps, each filling the bar as it finishes.
+///
+/// On a device the launch screen the platform draws stays until Flutter's
+/// first frame and nothing can move on it, and the boot steps run before
+/// that frame -- so a slow boot was a still picture. This frame looks the
+/// same as the launch screen, adds the bar, and the application replaces it.
+/// The bar is the steps that run for this entry plus one share for the
+/// application's own first frame, so it never sits full while the app is
+/// still being built.
+///
+/// Not on the web, whose page already draws the same splash and bar in HTML
+/// before any Dart runs; not for an embedded entry, inside a host that shows
+/// its own; and not when the project asked for no bar, where the launch
+/// screen simply stays up as it always has.
+List<DVBootStep> _withSplash(
+  List<DVBootStep> boot, {
+  required DVEntry entry,
+  required DVStudioSplash? splash,
+}) {
+  if (splash == null ||
+      splash.progressColor == null ||
+      kIsWeb ||
+      entry is! DVAppEntry) {
+    return boot;
+  }
+  final List<DVBootStep> running = <DVBootStep>[
+    for (final DVBootStep step in boot)
+      if (step.entries.isEmpty || step.entries.contains(entry.kind)) step,
+  ];
+  final ValueNotifier<double> progress = ValueNotifier<double>(0);
+  int finished = 0;
+  runApp(Directionality(
+    textDirection: .ltr,
+    child: DVStudioSplashView(splash, progress: progress),
+  ));
+  WidgetsBinding.instance.scheduleFrame();
+  return <DVBootStep>[
+    for (final DVBootStep step in running)
+      DVBootStep(
+        entries: step.entries,
+        run: (DVBoot context) async {
+          await step.run(context);
+          finished += 1;
+          progress.value = finished / (running.length + 1);
+        },
+      ),
+  ];
 }

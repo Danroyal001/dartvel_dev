@@ -41,11 +41,31 @@ Widget _docsDevicesPage(BuildContext context) => const DocsArticle(
             DocsCode('devices-platform'),
             DocsStatus('Platform', missing: <String>[
               'On Android, biometrics and NFC tags are not bound yet.',
+              'The splash below is checked in widget tests; it has not yet '
+                  'been watched on a phone.',
               'On iOS, share, location, contacts, pickers, permissions, '
                   'sensors, Bluetooth, notifications and Face ID are built and '
                   'unit-tested but not yet run on an iPhone or simulator.',
               'On iOS, declare what you ask for under dartvel.ios.permissions '
                   'in pubspec.yaml. iOS closes an app that asks without it.',
+            ]),
+          ],
+        ),
+        DocsSection(
+          id: 'splash',
+          title: 'Show the splash and its loading bar while the app starts',
+          children: <Widget>[
+            DocsText(
+              'Every target shows your splash before the first screen: '
+              'dartvel.splash in pubspec.yaml sets its colours and picture. '
+              'On a phone, tablet or desktop the loading bar runs along the '
+              'top while your @DVBoot steps finish, as it does on the web, '
+              'and the app replaces it. Screen readers hear how far it is.',
+            ),
+            Bullets(<String>[
+              'splash.progressColor sets the bar's colour.',
+              'splash.progress: false keeps the platform's launch screen '
+                  'until the first screen, with no bar.',
             ]),
           ],
         ),

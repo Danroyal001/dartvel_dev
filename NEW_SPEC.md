@@ -507,6 +507,17 @@ The table is the contract. Each row says which entries a target has, what
   visitors took the site for broken, so it was removed from the framework. A
   pubspec that still sets `dartvel.web.firstFrame` (true, false or a map)
   builds, with one warning that the key is ignored and can be deleted.
+- **The splash and its bar on a device too.** On Android, iOS, macOS, Windows
+  and Linux the launch screen the platform draws stays up until Flutter's first
+  frame, and nothing can move on it. `DV.run` draws the application's own
+  splash -- the launch screen's colours and picture, at the width the launch
+  screen draws it, carried in the generated code -- with the loading bar along
+  the top in `dartvel.splash.progressColor`, filled as the boot steps finish
+  (the steps that run, plus one share for the application's first frame), and
+  then the application replaces it. A screen reader hears "Loading" and how
+  far it is. Not for an embedded entry, whose host shows its own, and not with
+  `splash.progress: false` or `splash.enabled: false`, where the launch screen
+  stays until the first frame as before.
 - **WebAssembly.** Web builds are `flutter build web --wasm` unless
   `dartvel.web.wasm: false`: dart2wasm and skwasm where flutter.js allows it
   (by default Chromium with WasmGC) and the dart2js/CanvasKit app elsewhere,
