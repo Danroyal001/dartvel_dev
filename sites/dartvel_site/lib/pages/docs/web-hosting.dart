@@ -112,6 +112,14 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'same either way.',
         ),
         DocsText(
+          'While the app downloads, each page already asks for the '
+          'rest of what its first screen needs: its own code, its '
+          'images and the fonts, so they arrive beside the app instead '
+          'of one after another once it starts. Links on the page wait '
+          'until that first screen is showing before they fetch the '
+          'pages they point to.',
+        ),
+        DocsText(
           'On the web-server build, the WebAssembly version draws on '
           'a second thread, which keeps scrolling smooth on slow phones. '
           'That needs two headers the build turns on by itself unless '
@@ -231,6 +239,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               'downloaded.',
           'Roboto, which Flutter otherwise fetches from fonts.gstatic.com, '
               'comes from your own site.',
+          'Every page asks for its fonts while the app downloads, instead '
+              'of after the app has started.',
           'The build prints what it saved: fonts: 1.3 MB -> 387 KB.',
         ]),
         DocsShell(<String>[
