@@ -14,7 +14,6 @@ import '../build/brownfield.dart';
 import '../build/compiler_diagnostics.dart';
 import '../build/display_settings.dart';
 import '../build/node_runtime_bundle.dart';
-import '../build/font_preloads.dart';
 import '../build/web_fonts.dart';
 import '../analysis/conventions_check.dart';
 import '../analysis/syntax_check.dart';
@@ -1686,9 +1685,6 @@ class BuildCommand extends Command<void> {
         // Also into index.html first, for the same reason: every page,
         // served or prerendered, starts fetching the renderer while it parses.
         _writeRendererHints(root);
-        // The fonts too: the engine asks for them only once the app runs, and
-        // waits for every one before its first frame.
-        _writeFontPreloads(root);
         // Last of the writes into index.html: every page made from it asks
         // for this build's code.
         _versionIndexHtml(root);
@@ -2885,23 +2881,6 @@ class BuildCommand extends Command<void> {
   /// build, or an application that tells the loader where CanvasKit is or
   /// which variant to use -- because a hint for the wrong file is a 7 MB
   /// download for nothing. A previous build's hints are removed then too.
-  /// Names every font the page's FontManifest lists in index.html, so each
-  /// page fetches them while the app downloads (font_preloads.dart).
-  void _writeFontPreloads(String root) {
-    final String web = p.join(root, 'build', 'web');
-    final File index = File(p.join(web, 'index.html'));
-    if (!index.existsSync()) return;
-    // The two manifests the engine reads first, then every font.
-    final List<String> fonts = dvBootPreloadHrefs(web);
-    final String before = index.readAsStringSync();
-    final String after = dvApplyFontPreloads(before, fonts);
-    if (after != before) index.writeAsStringSync(after);
-    if (fonts.isNotEmpty) {
-      Logger.log('   Boot files: ${fonts.length} (manifests and fonts) preloaded '
-          'from index.html.');
-    }
-  }
-
   void _writeRendererHints(String root) {
     final Directory web = Directory(p.join(root, 'build', 'web'));
     final File index = File(p.join(web.path, 'index.html'));

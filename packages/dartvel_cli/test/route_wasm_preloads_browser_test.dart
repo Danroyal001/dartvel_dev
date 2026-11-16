@@ -1,4 +1,4 @@
-// The fonts and a route's modules are asked for the moment the app and its
+// A route's deferred wasm modules are asked for the moment the app and its
 // renderer have downloaded, and not before: on a slow line every byte the
 // page asks for early is a byte main.dart.wasm waits behind.
 @TestOn('vm')
@@ -7,7 +7,6 @@ library;
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
-import 'package:dartvel_cli/src/build/font_preloads.dart';
 import 'package:dartvel_core/dartvel.dart' show dvWasmModulePreloads;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
@@ -34,12 +33,9 @@ void main() {
       executablePath: await dvChromeExecutable(),
       args: dvChromeLaunchArgs,
     );
-    html = dvApplyFontPreloads(
-      '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>t</title>'
-      '${dvWasmModulePreloads(<String>['main.dart_module3.wasm'])}</head>'
-      '<body></body></html>',
-      <String>['assets/FontManifest.json', 'assets/fonts/a.woff2'],
-    );
+    html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>t</title>'
+        '${dvWasmModulePreloads(<String>['main.dart_module3.wasm', 'main.dart_module7.wasm'])}</head>'
+        '<body></body></html>';
   });
 
   tearDownAll(() async {
@@ -61,9 +57,8 @@ void main() {
     await page.evaluate<void>(
         '() => fetch("/canvaskit/skwasm.wasm").then(r => r.text())');
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    // Two fonts' worth from the shell, one module from the route: this
-    // Chrome runs the wasm app.
-    expect(await _preloads(page), 3);
+    // Both of the route's modules: this Chrome runs the wasm app.
+    expect(await _preloads(page), 2);
     await page.close();
   });
 }
