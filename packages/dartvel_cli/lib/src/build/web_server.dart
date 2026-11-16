@@ -47,6 +47,7 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVSessionAuthenticationResult,
         DVSessionCookie,
         dvSignInLocation,
+        dvHostedSignInLocation,
         DVConfiguredRedirect,
         dvConfiguredRedirect,
         DVAdminServer,
@@ -593,7 +594,7 @@ Handler dvWebServerHandler({
       if (signIn is String && signIn.isNotEmpty && signIn != cleanPath) {
         final String from =
             '$cleanPath${request.url.hasQuery ? '?${request.url.query}' : ''}';
-        return Response.found(_signInLocation(hosted, signIn, from),
+        return Response.found(core.dvHostedSignInLocation(hosted, signIn, from),
             headers: const <String, String>{'cache-control': 'no-store'});
       }
       return Response(401,
@@ -905,9 +906,3 @@ String? _shelfRequestHost(Request request) {
 
 /// The sign-in page for a signed-out request, at its public URL when the
 /// site has hosts: it may be on another host from the one asked.
-String _signInLocation(DVHostedRequest? hosted, String signIn, String from) {
-  final String location = core.dvSignInLocation(signIn, from);
-  if (hosted == null) return location;
-  final Uri uri = Uri.parse(location);
-  return hosted.publicUrl(uri.path, query: uri.query);
-}
