@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHostRedirect, dvHostRedirectTarget, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -180,7 +180,7 @@ Future<Response> _fromManifest(
     rawPath: raw,
   );
   if (hostTarget != null) {
-    final String target = req.url.hasQuery && !hostTarget.contains('?') ? '$hostTarget?${req.url.query}' : hostTarget;
+    final String target = dvRedirectLocation(hostTarget, req.url.query);
     return Response(301, headers: Headers()..set('location', target), body: const Stream<List<int>>.empty());
   }
 
@@ -189,7 +189,7 @@ Future<Response> _fromManifest(
   // the path as requested, before any host maps it.
   final DVConfiguredRedirect? redirect = dvConfiguredRedirect(manifest['redirects'], raw);
   if (redirect != null) {
-    final String target = req.url.hasQuery && !redirect.to.contains('?') ? '${redirect.to}?${req.url.query}' : redirect.to;
+    final String target = dvRedirectLocation(redirect.to, req.url.query);
     return Response(redirect.status, headers: Headers()..set('location', target), body: const Stream<List<int>>.empty());
   }
 
