@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `dvRunApplication(splash:)` draws the application's splash with a bar filled per boot step on a device app launch (not on the web, not for an embedded entry). `DVStudioSplash` takes `imageBytes`/`darkImageBytes`, and `DVStudioSplashView` an optional `progress` for a bar that fills.
 - `dvRunApplication` takes an `entry`. An embedded entry (`DVEntry.embedded`) boots with that entry and skips the launch negotiation, for an app started inside a native host by `dartvel build --brownfield`.
 
 ## 3.47.2 — 2026-11-15

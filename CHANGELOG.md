@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The splash and its loading bar on every platform, not only the web. On a device the launch screen stays until Flutter's first frame and cannot move; `DV.run` now draws the same splash (colours and picture, carried in the generated code) with the bar along the top in `dartvel.splash.progressColor`, filled as the `@DVBoot` steps finish, then the app. Screen readers hear the percentage. `splash.progress: false` keeps the old behaviour.
 - `dartvel build android|ios|macos --brownfield` builds what an existing native app embeds, through Flutter's own add-to-app: an AAR (a Maven repository) on Android, XCFrameworks on iOS and macOS, in `build/brownfield/<target>` with a `HOST.md` saying how the host adds it. The project is staged as a Flutter module under `build/brownfield/module` and never changed. The host starts `dartvelEmbeddedEntry_<package>` (or `main`), which boots the Dartvel runtime as `DVEntry.embedded`: no single-instance lock and no launch negotiation, because the host owns the process. The web, Linux and Windows are refused with the reason (exit 69) until their slices land. iOS and macOS need a Mac.
 
 ## 3.47.2 — 2026-11-15

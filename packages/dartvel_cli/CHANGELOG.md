@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The generated `DV.run` hands the project's splash to the runtime (`_dvBootSplash`), its picture resized to the launch screen's width at 3x and carried as base64; `null` when `splash.progress` or `splash.enabled` is false.
 - `dartvel build <target> --brownfield` (android, ios, macos): stages the project as a Flutter module, runs `flutter build aar`, `ios-framework` or `macos-framework`, and writes the artifact and a `HOST.md` to `build/brownfield/<target>`. Other targets are refused before anything is generated (exit 69). The generated `application.g.dart` gains `dartvelRunEmbedded(project)`, hidden from the barrel.
 
 ## 3.47.2 — 2026-11-15
