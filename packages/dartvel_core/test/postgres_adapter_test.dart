@@ -1,15 +1,23 @@
-// Runs against a real PostgreSQL at localhost:5432 — no scripted server, no
-// fake. Skips visibly when none is reachable rather than passing silently.
+// Runs against a real PostgreSQL at localhost:5432 (or the port in
+// DARTVEL_TEST_POSTGRES_PORT) — no scripted server, no fake. Skips visibly
+// when none is reachable rather than passing silently.
 import 'dart:io';
+import 'dart:io' as io show Platform;
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
+
+// DARTVEL_TEST_POSTGRES_PORT points the suite at a server that is not on the
+// default port, such as a disposable container next to a production
+// PostgreSQL that has no dartvel_test database.
+final int _port =
+    int.tryParse(io.Platform.environment['DARTVEL_TEST_POSTGRES_PORT'] ?? '') ?? 5432;
 
 Future<bool> _postgresReachable() async {
   try {
     final socket = await Socket.connect(
       '127.0.0.1',
-      5432,
+      _port,
       timeout: const Duration(seconds: 1),
     );
     await socket.close();
@@ -22,7 +30,7 @@ Future<bool> _postgresReachable() async {
 void main() async {
   if (!await _postgresReachable()) {
     test(
-      'postgres adapter (skipped: no PostgreSQL at localhost:5432)',
+      'postgres adapter (skipped: no PostgreSQL at localhost:$_port)',
       () {},
       skip: 'Start a local postgresql with a dartvel_test database to run '
           'the Postgres adapter tests.',
@@ -33,7 +41,7 @@ void main() async {
   late DVPostgresDatabaseAdapter adapter;
 
   setUp(() async {
-    adapter = DVPostgresDatabaseAdapter(database: 'dartvel_test');
+    adapter = DVPostgresDatabaseAdapter(port: _port, database: 'dartvel_test');
     await adapter.execute('DROP TABLE IF EXISTS dv_people');
     await adapter.execute(
       'CREATE TABLE dv_people (slug TEXT PRIMARY KEY, name TEXT, '

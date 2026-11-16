@@ -1,5 +1,6 @@
 // Runs against a real PostgreSQL, using its own full-text engine.
 import 'dart:io';
+import 'dart:io' as io show Platform;
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
@@ -13,9 +14,15 @@ class Article {
   const Article(this.slug, this.title, this.body, {this.published = true});
 }
 
+// DARTVEL_TEST_POSTGRES_PORT points the suite at a server that is not on the
+// default port, such as a disposable container next to a production
+// PostgreSQL that has no dartvel_test database.
+final int _port =
+    int.tryParse(io.Platform.environment['DARTVEL_TEST_POSTGRES_PORT'] ?? '') ?? 5432;
+
 Future<bool> _reachable() async {
   try {
-    final socket = await Socket.connect('127.0.0.1', 5432,
+    final socket = await Socket.connect('127.0.0.1', _port,
         timeout: const Duration(seconds: 1));
     await socket.close();
     return true;
@@ -27,7 +34,7 @@ Future<bool> _reachable() async {
 void main() async {
   if (!await _reachable()) {
     test(
-      'postgres search (skipped: no PostgreSQL at localhost:5432)',
+      'postgres search (skipped: no PostgreSQL at localhost:$_port)',
       () {},
       skip: 'Start postgresql with a dartvel_test database to run these.',
     );
@@ -38,7 +45,7 @@ void main() async {
   late DVPostgresSearchProvider<Article, Map<String, Object?>> search;
 
   setUp(() async {
-    database = DVPostgresDatabaseAdapter(database: 'dartvel_test');
+    database = DVPostgresDatabaseAdapter(port: _port, database: 'dartvel_test');
     await database.execute('DROP TABLE IF EXISTS dv_articles');
     await database.execute(
       'CREATE TABLE dv_articles (slug TEXT PRIMARY KEY, title TEXT, '
