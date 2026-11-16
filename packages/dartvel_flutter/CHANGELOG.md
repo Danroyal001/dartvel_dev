@@ -1,5 +1,7 @@
-## Unreleased
+## 3.47.3 — 2026-11-16
 
+- Route prefetch never prefetches the page that is already open (a link to the open page fetched its HTML again seconds after it loaded).
+- Page guards wait for the start-up session restore. A guarded page opened directly (a reload, a link from an email, the return from a payment page) reached its guard before `DV.Auth` had restored the session and sent a signed-in person to sign in; every generated guard chain now awaits `dvPageAuthSettled()` first.
 - `DartvelPage.initServerState()`, `DVClassWidget<T>` (typed server state), `context.serverState` and `context.refreshServerState()`. `DvDataLoader` takes `dependsOn` and reruns only when it changes, not whenever a rebuild hands it a new closure.
 - `DVWebMcp.register` and `DVWebMcpTool`: tools offered to the browser's agent through `document.modelContext.registerTool`, withdrawn by aborting their signal; a no-op where there is no WebMCP.
 - `dvRunApplication(splash:)` draws the application's splash with a bar filled per boot step on a device app launch (not on the web, not for an embedded entry). `DVStudioSplash` takes `imageBytes`/`darkImageBytes`, and `DVStudioSplashView` an optional `progress` for a bar that fills.

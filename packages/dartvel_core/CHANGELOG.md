@@ -1,5 +1,6 @@
-## Unreleased
+## 3.47.3 — 2026-11-16
 
+- `DV.Billing` takes one-time orders: `DVOneTimeCheckout` turns an order the application priced (reference, lines in minor units, buyer email, return addresses) into the provider's hosted page, and `orderStatus` asks the provider, with `DVBillingOrderStatus.paidInFull` true only for the exact total and currency. Webhook results name the order. New providers: `DVPaystackBillingProvider` and `DVFlutterwaveBillingProvider` (`dartvel.billing.provider: paystack | flutterwave`); Bachs checks out raw amounts with an idempotency key per order.
 - `@DVFunctionalWidget(initServerState:)` names a page's server state.
 
 ## 3.47.2 — 2026-11-15

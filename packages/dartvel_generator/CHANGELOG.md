@@ -1,3 +1,7 @@
+## 3.47.3 — 2026-11-16
+
+- A `@DVBoot` body keeps its file's imports, the generated client barrel and double-quoted imports included. A boot function that called a generated client function analysed clean and then failed the web build with "Undefined name".
+
 ## 3.47.2 — 2026-11-15
 
 - Version aligned with dartvel_core 3.47.2.
