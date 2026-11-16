@@ -439,6 +439,7 @@ const Map<String, String> kDocsSpecStatus = <String, String>{
   'Sensitive Model Fields': 'Partial',
   'SEO': 'Shipped',
   'Server Provisioning': 'Partial',
+  'Server State (`initServerState`)': 'Partial',
   'Sessions and Account Management': 'Partial',
   'State': 'Shipped',
   'Static Web Generation': 'Shipped',

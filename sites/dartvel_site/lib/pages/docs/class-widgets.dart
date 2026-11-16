@@ -49,7 +49,7 @@ Widget _docsClassWidgetsPage(BuildContext context) => const DocsArticle(
         DocsCode('class-widgets-component'),
         DocsNote(
           'Not StatelessWidget or StatefulWidget',
-          'dartvel build reports a Flutter widget class in your app as '
+          '`dartvel build` reports a Flutter widget class in your app as '
               'DV-CONV-012. Extend DVClassWidget, or annotate a function '
               'with @DVFunctionalWidget.',
         ),

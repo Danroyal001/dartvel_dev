@@ -83,7 +83,7 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
               'bachs, paystack or flutterwave.',
         ]),
         DocsStatus(
-          'One-time orders',
+          'Billing',
           missing: <String>[
             'Paystack and Flutterwave are tested against fakes only.',
             'Fulfilment is the application\'s: Dartvel says which order '
