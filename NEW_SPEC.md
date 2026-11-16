@@ -17308,8 +17308,14 @@ same PR, no over-claiming). Background: ~/dartvel-proposals/2026-10-01-competiti
    `@DVBackendFunction(aiTool: ...)`, instead of being annotated twice; `@DVAITool` stays for other
    functions. One declaration feeds the AI tool registry, MCP, App Intents, App Functions and
    WebMCP: web builds (static and web-server) automatically expose the same tools to in-browser
-   agents through WebMCP (`navigator.modelContext` tool registration), with the tool's policy and
-   auth enforced exactly as for the backend call. No extra annotation.
+   agents through WebMCP (`document.modelContext.registerTool`, a W3C Web Machine Learning
+   Community Group draft, https://webmachinelearning.github.io/webmcp/; earlier drafts named it
+   `navigator.modelContext`), with the tool's policy and auth enforced exactly as for the backend
+   call. No extra annotation. **Built (WebMCP):** every AI-tool backend function is registered by the
+   generated `web_mcp.g.dart` from the web runtime, calling the same generated client function the
+   app calls (so its route, policy and CSRF decide), with a JSON Schema and arguments refused by
+   name; feature-detected, so a browser without WebMCP and every non-web target register nothing.
+   `@DVAITool` on a function that is not a backend function stays in the backend registry only.
 2. `@DVHomeWidget.liveNotification` (not "Live Activity": avoid Apple's term): Live Activities and
    Dynamic Island on iOS, and live-activity-style ongoing notifications on Android (Material look) and
    the equivalent on desktop and web, each in the platform's own look.

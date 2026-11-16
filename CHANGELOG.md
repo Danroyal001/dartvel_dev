@@ -1,3 +1,7 @@
+## Unreleased
+
+- WebMCP from `@DVAITool`. In a browser that implements WebMCP (`document.modelContext`, a W3C Web Machine Learning Community Group draft), a Dartvel web app registers every AI-tool backend function with the browser's agent. The tool calls the generated client function the app itself calls, so the function's policy, CSRF and rate limits decide. Feature-detected: browsers without it and other targets are unaffected.
+
 ## 3.47.2 — 2026-11-15
 
 - First-party modules, published with every release from `modules/`: `dartvel_meta_pixel` (Meta Pixel in the browser and the Conversions API from the backend, one event id so Meta counts each event once), `dartvel_google_analytics` (gtag in the browser, the Measurement Protocol from the backend and devices) and `dartvel_woocommerce` (a typed WooCommerce REST v3 client, checkout through the store's own payment gateways by `payment_url`, a signed webhook with a polling fallback, and a `commerce.purchase` topic the two analytics modules report). `dartvel add meta-pixel | google-analytics | woocommerce` writes the dependency and the mount. All three are tested against faked vendor hosts only; no real browser run, store or vendor call has been made yet (see each README).

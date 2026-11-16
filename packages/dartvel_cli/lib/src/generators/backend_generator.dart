@@ -3296,6 +3296,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         backendDir: backendDir,
       ),
     );
+    File(p.join(libClientDir.path, 'web_mcp.g.dart')).writeAsStringSync(
+      _webMcpSource(await _aiToolEntries(
+          root: root, pkgName: pkgName, backendDir: backendDir)),
+    );
 
     // Update .gitignore to exclude generated files (idempotent)
     final gitignore = File(p.join(root, '.gitignore'));
@@ -4020,7 +4024,10 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
     return sb.toString();
   }
 
-  static Future<String> _generateAITools({
+  /// Every @DVAITool and AI-tool backend function in the project, by name.
+  /// One collection for the backend registry and the browser's WebMCP
+  /// registration, so the two cannot disagree about what is a tool.
+  static Future<List<_AIToolEntry>> _aiToolEntries({
     required String root,
     required String pkgName,
     required String backendDir,
@@ -4052,8 +4059,17 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         );
       }
     }
-    final entries = entriesByName.values.toList(growable: false)
+    return entriesByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  static Future<String> _generateAITools({
+    required String root,
+    required String pkgName,
+    required String backendDir,
+  }) async {
+    final List<_AIToolEntry> entries = await _aiToolEntries(
+        root: root, pkgName: pkgName, backendDir: backendDir);
 
     // Which entries this file can generate a handler for.
     //
@@ -4226,6 +4242,97 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
   /// Anything this does not recognise is advertised as a string rather than
   /// omitted, because a provider requires a type on every property and a
   /// missing one is a tool it will not call.
+  /// `web_mcp.g.dart`: every AI-tool backend function, registered with the
+  /// browser's WebMCP (`document.modelContext`) where the browser offers it.
+  ///
+  /// Each tool calls the generated client function the application itself
+  /// calls, so the function's route -- its policy, CSRF and rate limits -- is
+  /// the one way in, as for a person pressing a button. `@DVAITool` on a
+  /// function that is not a backend function runs only in the backend's
+  /// registry, since nothing in the browser can call it.
+  static String _webMcpSource(List<_AIToolEntry> all) {
+    final List<_AIToolEntry> tools = <_AIToolEntry>[
+      for (final _AIToolEntry entry in all)
+        if (entry.backendFunction) entry,
+    ];
+    final StringBuffer sb = StringBuffer()
+      ..writeln('// GENERATED – do not edit.')
+      ..writeln('// ignore_for_file: unused_import, directives_ordering')
+      ..writeln('library dartvel_client_web_mcp;')
+      ..writeln()
+      ..writeln("import 'dart:convert';")
+      ..writeln()
+      ..writeln("import 'package:dartvel_flutter/dartvel_flutter.dart' show DVWebMcp, DVWebMcpTool;")
+      ..writeln()
+      ..writeln("import 'functions.g.dart' as client;")
+      ..writeln()
+      ..writeln('/// Registers this application''s AI tools with the browser''s agent, when')
+      ..writeln('/// the browser has WebMCP. Does nothing elsewhere.');
+    if (tools.isEmpty) {
+      sb.writeln('void registerDartvelWebMcpTools() {}');
+      return sb.toString();
+    }
+    sb
+      ..writeln('void registerDartvelWebMcpTools() {')
+      ..writeln('  DVWebMcp.register(<DVWebMcpTool>[');
+    for (final _AIToolEntry tool in tools) {
+      final List<int> args = <int>[
+        for (var i = 0; i < tool.parameterNames.length; i++)
+          if (tool.parameterTypes[i].replaceAll('?', '').trim() != 'DVContext') i,
+      ];
+      final String properties = args
+          .map((int i) =>
+              "'${esc(tool.parameterNames[i])}': <String, Object?>{'type': '${_dvJsonSchemaType(tool.parameterTypes[i])}'}")
+          .join(', ');
+      final String required = args
+          .where((int i) => !tool.parameterTypes[i].trim().endsWith('?'))
+          .map((int i) => "'${esc(tool.parameterNames[i])}'")
+          .join(', ');
+      final String call = 'client.${tool.name}(' +
+          args
+              .map((int i) =>
+                  "${tool.parameterNames[i]}: _dvWebToolArg(input, '${esc(tool.parameterNames[i])}', '${esc(tool.parameterTypes[i])}') as ${tool.parameterTypes[i]}")
+              .join(', ') +
+          ')';
+      sb
+        ..writeln('    DVWebMcpTool(')
+        ..writeln("      name: '${esc(tool.name)}',")
+        ..writeln("      description: '${esc(tool.description)}',")
+        ..writeln("      inputSchema: <String, Object?>{'type': 'object', 'properties': <String, Object?>{$properties}, 'required': <String>[$required]},")
+        ..writeln('      execute: (Map<String, Object?> input) async {');
+      if (tool.returnsVoid) {
+        sb
+          ..writeln('        await $call;')
+          ..writeln('        return null;');
+      } else {
+        // Through JSON, so a data model or a record reaches the agent as the
+        // same JSON the route answered with.
+        sb.writeln('        return jsonDecode(jsonEncode(await $call));');
+      }
+      sb
+        ..writeln('      },')
+        ..writeln('    ),');
+    }
+    sb
+      ..writeln('  ]);')
+      ..writeln('}')
+      ..writeln()
+      ..writeln('/// One argument, refused by name rather than coerced, as the backend''s')
+      ..writeln('/// registry refuses it.')
+      ..writeln('Object? _dvWebToolArg(Map<String, Object?> input, String name, String type) {')
+      ..writeln('  final Object? value = input[name];')
+      ..writeln("  if (value == null && !type.endsWith('?')) {")
+      ..writeln("    throw ArgumentError.value(name, name, 'is required by this tool and was not supplied');")
+      ..writeln('  }')
+      ..writeln('  if (value == null) return null;')
+      ..writeln("  final String base = type.replaceAll('?', '');")
+      ..writeln("  if (base == 'int' && value is num) return value.toInt();")
+      ..writeln("  if (base == 'double' && value is num) return value.toDouble();")
+      ..writeln('  return value;')
+      ..writeln('}');
+    return sb.toString();
+  }
+
   static String _dvJsonSchemaType(String type) {
     final String base = type.replaceAll('?', '').trim();
     if (base == 'int') return 'integer';
@@ -4753,6 +4860,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
         parameterTypes: parameterTypes,
         named: named == '1',
         declaredName: name,
+        backendFunction: true,
       );
     }
   }
@@ -4894,6 +5002,10 @@ class _AIToolEntry {
   /// against the public name would be generated code that does not compile.
   final String declaredName;
 
+  /// Whether it is a `@DVBackendFunction`, so the browser can reach it through
+  /// its generated client function (and so through its route and policy).
+  final bool backendFunction;
+
   const _AIToolEntry({
     required this.name,
     required this.description,
@@ -4904,6 +5016,7 @@ class _AIToolEntry {
     this.named = false,
     this.returnsVoid = false,
     this.returnsPlainVoid = false,
+    this.backendFunction = false,
     String? declaredName,
   }) : declaredName = declaredName ?? name;
 }

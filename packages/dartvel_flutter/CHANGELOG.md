@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVWebMcp.register` and `DVWebMcpTool`: tools offered to the browser's agent through `document.modelContext.registerTool`, withdrawn by aborting their signal; a no-op where there is no WebMCP.
+
 ## 3.47.2 — 2026-11-15
 
 - The page shell reports each page shown to `DVPageViews` once its frame is drawn (not on Studio's canvas).
