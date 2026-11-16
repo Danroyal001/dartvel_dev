@@ -133,6 +133,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '    --arch                       Target architecture for embedded builds',
       '                                 [arm, arm64 (default), x64]',
       '    --[no-]split-per-abi         Split APKs per ABI (Android)',
+      '    --brownfield                 Build what an existing native app embeds, through Flutter\'s add-to-app: an AAR on android, XCFrameworks on ios and macos. Written to build/brownfield/<target> with a HOST.md.',
       '    --[no-]cache                 Reuse a step whose inputs are byte-for-byte unchanged (the Flutter web build, each route\'s semantics capture, the web-server backend compile). Kept in .dartvel/cache; --no-cache builds everything afresh.',
       '                                 (defaults to on)',
       '    --build-number               Build number',
