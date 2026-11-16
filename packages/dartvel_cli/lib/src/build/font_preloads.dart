@@ -15,6 +15,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 import 'web_fonts.dart' show DVManifestFamily, DVManifestFont, dvParseFontManifest;
 
@@ -59,4 +62,20 @@ String dvApplyFontPreloads(String html, List<String> hrefs) {
     _close,
   ].join();
   return '${cleared.substring(0, at)}$block${cleared.substring(at)}';
+}
+
+/// Everything the engine asks for between starting and its first frame that
+/// the build can name, for the head of every page in [webRoot]: the two
+/// manifests it reads first -- FontManifest.json, which names the fonts, and
+/// AssetManifest.bin.json, which an AssetImage reads to choose its file --
+/// then every font. Each manifest was a round trip after the app started.
+/// A manifest the build did not write is not named.
+List<String> dvBootPreloadHrefs(String webRoot) {
+  final File fonts = File(p.join(webRoot, 'assets', 'FontManifest.json'));
+  final File assets = File(p.join(webRoot, 'assets', 'AssetManifest.bin.json'));
+  return <String>[
+    if (fonts.existsSync()) 'assets/FontManifest.json',
+    if (assets.existsSync()) 'assets/AssetManifest.bin.json',
+    if (fonts.existsSync()) ...dvFontPreloadHrefs(fonts.readAsStringSync()),
+  ];
 }

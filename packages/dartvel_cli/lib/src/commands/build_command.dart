@@ -2890,16 +2890,15 @@ class BuildCommand extends Command<void> {
   void _writeFontPreloads(String root) {
     final String web = p.join(root, 'build', 'web');
     final File index = File(p.join(web, 'index.html'));
-    final File manifest = File(p.join(web, 'assets', 'FontManifest.json'));
     if (!index.existsSync()) return;
-    final List<String> fonts = manifest.existsSync()
-        ? dvFontPreloadHrefs(manifest.readAsStringSync())
-        : const <String>[];
+    // The two manifests the engine reads first, then every font.
+    final List<String> fonts = dvBootPreloadHrefs(web);
     final String before = index.readAsStringSync();
     final String after = dvApplyFontPreloads(before, fonts);
     if (after != before) index.writeAsStringSync(after);
     if (fonts.isNotEmpty) {
-      Logger.log('   Fonts: ${fonts.length} preloaded from index.html.');
+      Logger.log('   Boot files: ${fonts.length} (manifests and fonts) preloaded '
+          'from index.html.');
     }
   }
 

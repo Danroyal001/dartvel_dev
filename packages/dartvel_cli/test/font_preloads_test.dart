@@ -10,7 +10,10 @@
 // app's own code keeps the network first; asked for exactly as the engine
 // asks (fetch(), a CORS request even to its own site), or the browser does not
 // hand the preload over and the font downloads twice.
+import 'dart:io';
+
 import 'package:dartvel_cli/src/build/font_preloads.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 const String manifest = '[{"family":"MaterialIcons","fonts":[{"asset":"dartvel/fonts/MaterialIcons-Regular.ee49.woff2"}]},'
@@ -65,5 +68,38 @@ void main() {
   test('a page with no head is left alone', () {
     const String bare = '<p>no head</p>';
     expect(dvApplyFontPreloads(bare, <String>['assets/a.woff2']), bare);
+  });
+
+  // The two manifests the engine reads before it can ask for anything else:
+  // FontManifest.json, which names the fonts, and AssetManifest.bin.json, which
+  // an AssetImage reads to pick its file. Each was a round trip after the app
+  // started (0.6 s apiece on Fast 3G, 2 s on Slow 3G).
+  group('the boot preloads of a build', () {
+    late Directory web;
+    setUp(() {
+      web = Directory.systemTemp.createTempSync('dv_boot_preloads_');
+      Directory(p.join(web.path, 'assets')).createSync();
+    });
+    tearDown(() => web.deleteSync(recursive: true));
+
+    test('the two manifests first, then every font', () {
+      File(p.join(web.path, 'assets', 'FontManifest.json')).writeAsStringSync(manifest);
+      File(p.join(web.path, 'assets', 'AssetManifest.bin.json')).writeAsStringSync('""');
+      expect(dvBootPreloadHrefs(web.path), <String>[
+        'assets/FontManifest.json',
+        'assets/AssetManifest.bin.json',
+        ...dvFontPreloadHrefs(manifest),
+      ]);
+    });
+
+    test('a manifest the build did not write is not asked for', () {
+      File(p.join(web.path, 'assets', 'FontManifest.json')).writeAsStringSync('[]');
+      expect(dvBootPreloadHrefs(web.path), <String>['assets/FontManifest.json']);
+    });
+
+    test('no assets folder, nothing', () {
+      Directory(p.join(web.path, 'assets')).deleteSync();
+      expect(dvBootPreloadHrefs(web.path), isEmpty);
+    });
   });
 }
