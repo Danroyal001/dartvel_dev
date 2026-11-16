@@ -126,6 +126,22 @@ flutter:
           reason: 'a module has its own ephemeral .android host');
     });
 
+    test('a top-level file is copied, not linked, so a Flutter command run '
+        'in the module cannot write into the project', () {
+      File(p.join(root.path, 'analysis_options.yaml'))
+          .writeAsStringSync('include: package:lints/recommended.yaml\n');
+      final Directory module = dvStageBrownfieldModule(root: root.path, package: 'checkout');
+      final String staged = p.join(module.path, 'analysis_options.yaml');
+      expect(FileSystemEntity.isLinkSync(staged), isFalse);
+      // Flutter's own analysis_options migration rewrites this file in
+      // whatever project it runs in.
+      File(staged).writeAsStringSync('rewritten by a tool\n');
+      expect(File(p.join(root.path, 'analysis_options.yaml')).readAsStringSync(),
+          'include: package:lints/recommended.yaml\n');
+      expect(FileSystemEntity.isLinkSync(p.join(module.path, 'assets')), isTrue,
+          reason: 'directories are still the project\'s own, linked');
+    });
+
     test('staging twice starts from a clean module', () {
       dvStageBrownfieldModule(root: root.path, package: 'checkout');
       File(p.join(root.path, 'lib', 'extra.dart')).writeAsStringSync('// extra\n');

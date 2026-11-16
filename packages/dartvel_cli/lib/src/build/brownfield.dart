@@ -190,7 +190,15 @@ Directory dvStageBrownfieldModule({required String root, required String package
   for (final FileSystemEntity entry in Directory(root).listSync(followLinks: false)) {
     final String name = p.basename(entry.path);
     if (_notStaged.contains(name)) continue;
-    Link(p.join(module.path, name)).createSync(p.absolute(entry.path));
+    // A file is copied and a directory linked: Flutter commands run in the
+    // module rewrite files such as analysis_options.yaml in place, and
+    // through a link that would change the project, which staging promises
+    // never to do.
+    if (entry is File) {
+      entry.copySync(p.join(module.path, name));
+    } else {
+      Link(p.join(module.path, name)).createSync(p.absolute(entry.path));
+    }
   }
   final Directory lib = Directory(p.join(root, 'lib'));
   if (lib.existsSync()) {
