@@ -257,7 +257,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
         ),
         DocsYaml('yaml-platforms-web'),
         DocsText(
-          'A file entry names a file under web/, which suits a snippet longer '
+          'A file entry names a file under html/, which suits a snippet longer '
           'than a line. The same setting in a Dart config class:',
         ),
         DocsCode('platforms-web-config'),
@@ -266,8 +266,9 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               '<body> opens) and `bodyEnd` (right before </body> closes, after '
               'the page itself).',
           'Each entry is `html:` (the HTML itself) or `file:` (a file under '
-              'web/). In a Dart config class a file is a `DVWebFile` value, '
-              'generated for every HTML file under web/, so a renamed file is '
+              'html/; not web/, which the build generates and git ignores). In a '
+              'Dart config class a file is a `DVWebFile` value, generated for '
+              'every HTML file under html/, so a renamed file is '
               'a compile error.',
           'Studio\'s Platforms screen edits the same setting. On `dartvel dev` '
               'it saves into pubspec.yaml; on a deployed app it waits for the '

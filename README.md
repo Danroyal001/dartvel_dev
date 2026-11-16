@@ -659,7 +659,7 @@ Analytics, a tag manager, site verification or a chat widget usually arrives
 as HTML to paste into every page. Dartvel takes it in three places, under
 `dartvel.platforms.web.document`: `head` (inside `<head>`), `bodyStart`
 (right after `<body>` opens) and `bodyEnd` (right before `</body>` closes,
-after the page itself). Each entry is inline `html:` or a `file:` under `web/`:
+after the page itself). Each entry is inline `html:` or a `file:` under `html/`:
 
 ```yaml
 dartvel:
@@ -668,7 +668,7 @@ dartvel:
       document:
         head:
           - html: <meta name="google-site-verification" content="your-code">
-          - file: web/analytics.html
+          - file: html/analytics.html
         bodyEnd:
           - html: <script src="https://cdn.example.com/chat.js" async></script>
 ```
@@ -676,7 +676,7 @@ dartvel:
 A Dart config class sets the same thing as `DartvelConfig.platforms`
 (`DVPlatformSettings` → `DVWebSettings` → `DVWebDocumentSlots` of
 `DVHtmlSnippet.html(...)` and `DVHtmlSnippet.file(DVWebFile.analytics)`;
-`DVWebFile` is generated for each HTML file under `web/`, so a renamed file is
+`DVWebFile` is generated for each HTML file under `html/`, so a renamed file is
 a compile error). Studio's **Platforms** screen (`/__studio/platforms/web`)
 edits the same setting: on `dartvel dev` it saves into `pubspec.yaml`, on a
 deployed app the GitHub screen sends it as a `pubspec.yaml` change.

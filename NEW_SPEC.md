@@ -588,12 +588,12 @@ with nothing set, still accepted, and read by `dvPlatformTargets` either way. `p
 `head` (inside `<head>`, after the shell's tags), `bodyStart` (right after
 `<body>` opens) and `bodyEnd` (right before `</body>` closes, after the page's
 own document), of entries that are exactly one of `html:` (inline) or
-`file:` (a file under `web/`, never `web/index.html`). The Dart config class
+`file:` (a file under `html/`; not `web/`, which is generated build output and ignored by git). The Dart config class
 field is `DartvelConfig.platforms` (`DVPlatformSettings`, `DVWebSettings`,
 `DVWebDocumentSlots`, `DVHtmlSnippet.html` / `.file`), round-tripping with the
 YAML through one parser; a file is a `DVWebFileRef`, and `dartvel routes`
 generates `DVWebFile` (`lib/dartvel_client/web_files.g.dart`) with a value per
-HTML file under `web/`.
+HTML file under `html/`.
 
 - **One render path.** The build writes the snippets into `build/web/index.html`
   after the capture and the versioning, between `<!-- dartvel:head -->`,

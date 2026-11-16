@@ -1419,7 +1419,7 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
   ],
   'platforms-web-config': <String>[
     '// The same setting in a Dart config class (`dartvel: lib/services/...` in',
-    '// pubspec.yaml). DVWebFile.analytics is generated from web/analytics.html, so',
+    '// pubspec.yaml). DVWebFile.analytics is generated from html/analytics.html, so',
     '// renaming or deleting the file is a compile error.',
     'import \'package:dartvel_core/config.dart\';',
     '',
@@ -2438,7 +2438,7 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '    document:',
     '      head: # inside <head>',
     '        - html: <meta name="google-site-verification" content="your-code">',
-    '        - file: web/analytics.html',
+    '        - file: html/analytics.html',
     '      bodyEnd: # right before </body> closes',
     '        - html: <script src="https://cdn.example.com/chat.js" async></script>',
   ],

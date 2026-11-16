@@ -1,6 +1,6 @@
 // docs:start platforms-web-config
 // The same setting in a Dart config class (`dartvel: lib/services/...` in
-// pubspec.yaml). DVWebFile.analytics is generated from web/analytics.html, so
+// pubspec.yaml). DVWebFile.analytics is generated from html/analytics.html, so
 // renaming or deleting the file is a compile error.
 import 'package:dartvel_core/config.dart';
 
