@@ -15,8 +15,7 @@ import '../dartvel_client/dartvel_client.dart';
 )
 @pragma('vm:entry-point')
 Widget _flutterWithoutAMacPage(BuildContext context) =>
-    const SingleChildScrollView(
-      child: DVBox.list(<Widget>[
+    const SiteScroll(<Widget>[
         Section(
           grain: true,
           children: <Widget>[
@@ -157,6 +156,4 @@ Widget _flutterWithoutAMacPage(BuildContext context) =>
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/flutter-without-a-mac')]),
-        SiteFooter(),
-      ], spacing: 0),
-    );
+      ], spacing: 0);

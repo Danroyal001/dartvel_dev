@@ -14,8 +14,7 @@ import '../../dartvel_client/dartvel_client.dart';
   ),
 )
 @pragma('vm:entry-point')
-Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
-  child: DVBox.list(<Widget>[
+Widget _vsQtPage(BuildContext context) => const SiteScroll(<Widget>[
     Section(
       grain: true,
       children: <Widget>[
@@ -156,6 +155,4 @@ Widget _vsQtPage(BuildContext context) => const SingleChildScrollView(
       ],
     ),
     Section(children: <Widget>[VersusMore(current: '/vs/qt')]),
-    SiteFooter(),
-  ], spacing: 0),
-);
+  ], spacing: 0);

@@ -706,8 +706,7 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
 )
 @pragma('vm:entry-point')
-Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
-  child: DVBox.list(<Widget>[
+Widget _featuresPage(BuildContext context) => const SiteScroll(<Widget>[
     Section(
       children: <Widget>[
         Eyebrow('WHAT WORKS TODAY'),
@@ -769,9 +768,7 @@ Widget _featuresPage(BuildContext context) => const SingleChildScrollView(
         DVBox.wrapLine(<Widget>[PrimaryLink('Create your first app', '/docs')]),
       ],
     ),
-    SiteFooter(),
-  ], spacing: 0),
-);
+  ], spacing: 0);
 
 /// A grid where there is room, one column where there is not.
 @DVFunctionalWidget()

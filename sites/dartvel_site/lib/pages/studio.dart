@@ -26,8 +26,7 @@ import '../dartvel_client/dartvel_client.dart';
   ),
 )
 @pragma('vm:entry-point')
-Widget _studioPage(BuildContext context) => const SingleChildScrollView(
-  child: DVBox.list(<Widget>[
+Widget _studioPage(BuildContext context) => const SiteScroll(<Widget>[
     Section(
       grain: true,
       children: <Widget>[
@@ -507,6 +506,4 @@ Widget _studioPage(BuildContext context) => const SingleChildScrollView(
         ], spacing: 12),
       ],
     ),
-    SiteFooter(),
-  ], spacing: 0),
-);
+  ], spacing: 0);
