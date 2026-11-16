@@ -1,0 +1,36 @@
+#!/usr/bin/env dart
+// Stands in for `clang` while cross-building the server library for
+// aarch64-pc-windows-msvc with cargo-xwin (doc/building-from-source.md).
+//
+// ring compiles its ARM64 assembly for that target with plain clang, not
+// clang-cl, and cargo-xwin's C flags are clang-cl's: `/imsvc <dir>` for each
+// system include directory. Plain clang reads `/imsvc` as a file name and
+// stops. This rewrites that flag to `-isystem` and runs the real clang with
+// everything else unchanged. It is put first on the PATH for that one target
+// only; nothing else should find it.
+import 'dart:io';
+
+Future<void> main(List<String> arguments) async {
+  final List<String> rewritten = <String>[
+    for (final String argument in arguments)
+      argument == '/imsvc' ? '-isystem' : argument,
+  ];
+  final String real = Platform.environment['DARTVEL_REAL_CLANG'] ?? _realClang();
+  final Process clang =
+      await Process.start(real, rewritten, mode: ProcessStartMode.inheritStdio);
+  exit(await clang.exitCode);
+}
+
+/// The first `clang` on the PATH that is not this file.
+String _realClang() {
+  final String self = File(Platform.script.toFilePath()).resolveSymbolicLinksSync();
+  for (final String directory
+      in (Platform.environment['PATH'] ?? '').split(':')) {
+    final File candidate = File('$directory/clang');
+    if (!candidate.existsSync()) continue;
+    if (candidate.resolveSymbolicLinksSync() == self) continue;
+    return candidate.path;
+  }
+  stderr.writeln('clang-imsvc: no clang on the PATH besides this wrapper');
+  exit(127);
+}

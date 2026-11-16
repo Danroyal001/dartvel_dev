@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVPageData.slots({...})` and `dvFillPageSlots`: request-time text in a captured page. A route whose page data answers slots is served as captured, with each `data-dv-slot` span filled from the request and escaped; the head, form fields and other text stay as built. Before, a page the web-server binary served from its build capture kept whatever date the build ran on (EatingToday's today's menu).
+
 ## 3.47.4 — 2026-11-16
 
 - One render path for data-backed pages: `dvRenderPage` takes the route's page entry and renders through `dvRenderRoutePage`, so a data model's page or a Studio page keeps its hreflang links, robots meta and schema type, is minified, and carries one JSON-LD block.

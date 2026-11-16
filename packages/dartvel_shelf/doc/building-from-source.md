@@ -82,3 +82,58 @@ cp target/x86_64-unknown-linux-gnu/release/libdartvel_shelf.so \
 The Dart side checks what it loads. A library built from an older Rust source
 is refused with a message naming the file, rather than being called with the
 wrong arguments.
+
+## Building all six from one Linux machine
+
+Every copy in `lib/native/` must be built from the same source, so build them
+together, from one checkout, after any change under `rust/`. All six
+cross-compile from Linux x64; none needs a Mac or a Windows machine:
+
+```sh
+rustup target add aarch64-unknown-linux-gnu aarch64-apple-darwin \
+  x86_64-apple-darwin x86_64-pc-windows-msvc aarch64-pc-windows-msvc
+cargo install --locked cargo-zigbuild cargo-xwin   # plus zig on the PATH, clang, lld
+
+cd rust
+cargo build --release --locked --target x86_64-unknown-linux-gnu
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar \
+  cargo build --release --locked --target aarch64-unknown-linux-gnu
+MACOSX_DEPLOYMENT_TARGET=11.0 \
+  cargo zigbuild --release --locked --target aarch64-apple-darwin
+MACOSX_DEPLOYMENT_TARGET=10.12 \
+  cargo zigbuild --release --locked --target x86_64-apple-darwin
+cargo xwin build --release --locked --target x86_64-pc-windows-msvc
+PATH="$PWD/../tool/clang-imsvc:$PATH" \
+  cargo xwin build --release --locked --target aarch64-pc-windows-msvc
+```
+
+Then copy each `target/<triple>/release/` library over its row in the table
+above.
+
+- **macOS.** zig links the dylib and signs it ad hoc, which is all Apple
+  silicon needs to load a library. The warning that `xcrun` was not found is
+  expected: zig carries its own macOS libSystem stubs.
+- **windows-arm64.** `ring` compiles its ARM64 assembly with plain `clang`
+  rather than `clang-cl`, and cargo-xwin's C flags are written for `clang-cl`
+  (`/imsvc <dir>`), which plain clang reads as file names.
+  `tool/clang-imsvc/clang` is a small Dart script that rewrites that one flag
+  and runs the real clang; put it
+  first on the `PATH` for this target only. cargo-xwin's
+  `--cross-compiler clang` mode is not a way round it: it puts MSVC's
+  `arm_neon.h` ahead of clang's, and zstd then calls MSVC-only intrinsics
+  (`neon_ld1m_8`) that do not link.
+
+### The source revision
+
+`build.rs` stamps each library with a hash of the files it was built from
+(`Cargo.toml`, `Cargo.lock`, `build.rs` and everything under `src/`), readable
+as `aw_source_revision()` and present in the binary as the plain text
+`dartvel_shelf source revision <16 hex digits>`.
+`test/prebuilt_source_revision_test.dart` hashes `rust/` the same way and
+reads the stamp out of all six copies without loading them, so it checks the
+macOS and Windows libraries on Linux too. It fails when any copy was built
+from a different source than the one in the tree, which is what a partial
+rebuild looks like: 3.47.4 rebuilt three of the six after a TLS fix, and the
+macOS and windows-arm64 copies kept the bug.

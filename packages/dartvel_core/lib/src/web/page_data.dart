@@ -286,7 +286,23 @@ class DVPageData {
     this.document = const <DVDocumentBlock>[],
     this.structuredData,
     this.visibility = DVPageVisibility.public,
+    this.slots = const <String, String>{},
   });
+
+  /// Only the text that changes by request, written into the page the build
+  /// captured: each entry fills the text a widget marked with
+  /// `DVModifier.pageSlot(name)`. Everything else the capture holds -- the
+  /// head, the form, the rest of the text -- is served as captured, so a
+  /// date or "today's menu" is the request's and never the build's.
+  const DVPageData.slots(this.slots)
+      : title = '',
+        description = null,
+        image = null,
+        favicon = null,
+        text = const <String>[],
+        document = const <DVDocumentBlock>[],
+        structuredData = null,
+        visibility = DVPageVisibility.public;
 
   final String title;
   final String? description;
@@ -306,6 +322,10 @@ class DVPageData {
   final Map<String, Object?>? structuredData;
   final DVPageVisibility visibility;
 
+  /// Request-time text for the captured page, by slot name (see
+  /// [DVPageData.slots]). Empty for a page whose data is its whole document.
+  final Map<String, String> slots;
+
   /// The page as JSON, for a cache shared between servers.
   Map<String, Object?> toJson() => <String, Object?>{
         'title': title,
@@ -316,6 +336,7 @@ class DVPageData {
         if (document.isNotEmpty) 'document': <Map<String, Object?>>[for (final DVDocumentBlock block in document) block.toJson()],
         if (structuredData != null) 'structuredData': structuredData,
         if (visibility != DVPageVisibility.public) 'visibility': visibility.name,
+        if (slots.isNotEmpty) 'slots': slots,
       };
 
   /// A page from what [toJson] wrote. Throws [FormatException] for anything
@@ -343,8 +364,31 @@ class DVPageData {
         (DVPageVisibility v) => v.name == json['visibility'],
         orElse: () => DVPageVisibility.public,
       ),
+      slots: <String, String>{
+        for (final MapEntry<Object?, Object?> entry in ((json['slots'] as Map?) ?? const <Object?, Object?>{}).entries)
+          '${entry.key}': '${entry.value}',
+      },
     );
   }
+}
+
+/// The attribute that marks request-time text in a captured page. The build
+/// writes it on a `<span>` inside the paragraph or heading, so the `<p>` and
+/// `<hN>` every other reader matches on stay as they are.
+const String dvPageSlotAttribute = 'data-dv-slot';
+
+final RegExp _dvPageSlot = RegExp('<span $dvPageSlotAttribute="([^"]*)">([^<]*)</span>');
+
+/// [html] with each marked slot's text replaced by its entry in [slots],
+/// escaped. A slot [slots] does not name keeps its captured text.
+String dvFillPageSlots(String html, Map<String, String> slots) {
+  if (slots.isEmpty || !html.contains(dvPageSlotAttribute)) return html;
+  const HtmlEscape element = HtmlEscape(HtmlEscapeMode.element);
+  return html.replaceAllMapped(_dvPageSlot, (Match match) {
+    final String? value = slots[match.group(1)!];
+    if (value == null) return match.group(0)!;
+    return '<span $dvPageSlotAttribute="${match.group(1)}">${element.convert(value)}</span>';
+  });
 }
 
 /// One piece of a page's server-rendered document: a heading, a paragraph or
@@ -503,7 +547,30 @@ String dvRenderPage({
   DVRoutePage? route,
   bool minify = true,
 }) =>
-    dvRenderRoutePage(
+    _dvSlotsOnly(data) && route != null
+        // The captured page, with the request's text in its slots.
+        ? dvRenderRoutePage(
+            minify: minify,
+            shell,
+            DVRoutePage(
+              route: path,
+              title: route.title,
+              description: route.description ?? description,
+              siteUrl: siteUrl ?? route.siteUrl,
+              image: route.image ?? image,
+              siteName: route.siteName ?? siteName,
+              alternates: route.alternates,
+              defaultAlternate: route.defaultAlternate,
+              favicon: route.favicon,
+              schemaType: route.schemaType,
+              robots: route.robots,
+              content: route.content,
+              html: route.html == null ? null : dvFillPageSlots(route.html!, data.slots),
+              text: route.text,
+              structuredData: route.structuredData,
+            ),
+          )
+        : dvRenderRoutePage(
       minify: minify,
       shell,
       DVRoutePage(
@@ -523,6 +590,10 @@ String dvRenderPage({
         structuredData: data.structuredData,
       ),
     );
+
+/// Data that only fills slots: no title, text or document of its own.
+bool _dvSlotsOnly(DVPageData data) =>
+    data.slots.isNotEmpty && data.title.isEmpty && data.text.isEmpty && data.document.isEmpty;
 
 /// [data]'s document as the page's own HTML -- the title as its h1, then
 /// every block -- or null when it has none.

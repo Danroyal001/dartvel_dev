@@ -211,6 +211,13 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
               'It is not authentication. Keep a guard, a policy or a '
                   'boundary in front of a private page.',
             ]),
+            DocsText('Text that changes by day or by visit, such as a date or '
+                "today's menu, is otherwise read when the app is built and "
+                'served that way until the next build. Mark it with '
+                "DVModifier().pageSlot('menu-date') and return "
+                "DVPageData.slots({'menu-date': ...}) for the route: the "
+                'server sends the page as built, with that text written fresh '
+                'on every request. Text you do not name stays as built.'),
           ],
         ),
         DocsSection(
