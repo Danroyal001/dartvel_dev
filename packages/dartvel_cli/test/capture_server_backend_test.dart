@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:dartvel_cli/src/build/sdk_floor.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -153,7 +154,7 @@ void main() {
 name: capture_server_probe
 publish_to: none
 environment:
-  sdk: ^3.12.0
+  sdk: ^$dvDartFloor
 dependencies:
   dartvel_core:
     path: ${p.join(packages, 'dartvel_core')}

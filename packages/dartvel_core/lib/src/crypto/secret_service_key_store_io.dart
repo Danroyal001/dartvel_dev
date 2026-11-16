@@ -76,15 +76,24 @@ class DVSecretServiceAppKeyStore implements DVAppKeyStore {
     }
   }
 
+  /// SECRET_SERVICE_OPEN_SESSION: libsecret opens a session with the
+  /// service before it hands the proxy back.
+  static const int _openSession = 1 << 1;
+
   /// Whether a Secret Service answers on this session bus. A boolean, never
   /// a throw: the store chooser has to be able to ask on any machine.
+  ///
+  /// The proxy alone proves nothing: with no flags libsecret returns one on
+  /// any session bus, even when nothing provides org.freedesktop.secrets
+  /// (a headless server with a bus and no keyring), and the first lookup
+  /// then fails. Opening a session is a round trip to the service itself.
   static Future<bool> isAvailable() async {
     if (!_load()) return false;
     final Pointer<Pointer<Void>> error = calloc<Pointer<Void>>();
     try {
       final Pointer<Void> service = _secret!
           .lookupFunction<_ServiceGetN, _ServiceGetD>('secret_service_get_sync')(
-              0, nullptr, error);
+              _openSession, nullptr, error);
       if (service == nullptr) {
         _freeError(error);
         return false;

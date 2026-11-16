@@ -106,9 +106,9 @@ import 'package:collision_probe/dartvel_client/dartvel_client.dart';
 // the fix firstPost returned dartvel_core's @Post annotation, which has no
 // slug -- a client that compiled and typed every result wrongly.
 Future<String?> postSlug() async =>
-    (await firstPost(slug: 's', fromJson: (Object? json) => null))?.slug;
+    (await firstPost(slug: 's'))?.slug;
 Future<String?> routeOrigin() async =>
-    (await firstRoute(id: 'r', fromJson: (Object? json) => null))?.origin;
+    (await firstRoute(id: 'r'))?.origin;
 
 void main() {
   setUpAll(registerDartvelModels);
