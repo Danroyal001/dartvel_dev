@@ -84,6 +84,9 @@ void main() {
     final Directory root = await _generated(
         "import 'dartvel_client/dartvel_client.dart';\n\nvoid main() => DV.run();\n");
     File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: entry_app\n');
+    // A web scaffold already there, so the faked build reaches Flutter's build.
+    Directory(p.join(root.path, 'web')).createSync();
+    File(p.join(root.path, 'web', 'index.html')).writeAsStringSync('<html><head></head><body></body></html>');
     final List<String> calls = <String>[];
     final BuildCommand command = BuildCommand(
       root: root.path,

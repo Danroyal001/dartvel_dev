@@ -118,8 +118,7 @@ void main() {
     expect(launch, contains('exit(0)'));
   });
 
-  test("the project template's main passes its arguments on", () {
-    expect(ProjectTemplates.mainTemplate, contains('void main(List<String> args)'));
+  test("the project template's main is DV.run() alone; the generated entry carries the arguments", () {
     // The template is DV.run alone; the generated entry hands the arguments
     // to the router and the app.
     expect(ProjectTemplates.mainTemplate, contains('void main() => DV.run();'));
