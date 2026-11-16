@@ -299,7 +299,13 @@ class ClientGenerator {
           RegExp(
             r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(DartvelPage|DVClassWidget)',
           ).firstMatch(
-            dvMaskAnnotationArgs(dvDesugarPrimaryConstructors(src), 'DVPage'),
+            // Strings and comments blanked: a page explaining "a class that
+            // extends DVClassWidget" in prose is not a class page called
+            // `that`, and reading it as one generated a router that called
+            // `that()` and did not compile.
+            dvDartSourceView(
+              dvMaskAnnotationArgs(dvDesugarPrimaryConstructors(src), 'DVPage'),
+            ).masked,
           );
       String className;
       String publicName;
