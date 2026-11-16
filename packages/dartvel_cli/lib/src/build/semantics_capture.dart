@@ -346,7 +346,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
           tree = await page.evaluate<String>(_extract);
           final int resources = await page.evaluate<int>(_resourceCount);
           if (!tab.flight.busy &&
-              settled.add(tree == '[]' ? 0 : tree.length, resources)) {
+              settled.add(tree == '[]' ? 0 : tree.length, resources, tree)) {
             break;
           }
         }
@@ -363,7 +363,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
         File(dvCapturedImagesPathFor(projectRoot, route)).writeAsStringSync(
           jsonEncode(<Object?>[
             for (final DVCapturedImage image
-                in dvAttachImageSlots(tab.images, imageSlots))
+                in dvAttachImageSlots(dvImagesInStableOrder(tab.images), imageSlots))
               image.toJson(),
           ]),
         );
@@ -443,6 +443,15 @@ class _CaptureTab {
     // captured, so the HTML carries the rows a lazy list would not have
     // built (dartvel_flutter DVLazyLists).
     await tab.page.evaluateOnNewDocument(dvCaptureMarkScript);
+    // At rest: a reader who asked for reduced motion gets every section
+    // already in place (DVModifier.revealOnScroll, hover, animate all honour
+    // it), and the document is what a page at rest says. Read mid-motion, a
+    // semantics tree is in the order things happen to be on screen while
+    // they slide: Flutter sorts siblings by position, and dartvel.dev shipped
+    // comparison pages with a section heading above the link that ends the
+    // section before it, on some builds and not others.
+    await tab.page.emulateMediaFeatures(
+        <MediaFeature>[MediaFeature.prefersReducedMotion('reduce')]);
     tab._listening.addAll(<StreamSubscription<Object?>>[
       tab.page.onResponse.listen((Response response) {
         final DVCapturedImage? image = dvPageImage(

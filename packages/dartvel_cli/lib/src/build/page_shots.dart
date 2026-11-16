@@ -78,29 +78,42 @@ String dvShotName(String route, DVShotSize size) {
 class DVTextSettle {
   int _lastLength = -1;
   int _lastResources = -1;
+  String? _lastContent;
   int _same = 0;
 
-  /// Records one look at the page: how much text it shows, and how many
-  /// resources it has fetched.
+  /// Records one look at the page: how much text it shows, how many
+  /// resources it has fetched and, where the caller has it, the [content]
+  /// itself.
   ///
-  /// True once both have held still for three looks. Text alone is not
+  /// True once all of them have held still for three looks. Text alone is not
   /// enough. Every page is a deferred library, so the docs shell draws its
   /// sidebar from the first chunk and the article arrives in a second one:
   /// the text stands at the sidebar's length for longer than three looks
   /// while that chunk is still on its way, and a capture that trusted it
   /// photographed the shell. The resource count is the part that is still
   /// moving while that happens.
-  bool add(int length, [int resources = 0]) {
-    if (length > 0 && length == _lastLength && resources == _lastResources) {
+  ///
+  /// Length alone is not enough either. A semantics tree is in traversal
+  /// order, which Flutter takes from where things are on screen, so a tree
+  /// whose sections are still sliding into place changes order and keeps its
+  /// length: dartvel.dev's comparison pages went out with a section's heading
+  /// above the link that ends the section before it.
+  bool add(int length, [int resources = 0, String? content]) {
+    if (length > 0 &&
+        length == _lastLength &&
+        resources == _lastResources &&
+        content == _lastContent) {
       _same++;
     } else {
       _same = 1;
     }
     _lastLength = length;
     _lastResources = resources;
+    _lastContent = content;
     return length > 0 && _same >= 3;
   }
 }
+
 
 /// The pictures taken so far, so a page can be told it has drawn nothing.
 ///
