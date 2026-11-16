@@ -43,7 +43,7 @@ void main() {
 import 'package:dartvel_core/dartvel.dart';
 
 @DVBackendFunction(aiTool: DVAITool(description: 'Find products by name'))
-Future<List<String>> _findProducts(String query, int limit) async => <String>[];
+Future<List<String>> _findProducts(String searchText, int limit) async => <String>[];
 
 @DVAIHidden()
 @DVBackendFunction(aiTool: DVAITool(description: 'Hidden'))
@@ -56,11 +56,11 @@ Future<String> _notATool() async => 'plain';
     expect(out, contains('void registerDartvelWebMcpTools()'));
     expect(out, contains("name: 'findProducts'"));
     expect(out, contains("description: 'Find products by name'"));
-    expect(out, contains("'query': <String, Object?>{'type': 'string'}"));
+    expect(out, contains("'searchText': <String, Object?>{'type': 'string'}"));
     expect(out, contains("'limit': <String, Object?>{'type': 'integer'}"));
-    expect(out, contains("'required': <String>['query', 'limit']"));
+    expect(out, contains("'required': <String>['searchText', 'limit']"));
     // The client function the app calls, with named arguments as it takes them.
-    expect(out, contains("client.findProducts(query: _dvWebToolArg(input, 'query', 'String') as String, "
+    expect(out, contains("client.findProducts(searchText: _dvWebToolArg(input, 'searchText', 'String') as String, "
         "limit: _dvWebToolArg(input, 'limit', 'int') as int)"));
     expect(out, isNot(contains('rotateSecret')), reason: '@DVAIHidden wins');
     expect(out, isNot(contains('notATool')), reason: 'not an AI tool');
