@@ -11,7 +11,7 @@ import 'package:test/test.dart';
 
 Future<Map<String, String>> middlewareHeaders() async {
   final MiddlewareContext context = MiddlewareContext();
-  await Middleware.securityHeaders()(Object(), context);
+  await CommonMiddleware.securityHeaders()(Object(), context);
   return <String, String>{
     for (final MapEntry<Object?, Object?> e
         in (context.data['securityHeaders']! as Map<Object?, Object?>).entries)
