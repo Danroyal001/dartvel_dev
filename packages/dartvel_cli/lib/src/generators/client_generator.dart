@@ -687,7 +687,7 @@ export 'package:dartvel_core/dartvel.dart'
         DVRedisConnection,
         DVRedisException${modelNames.map((String n) => ",\n        $n").join()};
 export 'package:dartvel_flutter/dartvel_flutter.dart' hide DV${hideModels.isEmpty ? '' : ', ' + hideModels.substring(6)};
-export 'application.g.dart';
+export 'application.g.dart' hide dartvelRunEmbedded;
 export 'account.g.dart';
 export 'assets.g.dart';
 export 'config.g.dart';
@@ -4242,6 +4242,10 @@ void startDartvelKiosk() {
       // Outside the DV class: a boot body naming the application's own
       // Session, Auth or Cache would otherwise resolve to DV's static.
       ..writeln('final List<framework.DVBootStep> _dvBootSteps = <framework.DVBootStep>[${hooks.join(',')}];')
+      // The door dartvel build --brownfield starts the project through: the same
+      // root and boot steps as DV.run, entered as embedded and with no launch,
+      // because the host application owns the process. Hidden from the barrel.
+      ..writeln('Future<void> dartvelRunEmbedded(String project) => dvRunApplication(const <String>[], root: () => createDartvelApp(), boot: _dvBootSteps, entry: core.DVEntry.embedded(project));')
       ..writeln('abstract final class DV {')
       ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch);');
     // Static members are not inherited in Dart, so the runtime's namespace is

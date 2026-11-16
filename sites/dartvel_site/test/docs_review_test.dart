@@ -29,10 +29,17 @@ void main() {
     }
   });
 
-  test('unbuilt native embedding does not teach unsupported build flags', () {
+  test('native embedding teaches only the --brownfield targets that build', () {
     final String page = File('lib/pages/docs/existing-native-apps.dart')
         .readAsStringSync();
-    expect(page, isNot(contains('--brownfield')));
+    // Built: Flutter's add-to-app on Android, iOS and macOS.
+    for (final String target in <String>['android', 'ios', 'macos']) {
+      expect(page, contains('dartvel build $target --brownfield'), reason: target);
+    }
+    // Refused by the CLI today, so never shown as a command that works.
+    for (final String target in <String>['web', 'linux', 'windows']) {
+      expect(page, isNot(contains('dartvel build $target --brownfield')), reason: target);
+    }
     expect(page, contains('Not yet implemented'));
   });
 }

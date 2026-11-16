@@ -13955,11 +13955,23 @@ parameters yet.
 
 The per-project entrypoint is the generated `dartvelEmbeddedEntry_<project>`, entering `DV.run`'s boot sequence as `DVEntry.embedded` (*Application Entry*).
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
-**Planned / Not yet implemented.** The build flags and host APIs below are a
-draft contract; the current CLI does not accept them. Existing Flutter apps
-can adopt Dartvel with `dartvel init`.
+**Built:** `dartvel build android|ios|macos --brownfield`, isolated, one
+project. The client is generated, the project is staged as a Flutter module
+in `build/brownfield/module` (the project itself is untouched), and
+Flutter's own `build aar`, `build ios-framework` or `build macos-framework`
+makes the artifact, moved to `build/brownfield/<target>` beside a `HOST.md`.
+The module's `main` and the generated `dartvelEmbeddedEntry_<project>` both
+boot the runtime as `DVEntry.embedded(<project>)`, which skips the launch
+negotiation. Not yet verified by a full build on any target: Android
+can be built on Linux, iOS and macOS need a Mac.
+
+**Not built yet:** the web (multi-view needs the router kept off the host
+page's address bar), Linux and Windows (refused with the reason, exit 69),
+`--integrated`, several projects in one module, federation, the generated
+host API (`@DVHostMessage`, mount by `DVRoutes`), `DV.Host` back handling and
+session hand-off. Existing Flutter apps adopt Dartvel with `dartvel init`.
 
 An organisation with a native app rarely rewrites it. It adds screens. Flutter
 already solves the hard part of that -- add-to-app runs a Flutter module

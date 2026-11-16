@@ -2,6 +2,7 @@
 
 - `DartvelPage.initServerState()`, `DVClassWidget<T>` (typed server state), `context.serverState` and `context.refreshServerState()`. `DvDataLoader` takes `dependsOn` and reruns only when it changes, not whenever a rebuild hands it a new closure.
 - `DVWebMcp.register` and `DVWebMcpTool`: tools offered to the browser's agent through `document.modelContext.registerTool`, withdrawn by aborting their signal; a no-op where there is no WebMCP.
+- `dvRunApplication` takes an `entry`. An embedded entry (`DVEntry.embedded`) boots with that entry and skips the launch negotiation, for an app started inside a native host by `dartvel build --brownfield`.
 
 ## 3.47.2 — 2026-11-15
 

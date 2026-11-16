@@ -9,6 +9,7 @@ import 'package:dartvel_shelf/native_codec.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/brownfield.dart';
 import '../build/compiler_diagnostics.dart';
 import '../build/display_settings.dart';
 import '../build/node_runtime_bundle.dart';
@@ -452,6 +453,11 @@ class BuildCommand extends Command<void> {
           help: 'Target architecture for embedded builds')
       ..addFlag('split-per-abi',
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
+      ..addFlag('brownfield',
+          negatable: false,
+          help: "Build what an existing native app embeds, through Flutter's "
+              'add-to-app: an AAR on android, XCFrameworks on ios and macos. '
+              'Written to build/brownfield/<target> with a HOST.md.')
       ..addFlag('cache',
           defaultsTo: true,
           help: 'Reuse a step whose inputs are byte-for-byte unchanged '
@@ -624,6 +630,20 @@ class BuildCommand extends Command<void> {
       Logger.log('❌ $packageProblem');
       exitCode = 64; // EX_USAGE
       return;
+    }
+
+    // --brownfield: refused before anything is generated when the target has
+    // no brownfield build or this machine cannot make it, since a build that
+    // cannot finish is never started.
+    final bool brownfield = argResults?['brownfield'] == true;
+    if (brownfield && !cloudRequested) {
+      final String? problem = dvBrownfieldPreflight(
+          root: root, platform: normalizeBuildTarget(rawPlatform).platform);
+      if (problem != null) {
+        Logger.log('❌ $problem');
+        exitCode = 69; // EX_UNAVAILABLE
+        return;
+      }
     }
 
     if (cloudRequested) {
@@ -857,8 +877,9 @@ class BuildCommand extends Command<void> {
     for (final platform in platforms) {
       if (await preflight(platform, autoInstall: autoInstall)) {
         // A packaged target built from the Android project needs the same
-        // release key.
-        final String? keyProblem = isRelease
+        // release key. A brownfield AAR does not: it is a library the host
+        // app links, and the host signs the app with its own key.
+        final String? keyProblem = isRelease && !brownfield
             ? _androidReleaseKeyProblem(
                 root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform)
             : null;
@@ -955,6 +976,26 @@ class BuildCommand extends Command<void> {
     }
 
     final buildMode = buildProfile.flutterFlag;
+
+    if (brownfield) {
+      for (final String target in buildablePlatforms) {
+        final int code = await dvRunBrownfieldBuild(
+          root: root,
+          platform: target,
+          buildMode: buildMode,
+          log: Logger.log,
+          run: (String executable, List<String> arguments, String directory) async =>
+              (await _processRun(executable, arguments,
+                      workingDirectory: directory, runInShell: true))
+                  .exitCode,
+        );
+        if (code != 0) {
+          exitCode = code;
+          return;
+        }
+      }
+      return;
+    }
 
     var failures = refused;
     for (final p in buildablePlatforms) {

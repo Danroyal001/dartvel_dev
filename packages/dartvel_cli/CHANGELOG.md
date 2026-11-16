@@ -2,6 +2,7 @@
 
 - The generated router runs a page's server state: a function page's `initServerState:` client function after its code loads, a class page's `initServerState()` before `loadData`, and passes the route's params and query as the loader's `dependsOn`.
 - `web_mcp.g.dart`, generated for every project: the AI-tool backend functions as WebMCP tools calling their client functions, registered by the web runtime beside the browser bindings.
+- `dartvel build <target> --brownfield` (android, ios, macos): stages the project as a Flutter module, runs `flutter build aar`, `ios-framework` or `macos-framework`, and writes the artifact and a `HOST.md` to `build/brownfield/<target>`. Other targets are refused before anything is generated (exit 69). The generated `application.g.dart` gains `dartvelRunEmbedded(project)`, hidden from the barrel.
 
 ## 3.47.2 — 2026-11-15
 
