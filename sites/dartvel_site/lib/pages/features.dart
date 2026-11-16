@@ -549,8 +549,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   ),
   (
     'Application Entry',
-    'DV.run(args)',
-    'Present: DV.run(args) is the whole of main.dart, and @DVBoot hooks run '
+    'DV.run()',
+    'Present: DV.run() is the whole of main.dart, and @DVBoot hooks run '
         'in the app and on the server. Absent: the other headless entries, a '
         'native single-instance check, boot budgets and '
         '`dartvel migrate-code`.',

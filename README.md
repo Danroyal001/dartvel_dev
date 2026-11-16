@@ -1593,7 +1593,7 @@ dartvel upgrade --project
 
 Prebuilt authentication pages and generated data-model forms share keyboard, pending-save and theme behavior. See [auth and form UX](docs/auth-forms-ux.md) for branding options, the custom panel slot, and current server-rendering limitations.
 
-Application entry is `void main(List<String> args) => DV.run(args);`, importing the generated client.
+Application entry is `void main() => DV.run();`, importing the generated client.
 Pure Dartvel apps use the generated themed root and `pages/index.dart`. Startup
 functions use `@DVBoot()` and may call the app's generated functions and data models; `@DVAppRoot()` is optional for an existing Flutter host.
 Backend function callers pass typed arguments and receive generated data models;

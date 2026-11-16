@@ -147,7 +147,7 @@ void main() {
     final output = entry.readAsStringSync();
     expect(output, contains('MaterialApp.router('));
     expect(output, contains('createDartvelRouter(arguments: args)'));
-    expect(output, contains('run([List<String> args'));
+    expect(output, contains('run([List<String>? args]'));
     expect(output, isNot(contains('run(Widget')));
     // It imported a launch.g.dart nothing writes, so the one-line main of
     // every pure application failed to compile.

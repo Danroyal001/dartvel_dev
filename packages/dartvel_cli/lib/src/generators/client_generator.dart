@@ -50,6 +50,7 @@ import '../build/scene3d_native.dart' show dvScene3dEnabledIn;
 
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
+import '../build/app_entry.dart' show dvAppEntryPath, dvAppEntrySource;
 import '../build/native_splash.dart' show DVSplash, dvSplashLogicalWidth;
 import '../build/pwa_icons.dart'
     show DVPngError, DVRgbaImage, dvPngDecode, dvPngEncode, dvResizeRgba;
@@ -660,6 +661,13 @@ class ClientGenerator {
     // Public generated client barrel. Apps import this single file instead of
     // reaching into generated siblings.
     _generateApplicationEntry(root: root, pkgName: pkgName, title: seoSiteName, dv: dv);
+    // The entry the build compiles: it keeps the process's arguments for
+    // DV.run() and calls lib/main.dart's main. Only where there is one.
+    final File appMain = File(p.join(root, 'lib', 'main.dart'));
+    if (appMain.existsSync()) {
+      File(p.join(root, dvAppEntryPath))
+          .writeAsStringSync(dvAppEntrySource(pkgName, appMain.readAsStringSync()));
+    }
     final clientFile = File(p.join(libClientDir.path, 'dartvel_client.dart'));
     // The generator's version is recorded here and nowhere else, so an
     // upgrade is one line of diff rather than a header change in every file.
@@ -4255,7 +4263,7 @@ void startDartvelKiosk() {
       // because the host application owns the process. Hidden from the barrel.
       ..writeln('Future<void> dartvelRunEmbedded(String project) => dvRunApplication(const <String>[], root: () => createDartvelApp(), boot: _dvBootSteps, entry: core.DVEntry.embedded(project));')
       ..writeln('abstract final class DV {')
-      ..writeln('  static Future<void> run([List<String> args = const []]) => dvRunApplication(args, root: () => createDartvelApp(args: args), boot: _dvBootSteps, launch: negotiateDartvelLaunch, splash: _dvBootSplash);');
+      ..writeln('  static Future<void> run([List<String>? args]) => dvRunApplication(args ?? dvLaunchArguments, root: () => createDartvelApp(args: args ?? dvLaunchArguments), boot: _dvBootSteps, launch: negotiateDartvelLaunch, splash: _dvBootSplash);');
     // Static members are not inherited in Dart, so the runtime's namespace is
     // forwarded member by member -- each with its declared type, or
     // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any

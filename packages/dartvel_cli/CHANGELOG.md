@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The generator writes `lib/dartvel_client/main.g.dart` (keeps the process arguments, calls lib/main.dart's main); `dartvel build` and `dartvel dev` compile it unless `--target` says otherwise. The generated `DV.run` takes optional arguments and falls back to the kept ones. The scaffold's main is `void main() => DV.run();`.
 - The generated router runs a page's server state: a function page's `initServerState:` client function after its code loads, a class page's `initServerState()` before `loadData`, and passes the route's params and query as the loader's `dependsOn`.
 - `web_mcp.g.dart`, generated for every project: the AI-tool backend functions as WebMCP tools calling their client functions, registered by the web runtime beside the browser bindings.
 - The generated `DV.run` hands the project's splash to the runtime (`_dvBootSplash`), its picture resized to the launch screen's width at 3x and carried as base64; `null` when `splash.progress` or `splash.enabled` is false.
