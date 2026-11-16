@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Server state on pages, the first slice of the accepted Server State spec. `@DVFunctionalWidget(initServerState: getDashboard)` on a function page, or `DVClassWidget<T>.initServerState()` on a class page, runs the backend function through its generated client function before the page shows (with the page's `.loading` and `.error` companions); the page reads `context.serverState` and can call `context.refreshServerState()`. It runs again when the route's params or query change, not on a rebuild. The in-process web-server render is next.
+- WebMCP from `@DVAITool`. In a browser that implements WebMCP (`document.modelContext`, a W3C Web Machine Learning Community Group draft), a Dartvel web app registers every AI-tool backend function with the browser's agent. The tool calls the generated client function the app itself calls, so the function's policy, CSRF and rate limits decide. Feature-detected: browsers without it and other targets are unaffected.
 
 ## 3.47.2 — 2026-11-15
 

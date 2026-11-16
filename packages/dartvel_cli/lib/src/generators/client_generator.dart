@@ -804,6 +804,7 @@ import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 import 'policies.g.dart' show dartvelRegisterPolicies;
 import 'functions.g.dart' show DartvelClient, dvModuleRpcSend;
+import 'web_mcp.g.dart' show registerDartvelWebMcpTools;
 
 /// Wires the generated runtime into the short `DV.baseUrl` / `DV.api(...)` API.
 /// Called automatically during app/router initialization.
@@ -1072,6 +1073,10 @@ void registerPlatformBindings() {
   // nothing. The native classes below are not reached: dart:ffi is not there.
   if (kIsWeb) {
     DVWebBindings.register();
+    // The app's AI-tool backend functions, offered to the browser's agent
+    // where the browser has WebMCP (document.modelContext). Each calls the
+    // client function the app calls, so its policy decides.
+    registerDartvelWebMcpTools();
     return;
   }
   // DV.Updates on a build made with Shorebird's engine, whose updater is

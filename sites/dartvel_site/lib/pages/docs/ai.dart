@@ -75,6 +75,12 @@ Widget _docsAiPage(BuildContext context) => const DocsArticle(
                 'registered tools, and DVMcpClient adopts the tools of another '
                 'MCP server. `dartvel mcp` is a different server: it lets a '
                 'coding agent read your project\'s routes, models and jobs.'),
+            DocsNote('Offer your tools to the browser\'s agent',
+                'In a browser with WebMCP, a draft standard, a Dartvel web app '
+                'offers each backend function marked as an AI tool to the '
+                'agent the person uses. The agent calls the same function the '
+                'app calls, so the function\'s policy decides, as it does for a '
+                'button. Browsers without WebMCP are not affected.'),
           ],
         ),
         DocsSection(

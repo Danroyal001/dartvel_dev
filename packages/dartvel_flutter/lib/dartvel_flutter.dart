@@ -879,6 +879,7 @@ export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
+export 'src/ai/web_mcp.dart' show DVWebMcp, DVWebMcpTool;
 export 'src/purchases/purchases_runtime.dart'
     show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/push/device_push.dart';
