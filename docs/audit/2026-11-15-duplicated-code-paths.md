@@ -16,7 +16,7 @@ reader, a crawler or a security boundary sees when they do.
 | 3 | High | `dartvel prerender`: second capture, sitemap and robots pipeline | Open |
 | 4 | High | Which pages an application has: project graph (Studio, admin) vs client generator | Fixed |
 | 5 | Medium | Route paths and annotation parsing: retired `dartvel_generator` vs CLI | Open |
-| 6 | Medium | "Is this request signed in?" assembled five times | Open |
+| 6 | Medium | "Is this request signed in?" assembled five times | Fixed |
 | 7 | Medium | The home page's head written outside `dvRenderRoutePage` | Open |
 | 8 | Medium | Docs site: a second web app with a hand-written HTML shell | Open |
 | 9 | Low-medium | Studio's splash redrawn in Flutter next to the web splash | Open |

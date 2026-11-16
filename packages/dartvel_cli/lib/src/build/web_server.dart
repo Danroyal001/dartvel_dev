@@ -792,16 +792,19 @@ Response _shelfResponse(core.Response response) => Response(
 /// Whether [request] carries a live session of the application's own.
 Future<bool> _signedIn(Request request) async {
   final core.DVSessionAuthenticationResult result =
-      await core.DVSessionAuthentication.authenticateRequest(
-    plainLocal: core.DVSessionCookie.plainLocal(
-      request.requestedUri,
-      forwardedProto: request.headers['x-forwarded-proto'],
-      host: request.headers['host'],
-    ),
-    authorization: request.headers['authorization'],
-    cookie: request.headers['cookie'],
-    host: _shelfRequestHost(request),
-  );
+      // The same question every server asks, on the request as the deployed
+      // server sees it.
+      await core.DVSessionAuthentication.ofRequest(core.Request(
+        method: request.method,
+        url: request.requestedUri,
+        headers: core.Headers(<String, dynamic>{
+          for (final MapEntry<String, List<String>> header in request.headersAll.entries)
+            header.key: header.value,
+        }),
+        // Headers only: shelf's body can be read once, and the handler
+        // that answers the request may still need it.
+        bodyStream: const Stream<List<int>>.empty(),
+      ));
   return !result.refused && result.principal != null;
 }
 

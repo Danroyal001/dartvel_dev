@@ -166,16 +166,7 @@ Future<bool> dvAdminAuthorized(Request request) => dvWithRequestTenant(
   request,
   () async {
     final DVSessionAuthenticationResult result =
-        await DVSessionAuthentication.authenticateRequest(
-          plainLocal: DVSessionCookie.plainLocal(
-            request.url,
-            forwardedProto: request.headers.get('x-forwarded-proto'),
-            host: request.headers.get('host'),
-          ),
-          authorization: request.headers.get('authorization'),
-          cookie: request.headers.get('cookie'),
-          host: DVSessionScope.requestHost(request),
-        );
+        await DVSessionAuthentication.ofRequest(request);
     final DVSessionPrincipal? principal = result.principal;
     if (result.refused || principal == null) return false;
     const DVAuthAuthorization authorization = DVAuthAuthorization();

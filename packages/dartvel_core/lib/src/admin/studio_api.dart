@@ -413,16 +413,7 @@ String dvStudioNewKey() {
 /// The account id of the live session [request] carries, or null.
 Future<String?> dvStudioSessionUserId(Request request) async {
   final DVSessionAuthenticationResult result =
-      await DVSessionAuthentication.authenticateRequest(
-    plainLocal: DVSessionCookie.plainLocal(
-      request.url,
-      forwardedProto: request.headers.get('x-forwarded-proto'),
-      host: request.headers.get('host'),
-    ),
-    authorization: request.headers.get('authorization'),
-    cookie: request.headers.get('cookie'),
-          host: DVSessionScope.requestHost(request),
-  );
+      await DVSessionAuthentication.ofRequest(request);
   return result.refused ? null : result.principal?.userId;
 }
 
