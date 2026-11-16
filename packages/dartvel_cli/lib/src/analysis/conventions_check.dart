@@ -99,7 +99,8 @@ List<DVConventionFinding> dvFindConventionIssues({
       match.start,
       'DV-CONV-001',
       'widgetPassedToRun',
-      'DV.run accepts process arguments, never a widget.',
+      'DV.run takes nothing: never a widget, and never the arguments '
+          '(the generated entry keeps those).',
       'Use DV.run(); put an existing Flutter root in @DVAppRoot().',
     );
   }

@@ -9,6 +9,7 @@ import 'package:dartvel_shelf/native_codec.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/app_entry.dart';
 import '../build/brownfield.dart';
 import '../build/compiler_diagnostics.dart';
 import '../build/display_settings.dart';
@@ -671,7 +672,7 @@ class BuildCommand extends Command<void> {
     final buildProfile = DVBuildProfile.parse(argResults?['profile'] as String);
     final isRelease = buildProfile == DVBuildProfile.release;
     _profile = buildProfile;
-    final target = argResults?['target'] as String?;
+    final String? requestedTarget = argResults?['target'] as String?;
     final formatFlag = argResults?['format'] as String?;
     final deviceProfile = argResults?['device-profile'] as String?;
     final simulator = argResults?['simulator'] as bool? ?? false;
@@ -700,7 +701,7 @@ class BuildCommand extends Command<void> {
     _options = DVBuildOptions(
       buildMode: buildProfile.flutterFlag,
       profile: buildProfile.name,
-      entryPoint: target,
+      entryPoint: requestedTarget,
       simulator: simulator,
       arch: arch,
       archExplicit: archExplicit,
@@ -975,6 +976,11 @@ class BuildCommand extends Command<void> {
       );
     }
 
+    // The entry Flutter compiles: the one asked for, else the generated
+    // lib/dartvel_client/main.g.dart, which keeps the process's arguments
+    // for DV.run() and calls the app's own main. Read after generation,
+    // which writes it.
+    final String? target = requestedTarget ?? dvAppEntryTarget(root);
     final buildMode = buildProfile.flutterFlag;
 
     if (brownfield) {

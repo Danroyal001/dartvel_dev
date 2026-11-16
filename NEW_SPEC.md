@@ -77,7 +77,7 @@ lib/
 *Application Entry*):
 
 ```dart
-void main(List<String> args) => DV.run(args);
+void main() => DV.run();
 ```
 
 These paths are the defaults. Projects may override them under the `dartvel:`
@@ -122,7 +122,7 @@ Every Dartvel process starts in one function:
 // lib/main.dart
 import 'package:my_app/dartvel_client/dartvel_client.dart';
 
-void main(List<String> args) => DV.run(args);
+void main() => DV.run();
 ```
 
 That line is the same in a phone app, a desktop app, a web build, a terminal
@@ -162,7 +162,7 @@ static Future<void> run([List<String> args = const <String>[]]);
 - This replaces the earlier `DV.run(Widget app)`, a thin wrapper around
   `runApp`. Dartvel is alpha, so the old signature is removed rather than
   deprecated; `dartvel migrate-code` rewrites `DV.run(MyApp())` and
-  `runApp(...)` into `DV.run(args)` plus an `@DVAppRoot` holding the old root.
+  `runApp(...)` into `DV.run()` plus an `@DVAppRoot` holding the old root.
 
 ## What entered the process
 
@@ -334,7 +334,7 @@ as every other unavailable capability does.
 
 `dartvel doctor` suggests the one-line change, and `dartvel migrate-code`
 offers a printed-then-applied rewrite of the common shape
-(`runApp(createDartvelApp())` → `DV.run(args)` plus an `@DVAppRoot` holding the
+(`runApp(createDartvelApp())` → `DV.run()` plus an `@DVAppRoot` holding the
 old `MaterialApp`). It is never applied on `dartvel init`: adoption writes
 nothing over a project's own code.
 
@@ -442,7 +442,8 @@ The table is the contract. Each row says which entries a target has, what
 
 - **Arguments are routed, not parsed by the application.** A deep link, a
   `dartvel://` URL, a file opened through a file association, or `--tui` reach
-  `DV.run(args)`; `DV.run` turns a link or a file into
+  `DV.run()` through the entry `dartvel build` generates, which keeps the
+  process's arguments; `DV.run` turns a link or a file into
   `DV.Window.open(..., external)` after `ready`, so it is idempotent by URL as
   *Multi-Window* specifies.
 - **Single instance** (`windowing.singleInstance`, default on) is checked by
@@ -605,7 +606,7 @@ The server's `main` is generated and is the same line:
 
 ```dart
 // generated backend entry
-void main(List<String> args) => DV.run(args);
+void main() => DV.run();
 ```
 
 - **Role** comes from `DARTVEL_ROLE` (`web`, `worker`, `cron`; unset is `all`),
@@ -621,7 +622,7 @@ void main(List<String> args) => DV.run(args);
   requests up to a declared grace, let running jobs reach a checkpoint, flush,
   exit 0. A second signal exits immediately.
 - **Commands.** A pure Dart project with `@DVCommand` functions gets a CLI from
-  the same line: `DV.run(args)` dispatches `reindex acme --dry-run` to the
+  the same line: `DV.run()` dispatches `reindex acme --dry-run` to the
   typed command, with generated `--help`, and exits with the command's status.
 
 **Prerequisite.** *Outbound HTTP* notes that "there is no backend `DV` facade
@@ -701,7 +702,7 @@ runs on it as it does on any desktop.
 `main` is the same one line:
 
 ```dart
-void main(List<String> args) => DV.run(args);
+void main() => DV.run();
 ```
 
 and on an `mcu` build that line becomes the firmware's `main`. The boot is the
@@ -11837,7 +11838,7 @@ environment and a forgotten override cannot leak into the next test.
 
 Stability: `Draft` · Status: `Shipped`
 
-The server binary's generated `main` is `DV.run(args)`; its `ready` state is the readiness the deploy gate reads (*Application Entry*).
+The server binary's generated `main` hands its arguments to `DV.run`; its `ready` state is the readiness the deploy gate reads (*Application Entry*).
 
 ## Monolith
 
@@ -12544,7 +12545,7 @@ for Play alpha, beta and production and for the App Store with
 
 Stability: `Contract` · Status: `Partial`
 
-`dartvel build mcu` builds the microcontroller target (Rust firmware, *Application Entry* › *Microcontrollers*). `dartvel migrate-code` rewrites `runApp(createDartvelApp())` and the old `DV.run(Widget)` into `DV.run(args)` plus an `@DVAppRoot` (printed, then applied).
+`dartvel build mcu` builds the microcontroller target (Rust firmware, *Application Entry* › *Microcontrollers*). `dartvel migrate-code` rewrites `runApp(createDartvelApp())` and the old `DV.run(Widget)` into `DV.run()` plus an `@DVAppRoot` (printed, then applied).
 
 Dartvel should feel like a single fast toolkit, not a bag of unrelated tools.
 Bun is a useful benchmark here: runtime, package/task runner, shell, test
@@ -13490,7 +13491,7 @@ dartvel dev
 
 `dartvel create` scaffolds the default project structure (`lib/pages`,
 `lib/models`, `lib/backend`, `lib/components`, `lib/styles`, `lib/services`,
-`main.dart` — the one line `void main(List<String> args) => DV.run(args);` —
+`main.dart` — the one line `void main() => DV.run();` —
 and `pubspec.yaml`; `dartvel init` never touches an existing `main.dart`). All target platforms are enabled by default
 (`--web`, `--mobile`, `--desktop`), and native folders (`android/`, `ios/`,
 `web/`, `linux/`, `windows/`, `macos/`) are ephemeral build outputs: `dartvel create`

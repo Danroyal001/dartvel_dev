@@ -397,12 +397,12 @@ The application entry imports its generated client and starts Dartvel:
 ```dart
 import 'dartvel_client/dartvel_client.dart';
 
-void main(List<String> args) => DV.run(args);
+void main() => DV.run();
 ```
 
 Pure Dartvel apps omit `@DVAppRoot`. The generated root uses the generated router
 and Dartvel theme. Launch opens `lib/pages/index.dart`; a root `_guard.dart` can
-redirect it. Optional command-line arguments are `DV.run(args)`.
+redirect it. `DV.run()` takes nothing: the process's arguments reach it through the entry `dartvel build` generates.
 
 Declare startup work in a separate file, using a private function:
 

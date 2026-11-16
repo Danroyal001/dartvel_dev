@@ -24,6 +24,18 @@ bool _running = false;
 List<String> _args = const [];
 List<String> get dvApplicationArguments => _args;
 
+List<String> _launchArguments = const <String>[];
+
+/// The process's arguments, kept by the generated entry
+/// (`lib/dartvel_client/main.g.dart`) for `DV.run()`, which takes nothing:
+/// Dart hands them only to a `main(List<String>)`, and the application's own
+/// main is `void main() => DV.run();`.
+List<String> get dvLaunchArguments => _launchArguments;
+
+/// Called by the generated entry before the application's main.
+void dvSetLaunchArguments(List<String> arguments) =>
+    _launchArguments = List<String>.unmodifiable(arguments);
+
 /// Framework entry used by the generated application facade.
 Future<void> dvRunApplication(
   List<String> args, {

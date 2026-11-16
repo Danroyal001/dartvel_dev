@@ -12,6 +12,7 @@ import 'package:yaml/yaml.dart';
 import '../agents/agent_docs.dart';
 import '../agents/architecture_docs.dart';
 import '../config/dartvel_config.dart';
+import '../build/app_entry.dart';
 import '../build/release_server.dart';
 import '../devclient/android_dev_client.dart';
 import '../devclient/dev_client_attach.dart';
@@ -206,6 +207,9 @@ class DevCommand extends Command<void> {
 
     // Build flutter args
     final flutterArgs = <String>['run'];
+    // The generated entry, which keeps the process's arguments for DV.run().
+    final String? appEntry = dvAppEntryTarget(root);
+    if (appEntry != null) flutterArgs.addAll(<String>['--target', appEntry]);
     final explicitDevice = (argResults?['device'] as String?) ?? devTarget?.devDevice ??
         Platform.environment['DARTVEL_DEVICE'];
     // Pairing is always served, so a development build can pair whether or

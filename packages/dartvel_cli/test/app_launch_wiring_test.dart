@@ -122,6 +122,6 @@ void main() {
     expect(ProjectTemplates.mainTemplate, contains('void main(List<String> args)'));
     // The template is DV.run alone; the generated entry hands the arguments
     // to the router and the app.
-    expect(ProjectTemplates.mainTemplate, contains('DV.run(args)'));
+    expect(ProjectTemplates.mainTemplate, contains('void main() => DV.run();'));
   });
 }

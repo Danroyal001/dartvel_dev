@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `dvSetLaunchArguments` and `dvLaunchArguments`: the process arguments the generated entry keeps for `DV.run()`.
 - `DartvelPage.initServerState()`, `DVClassWidget<T>` (typed server state), `context.serverState` and `context.refreshServerState()`. `DvDataLoader` takes `dependsOn` and reruns only when it changes, not whenever a rebuild hands it a new closure.
 - `DVWebMcp.register` and `DVWebMcpTool`: tools offered to the browser's agent through `document.modelContext.registerTool`, withdrawn by aborting their signal; a no-op where there is no WebMCP.
 - `dvRunApplication(splash:)` draws the application's splash with a bar filled per boot step on a device app launch (not on the web, not for an embedded entry). `DVStudioSplash` takes `imageBytes`/`darkImageBytes`, and `DVStudioSplashView` an optional `progress` for a bar that fills.
