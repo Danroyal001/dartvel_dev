@@ -295,6 +295,9 @@ void main() {
     final _Server server = _Server(granted: true);
     final GoRouter router = await _at(tester, server, '/__studio');
 
+    // The rail scrolls; Team is its last entry, below the fold once the rail
+    // holds more screens than the window is tall.
+    await tester.ensureVisible(find.byKey(const ValueKey<String>('dv-studio-section-access')));
     await tester.tap(
       find.byKey(const ValueKey<String>('dv-studio-section-access')),
     );
@@ -636,6 +639,7 @@ void main() {
     );
     final GoRouter router = await _at(tester, server, '/__studio/data');
 
+    await tester.ensureVisible(find.byKey(const ValueKey<String>('dv-studio-section-access')));
     await tester.tap(
       find.byKey(const ValueKey<String>('dv-studio-section-access')),
     );
