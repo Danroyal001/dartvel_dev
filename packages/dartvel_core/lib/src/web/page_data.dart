@@ -594,7 +594,7 @@ const String dvRoutePreloadsFile = 'dartvel_prefetch.json';
 /// does not know (an image's laid-out slot, say) is ignored, because a
 /// preload list is an optimisation and a mangled one must not stop a page.
 class DVRoutePreloads {
-  const DVRoutePreloads._(this._routes);
+  const DVRoutePreloads._(this._routes, [this._wasm = const <String, List<String>>{}]);
 
   /// No manifest, or nothing in it.
   static const DVRoutePreloads none =
@@ -602,6 +602,10 @@ class DVRoutePreloads {
 
   /// Each pattern's links, as (address, `as`).
   final Map<String, List<(String, String)>> _routes;
+
+  /// Each pattern's deferred wasm modules, named only to a browser that will
+  /// run the wasm app ([dvWasmModulePreloads]).
+  final Map<String, List<String>> _wasm;
 
   static DVRoutePreloads parse(String? json) {
     if (json == null || json.isEmpty) return none;
@@ -616,10 +620,19 @@ class DVRoutePreloads {
     if (routes is! Map) return none;
     final Map<String, List<(String, String)>> out =
         <String, List<(String, String)>>{};
+    final Map<String, List<String>> wasmOut = <String, List<String>>{};
     for (final MapEntry<Object?, Object?> route in routes.entries) {
       final Object? pattern = route.key;
       final Object? entry = route.value;
       if (pattern is! String || entry is! Map) continue;
+      final Object? wasm = entry['wasm'];
+      if (wasm is List) {
+        final List<String> modules = <String>[
+          for (final Object? module in wasm)
+            if (module is String && module.isNotEmpty) module,
+        ];
+        if (modules.isNotEmpty) wasmOut[pattern] = modules;
+      }
       final Object? scripts = entry['scripts'];
       final Object? images = entry['images'];
       final List<(String, String)> links = <(String, String)>[
@@ -639,10 +652,10 @@ class DVRoutePreloads {
       ];
       if (links.isNotEmpty) out[pattern] = links;
     }
-    return DVRoutePreloads._(out);
+    return DVRoutePreloads._(out, wasmOut);
   }
 
-  bool get isEmpty => _routes.isEmpty;
+  bool get isEmpty => _routes.isEmpty && _wasm.isEmpty;
 
   /// The `<link rel="preload">` elements for [pattern], one per line, leaving
   /// out anything [shell] already names -- the browser finds those while it
@@ -655,8 +668,9 @@ class DVRoutePreloads {
   /// for an `<img>`. A preload asked for any other way than the request it
   /// is meant to answer is not reused, and the file downloads twice.
   String linksFor(String pattern, {String shell = ''}) {
-    final List<(String, String)>? links = _routes[pattern];
-    if (links == null) return '';
+    final List<(String, String)> links = _routes[pattern] ?? const <(String, String)>[];
+    final List<String> wasm = _wasm[pattern] ?? const <String>[];
+    if (links.isEmpty && wasm.isEmpty) return '';
     final Set<String> named = _namedBy(shell);
     final Set<String> seen = <String>{};
     final StringBuffer out = StringBuffer();
@@ -664,8 +678,35 @@ class DVRoutePreloads {
       if (named.contains(href) || !seen.add(href)) continue;
       out.writeln(_preloadLink(href, kind));
     }
+    final String modules = dvWasmModulePreloads(wasm);
+    if (modules.isNotEmpty) out.writeln(modules);
     return out.toString();
   }
+}
+
+/// A script that preloads [modules] -- a route's deferred
+/// `main.dart_module<N>.wasm` files -- in a browser that will run the
+/// WebAssembly app, and does nothing in any other. Empty for no modules.
+///
+/// The decision is the one the splash makes for main.dart.wasm (Blink with
+/// WasmGC, flutter.js's own detector bytes): a browser running dart2js would
+/// download every module for nothing. Each is fetched as the module loader
+/// fetches it -- fetch(), anonymous CORS -- or the browser would not hand the
+/// preload over and download it twice; at low priority, so main.dart.wasm and
+/// the renderer keep the network first. Without this a route's modules were
+/// asked for only once main.dart.wasm had run, in waves of round trips.
+String dvWasmModulePreloads(List<String> modules) {
+  if (modules.isEmpty) return '';
+  // JSON in a script: `<` escaped so a name cannot close the element.
+  final String names = jsonEncode(modules).replaceAll('<', r'\u003c');
+  return '<script>(function(){var n=navigator,d=document,w=false;'
+      'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
+      '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
+      'catch(e){}if(!w)return;'
+      '$names.forEach(function(h){var l=d.createElement("link");'
+      'l.rel="preload";l.as="fetch";l.crossOrigin="anonymous";'
+      'l.setAttribute("fetchpriority","low");l.href=h;d.head.appendChild(l)})'
+      '})();</script>';
 }
 
 String _preloadLink(String href, String as) {
