@@ -57,4 +57,29 @@ void main() {
     final String links = preloads.linksFor('/evil');
     expect(RegExp('</script', caseSensitive: false).allMatches(links), hasLength(1));
   });
+  test('they start only once the app and the renderer have downloaded', () {
+    // On a slow network every byte competes: preloaded modules shared the
+    // line with main.dart.wasm and delayed it by 10 s on Slow 3G. The app and
+    // its renderer go first; the rest follows the moment both are in.
+    final String script = dvWasmModulePreloads(<String>['main.dart_module3.wasm']);
+    expect(script, contains(dvAfterBootDownloadsDetector));
+    expect(script.indexOf(dvAfterBootDownloadsDetector),
+        lessThan(script.indexOf('main.dart_module3.wasm')));
+  });
+
+  test('the wait recognises both renderers and both app builds', () {
+    for (final String name in <String>[
+      'main.dart.wasm', 'main.dart.wasm?v=1', 'main.dart.js', 'main.dart.js?v=2',
+    ]) {
+      expect(RegExp(dvBootAppPattern).hasMatch(name), isTrue, reason: name);
+    }
+    for (final String name in <String>[
+      'canvaskit/skwasm.wasm', 'canvaskit/skwasm_heavy.wasm',
+      'canvaskit/canvaskit.wasm', 'canvaskit/chromium/canvaskit.wasm',
+    ]) {
+      expect(RegExp(dvBootRendererPattern).hasMatch(name), isTrue, reason: name);
+    }
+    expect(RegExp(dvBootAppPattern).hasMatch('main.dart_module3.wasm'), isFalse);
+    expect(RegExp(dvBootAppPattern).hasMatch('main.dart.mjs'), isFalse);
+  });
 }

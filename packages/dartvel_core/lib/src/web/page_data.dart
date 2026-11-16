@@ -684,6 +684,48 @@ class DVRoutePreloads {
   }
 }
 
+/// The app's own download, as a resource URL: main.dart.wasm or main.dart.js,
+/// with or without the build's `?v=`. Not main.dart.mjs, a few KB that
+/// arrives long before the app.
+const String dvBootAppPattern = r'main\.dart\.(wasm|js)(\?|$)';
+
+/// The renderer's download: skwasm, skwasm_heavy or either CanvasKit.
+const String dvBootRendererPattern = r'(canvaskit|skwasm)[^/]*\.wasm(\?|$)';
+
+/// A JavaScript function `dvAfterBoot(go)` that calls `go` once, when the
+/// page has downloaded both the app ([dvBootAppPattern]) and its renderer
+/// ([dvBootRendererPattern]).
+///
+/// What the first frame needs besides those two -- the fonts, the manifests,
+/// a route's deferred modules -- is asked for early so it is there when the
+/// app wants it, but not before them: on a slow network every byte competes,
+/// and preloads sharing the line with main.dart.wasm delayed it by 10 s on
+/// Slow 3G (sigmadev.digital, HTTP/1.1). Where the browser cannot report
+/// downloads, `go` never runs and the app fetches everything itself, as it
+/// always did.
+const String dvAfterBootDownloadsDetector = 'function dvAfterBoot(go){'
+    'var m=0,r=0,done=0;'
+    'function seen(n){if(/$dvBootAppPattern/.test(n))m=1;'
+    'if(/$dvBootRendererPattern/.test(n))r=1;'
+    'if(m&&r&&!done){done=1;go()}}'
+    'try{performance.getEntriesByType("resource").forEach(function(e){seen(e.name)});'
+    'new PerformanceObserver(function(l){l.getEntries().forEach(function(e){seen(e.name)})})'
+    '.observe({type:"resource",buffered:true})}catch(e){}}';
+
+/// JavaScript statements that append a `<link rel="preload" as="fetch"
+/// crossorigin="anonymous">` for each of [hrefs] once the app and its
+/// renderer have downloaded ([dvAfterBootDownloadsDetector]). [guard], when
+/// given, is an expression that must be true for anything to happen.
+String dvAfterBootPreloadsBody(List<String> hrefs, {String? guard}) {
+  // JSON in a script: `<` escaped so a name cannot close the element.
+  final String names = jsonEncode(hrefs).replaceAll('<', '\\u003c');
+  return '$dvAfterBootDownloadsDetector'
+      '${guard == null ? '' : 'if(!($guard))return;'}'
+      'dvAfterBoot(function(){var d=document;$names.forEach(function(h){'
+      'var l=d.createElement("link");l.rel="preload";l.as="fetch";'
+      'l.crossOrigin="anonymous";l.href=h;d.head.appendChild(l)})});';
+}
+
 /// A script that preloads [modules] -- a route's deferred
 /// `main.dart_module<N>.wasm` files -- in a browser that will run the
 /// WebAssembly app, and does nothing in any other. Empty for no modules.
@@ -692,20 +734,17 @@ class DVRoutePreloads {
 /// WasmGC, flutter.js's own detector bytes): a browser running dart2js would
 /// download every module for nothing. Each is fetched as the module loader
 /// fetches it -- fetch(), anonymous CORS -- or the browser would not hand the
-/// preload over and download it twice; at low priority, so main.dart.wasm and
-/// the renderer keep the network first. Without this a route's modules were
-/// asked for only once main.dart.wasm had run, in waves of round trips.
+/// preload over and download it twice; and only once main.dart.wasm and the
+/// renderer are in ([dvAfterBootDownloadsDetector]), so they keep the network
+/// first. Without this a route's modules were asked for only once
+/// main.dart.wasm had run, in waves of round trips.
 String dvWasmModulePreloads(List<String> modules) {
   if (modules.isEmpty) return '';
-  // JSON in a script: `<` escaped so a name cannot close the element.
-  final String names = jsonEncode(modules).replaceAll('<', r'\u003c');
-  return '<script>(function(){var n=navigator,d=document,w=false;'
+  return '<script>(function(){var n=navigator,w=false;'
       'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
       '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
-      'catch(e){}if(!w)return;'
-      '$names.forEach(function(h){var l=d.createElement("link");'
-      'l.rel="preload";l.as="fetch";l.crossOrigin="anonymous";'
-      'l.setAttribute("fetchpriority","low");l.href=h;d.head.appendChild(l)})'
+      'catch(e){}'
+      '${dvAfterBootPreloadsBody(modules, guard: 'w')}'
       '})();</script>';
 }
 
