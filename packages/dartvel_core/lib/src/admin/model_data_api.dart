@@ -19,10 +19,8 @@ import 'dart:convert';
 
 import '../../dartvel.dart' show DVAuthAuthorization;
 import '../annotations/model_access.dart';
-import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/api_scopes.dart' show DVApiScopes;
 import '../auth/session_authentication.dart';
-import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
