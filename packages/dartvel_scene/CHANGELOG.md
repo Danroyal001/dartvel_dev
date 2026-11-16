@@ -1,3 +1,7 @@
+## 3.47.3 — 2026-11-16
+
+- Version aligned with dartvel_core 3.47.3.
+
 ## 3.47.2 — 2026-11-15
 
 - Version aligned with dartvel_core 3.47.2.

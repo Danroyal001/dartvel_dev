@@ -77,7 +77,7 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
                   'when the route\'s parameters or query change, never just '
                   'because the page redraws.',
             ]),
-            DocsStatus('Server state', missing: <String>[
+            DocsStatus('Server State (`initServerState`)', missing: <String>[
               'On the web-server build the page still loads its state after '
                   'Flutter starts; rendering it into the first HTML is next.',
               'Route parameters are not yet passed to the function for you.',

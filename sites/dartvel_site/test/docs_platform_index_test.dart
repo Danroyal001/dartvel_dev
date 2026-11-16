@@ -67,6 +67,11 @@ Finder inIndex(Finder matching) =>
 Finder rowOf(String section) =>
     inIndex(find.byKey(ValueKey<String>('spec:$section')));
 
+// As drawn: a backticked part of a section name is set as code, without
+// the backticks (Prose), as docs_structure_test reads titles.
+Finder drawn(String section) =>
+    find.text(section.replaceAll('`', ''), findRichText: true);
+
 void main() {
   tearDown(DVNavigation.detach);
 
@@ -76,7 +81,7 @@ void main() {
     for (final MapEntry<String, String> e in kDocsSpecStatus.entries) {
       final Finder row = rowOf(e.key);
       expect(row, findsOneWidget, reason: e.key);
-      expect(find.descendant(of: row, matching: find.text(e.key)),
+      expect(find.descendant(of: row, matching: drawn(e.key)),
           findsOneWidget,
           reason: e.key);
       expect(
@@ -130,7 +135,7 @@ void main() {
     await pumpIndex(tester, const Size(390, 844));
     expect(tester.takeException(), isNull);
     for (final String section in kDocsSpecStatus.keys) {
-      final Rect box = tester.getRect(inIndex(find.text(section)));
+      final Rect box = tester.getRect(inIndex(drawn(section)));
       expect(box.right, lessThanOrEqualTo(390), reason: section);
     }
   });

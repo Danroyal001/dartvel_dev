@@ -1,6 +1,12 @@
 ## Unreleased
 
 - The generator writes `lib/dartvel_client/main.g.dart` (keeps the process arguments, calls lib/main.dart's main); `dartvel build` and `dartvel dev` compile it unless `--target` says otherwise. The generated `DV.run` takes optional arguments and falls back to the kept ones. The scaffold's main is `void main() => DV.run();`.
+
+## 3.47.3 — 2026-11-16
+
+- One download per boot file. The splash preloaded `main.dart.mjs` and `main.dart.wasm` by their plain names while `flutter_bootstrap.js` asked for them at `?v=<build>`, so every Blink visitor downloaded the app twice. The build now gives the inline splash script's boot-file names the same `?v=<build>` as the loader; page text is untouched.
+- `dartvel build` shows the compiler's errors when the web app does not compile (`file:line:col: Error: message`, as they happen and again at the end with the source line) under "The app does not compile". A failed wasm build said only "ProcessException ... exit code 254".
+- Page guards wait for the start-up session restore. A guarded page opened directly (a reload, a link from an email, the return from a payment page) reached its guard before `DV.Auth` had restored the session and sent a signed-in person to sign in; every generated guard chain now awaits `dvPageAuthSettled()` first.
 - The generated router runs a page's server state: a function page's `initServerState:` client function after its code loads, a class page's `initServerState()` before `loadData`, and passes the route's params and query as the loader's `dependsOn`.
 - `web_mcp.g.dart`, generated for every project: the AI-tool backend functions as WebMCP tools calling their client functions, registered by the web runtime beside the browser bindings.
 - The generated `DV.run` hands the project's splash to the runtime (`_dvBootSplash`), its picture resized to the launch screen's width at 3x and carried as base64; `null` when `splash.progress` or `splash.enabled` is false.

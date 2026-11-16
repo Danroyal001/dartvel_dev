@@ -227,6 +227,9 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
       'Serve each page with its data and head tags', anchor: 'rendering'),
 
   // Operations
+  SpecCoverage('Server State (`initServerState`)', 'Backend',
+      DVRoutes.docsbackendfunctions, 'Give a page its data with initServerState',
+      anchor: 'server-state'),
   SpecCoverage('Server Provisioning', 'Operations', DVRoutes.docsdeploying,
       'Provision servers with `dartvel infra`', anchor: 'infra'),
   SpecCoverage('Edge Security', 'Operations', DVRoutes.docsedgesecurity,

@@ -686,6 +686,12 @@ const List<(String, String, String)> partial = <(String, String, String)>[
         'commands, and `llms.txt`.',
   ),
   (
+    'Server State (`initServerState`)',
+    'initServerState',
+    'Present: a page loads its state from a backend function and refreshes '
+        'it in place. Absent: the state in the first server-rendered HTML.',
+  ),
+  (
     'Agent Driver',
     'DV.Test.driver',
     'Present: DV.Test.driver reads, taps, types, scrolls and waits through '
@@ -712,7 +718,7 @@ Widget _featuresPage(BuildContext context) => const SiteScroll(<Widget>[
         Eyebrow('WHAT WORKS TODAY'),
         Heading('Twenty-four shipped sections.', level: 1),
         Bullets(<String>[
-          'Eighty-one more are partial, and each card says what is missing.',
+          'Eighty-two more are partial, and each card says what is missing.',
           'Every card summarises an entry in docs/spec-status.json, and CI '
               'fails when they disagree.',
         ]),
