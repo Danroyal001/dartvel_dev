@@ -1,3 +1,7 @@
+## Unreleased
+
+- The generated router runs a page's server state: a function page's `initServerState:` client function after its code loads, a class page's `initServerState()` before `loadData`, and passes the route's params and query as the loader's `dependsOn`.
+
 ## 3.47.2 — 2026-11-15
 
 - `dartvel add meta-pixel`, `dartvel add google-analytics` and `dartvel add woocommerce` add a first-party module by name: the pub dependency at this CLI's release and a `package:` mount with the policy its carried operations need. The plan lists the module's settings and the secrets the server's environment supplies.

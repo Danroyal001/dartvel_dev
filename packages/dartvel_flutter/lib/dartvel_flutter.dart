@@ -11331,6 +11331,19 @@ extension DartvelRouteX on BuildContext {
   Map<String, String> get dvQuery => DartvelRouteState.of(this).query;
 }
 
+/// A page's server state (NEW_SPEC "Server State").
+extension DVServerStateContextX on BuildContext {
+  /// What the page's `initServerState` produced, as the backend function
+  /// declared it: `final DashboardState state = context.serverState;`.
+  dynamic get serverState =>
+      dependOnInheritedWidgetOfExactType<DvDataScope>()?.data;
+
+  /// Runs the page's server state again and redraws it with the result.
+  Future<void> refreshServerState() =>
+      getInheritedWidgetOfExactType<DvDataScope>()?.refresh?.call() ??
+      Future<void>.value();
+}
+
 class SeoProps {
   final String? title;
   final String? description;
@@ -11429,6 +11442,14 @@ abstract class DartvelPage extends StatelessWidget {
 
   PageTransitionSpec get transition => const PageTransitionSpec();
 
+  /// The page's server state: the generated client function of the
+  /// `@DVBackendFunction` that produces its data (`getDashboard()`), or null
+  /// for a page with none. The route runs it before the page is shown, with
+  /// the page's `.loading` and `.error` companions, and the page reads the
+  /// result as `context.serverState`. It runs again on
+  /// `context.refreshServerState()`, never because the page rebuilt.
+  Future<Object?>? initServerState() => null;
+
   Future<Object?> loadData(
           Map<String, String> params, Map<String, String> query) async =>
       null;
@@ -11437,9 +11458,15 @@ abstract class DartvelPage extends StatelessWidget {
 }
 
 /// A Dartvel page widget represented as a class.
-abstract class DVClassWidget extends DartvelPage {
+abstract class DVClassWidget<T> extends DartvelPage {
   /// Default constructor.
   const DVClassWidget({super.key, this.pageScrollToTop = false});
+
+  /// The page's server state, typed: `DVClassWidget<DashboardState>` returns
+  /// `getDashboard()` here and reads `context.serverState` as a
+  /// `DashboardState`.
+  @override
+  Future<T>? initServerState() => null;
 
   /// A round "To the bottom / Back to top" button at the bottom right of a
   /// long page, for the scroll view this widget builds. The same as
@@ -12074,7 +12101,11 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
 
 class DvDataScope extends InheritedWidget {
   final Object? data;
-  const DvDataScope({super.key, required this.data, required super.child});
+
+  /// Runs the page's load again and redraws with the new value: what
+  /// `context.refreshServerState()` calls. Null outside a route's loader.
+  final Future<void> Function()? refresh;
+  const DvDataScope({super.key, required this.data, this.refresh, required super.child});
 
   static DvDataScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DvDataScope>()!;
@@ -12089,6 +12120,10 @@ class const DvDataLoader({
   required final Widget child,
   final Widget? loading,
   final Widget? error,
+  /// What the load depends on: the route's params and query. It runs again
+  /// when this changes, and not when the page merely rebuilds with a new
+  /// closure for [load].
+  final Object? dependsOn,
 }) extends StatefulWidget {
   @override
   State<DvDataLoader> createState() => _DvDataLoaderState();
@@ -12096,6 +12131,11 @@ class const DvDataLoader({
 
 class _DvDataLoaderState extends State<DvDataLoader> {
   late Future<Object?> _future;
+  // The value a refresh produced. Kept apart from the future so a refresh
+  // redraws the page in place, with the old value until the new one
+  // arrives, rather than going back to the loading companion.
+  Object? _refreshed;
+  bool _hasRefreshed = false;
   bool _holdingFirstFrame = false;
   bool _releaseScheduled = false;
 
@@ -12114,7 +12154,19 @@ class _DvDataLoaderState extends State<DvDataLoader> {
   @override
   void didUpdateWidget(DvDataLoader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.load != oldWidget.load) _future = widget.load();
+    if (widget.dependsOn != oldWidget.dependsOn) {
+      _future = widget.load();
+      _hasRefreshed = false;
+    }
+  }
+
+  Future<void> _refresh() async {
+    final Object? value = await widget.load();
+    if (!mounted) return;
+    setState(() {
+      _refreshed = value;
+      _hasRefreshed = true;
+    });
   }
 
   void _releaseFirstFrame() {
@@ -12150,7 +12202,11 @@ class _DvDataLoaderState extends State<DvDataLoader> {
         if (snapshot.hasError) {
           return widget.error ?? const DvDefaultError();
         }
-        return DvDataScope(data: snapshot.data, child: widget.child);
+        return DvDataScope(
+          data: _hasRefreshed ? _refreshed : snapshot.data,
+          refresh: _refresh,
+          child: widget.child,
+        );
       },
     );
   }

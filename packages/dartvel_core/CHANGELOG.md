@@ -1,3 +1,7 @@
+## Unreleased
+
+- `@DVFunctionalWidget(initServerState:)` names a page's server state.
+
 ## 3.47.2 — 2026-11-15
 
 - `dvAddContentSecurityPolicySources` and `dvIsContentSecurityPolicyOrigin`: add a module's origins to a page policy.

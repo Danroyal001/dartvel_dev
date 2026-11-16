@@ -1822,9 +1822,12 @@
     {
       "section": "Server State (`initServerState`)",
       "stability": "Draft",
-      "status": "Designed",
-      "evidence": [],
-      "absent": "Accepted 2 October 2026; nothing is built yet. Planned: initServerState on @DVFunctionalWidget and DVClassWidget<T> taking a backend function's generated client function, one handler shared by the web-server render and the HTTP route, typed context.dvContext.getServerState()/context.serverState, dependency-graph generation, Dartvel-primitive UI returns, DVForm (and Model.Form) as working no-JS HTML forms, and loadData deprecated."
+      "status": "Partial",
+      "evidence": [
+        "packages/dartvel_flutter/test/server_state_test.dart",
+        "packages/dartvel_cli/test/server_state_generation_test.dart"
+      ],
+      "absent": "Built (first slice): initServerState on a page -- @DVFunctionalWidget(initServerState: getDashboard) on a function page and DVClassWidget<T>.initServerState() on a class page. The generated route's loader runs it with the page's .loading and .error companions, the page reads it as context.serverState (dynamic, so a typed local takes it) and context.refreshServerState() runs it again in place; it reruns when the route's params or query change and not on a rebuild. It reaches the server through the generated client function on every target. Not built yet: the web-server render calling the handler in-process with the state in the first frame and embedded for takeover; static web prerender; route params passed through automatically; the build check that the read type matches the function's (DV-SERVER-STATE type check); the generator dependency graph and DV-GEN-CYCLE; returned UI; sensitive-field and secret flags; per-function cache; the .offline companion; no-JS DVForm; Studio binding; loadData deprecation warnings; initServerState on a non-page widget."
     },
     {
       "section": "Home Widgets",

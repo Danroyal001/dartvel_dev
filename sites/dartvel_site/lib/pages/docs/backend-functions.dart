@@ -58,6 +58,33 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'server-state',
+          title: 'Give a page its data with initServerState',
+          children: <Widget>[
+            DocsText(
+              'A page can name the backend function that produces its data. '
+              'On a function page, write @DVFunctionalWidget(initServerState: '
+              'getDashboard) under @DVPage, naming the generated client '
+              'function. On a class page, extend DVClassWidget<DashboardState> '
+              'and return getDashboard() from initServerState().',
+            ),
+            Bullets(<String>[
+              'The page reads the result as context.serverState, for example '
+                  'final DashboardState state = context.serverState.',
+              'Until it arrives the page shows its .loading companion, and its '
+                  '.error companion if the call fails.',
+              'context.refreshServerState() runs it again. It also runs again '
+                  'when the route\'s parameters or query change, never just '
+                  'because the page redraws.',
+            ]),
+            DocsStatus('Server state', missing: <String>[
+              'On the web-server build the page still loads its state after '
+                  'Flutter starts; rendering it into the first HTML is next.',
+              'Route parameters are not yet passed to the function for you.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'parameters',
           title: 'Receive parameters',
           children: <Widget>[

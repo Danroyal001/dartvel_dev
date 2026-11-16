@@ -12972,9 +12972,20 @@ Rust behind it yet, and no float, string or struct type.
 
 # Server State (`initServerState`)
 
-Stability: `Draft` · Status: `Designed`
+Stability: `Draft` · Status: `Partial`
 
 Accepted 2 October 2026.
+
+**Built so far (first slice):** `initServerState` on pages. A function page
+takes `@DVFunctionalWidget(initServerState: getDashboard)`, a class page
+overrides `DVClassWidget<T>.initServerState()`. The route's loader runs it with
+the page's `.loading` and `.error` companions; the page reads
+`context.serverState` and calls `context.refreshServerState()`; it runs again
+when the route's params or query change, never on a rebuild. It reaches the
+server through the generated client function on every target, including the
+web-server build after takeover. Everything below that is not in this
+paragraph is still to build -- first the in-process web-server render with the
+state in the first frame. `docs/spec-status.json` lists what is missing.
 
 A widget can name a backend function that produces its data. The function always runs on the server,
 never in the browser or on the device. Its result is typed, reaches the widget through `DVContext`, and
