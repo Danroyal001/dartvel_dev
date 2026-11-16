@@ -53,6 +53,8 @@ void main() {
     );
 
     first.complete();
+    // The step ends during this pump; the bar shows it on the next frame.
+    await tester.pump();
     await tester.pump();
     // Two steps and the application's first frame: a third each.
     expect(barValue(tester), closeTo(1 / 3, 0.001));
