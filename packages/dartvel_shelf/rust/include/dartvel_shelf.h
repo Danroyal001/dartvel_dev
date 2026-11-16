@@ -132,6 +132,8 @@ typedef void *DartHandle;
 
 uint32_t aw_abi_version(void);
 
+const char *aw_source_revision(void);
+
 void aw_register_handler(DartReqHandler cb);
 
 void aw_register_cancel_handler(DartStreamCancelHandler cb);

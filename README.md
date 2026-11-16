@@ -83,6 +83,10 @@ page's inline scripts, so a new build is never refused by an old list.
 A page whose content comes from your data sends that content in the first
 document too: export `dartvelRoutePageData` from `lib/backend/page_data/index.dart`
 and return `DVPageData` with a `document` of headings, paragraphs and links.
+Text that depends on when the page is asked for (a date, today's menu) is marked
+in the widget with `DVModifier().pageSlot('name')`; return
+`DVPageData.slots({'name': ...})` for that route and the binary serves the
+captured page with each request's own text in it, instead of the build's.
 
 ---
 
