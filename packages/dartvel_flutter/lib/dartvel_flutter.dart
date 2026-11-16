@@ -11794,6 +11794,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   late final DVPageDismissAction _dismiss =
       DVPageDismissAction(outside: () => context, menu: _menu);
 
+  /// The page's answer to Ctrl+C. See _DVPageCopyAction.
+  late final _DVPageCopyAction _copy = _DVPageCopyAction(() => _selected);
+
   /// The selection menu: the platform's own items, and on the web More,
   /// which hands the next right-click to the browser.
   ///
@@ -12014,7 +12017,11 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     final Widget reachable =
         DVHardwareKeys(child: DVSwitchControl(child: answering));
     final Widget selectionWrapped = selectable
-        ? SelectionArea(
+        // Above the area: its copy action is overridable from its own
+        // context upward, so this is where an override is found.
+        ? Actions(
+            actions: <Type, Action<Intent>>{CopySelectionTextIntent: _copy},
+            child: SelectionArea(
             // A new area, not a changed one, when the browser's menu is
             // switched: Flutter's area has a different shape while that menu
             // is on, and changing shape in place left two selection
@@ -12050,6 +12057,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
                 child: DVLinkMenuScope(child: reachable),
               ),
             ),
+          ),
           )
         : reachable;
     final Widget safe =
@@ -13117,4 +13125,26 @@ String dvGlobalName(Type type) {
   final String name = type.toString().split('<').first.trim();
   if (name.isEmpty) return name;
   return name[0].toLowerCase() + name.substring(1);
+}
+
+/// Ctrl+C (Cmd+C) on a page: the selected text to the clipboard, and nothing
+/// at all when nothing is selected.
+///
+/// Flutter's selection area wrote its selection on every copy, and after a
+/// click left an empty one that was an empty string over whatever the reader
+/// had copied before (checked on dartvel.dev, 16 Nov 2026). Every browser and
+/// editor leaves the clipboard alone then, and so does this. With text
+/// selected it hands the copy back to the area's own action, unchanged.
+class _DVPageCopyAction extends Action<CopySelectionTextIntent> {
+  _DVPageCopyAction(this.selected);
+
+  /// What the page has selected, as its selection area last reported it.
+  final SelectedContent? Function() selected;
+
+  @override
+  Object? invoke(CopySelectionTextIntent intent) {
+    final String text = selected()?.plainText ?? '';
+    if (text.isEmpty) return null;
+    return callingAction?.invoke(intent);
+  }
 }
