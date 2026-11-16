@@ -1,12 +1,12 @@
-// The class alternative to each function-shaped widget on the docs site: an
-// ordinary StatelessWidget, public because nothing is generated from it.
+// The class alternative to each function-shaped widget on the docs site: a
+// DVClassWidget, public because nothing is generated from it.
 import 'package:docs_samples/dartvel_client/dartvel_client.dart';
 import 'package:flutter/widgets.dart';
 
 // docs:start ui-functional-widget-class
 // lib/components/price_tag.dart
 class const PriceTag(final int cents, {super.key, final String currency = 'USD'})
-    extends StatelessWidget {
+    extends DVClassWidget {
   @override
   Widget build(BuildContext context) =>
       DVText('$currency ${(cents / 100).toStringAsFixed(2)}').modifier(
@@ -19,7 +19,7 @@ class const PriceTag(final int cents, {super.key, final String currency = 'USD'}
 
 // docs:start routing-loading-class
 // lib/pages/about.loading.dart
-class const AboutPageLoading({super.key}) extends StatelessWidget {
+class const AboutPageLoading({super.key}) extends DVClassWidget {
   @override
   Widget build(BuildContext context) => const DVText('Loading');
 }
@@ -27,7 +27,7 @@ class const AboutPageLoading({super.key}) extends StatelessWidget {
 
 // docs:start routing-error-class
 // lib/pages/about.error.dart
-class const AboutPageError({super.key}) extends StatelessWidget {
+class const AboutPageError({super.key}) extends DVClassWidget {
   @override
   Widget build(BuildContext context) => const DVText('That did not load');
 }
@@ -37,7 +37,7 @@ class const AboutPageError({super.key}) extends StatelessWidget {
 // A widget class, with the annotation on it. The class is the widget, so
 // NextShiftWidget is what the home screen and the route reach.
 @DVHomeWidget(title: 'Next shift')
-class const NextShiftWidget({super.key}) extends StatelessWidget {
+class const NextShiftWidget({super.key}) extends DVClassWidget {
   @override
   Widget build(BuildContext context) => const DVBox.list(<Widget>[
         DVText('Next shift'),
@@ -53,7 +53,7 @@ Future<void> refreshShift(String when) =>
 // docs:start offline-connectivity-class
 // What the device can reach, as a signal: a banner is a widget that
 // rebuilds, not a listener to remember to dispose.
-class const ConnectionBanner({super.key}) extends StatelessWidget {
+class const ConnectionBanner({super.key}) extends DVClassWidget {
   @override
   Widget build(BuildContext context) {
     final DVNetworkStatus status = DV.Platform.network.watch(context);

@@ -1,8 +1,8 @@
 // The class alternative to each function-shaped page on the docs site.
 //
 // Dartvel teaches pages and widgets as annotated functions; a page may as
-// well be a class extending DVClassWidget, and a widget an ordinary
-// StatelessWidget. The site shows these beside the function samples, and
+// well be a class extending DVClassWidget, and so may a widget. The
+// site shows these beside the function samples, and
 // they live under test/ so they are analyzed like every other sample without
 // becoming a second route to the same path.
 import 'package:docs_samples/dartvel_client/dartvel_client.dart';

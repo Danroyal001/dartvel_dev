@@ -5,6 +5,7 @@
 /// the rule would have it importing a name that is not there.
 library;
 
+import '../analysis/dart_source_lexer.dart';
 import 'annotation_args.dart';
 import 'primary_constructors.dart';
 
@@ -32,10 +33,11 @@ String dvGeneratedPageWidgetName(String symbol) {
 /// annotation carried `sitemap: DVPageSitemap(...)` was not a page at all,
 /// and its route was missing from the router with nothing said.
 String? dvPageSymbol(String source) {
-  final String flat = dvMaskAnnotationArgs(
-    dvDesugarPrimaryConstructors(source),
-    'DVPage',
-  );
+  // Strings and comments blanked too, so prose such as "a class that
+  // extends DVClassWidget" in a function page is not read as a class page.
+  final String flat = dvDartSourceView(
+    dvMaskAnnotationArgs(dvDesugarPrimaryConstructors(source), 'DVPage'),
+  ).masked;
 
   final RegExpMatch? asClass = RegExp(
     r'(?:@DVPage\([^)]*\)\s*)?(?:@pragma\([^)]*\)\s*)*class\s+([A-Za-z_][A-Za-z0-9_]*)\s+extends\s+(?:DartvelPage|DVClassWidget)',

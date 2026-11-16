@@ -17,6 +17,7 @@ final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =
   '/docs/existing-native-apps': (() => const DocsExistingNativeAppsPageGeneratedPage(), DocsExistingNativeAppsPageGeneratedPage.loadLibrary),
   '/docs/dev-client': (() => const DocsDevClientPageGeneratedPage(), DocsDevClientPageGeneratedPage.loadLibrary),
   '/docs/ui': (() => const DocsUiPageGeneratedPage(), DocsUiPageGeneratedPage.loadLibrary),
+  '/docs/class-widgets': (() => const DocsClassWidgetsPageGeneratedPage(), DocsClassWidgetsPageGeneratedPage.loadLibrary),
   '/docs/routing': (() => const DocsRoutingPageGeneratedPage(), DocsRoutingPageGeneratedPage.loadLibrary),
   '/docs/state': (() => const DocsStatePageGeneratedPage(), DocsStatePageGeneratedPage.loadLibrary),
   '/docs/accessibility': (() => const DocsAccessibilityPageGeneratedPage(), DocsAccessibilityPageGeneratedPage.loadLibrary),

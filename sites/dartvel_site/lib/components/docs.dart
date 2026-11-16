@@ -49,6 +49,12 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
     'App',
   ),
   DocsPageInfo(
+    DVRoutes.docsclasswidgets,
+    'Class widgets',
+    'Pages and widgets as DVClassWidget classes',
+    'App',
+  ),
+  DocsPageInfo(
     DVRoutes.docsrouting,
     'Routing',
     'File pages, parameters, layouts and links',
