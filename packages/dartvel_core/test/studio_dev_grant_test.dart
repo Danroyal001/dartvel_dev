@@ -78,6 +78,17 @@ void main() {
     );
   });
 
+  test('the Studio app is told the browser holding the cookie is granted', () async {
+    // The app's own guard asks api/access before it shows any screen; left
+    // unanswered, every Studio page of `dartvel dev --release` sent the
+    // browser holding the grant to the sign-in.
+    final String cookie = '${DVStudioDevGrant.cookieName}=${grant.token}';
+    final Response? access =
+        await server.respond(_request('/__studio/api/access', cookie: cookie));
+    expect(access?.status, 200);
+    expect(jsonDecode(utf8.decode(await access!.body!.bytes())), containsPair('granted', true));
+  });
+
   test('anybody else gets what a missing route gets', () async {
     for (final Request request in <Request>[
       _request('/__studio/'),

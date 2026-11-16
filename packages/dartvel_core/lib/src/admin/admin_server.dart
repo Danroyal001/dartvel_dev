@@ -517,6 +517,16 @@ class DVAdminServer {
       final Response? signIn = await _signIn(request, path, readable, login);
       if (signIn != null) return signIn;
     }
+    // The Studio app's own guard asks this before it shows any screen. With a
+    // development grant there is no sign-in to answer it, so it is answered
+    // here, for the browser holding the grant; anybody else is told nothing.
+    if (devGrant != null && readable && path == '${apiPrefix}access' && await _authenticated(request)) {
+      return Response(
+        200,
+        headers: Headers(_json),
+        body: Stream<List<int>>.value(utf8.encode(jsonEncode(<String, Object?>{'granted': true}))),
+      );
+    }
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
