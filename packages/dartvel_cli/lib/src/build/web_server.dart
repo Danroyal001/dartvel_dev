@@ -568,6 +568,7 @@ Handler dvWebServerHandler({
         description: siteDescription,
         image: siteImage,
         preloads: routePreloads,
+        routePage: pages[matched.pattern]?.at(pagePath, siteUrl: hosted?.siteUrl),
       );
       if (chunks != null) {
         return Response.ok(
@@ -647,6 +648,7 @@ Handler dvWebServerHandler({
             siteName: name,
             description: siteDescription,
             image: siteImage,
+            route: routePage?.at(pagePath, siteUrl: hosted?.siteUrl),
           );
 
     // The route's own parts and images at the end of its head, as the

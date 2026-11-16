@@ -13,8 +13,10 @@ import 'dart:convert';
 import '../cache/adapters.dart';
 import '../tenancy/tenants.dart';
 import 'asset_http_policy.dart';
+import 'minify.dart';
 import 'model_page_access.dart';
 import 'page_text.dart';
+import 'route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'seo_head.dart';
 
 /// How page data is waited for on a request.
@@ -481,8 +483,16 @@ String dvRenderRoute({
   return dvApplyPageText(html, text, path: path);
 }
 
-/// The shell as the page for [path] from [data]: the head, the text, the
-/// structured data and the favicon, all from the data.
+/// The shell as the page for [path] from [data], through the one render
+/// function every route goes through, [dvRenderRoutePage].
+///
+/// [route] is what the build wrote into the manifest for this route: its
+/// hreflang alternates, robots and schema type, which the data does not
+/// carry. The data's title, description, image, icon, document and JSON-LD
+/// win over the route's; [description] and [image] are the site's, the last
+/// resort. This used to be a second path that dropped the alternates and the
+/// robots meta and put the JSON-LD somewhere else, so a data model's page
+/// lost both on web-server and could carry two structured-data blocks.
 String dvRenderPage({
   required String shell,
   required String path,
@@ -491,35 +501,38 @@ String dvRenderPage({
   String? siteName,
   String? description,
   String? image,
+  DVRoutePage? route,
 }) =>
-    dvApplyPageExtras(
-      _dvWithDocument(
-        dvRenderRoute(
-          shell: shell,
-          path: path,
-          title: data.title,
-          text: data.document.isEmpty ? data.text : const <String>[],
-          siteUrl: siteUrl,
-          description: data.description ?? description,
-          image: data.image ?? image,
-          siteName: siteName,
-        ),
-        data,
-        path,
+    dvRenderRoutePage(
+      shell,
+      DVRoutePage(
+        route: path,
+        title: data.title,
+        description: data.description ?? description ?? route?.description,
+        siteUrl: siteUrl ?? route?.siteUrl,
+        image: data.image ?? image ?? route?.image,
+        siteName: siteName ?? route?.siteName,
+        alternates: route?.alternates ?? const <String, String>{},
+        defaultAlternate: route?.defaultAlternate,
+        favicon: data.favicon ?? route?.favicon,
+        schemaType: route?.schemaType,
+        robots: route?.robots,
+        html: _dvDocumentHtml(data),
+        text: data.document.isEmpty ? data.text : const <String>[],
+        structuredData: data.structuredData,
       ),
-      data,
     );
 
-/// [html] with [data]'s document as the page's own document, when it has one:
-/// the title as the page's h1, then every block.
-String _dvWithDocument(String html, DVPageData data, String path) {
-  if (data.document.isEmpty) return html;
+/// [data]'s document as the page's own HTML -- the title as its h1, then
+/// every block -- or null when it has none.
+String? _dvDocumentHtml(DVPageData data) {
+  if (data.document.isEmpty) return null;
   final StringBuffer content = StringBuffer()
     ..writeln('<h1>${const HtmlEscape(HtmlEscapeMode.element).convert(data.title)}</h1>');
   for (final DVDocumentBlock block in data.document) {
     content.writeln(block.toHtml());
   }
-  return dvApplyPageHtml(html, content.toString(), path: path);
+  return content.toString();
 }
 
 /// Where a federated route sends the reader, with the request's own
@@ -723,9 +736,12 @@ Stream<String>? dvShellFirstChunks({
   String? description,
   String? image,
   String preloads = '',
+  DVRoutePage? routePage,
 }) {
+  // Every render here is minified, as dvRenderRoutePage's output is, so the
+  // early head and the finished one are cut by the same rule.
   final DVHeadParts? early = dvHeadParts(
-    dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName),
+    dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName)),
   );
   if (early == null) return null;
 
@@ -745,10 +761,10 @@ Stream<String>? dvShellFirstChunks({
     final String page = refused
         // None of the data, as the refusal would have shown: it describes a
         // page the reader is not being shown.
-        ? dvRenderRoute(shell: shell, path: path, title: refusedTitle ?? title, siteUrl: siteUrl, siteName: siteName)
+        ? dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: refusedTitle ?? title, siteUrl: siteUrl, siteName: siteName))
         : data == null
-            ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: description, image: image)
-            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: description, image: image);
+            ? dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: description, image: image))
+            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: description, image: image, route: routePage);
     final DVHeadParts late = dvHeadParts(page) ?? early;
     // 200 is already on the wire, so a record that cannot be shown -- or data
     // that could not be fetched -- is kept out of an index this way instead.
