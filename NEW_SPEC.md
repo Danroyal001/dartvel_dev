@@ -13975,8 +13975,10 @@ Flutter's own `build aar`, `build ios-framework` or `build macos-framework`
 makes the artifact, moved to `build/brownfield/<target>` beside a `HOST.md`.
 The module's `main` and the generated `dartvelEmbeddedEntry_<project>` both
 boot the runtime as `DVEntry.embedded(<project>)`, which skips the launch
-negotiation. Not yet verified by a full build on any target: Android
-can be built on Linux, iOS and macOS need a Mac.
+negotiation. Android verified 16 Nov 2026 by a real build of examples/basic_app:
+a 9.2 MB AAR with `libapp.so` for arm64, armv7 and x86_64, the assets, and
+`dartvelEmbeddedEntry_basic_app` in the arm64 binary. iOS and macOS need a
+Mac and are not yet verified.
 
 **Not built yet:** the web (multi-view needs the router kept off the host
 page's address bar), Linux and Windows (refused with the reason, exit 69),
