@@ -60,6 +60,10 @@ String dvAddContentSecurityPolicySources(
       if (!list.contains(source)) list.add(source);
     }
   });
+  return _addSources(policy, wanted);
+}
+
+String _addSources(String policy, Map<String, List<String>> wanted) {
   if (wanted.isEmpty) return policy;
 
   // Each directive as written: its name in the case the policy used, and
@@ -101,4 +105,32 @@ String dvAddContentSecurityPolicySources(
   return directives
       .map(((String, List<String>) d) => <String>[d.$1, ...d.$2].join(' '))
       .join('; ');
+}
+
+/// [policy] with each `'sha256-…'` in [hashes] allowed for scripts, by the
+/// same rules as [dvAddContentSecurityPolicySources]: into `script-src` (and
+/// `script-src-elem` when there is one), written from `default-src` when
+/// `script-src` is missing, and nothing when neither restricts scripts.
+///
+/// A `script-src` that allows `'unsafe-inline'` and lists no hash or nonce
+/// is returned unchanged: a browser ignores `'unsafe-inline'` once a hash is
+/// listed, so adding one would refuse every other inline script.
+String dvAddContentSecurityPolicyHashes(String policy, List<String> hashes) {
+  for (final String hash in hashes) {
+    if (!RegExp(r"^'sha(256|384|512)-[A-Za-z0-9+/]+=*'$").hasMatch(hash)) {
+      throw ArgumentError.value(hash, 'hashes', "is not a source such as 'sha256-…'");
+    }
+  }
+  if (hashes.isEmpty) return policy;
+  String? scripts;
+  for (final String part in policy.split(';')) {
+    final List<String> words = part.trim().split(RegExp(r'\s+'));
+    if (words.first.toLowerCase() == 'script-src') scripts = part;
+    if (scripts == null && words.first.toLowerCase() == 'default-src') scripts = part;
+  }
+  if (scripts != null) {
+    final String lower = scripts.toLowerCase();
+    if (lower.contains("'unsafe-inline'") && !lower.contains("'sha") && !lower.contains("'nonce-")) return policy;
+  }
+  return _addSources(policy, <String, List<String>>{'script-src': hashes});
 }

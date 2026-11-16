@@ -132,6 +132,7 @@ export 'src/cache/dv_cache.dart'
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/config/app_shortcuts.dart';
+export 'src/config/platforms.dart';
 export 'src/content/content_workflow.dart';
 export 'src/crashes/crashes.dart';
 export 'src/crypto/app_key.dart';
@@ -342,6 +343,7 @@ export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
 export 'src/web/inline_script_csp.dart';
 export 'src/web/csp_sources.dart';
+export 'src/web/document_slots.dart';
 export 'src/web/minify.dart';
 export 'src/web/route_page.dart';
 export 'src/web/site_pages.dart';
