@@ -27,6 +27,7 @@ import '../../dartvel_flutter.dart'
     show DV, DVNavigation, DVRouteTarget, DartvelRouteState;
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'client_hosts.dart' show dvIsOtherOrigin, dvPublicLocation;
+import 'first_frame_gate.dart' show dvFirstFrameShown;
 import 'link_interception.dart' show DVPressedLink;
 import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
 import 'route_prefetch.dart' show DVRoutePrefetch;
@@ -222,14 +223,22 @@ class _DVNavLinkState extends State<DVNavLink> {
     _VisiblePreloads.attach();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
+      // And after the first frame is on screen: on the web, frames build
+      // behind the splash while the first one is held, and another page's
+      // code and images fetched then compete with this one's.
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => unawaited(_preload()),
+        (_) => unawaited(dvFirstFrameShown().then((_) {
+          if (mounted) return _preload();
+        })),
       );
     }
     if (widget.preload == DVLinkPreload.visible) {
       // After the frame, because whether the link is on screen is a question
       // about layout, and there is none until the first frame has run.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _watchVisibility());
+      // Behind a held first frame the link is laid out but nobody sees it.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(dvFirstFrameShown().then((_) => _watchVisibility())),
+      );
     }
     if (widget.autofocus && widget.enabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
