@@ -455,7 +455,7 @@ class BuildCommand extends Command<void> {
           defaultsTo: false, help: 'Split APKs per ABI (Android)')
       ..addFlag('brownfield',
           negatable: false,
-          help: 'Build what an existing native app embeds, through Flutter's '
+          help: "Build what an existing native app embeds, through Flutter's "
               'add-to-app: an AAR on android, XCFrameworks on ios and macos. '
               'Written to build/brownfield/<target> with a HOST.md.')
       ..addFlag('cache',
