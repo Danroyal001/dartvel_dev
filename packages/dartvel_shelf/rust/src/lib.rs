@@ -244,6 +244,22 @@ pub extern "C" fn aw_abi_version() -> u32 {
     AW_ABI_VERSION
 }
 
+/// The source revision this library was compiled from, as NUL-terminated
+/// text: `dartvel_shelf source revision ` and sixteen hex digits, a hash of
+/// the crate's sources that build.rs computes. The marker is plain bytes in
+/// the binary, so a check can read it from a library built for another
+/// platform without loading it.
+static SOURCE_REVISION: &str = concat!(
+    "dartvel_shelf source revision ",
+    env!("DARTVEL_SHELF_SOURCE_REVISION"),
+    "\0"
+);
+
+#[no_mangle]
+pub extern "C" fn aw_source_revision() -> *const std::os::raw::c_char {
+    SOURCE_REVISION.as_ptr().cast()
+}
+
 // Dart stream cancel callback: void(req_id)
 pub type DartStreamCancelHandler = extern "C" fn(u64);
 
