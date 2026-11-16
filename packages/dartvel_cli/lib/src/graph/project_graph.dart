@@ -13,7 +13,7 @@ import '../generators/route_utils.dart';
 import '../generators/primary_constructors.dart';
 import 'module_mounts.dart';
 import '../config/dartvel_section.dart' show DVDartvelSection, dvDartvelSection;
-import 'package:dartvel_core/config.dart' show dvWebFileProblem;
+import 'package:dartvel_core/config.dart' show dvHtmlSnippetDirectory, dvWebFileProblem;
 
 /// A versioned description of what an application is made of.
 ///
@@ -61,7 +61,7 @@ class DartvelProjectGraph {
   /// `dartvel.platforms`, for Studio's Platforms screen: where the settings
   /// are written (`source`: `pubspec` or the Dart config file), the web
   /// document settings (`web`), the text of each snippet file they name
-  /// (`files`), and every HTML file under web/ one could name (`webFiles`).
+  /// (`files`), and every HTML file under html/ one could name (`webFiles`).
   final Map<String, Object?> platforms;
 
   /// Scans [root] and answers what it is made of.
@@ -878,14 +878,14 @@ Map<String, Object?> dvGraphPlatforms(String root) {
       if (file.existsSync()) files[path] = file.readAsStringSync();
     }
   }
-  final Directory webDirectory = Directory(p.join(root, 'web'));
-  final List<String> webFiles = !webDirectory.existsSync()
+  final Directory htmlDirectory = Directory(p.join(root, dvHtmlSnippetDirectory));
+  final List<String> webFiles = !htmlDirectory.existsSync()
       ? <String>[]
-      : (webDirectory
+      : (htmlDirectory
               .listSync(recursive: true)
               .whereType<File>()
               .map((File file) => p.relative(file.path, from: root).replaceAll(r'\', '/'))
-              .where((String path) => path.endsWith('.html') && path != 'web/index.html')
+              .where((String path) => path.endsWith('.html'))
               .toList()
             ..sort());
   return <String, Object?>{

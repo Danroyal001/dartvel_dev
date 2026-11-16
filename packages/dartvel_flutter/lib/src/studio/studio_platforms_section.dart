@@ -3,7 +3,7 @@
 ///
 /// Web is the first: the project's own HTML at the three edges of every page
 /// (inside the head, right after the body opens, right before it closes),
-/// each piece typed here or taken from a file under `web/`. It is checked as
+/// each piece typed here or taken from a file under `html/`. It is checked as
 /// it is typed, by the same rules the build refuses a page-breaking snippet
 /// with, and saved through Studio's API: into `pubspec.yaml` on a development
 /// server, and through the GitHub screen on a deployed one. The build writes
@@ -118,7 +118,7 @@ class _DVStudioPlatformsSectionState extends State<DVStudioPlatformsSection> {
   /// Why [snippet] would break the page, checked as it is typed.
   List<String> _problemsOf(DVDocumentSlot slot, _Snippet snippet) {
     final String text = snippet.text.trim();
-    if (text.isEmpty) return <String>[snippet.file ? 'Name a file under web/, such as web/head.html.' : 'Type or paste the HTML.'];
+    if (text.isEmpty) return <String>[snippet.file ? 'Name a file under html/, such as html/head.html.' : 'Type or paste the HTML.'];
     if (snippet.file) {
       final String? wrong = dvWebFileProblem(text);
       if (wrong != null) return <String>[wrong];
@@ -127,7 +127,7 @@ class _DVStudioPlatformsSectionState extends State<DVStudioPlatformsSection> {
       final Object? contents = files[text];
       if (contents is String) return dvHtmlSnippetProblems(contents, slot: slot);
       if (!known.contains(text) && _state?['development'] != true) {
-        return <String>['$text is not one of this build\'s files under web/.'];
+        return <String>['$text is not one of this build\'s files under html/.'];
       }
       return const <String>[];
     }
@@ -357,7 +357,7 @@ class _DVStudioPlatformsSectionState extends State<DVStudioPlatformsSection> {
               children: <Widget>[
                 _button('dv-studio-platforms-${slot.key}-add-html', 'Add HTML',
                     () => setState(() => snippets.add(_Snippet.html(''))), icon: Icons.code),
-                _button('dv-studio-platforms-${slot.key}-add-file', 'Add a file from web/',
+                _button('dv-studio-platforms-${slot.key}-add-file', 'Add a file from html/',
                     () => setState(() => snippets.add(_Snippet.file(''))), icon: Icons.description_outlined),
               ],
             ),
@@ -391,7 +391,7 @@ class _DVStudioPlatformsSectionState extends State<DVStudioPlatformsSection> {
                 lines: snippet.file ? 1 : 4,
                 code: true,
                 icon: snippet.file ? Icons.description_outlined : null,
-                placeholder: snippet.file ? 'web/head.html' : '<script src="https://…"></script>',
+                placeholder: snippet.file ? 'html/head.html' : '<script src="https://…"></script>',
                 semanticLabel: name,
                 onChanged: (String value) => setState(() {
                   snippet.text = value;

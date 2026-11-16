@@ -103,11 +103,11 @@ void main() {
           'web': <String, Object?>{
             'document': <String, Object?>{
               'head': <Object?>[
-                <String, Object?>{'file': 'web/head.html'},
+                <String, Object?>{'file': 'html/head.html'},
               ],
             },
           },
-          'files': <String, Object?>{'web/head.html': '<meta name="built" content="1">'},
+          'files': <String, Object?>{'html/head.html': '<meta name="built" content="1">'},
         },
       }));
     });
@@ -129,7 +129,7 @@ void main() {
       expect(body['pending'], isFalse);
       expect(body['canEdit'], isTrue);
       expect(((body['web'] as Map)['document'] as Map)['head'], <Object?>[
-        <String, Object?>{'file': 'web/head.html'},
+        <String, Object?>{'file': 'html/head.html'},
       ]);
       expect((body['effective'] as Map)['head'], '<meta name="built" content="1">');
     });
@@ -184,12 +184,12 @@ void main() {
           body: <String, Object?>{
             'document': <String, Object?>{
               'head': <Object?>[
-                <String, Object?>{'file': 'web/nope.html'},
+                <String, Object?>{'file': 'html/nope.html'},
               ],
             },
           });
       expect(status, 422);
-      expect('${body['problems']}', contains('web/nope.html'));
+      expect('${body['problems']}', contains('html/nope.html'));
     });
 
     test('an application that names who may edit raw HTML is asked, and a refusal saves nothing', () async {
@@ -209,7 +209,7 @@ void main() {
       'web': <String, Object?>{
         'document': <String, Object?>{
           'head': <Object?>[
-            <String, Object?>{'file': 'web/head.html'},
+            <String, Object?>{'file': 'html/head.html'},
           ],
           'bodyEnd': <Object?>[
             <String, Object?>{'html': '<script>window.chat = 1;</script>'},
@@ -236,7 +236,7 @@ void main() {
       );
       expect(document.heading, 'Web');
       expect(document.html, contains('Inside the head'));
-      expect(document.html, contains('web/head.html'));
+      expect(document.html, contains('html/head.html'));
       // Shown as text, never as markup that would run inside Studio.
       expect(document.html, contains('&lt;script&gt;window.chat = 1;&lt;/script&gt;'));
       expect(document.html, isNot(contains('<script>window.chat')));

@@ -11,7 +11,7 @@ import 'package:dartvel_core/dartvel.dart'
 import 'package:test/test.dart';
 
 enum _WebFile implements DVWebFileRef {
-  head('web/head.html');
+  head('html/head.html');
 
   const _WebFile(this.path);
   @override
@@ -57,7 +57,7 @@ void main() {
         'document': <String, Object?>{
           'head': <Object?>[
             <String, Object?>{'html': '<meta name="theme-color" content="#000">'},
-            <String, Object?>{'file': 'web/head.html'},
+            <String, Object?>{'file': 'html/head.html'},
           ],
           'bodyStart': <Object?>[
             <String, Object?>{
@@ -103,7 +103,7 @@ void main() {
 
     test('an entry with both html and file', () {
       expect(problemsOf(<Object?>[
-        <String, Object?>{'html': '<meta>', 'file': 'web/a.html'},
+        <String, Object?>{'html': '<meta>', 'file': 'html/a.html'},
       ]).single, contains('either html or file'));
     });
 
@@ -111,13 +111,17 @@ void main() {
       expect(problemsOf(<Object?>[<String, Object?>{}]).single, contains('either html or file'));
     });
 
-    test('a file outside web/, or climbing out of it', () {
-      expect(problemsOf(<Object?>[<String, Object?>{'file': 'lib/a.html'}]).single, contains('under web/'));
-      expect(problemsOf(<Object?>[<String, Object?>{'file': 'web/../secrets.html'}]).single, contains('under web/'));
+    test('a file outside html/, or climbing out of it', () {
+      expect(problemsOf(<Object?>[<String, Object?>{'file': 'lib/a.html'}]).single, contains('under html/'));
+      expect(problemsOf(<Object?>[<String, Object?>{'file': 'html/../secrets.html'}]).single, contains('under html/'));
     });
 
     test('the shell itself cannot be a snippet', () {
       expect(problemsOf(<Object?>[<String, Object?>{'file': 'web/index.html'}]).single, contains('index.html'));
+    });
+
+    test('web/ is the generated build folder, ignored by git, so a snippet file is not kept there', () {
+      expect(problemsOf(<Object?>[<String, Object?>{'file': 'web/head.html'}]).single, contains('html/'));
     });
 
     test('an unknown slot is named', () {
@@ -234,7 +238,7 @@ void main() {
           DVHtmlSnippet.html('<meta name="a" content="1">'),
           DVHtmlSnippet.file(_WebFile.head),
         ]),
-        readFile: (String path) => path == 'web/head.html' ? '<meta name="b" content="2">' : throw StateError(path),
+        readFile: (String path) => path == 'html/head.html' ? '<meta name="b" content="2">' : throw StateError(path),
       );
       expect(html.indexOf('name="a"'), lessThan(html.indexOf('name="b"')));
     });

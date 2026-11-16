@@ -28,14 +28,14 @@ void main() {
   void pubspec(String dartvel) => write('pubspec.yaml', 'name: shop\ndartvel:\n$dartvel');
 
   test('inline and file snippets land in the built shell, in order', () {
-    write('web/head.html', '<meta name="from-file" content="1">\n');
+    write('html/head.html', '<meta name="from-file" content="1">\n');
     pubspec('''
   platforms:
     web:
       document:
         head:
           - html: <meta name="inline" content="1">
-          - file: web/head.html
+          - file: html/head.html
         bodyEnd:
           - html: <script>window.chat = true;</script>
 ''');
@@ -66,24 +66,24 @@ void main() {
     web:
       document:
         head:
-          - file: web/missing.html
+          - file: html/missing.html
 ''');
     final DVDocumentSlotsWrite result = dvWriteDocumentSlots(project.path, dvDartvelSection(project.path).values);
-    expect(result.problems.single, contains('web/missing.html'));
+    expect(result.problems.single, contains('html/missing.html'));
     expect(read('build/web/index.html'), shell);
   });
 
   test("a file whose HTML would swallow the page is a build error naming the file", () {
-    write('web/banner.html', '<div class="banner">Sale');
+    write('html/banner.html', '<div class="banner">Sale');
     pubspec('''
   platforms:
     web:
       document:
         bodyStart:
-          - file: web/banner.html
+          - file: html/banner.html
 ''');
     final DVDocumentSlotsWrite result = dvWriteDocumentSlots(project.path, dvDartvelSection(project.path).values);
-    expect(result.problems.single, allOf(contains('web/banner.html'), contains('<div>')));
+    expect(result.problems.single, allOf(contains('html/banner.html'), contains('<div>')));
     expect(read('build/web/index.html'), shell);
   });
 
@@ -95,16 +95,16 @@ void main() {
     expect(read('build/web/index.html'), shell);
   });
 
-  group('typed references to the files under web/', () {
+  group('typed references to the files under html/', () {
     test('one enum value per HTML file, the shell left out', () {
-      write('web/head.html', '');
-      write('web/tag-manager.html', '');
+      write('html/head.html', '');
+      write('html/tag-manager.html', '');
       write('web/index.html', '');
       write('web/favicon.png', '');
       final String source = dvWebFileRefsSource(project.path);
       expect(source, contains("enum DVWebFile implements DVWebFileRef"));
-      expect(source, contains("head('web/head.html')"));
-      expect(source, contains("tagManager('web/tag-manager.html')"));
+      expect(source, contains("head('html/head.html')"));
+      expect(source, contains("tagManager('html/tag-manager.html')"));
       expect(source, isNot(contains('index.html')));
       expect(source, isNot(contains('favicon')));
       expect(source, contains("import 'package:dartvel_core/config.dart';"));

@@ -1778,7 +1778,7 @@ class DVStudioApi {
 
   /// What the build wrote about `dartvel.platforms` into its graph: the
   /// settings, where they are written, the snippet files' text and every
-  /// HTML file under web/. Empty when the build wrote none.
+  /// HTML file under html/. Empty when the build wrote none.
   Map<String, Object?> _builtPlatforms() {
     final String? directory = root;
     if (directory == null) return const <String, Object?>{};

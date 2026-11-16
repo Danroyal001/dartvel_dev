@@ -10,7 +10,7 @@ Map<String, Object?> _state({bool canEdit = true, bool development = true}) => <
       'web': <String, Object?>{
         'document': <String, Object?>{
           'head': <Object?>[
-            <String, Object?>{'file': 'web/head.html'},
+            <String, Object?>{'file': 'html/head.html'},
           ],
         },
       },
@@ -23,8 +23,8 @@ Map<String, Object?> _state({bool canEdit = true, bool development = true}) => <
         'bodyStart': '',
         'bodyEnd': '',
       },
-      'files': <String, Object?>{'web/head.html': '<meta name="built" content="1">'},
-      'webFiles': <Object?>['web/head.html', 'web/chat.html'],
+      'files': <String, Object?>{'html/head.html': '<meta name="built" content="1">'},
+      'webFiles': <Object?>['html/head.html', 'html/chat.html'],
     };
 
 void main() {
@@ -94,7 +94,7 @@ void main() {
     expect(saved, <String, Object?>{
       'document': <String, Object?>{
         'head': <Object?>[
-          <String, Object?>{'file': 'web/head.html'},
+          <String, Object?>{'file': 'html/head.html'},
         ],
         'bodyEnd': <Object?>[
           <String, Object?>{'html': '<script src="https://cdn.example.com/chat.js" async></script>'},
@@ -117,11 +117,11 @@ void main() {
     expect(calls, isNot(contains('PUT api/platforms/web/document')));
   });
 
-  testWidgets('a snippet can come from a file under web/, and be moved and removed', (WidgetTester tester) async {
+  testWidgets('a snippet can come from a file under html/, and be moved and removed', (WidgetTester tester) async {
     await open(tester, _state());
     await tester.tap(_key('dv-studio-platforms-head-add-file'));
     await tester.pumpAndSettle();
-    await type(tester, 'dv-studio-platforms-head-1', 'web/chat.html');
+    await type(tester, 'dv-studio-platforms-head-1', 'html/chat.html');
     await tester.tap(_key('dv-studio-platforms-head-1-up'));
     await tester.pumpAndSettle();
     await tester.tap(_key('dv-studio-platforms-head-1-remove'));
@@ -131,7 +131,7 @@ void main() {
     expect(saved, <String, Object?>{
       'document': <String, Object?>{
         'head': <Object?>[
-          <String, Object?>{'file': 'web/chat.html'},
+          <String, Object?>{'file': 'html/chat.html'},
         ],
       },
     });
@@ -153,7 +153,7 @@ void main() {
     expect(_key('dv-studio-platforms-head-add-html'), findsNothing);
     expect(_key('dv-studio-platforms-save'), findsNothing);
     expect(find.textContaining('owner'), findsWidgets);
-    expect(find.textContaining('web/head.html'), findsWidgets);
+    expect(find.textContaining('html/head.html'), findsWidgets);
   });
 
   testWidgets('the Platforms screen is one of the server sections', (WidgetTester tester) async {

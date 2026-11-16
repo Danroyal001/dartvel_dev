@@ -2629,7 +2629,7 @@ ${(() {
         .writeAsStringSync(_studioDocumentsSource(root));
 
     dvGenerateAssets(root: root);
-    // Every HTML file under web/, as DVWebFile, for a Dart config class's
+    // Every HTML file under html/, as DVWebFile, for a Dart config class's
     // platforms.web.document.
     dvWriteWebFileRefs(root);
 

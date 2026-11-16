@@ -368,24 +368,24 @@ class _Apple {
   });
 
   group('platforms', () {
-    test('carries the web document settings, each snippet file\'s text and every HTML file under web/', () async {
+    test('carries the web document settings, each snippet file\'s text and every HTML file under html/', () async {
       final DartvelProjectGraph graph = await graphFor(<String, String>{
         'pubspec.yaml': 'name: graph_app\ndartvel:\n  platforms:\n    web:\n      document:\n'
-            '        head:\n          - file: web/head.html\n        bodyEnd:\n          - html: <script>x()</script>\n',
-        'web/head.html': '<meta name="a" content="1">',
-        'web/spare.html': '<p>spare</p>',
+            '        head:\n          - file: html/head.html\n        bodyEnd:\n          - html: <script>x()</script>\n',
+        'html/head.html': '<meta name="a" content="1">',
+        'html/spare.html': '<p>spare</p>',
         'web/index.html': '<html></html>',
       });
       final Map<String, Object?> platforms = graph.toJson()['platforms']! as Map<String, Object?>;
       expect(platforms['source'], 'pubspec');
       expect(jsonDecode(jsonEncode(platforms['web'])), <String, Object?>{
         'document': <String, Object?>{
-          'head': <Object?>[<String, Object?>{'file': 'web/head.html'}],
+          'head': <Object?>[<String, Object?>{'file': 'html/head.html'}],
           'bodyEnd': <Object?>[<String, Object?>{'html': '<script>x()</script>'}],
         },
       });
-      expect(platforms['files'], <String, Object?>{'web/head.html': '<meta name="a" content="1">'});
-      expect(platforms['webFiles'], <String>['web/head.html', 'web/spare.html']);
+      expect(platforms['files'], <String, Object?>{'html/head.html': '<meta name="a" content="1">'});
+      expect(platforms['webFiles'], <String>['html/head.html', 'html/spare.html']);
     });
 
     test('the older home, dartvel.web, is read too', () async {
