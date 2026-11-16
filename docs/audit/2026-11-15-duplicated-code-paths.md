@@ -13,7 +13,7 @@ reader, a crawler or a security boundary sees when they do.
 |---|---|---|---|
 | 1 | High | Rendering a data-backed page (model pages, page-data resolver) | Open |
 | 2 | High | Answering a page request: deployed server vs `dartvel dev --release` preview | Partly fixed (redirect query) |
-| 3 | High | `dartvel prerender`: second capture, sitemap and robots pipeline | Open |
+| 3 | High | `dartvel prerender`: second capture, sitemap and robots pipeline | Fixed |
 | 4 | High | Which pages an application has: project graph (Studio, admin) vs client generator | Fixed |
 | 5 | Medium | Route paths and annotation parsing: retired `dartvel_generator` vs CLI | Open |
 | 6 | Medium | "Is this request signed in?" assembled five times | Open |
