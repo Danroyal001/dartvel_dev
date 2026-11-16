@@ -877,8 +877,9 @@ class BuildCommand extends Command<void> {
     for (final platform in platforms) {
       if (await preflight(platform, autoInstall: autoInstall)) {
         // A packaged target built from the Android project needs the same
-        // release key.
-        final String? keyProblem = isRelease
+        // release key. A brownfield AAR does not: it is a library the host
+        // app links, and the host signs the app with its own key.
+        final String? keyProblem = isRelease && !brownfield
             ? _androidReleaseKeyProblem(
                 root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform)
             : null;
