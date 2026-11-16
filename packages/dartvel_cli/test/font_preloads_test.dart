@@ -13,6 +13,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/font_preloads.dart';
+import 'package:dartvel_core/dartvel.dart' show dvAfterBootPreloadsBody;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -39,26 +40,24 @@ void main() {
     expect(dvFontPreloadHrefs('{"family":"x"}'), isEmpty);
   });
 
-  test('the head asks for each font as a low-priority CORS fetch', () {
-    final String html =
-        dvApplyFontPreloads(page, dvFontPreloadHrefs(manifest));
-    final Iterable<String> links = RegExp(r'<link rel="preload"[^>]*>')
-        .allMatches(html)
-        .map((Match m) => m[0]!);
-    expect(links, hasLength(4));
-    for (final String link in links) {
-      expect(link, contains('as="fetch"'));
-      expect(link, contains('crossorigin="anonymous"'));
-      expect(link, contains('fetchpriority="low"'));
-    }
+  test('the head asks for the fonts once the app and renderer are in', () {
+    // As plain preloads they started with the page and shared a slow line
+    // with main.dart.wasm: 10 s later on Slow 3G. The same CORS fetches now
+    // start the moment the app and its renderer have downloaded.
+    final List<String> fonts = dvFontPreloadHrefs(manifest);
+    final String html = dvApplyFontPreloads(page, fonts);
+    expect(html, contains(dvAfterBootPreloadsBody(fonts)));
+    expect(html, isNot(contains('<link rel="preload"')),
+        reason: 'a link would start downloading with the page');
     expect(html.indexOf('InterVariable'), lessThan(html.indexOf('</head>')));
   });
 
   test('a second build replaces the first one\'s list instead of adding to it', () {
     final String once = dvApplyFontPreloads(page, dvFontPreloadHrefs(manifest));
     final String twice = dvApplyFontPreloads(once, <String>['assets/a.woff2']);
-    expect(RegExp('rel="preload"').allMatches(twice), hasLength(1));
+    expect(RegExp('dvAfterBoot\\(go\\)').allMatches(twice), hasLength(1));
     expect(twice, contains('assets/a.woff2'));
+    expect(twice, isNot(contains('InterVariable')));
   });
 
   test('no fonts leaves the page exactly as it was', () {

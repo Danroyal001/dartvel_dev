@@ -9,13 +9,16 @@
 ///
 /// Each font is preloaded the way the engine fetches it -- `fetch()`, which is
 /// a CORS request even to its own site, so `crossorigin` -- or the browser
-/// does not hand one to the other and the bytes download twice. At low
-/// priority: the app's code is what the page waits for first, and the fonts
-/// fill the network while it compiles.
+/// does not hand one to the other and the bytes download twice. Not with the
+/// page, but the moment main.dart.wasm (or .js) and the renderer have
+/// downloaded (dartvel_core's dvAfterBootPreloadsBody): as plain preloads
+/// they shared a slow line with the app and delayed it by 10 s on Slow 3G,
+/// while from then on the network is idle as the app compiles and starts.
 library;
 
-import 'dart:convert';
 import 'dart:io';
+
+import 'package:dartvel_core/dartvel.dart' show dvAfterBootPreloadsBody;
 
 import 'package:path/path.dart' as p;
 
@@ -53,14 +56,8 @@ String dvApplyFontPreloads(String html, List<String> hrefs) {
   if (hrefs.isEmpty) return cleared;
   final int at = cleared.indexOf('</head>');
   if (at < 0) return cleared;
-  const HtmlEscape attribute = HtmlEscape(HtmlEscapeMode.attribute);
-  final String block = <String>[
-    _open,
-    for (final String href in hrefs)
-      '<link rel="preload" href="${attribute.convert(href)}" as="fetch" '
-          'crossorigin="anonymous" fetchpriority="low">',
-    _close,
-  ].join();
+  final String block =
+      '$_open<script>(function(){${dvAfterBootPreloadsBody(hrefs)}})();</script>$_close';
   return '${cleared.substring(0, at)}$block${cleared.substring(at)}';
 }
 
