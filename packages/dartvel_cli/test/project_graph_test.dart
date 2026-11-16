@@ -26,10 +26,11 @@ Future<DartvelProjectGraph> graphFor(Map<String, String> files) async {
 void main() {
   test('the graph version is a contract, not a build stamp', () async {
     // It moves when the shape moves and at no other time. It went to 2 when
-    // the graph started carrying modules.
+    // the graph started carrying modules, and to 3 when it started carrying
+    // the platform settings Studio's Platforms screen shows.
     final DartvelProjectGraph graph = await graphFor(<String, String>{});
-    expect(graph.graphVersion, 2);
-    expect(graph.toJson()['graphVersion'], 2);
+    expect(graph.graphVersion, 3);
+    expect(graph.toJson()['graphVersion'], 3);
   });
 
   group('models', () {
@@ -364,5 +365,35 @@ class _Apple {
 
     expect(first.models.map((DVGraphModel m) => m.name), <String>['Apple', 'Zebra']);
     expect(jsonEncode(first.toJson()), jsonEncode(second.toJson()));
+  });
+
+  group('platforms', () {
+    test('carries the web document settings, each snippet file\'s text and every HTML file under web/', () async {
+      final DartvelProjectGraph graph = await graphFor(<String, String>{
+        'pubspec.yaml': 'name: graph_app\ndartvel:\n  platforms:\n    web:\n      document:\n'
+            '        head:\n          - file: web/head.html\n        bodyEnd:\n          - html: <script>x()</script>\n',
+        'web/head.html': '<meta name="a" content="1">',
+        'web/spare.html': '<p>spare</p>',
+        'web/index.html': '<html></html>',
+      });
+      final Map<String, Object?> platforms = graph.toJson()['platforms']! as Map<String, Object?>;
+      expect(platforms['source'], 'pubspec');
+      expect(jsonDecode(jsonEncode(platforms['web'])), <String, Object?>{
+        'document': <String, Object?>{
+          'head': <Object?>[<String, Object?>{'file': 'web/head.html'}],
+          'bodyEnd': <Object?>[<String, Object?>{'html': '<script>x()</script>'}],
+        },
+      });
+      expect(platforms['files'], <String, Object?>{'web/head.html': '<meta name="a" content="1">'});
+      expect(platforms['webFiles'], <String>['web/head.html', 'web/spare.html']);
+    });
+
+    test('the older home, dartvel.web, is read too', () async {
+      final DartvelProjectGraph graph = await graphFor(<String, String>{
+        'pubspec.yaml': 'name: graph_app\ndartvel:\n  web:\n    document:\n      head:\n        - html: <meta name="b" content="2">\n',
+      });
+      final Map<String, Object?> platforms = graph.toJson()['platforms']! as Map<String, Object?>;
+      expect('${platforms['web']}', contains('name="b"'));
+    });
   });
 }
