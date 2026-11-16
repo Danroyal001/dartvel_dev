@@ -282,7 +282,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
     // loud, because silently shipping the weaker content is how nobody
     // notices the pages got worse.
     Logger.log('   No browser for the semantics capture ($error).');
-    Logger.log('   Falling back to page text; run `dartvel prerender` on a '
+    Logger.log('   Falling back to page text; run `dartvel build web` on a '
         'machine with Chrome for headings, links and landmarks.');
     // Said out loud and then honoured. This used to promise a fallback and
     // then fail the build anyway, which made the message a lie on every

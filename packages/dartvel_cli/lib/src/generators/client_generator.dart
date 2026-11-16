@@ -51,7 +51,8 @@ import '../build/scene3d_native.dart' show dvScene3dEnabledIn;
 import '../build/admin_mount.dart' show dvStudioDefine, dvStudioRouteMount;
 import '../build/docs_mount.dart' show DVDocsMount, dvDocsMount;
 import '../build/app_entry.dart' show dvAppEntryPath, dvAppEntrySource;
-import '../build/native_splash.dart' show DVSplash, dvSplashLogicalWidth;
+import '../build/native_splash.dart'
+    show DVSplash, dvSplashLogicalWidth, dvWebSplashDarkImage, dvWebSplashImage;
 import '../build/pwa_icons.dart'
     show DVPngError, DVRgbaImage, dvPngDecode, dvPngEncode, dvResizeRgba;
 import '../build/page_text.dart';
@@ -5407,8 +5408,8 @@ String _studioSplashArg(Map<Object?, Object?> dv, String root) {
     'color: ${colour(splash.color)}',
     'darkColor: ${colour(splash.darkColor)}',
     // The names dvWriteWebSplash gives the pictures beside index.html.
-    if (splash.image != null) "image: 'dartvel-splash.png'",
-    if (splash.darkImage != null) "darkImage: 'dartvel-splash-dark.png'",
+    if (splash.image != null) "image: '$dvWebSplashImage'",
+    if (splash.darkImage != null) "darkImage: '$dvWebSplashDarkImage'",
     'imageWidth: ${_number(splash.imageWidth ?? 96)}',
     if (splash.progress) 'progressColor: ${colour(splash.progressColor)}',
     if (splash.loadingText case final String text) 'loadingText: ${quoted(text)}',
