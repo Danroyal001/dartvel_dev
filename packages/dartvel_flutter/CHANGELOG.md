@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVModifier.pageSlot(name)`: marks text that changes by request (a date, today's menu) so the web-server binary writes each request's own text into the page instead of the build's. The name travels as the semantics identifier `dartvel:slot:<name>`.
+
 ## 3.47.4 — 2026-11-16
 
 - `dvSetLaunchArguments` and `dvLaunchArguments`: the process arguments the generated entry keeps for `DV.run()`.

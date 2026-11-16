@@ -1,3 +1,7 @@
+## Unreleased
+
+- A route whose page data answers `DVPageData.slots` is served as its captured page with the request's text in its slots (core's `dvRenderPage`).
+
 ## 3.47.4 — 2026-11-16
 
 - A data-backed page rendered on request keeps its route's hreflang links, robots meta and schema type (core's one render path).
