@@ -9,7 +9,7 @@ import '../../dartvel_client/dartvel_client.dart';
 @DVPage(
   title: 'Dartvel billing: subscriptions, purchases, tax and usage',
   description:
-      'Sell subscriptions through Stripe, Paddle or Bachs, check store '
+      'Sell subscriptions through Stripe, Paddle or Bachs and one-time orders through Bachs, Paystack or Flutterwave, check store '
       'purchases on your server, charge with tax and promotions, and '
       'cap usage per customer.',
   showAppBar: false,
@@ -56,6 +56,38 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
             'No provider has been exercised against the live service.',
             'Stripe, Paddle and Bachs keep webhook grants in memory, so a refund '
                 'revokes a grant only with the local provider.',
+          ],
+        ),
+      ],
+    ),
+    DocsSection(
+      id: 'one-time',
+      title: 'Sell one-time orders through Bachs, Paystack or Flutterwave',
+      children: <Widget>[
+        Bullets(<String>[
+          'A shop prices each order itself: build a DVBillingOrder (a '
+              'reference, the lines in minor units, the buyer\'s email and '
+              'where to come back to) and checkoutOrder returns the '
+              'provider\'s hosted page.',
+          'The order\'s reference is the provider\'s transaction reference '
+              'and its idempotency key, so one order is one payment and a '
+              'retried request opens the same checkout.',
+          'A webhook names the order (DVBillingWebhookResult.reference); '
+              'whether it is paid is asked of the provider\'s API with '
+              'orderStatus, and paidInFull is true only for the exact total '
+              'and currency. The return address proves nothing.',
+          'Bachs takes the total as a decimal string and signs webhooks '
+              'with X-Bachs-Signature-V2; Paystack counts kobo and signs with '
+              'HMAC-SHA512 of the body; Flutterwave counts naira and sends '
+              'the secret hash in verif-hash. Choose one with provider: '
+              'bachs, paystack or flutterwave.',
+        ]),
+        DocsStatus(
+          'One-time orders',
+          missing: <String>[
+            'Paystack and Flutterwave are tested against fakes only.',
+            'Fulfilment is the application\'s: Dartvel says which order '
+                'and whether it is paid, the application marks it paid.',
           ],
         ),
       ],
