@@ -796,7 +796,7 @@ Future<Map<String, bool>> ping() async => <String, bool>{'ok': true};
       // And the message must carry the policy at runtime, not the generator's
       // empty local: an unescaped interpolation here is how the whole file
       // stopped compiling once already.
-      expect(routes, contains(r"'Not authorized (\$policy)'"));
+      expect(routes, contains(r"'Not authorized ($policy)'"));
 
       // A function that declares no policy is not gated. Without this the
       // test would pass just as well if every route were guarded by the
