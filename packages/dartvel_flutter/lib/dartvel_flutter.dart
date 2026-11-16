@@ -2055,6 +2055,22 @@ class DVModifier {
   DVModifier semanticRole(String role) =>
       _copyWith(semanticRoleValue: 'dartvel:$role');
 
+  /// Mark this text as changing by request: a date, today's menu, an
+  /// opening-hours line.
+  ///
+  /// The web-server binary serves each page as the build captured it, so
+  /// without a mark such text is the build's for as long as that build is
+  /// live. The build keeps [name] in the page, and the route's page data
+  /// (`DVPageData.slots({name: ...})` in `lib/backend/page_data/index.dart`)
+  /// writes each request's own text there. [name] is letters, digits, `.`,
+  /// `_` and `-`.
+  DVModifier pageSlot(String name) {
+    if (!RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(name)) {
+      throw ArgumentError.value(name, 'name', 'a page slot is named with letters, digits, ".", "_" and "-"');
+    }
+    return semanticRole('slot:$name');
+  }
+
   /// Mark this as a heading at [level].
   ///
   /// A page's structure is carried by its headings: a screen reader user moves
