@@ -22,7 +22,7 @@ reader, a crawler or a security boundary sees when they do.
 | 9 | Low-medium | Studio's splash redrawn in Flutter next to the web splash | Partly fixed (shared file names) |
 | 10 | Low-medium | Two default security-header sets that disagree | Open |
 | 11 | Low | Rust runtime: SPA fallback and route matcher beside the Dart ones | Open (latent) |
-| 12 | Low | Semantics-capture file name computed twice in the build | Open |
+| 12 | Low | Semantics-capture file name computed twice in the build | Fixed |
 | 13 | Low | `encodeNativeRequest` duplicated for web | Accept |
 
 ## 1. Rendering a data-backed page (High)
