@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/route_prefetch.dart';
+import 'package:dartvel_core/dartvel.dart' show dvWasmModulePreloads;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -515,6 +516,117 @@ void main() {
 
     test('and on nothing DVImageView did not draw', () {
       expect(attached[3].isVariant, isFalse);
+    });
+  });
+
+  group('the wasm app', () {
+    // What dart2wasm --deferred-map writes, as on payseal: imports keyed by
+    // load id, with the prefix of each in importPrefixToLoadId.
+    final Map<String, Object?> deferredMap = <String, Object?>{
+      'package:site/dartvel_client/router.g.dart': <String, Object?>{
+        'name': '<unnamed>',
+        'imports': <String, Object?>{
+          '1': <String>['main.dart_module1.wasm'],
+          '2': <String>['main.dart_module1.wasm', 'main.dart_module2.wasm', 'main.dart_module9.wasm'],
+          '4': <String>['main.dart_module1.wasm', 'main.dart_module4.wasm'],
+        },
+        'importPrefixToLoadId': <String, Object?>{'p0': '1', 'p1': '2', 'p3': '4'},
+      },
+      // Another library's prefixes are not the router's pages.
+      'package:site/elsewhere.dart': <String, Object?>{
+        'imports': <String, Object?>{'p1': <String>['main.dart_module7.wasm']},
+      },
+    };
+
+    test('each page import\'s modules, by the prefix the router uses', () {
+      expect(dvWasmDeferredModules(deferredMap), <String, List<String>>{
+        'p0': <String>['main.dart_module1.wasm'],
+        'p1': <String>['main.dart_module1.wasm', 'main.dart_module2.wasm', 'main.dart_module9.wasm'],
+        'p3': <String>['main.dart_module1.wasm', 'main.dart_module4.wasm'],
+      });
+    });
+
+    test('a map keyed by prefix reads the same', () {
+      expect(
+        dvWasmDeferredModules(<String, Object?>{
+          'package:site/dartvel_client/router.g.dart': <String, Object?>{
+            'imports': <String, Object?>{'p3': <String>['main.dart_module4.wasm']},
+          },
+        }),
+        <String, List<String>>{'p3': <String>['main.dart_module4.wasm']},
+      );
+    });
+
+    test('no map or a strange one names nothing', () {
+      expect(dvWasmDeferredModules(null), isEmpty);
+      expect(dvWasmDeferredModules(<String, Object?>{'x': 3}), isEmpty);
+    });
+
+    group('in a build', () {
+      late Directory project;
+      late Directory web;
+
+      setUp(() {
+        project = Directory.systemTemp.createTempSync('dv_prefetch_wasm_');
+        web = Directory(p.join(project.path, 'build', 'web'))
+          ..createSync(recursive: true);
+        File(p.join(web.path, 'flutter_bootstrap.js')).writeAsStringSync(
+            '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+            '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+            '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n');
+        File(p.join(web.path, 'index.html')).writeAsStringSync(shell);
+        File(p.join(web.path, 'docs', 'index.html'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync(shell);
+        // module9 is not in the web root: Studio's, kept with its parts.
+        for (final int n in <int>[1, 2, 4]) {
+          File(p.join(web.path, 'main.dart_module$n.wasm')).writeAsStringSync('');
+        }
+      });
+
+      tearDown(() => project.deleteSync(recursive: true));
+
+      Map<String, Object?> routesWritten() => (jsonDecode(
+            File(p.join(web.path, dvPrefetchManifestFile)).readAsStringSync(),
+          ) as Map<String, Object?>)['routes']! as Map<String, Object?>;
+
+      test('each page names its own modules, behind the wasm decision', () {
+        dvWriteRoutePrefetch(
+          projectRoot: project.path,
+          webRoot: web.path,
+          routerSource: router,
+          routes: <String>['/', '/docs'],
+          wasmDeferredMap: deferredMap,
+        );
+        final String docs =
+            File(p.join(web.path, 'docs', 'index.html')).readAsStringSync();
+        expect(docs, contains(dvWasmModulePreloads(
+            <String>['main.dart_module1.wasm', 'main.dart_module2.wasm'])));
+        expect(docs, isNot(contains('main.dart_module9.wasm')),
+            reason: 'a module that is not public is never named');
+        expect(File(p.join(web.path, 'index.html')).readAsStringSync(),
+            contains(dvWasmModulePreloads(
+                <String>['main.dart_module1.wasm', 'main.dart_module4.wasm'])));
+        expect((routesWritten()['/docs']! as Map<String, Object?>)['wasm'],
+            <String>['main.dart_module1.wasm', 'main.dart_module2.wasm']);
+      });
+
+      test('a build without the wasm app names no modules', () {
+        File(p.join(web.path, 'flutter_bootstrap.js')).writeAsStringSync(
+            '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+            '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n');
+        dvWriteRoutePrefetch(
+          projectRoot: project.path,
+          webRoot: web.path,
+          routerSource: router,
+          routes: <String>['/', '/docs'],
+          wasmDeferredMap: deferredMap,
+        );
+        expect(File(p.join(web.path, 'docs', 'index.html')).readAsStringSync(),
+            isNot(contains('main.dart_module')));
+        expect(routesWritten()['/docs']! as Map<String, Object?>,
+            isNot(contains('wasm')));
+      });
     });
   });
 }

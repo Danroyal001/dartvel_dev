@@ -2959,6 +2959,10 @@ class BuildCommand extends Command<void> {
 
   DVProjectFileAssociations? _declaredFileAssociations;
 
+  /// The wasm app's deferred map, read once when Studio's code is separated
+  /// (the file itself is not published), for each page to name its modules.
+  Map<String, Object?>? _wasmDeferredMap;
+
   void _writeAndroidFileAssociations(String root) {
     final File manifest = File(
       p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
@@ -4952,6 +4956,7 @@ class BuildCommand extends Command<void> {
       webRoot: web.path,
       routerSource: _routerSource(root),
       routes: routes,
+      wasmDeferredMap: _wasmDeferredMap,
     );
     Logger.log('   Preloads: ${prefetch.pages} page(s) name their own code '
         'and ${prefetch.images} image(s).');
@@ -5043,6 +5048,7 @@ class BuildCommand extends Command<void> {
       try {
         final Object? decoded = jsonDecode(mapFile.readAsStringSync());
         if (decoded is Map<String, Object?>) wasmMap = decoded;
+        _wasmDeferredMap = wasmMap;
       } on FormatException {
         wasmMap = null;
       }
