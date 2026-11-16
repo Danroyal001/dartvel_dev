@@ -1,6 +1,11 @@
-## Unreleased
+## 3.47.4 — 2026-11-16
 
 - The generator writes `lib/dartvel_client/main.g.dart` (keeps the process arguments, calls lib/main.dart's main); `dartvel build` and `dartvel dev` compile it unless `--target` says otherwise. The generated `DV.run` takes optional arguments and falls back to the kept ones. The scaffold's main is `void main() => DV.run();`.
+- `dartvel prerender` runs `dartvel build web`'s own capture and writes nothing itself. Its old flags are accepted and ignored with a note.
+- `--brownfield` copies top-level files into the staged module and links only folders, so the project is never written through a link.
+- The web splash and Studio's splash share one name per splash picture.
+- The deployed server and the preview send a signed-out visitor of a guarded page to sign-in by core's `dvHostedSignInLocation`.
+- `dartvel build --cloud` treats a project in a folder its parent repository ignores as its own project and sends its files.
 
 ## 3.47.3 — 2026-11-16
 

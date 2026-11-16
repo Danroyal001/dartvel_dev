@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.4 — 2026-11-16
 
 - `dvSetLaunchArguments` and `dvLaunchArguments`: the process arguments the generated entry keeps for `DV.run()`.
 - Ctrl+C (Cmd+C) with nothing selected on a page leaves the clipboard alone. It wrote an empty string over whatever the reader had copied (seen on dartvel.dev). With text selected it copies as before.
