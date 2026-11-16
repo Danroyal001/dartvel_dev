@@ -17,7 +17,7 @@ List<File> sitePages() => <File>[
           in Directory('lib/pages').listSync(recursive: true))
         if (file is File &&
             file.path.endsWith('.dart') &&
-            !file.path.contains('${Platform.pathSeparator}docs${Platform.pathSeparator}') &&
+            !file.path.replaceAll(r'\', '/').contains('/docs/') &&
             !file.path.endsWith('_layout.dart') &&
             !file.path.endsWith('.loading.dart') &&
             !file.path.endsWith('.error.dart'))
