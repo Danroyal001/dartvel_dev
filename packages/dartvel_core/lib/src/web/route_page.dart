@@ -56,7 +56,7 @@ String dvStaticPage({
   // generated block it replaces. `</` is escaped the way JSON allows, so a
   // value of `</script>` cannot end the script.
   final String jsonLd = structuredData != null
-      ? '<script type="application/ld+json">${jsonEncode(structuredData).replaceAll('</', r'<\/')}</script>'
+      ? dvJsonLdScript(structuredData, indent: false)
       : dvStructuredData(
     route: route,
     title: title,
@@ -269,6 +269,7 @@ String dvRenderRoutePage(
   String shell,
   DVRoutePage page, {
   void Function(String route)? onUncaptured,
+  bool minify = true,
 }) {
   final String head = dvStaticPage(
     shell: shell,
@@ -294,5 +295,7 @@ String dvRenderRoutePage(
     if (page.text.isNotEmpty) onUncaptured?.call(page.route);
     body = dvApplyPageText(head, page.text, path: page.route);
   }
-  return dvMinifyHtml(body);
+  // Unminified only for the streaming server, which cuts the head by the
+  // shell's own line breaks and minifies nothing it streams.
+  return minify ? dvMinifyHtml(body) : body;
 }

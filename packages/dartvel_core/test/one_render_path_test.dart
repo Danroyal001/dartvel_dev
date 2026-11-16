@@ -20,7 +20,10 @@ const DVRoutePage manifestPage = DVRoutePage(
   title: 'Product',
   siteUrl: 'https://shop.example',
   siteName: 'Shop',
-  alternates: <String, String>{'fr': 'https://shop.example/fr/products/7'},
+  alternates: <String, String>{
+    'en': 'https://shop.example/products/7',
+    'fr': 'https://shop.example/fr/products/7',
+  },
   defaultAlternate: 'https://shop.example/products/7',
   robots: 'max-image-preview:large',
   schemaType: 'Product',

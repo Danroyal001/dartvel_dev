@@ -124,12 +124,17 @@ String _label(String segment) => segment
 
 /// One `<script type="application/ld+json">`.
 ///
-/// `</script>` inside the JSON would end the element early and the rest of the
-/// block would become markup in the page, so the slash is escaped. JSON reads
-/// `<\/script>` as `</script>`, and HTML never sees the closing tag.
-String _script(Map<String, Object?> data) {
-  final String json = const JsonEncoder.withIndent('  ')
+/// Every `<` in the JSON is written `\u003c`, which JSON reads as `<`: a
+/// `</script>` would end the element early, and `<!--` or `<script` can put
+/// the browser's parser in an escaped state. Page data comes from records
+/// people write, so nothing from it reaches the markup as a tag.
+String dvJsonLdScript(Map<String, Object?> data, {bool indent = true}) {
+  final String json = (indent ? const JsonEncoder.withIndent('  ') : const JsonEncoder())
       .convert(data)
-      .replaceAll('</', r'<\/');
-  return '<script type="application/ld+json">\n$json\n</script>';
+      .replaceAll('<', r'\u003c');
+  return indent
+      ? '<script type="application/ld+json">\n$json\n</script>'
+      : '<script type="application/ld+json">$json</script>';
 }
+
+String _script(Map<String, Object?> data) => dvJsonLdScript(data);

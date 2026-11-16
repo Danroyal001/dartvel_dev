@@ -13,7 +13,6 @@ import 'dart:convert';
 import '../cache/adapters.dart';
 import '../tenancy/tenants.dart';
 import 'asset_http_policy.dart';
-import 'minify.dart';
 import 'model_page_access.dart';
 import 'page_text.dart';
 import 'route_page.dart' show DVRoutePage, dvRenderRoutePage;
@@ -502,8 +501,10 @@ String dvRenderPage({
   String? description,
   String? image,
   DVRoutePage? route,
+  bool minify = true,
 }) =>
     dvRenderRoutePage(
+      minify: minify,
       shell,
       DVRoutePage(
         route: path,
@@ -738,10 +739,8 @@ Stream<String>? dvShellFirstChunks({
   String preloads = '',
   DVRoutePage? routePage,
 }) {
-  // Every render here is minified, as dvRenderRoutePage's output is, so the
-  // early head and the finished one are cut by the same rule.
   final DVHeadParts? early = dvHeadParts(
-    dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName)),
+    dvRenderRoute(shell: shell, path: path, title: '', siteUrl: siteUrl, siteName: siteName),
   );
   if (early == null) return null;
 
@@ -761,10 +760,12 @@ Stream<String>? dvShellFirstChunks({
     final String page = refused
         // None of the data, as the refusal would have shown: it describes a
         // page the reader is not being shown.
-        ? dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: refusedTitle ?? title, siteUrl: siteUrl, siteName: siteName))
+        ? dvRenderRoute(shell: shell, path: path, title: refusedTitle ?? title, siteUrl: siteUrl, siteName: siteName)
         : data == null
-            ? dvMinifyHtml(dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: description, image: image))
-            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: description, image: image, route: routePage);
+            ? dvRenderRoute(shell: shell, path: path, title: title, text: text, siteUrl: siteUrl, siteName: siteName, description: description, image: image)
+            // Unminified: the early head was cut from an unminified render,
+            // and the two are compared line by line.
+            : dvRenderPage(shell: shell, path: path, data: data, siteUrl: siteUrl, siteName: siteName, description: description, image: image, route: routePage, minify: false);
     final DVHeadParts late = dvHeadParts(page) ?? early;
     // 200 is already on the wire, so a record that cannot be shown -- or data
     // that could not be fetched -- is kept out of an index this way instead.
