@@ -1,3 +1,7 @@
+## Unreleased
+
+- The build keeps a `pageSlot` mark in a page's document as `<span data-dv-slot="name">` inside its paragraph or heading, so the server can fill it on request.
+
 ## 3.47.4 — 2026-11-16
 
 - The generator writes `lib/dartvel_client/main.g.dart` (keeps the process arguments, calls lib/main.dart's main); `dartvel build` and `dartvel dev` compile it unless `--target` says otherwise. The generated `DV.run` takes optional arguments and falls back to the kept ones. The scaffold's main is `void main() => DV.run();`.
