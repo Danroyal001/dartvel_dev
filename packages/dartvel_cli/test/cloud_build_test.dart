@@ -118,6 +118,33 @@ void main() {
     expect(sent.where((String k) => k.contains('/build/')), isEmpty);
   });
 
+  test('an application in a folder its parent repository ignores sends the application', () async {
+    // A home directory kept in git with everything ignored but a few files:
+    // the application sits inside that work tree without being part of it.
+    final Directory home = Directory.systemTemp.createTempSync('dartvel_cloud_home_');
+    addTearDown(() => home.deleteSync(recursive: true));
+    Future<void> git(List<String> args) async {
+      final ProcessResult r = await Process.run('git', args, workingDirectory: home.path);
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+    }
+
+    File(p.join(home.path, '.gitignore')).writeAsStringSync('/*\n!/.gitignore\n!/.bashrc\n');
+    File(p.join(home.path, '.bashrc')).writeAsStringSync('# shell\n');
+    await git(<String>['init', '-q']);
+    final Directory app = Directory(p.join(home.path, 'shop'))..createSync();
+    File(p.join(app.path, 'pubspec.yaml')).writeAsStringSync('name: shop\n');
+    File(p.join(app.path, 'lib', 'main.dart'))
+      ..createSync(recursive: true)
+      ..writeAsStringSync('void main() {}\n');
+
+    expect(await builder().run(DVCloudBuildRequest(root: app.path, target: 'web')), 0,
+        reason: logs.join('\n'));
+
+    final Iterable<String> sent = cloud.sourceEntries!.keys;
+    expect(sent, containsAll(<String>['pubspec.yaml', 'lib/main.dart']));
+    expect(sent, isNot(contains('.bashrc')));
+  });
+
   test('a store package and the signing choice are sent with the spec', () async {
     await builder().run(DVCloudBuildRequest(
         root: root.path, target: 'ios', format: 'ipa', codesign: false));

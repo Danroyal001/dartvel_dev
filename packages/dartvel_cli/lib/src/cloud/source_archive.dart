@@ -4,7 +4,8 @@
 /// In a git repository the file list is git's own -- tracked files plus
 /// untracked ones that are not ignored -- so what is sent is what a clean
 /// checkout with local edits would hold, and a `.gitignore` is honoured
-/// without a second reading of it here. Outside one, the directory is walked.
+/// without a second reading of it here. Outside one, or in a folder the
+/// enclosing repository ignores, the directory is walked.
 /// Either way [dvCloudSourceExcluded] has the last word, because a tracked
 /// `.env` is still an `.env`.
 library;
@@ -105,12 +106,38 @@ Future<DVSourceArchive> dvPackSource(String root, {String app = '.'}) async {
   return DVSourceArchive(zip, paths.length);
 }
 
+/// The top of the git repository [dir] belongs to, or null when it belongs
+/// to none.
+///
+/// A folder inside a work tree that the repository ignores is not part of
+/// it: a home directory kept in git with everything ignored but a few files
+/// holds projects that are their own. Taking that repository's top for
+/// theirs sent its files and none of the project's.
+Future<String?> dvGitRepositoryOf(String dir) async {
+  try {
+    final ProcessResult r = await Process.run(
+        'git', <String>['rev-parse', '--show-toplevel'],
+        workingDirectory: dir);
+    final String found = '${r.stdout}'.trim();
+    if (r.exitCode != 0 || found.isEmpty) return null;
+    final String top = p.normalize(Directory(found).resolveSymbolicLinksSync());
+    final String here = p.normalize(Directory(dir).resolveSymbolicLinksSync());
+    if (here == top) return top;
+    // check-ignore exits 0 when the path is ignored.
+    final ProcessResult ignored = await Process.run(
+        'git', <String>['check-ignore', '-q', '${p.relative(here, from: top)}/'],
+        workingDirectory: top);
+    return ignored.exitCode == 0 ? null : top;
+  } on ProcessException {
+    return null;
+  } on FileSystemException {
+    return null;
+  }
+}
+
 Future<List<String>?> _gitFiles(String root) async {
   try {
-    final ProcessResult inside = await Process.run(
-        'git', <String>['rev-parse', '--is-inside-work-tree'],
-        workingDirectory: root);
-    if (inside.exitCode != 0) return null;
+    if (await dvGitRepositoryOf(root) == null) return null;
     final ProcessResult r = await Process.run(
       'git',
       <String>['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'],
