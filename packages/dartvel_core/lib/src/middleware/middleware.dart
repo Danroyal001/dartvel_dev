@@ -232,14 +232,17 @@ class CommonMiddleware {
       // opt-in adds: no framing at all, and the XSS filter off. Its own list
       // had drifted to an HSTS includeSubDomains the default refuses on
       // purpose: a framework cannot know what else runs under the domain.
+      // Written in the headers' usual casing, as they were, since a
+      // handler may look one up by its exact name.
       context.data['securityHeaders'] = <String, String>{
-        ...dvDefaultSecurityHeaders,
-        'x-frame-options': 'DENY',
+        for (final MapEntry<String, String> header in dvDefaultSecurityHeaders.entries)
+          _headerCase(header.key): header.value,
+        'X-Frame-Options': 'DENY',
         // Off, not on: the filter this switched on is gone from current
         // browsers, and where it survives its blocking mode can be used to
         // tell what a page contains from another origin.
-        'x-xss-protection': '0',
-        'strict-transport-security': dvDefaultStrictTransportSecurity,
+        'X-XSS-Protection': '0',
+        'Strict-Transport-Security': dvDefaultStrictTransportSecurity,
       };
     };
   }
@@ -695,3 +698,14 @@ final Expando<Map<String, List<DateTime>>> _rateLimitCallers =
 /// gone quiet instead of growing with every address that ever called.
 int dvRateLimitTrackedCallers(Middleware limiter) =>
     _rateLimitCallers[limiter]?.length ?? 0;
+
+/// `x-frame-options` as `X-Frame-Options`, and `x-xss-protection` as
+/// `X-XSS-Protection`.
+String _headerCase(String name) => name
+    .split('-')
+    .map((String part) => part == 'xss'
+        ? 'XSS'
+        : part.isEmpty
+            ? part
+            : part[0].toUpperCase() + part.substring(1))
+    .join('-');
