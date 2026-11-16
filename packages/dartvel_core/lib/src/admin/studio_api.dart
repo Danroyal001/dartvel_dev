@@ -25,12 +25,10 @@ import 'dart:math' as math;
 import '../../dartvel.dart'
     show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
 import '../annotations/model_access.dart';
-import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
 import '../auth/auth_endpoints.dart' show DVAuthEndpoints;
 import '../auth/session_authentication.dart';
-import '../auth/sessions.dart' show DVSessionCookie;
 import '../crypto/field_cipher.dart' show DVFieldEncryption;
 import '../data/change_capture.dart' show DVCapture;
 import '../data/record_history.dart';

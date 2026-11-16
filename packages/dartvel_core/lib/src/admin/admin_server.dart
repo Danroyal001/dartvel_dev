@@ -18,11 +18,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../dartvel.dart' show DVAuthAuthorization, DVAuthEndpoints;
-import '../auth/session_scope.dart' show DVSessionScope;
 import '../auth/auth.dart' show DVAccountDirectory;
 import '../auth/first_run_owner.dart';
 import '../auth/session_authentication.dart';
-import '../auth/sessions.dart' show DVSessionCookie;
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;

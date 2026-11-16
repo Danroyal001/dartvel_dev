@@ -45,8 +45,6 @@ import 'package:dartvel_core/dartvel.dart' as core
         dvRedirectLocation,
         DVSessionAuthentication,
         DVSessionAuthenticationResult,
-        DVSessionCookie,
-        dvSignInLocation,
         dvHostedSignInLocation,
         DVConfiguredRedirect,
         dvConfiguredRedirect,
