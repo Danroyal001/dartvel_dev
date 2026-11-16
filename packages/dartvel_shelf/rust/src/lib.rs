@@ -371,7 +371,14 @@ static PENDING_STREAM_RECEIVERS: OnceCell<Mutex<HashMap<u64, StreamChunkReceiver
 static SERVER_THREADS: OnceCell<Mutex<HashMap<u64, std::thread::JoinHandle<()>>>> =
     OnceCell::new();
 static NEXT_ID: OnceCell<AtomicU64> = OnceCell::new();
-static TLS_CONFIG: OnceCell<Arc<ServerConfig>> = OnceCell::new();
+/// The TLS configuration each thread set and has not yet started a server
+/// with. Keyed by thread like the request timeouts, and taken by aw_start:
+/// it belongs to the next server that thread starts, so a plain server
+/// started later in the same process does not speak TLS. It was one slot for
+/// the life of the process, and every server after the first TLS one
+/// answered plain HTTP clients with a TLS handshake.
+static PENDING_TLS: OnceCell<Mutex<HashMap<std::thread::ThreadId, Arc<ServerConfig>>>> =
+    OnceCell::new();
 static SERVER_HANDLES: OnceCell<Mutex<HashMap<u64, axum_server::Handle>>> = OnceCell::new();
 static NEXT_SERVER_ID: OnceCell<AtomicU64> = OnceCell::new();
 /// The port each server is actually listening on.
@@ -892,7 +899,8 @@ pub extern "C" fn aw_tls_rustls_from_pem(cert_pem: FfiBuf, key_pem: FfiBuf) -> i
         Err(code) => return code,
     };
 
-    let _ = TLS_CONFIG.set(Arc::new(cfg));
+    safe_lock(PENDING_TLS.get_or_init(Default::default))
+        .insert(std::thread::current().id(), Arc::new(cfg));
     0
 }
 
@@ -1501,6 +1509,10 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     let body_limits = take_pending_body_limits();
     let static_paths = safe_lock(PENDING_STATIC.get_or_init(Default::default))
         .remove(&std::thread::current().id()).unwrap_or_default();
+    // This thread's TLS configuration, or none: plain HTTP.
+    let tls_config = PENDING_TLS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&std::thread::current().id()));
 
     let handle = axum_server::Handle::new();
     if let Some(handles) = SERVER_HANDLES.get() {
@@ -1628,8 +1640,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             // thread nobody is watching.
             // With connect info, so each request carries the socket address it
             // was accepted from and dart_proxy can hand it to Dart.
-            let result = if let Some(tls_config) = TLS_CONFIG.get() {
-                let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config.clone());
+            let result = if let Some(tls_config) = tls_config {
+                let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config);
                 let mut server = axum_server::from_tcp_rustls(listener, rustls_config);
                 bound_header_read(server.http_builder(), request_timeout);
                 server

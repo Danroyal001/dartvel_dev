@@ -3,9 +3,9 @@
 //
 // The key is a SEC1 EC key ("BEGIN EC PRIVATE KEY"), the shape openssl and
 // many ACME clients write, because the PKCS#8 path is the common one and the
-// fallback is the one a parser change would break unnoticed. The native
-// library keeps the first TLS configuration for the life of the process, so
-// one server is started over TLS here and the refusals are checked before it.
+// fallback is the one a parser change would break unnoticed. A TLS
+// configuration belongs to the server started with it: a plain server
+// started afterwards in the same process speaks plain HTTP.
 @TestOn('linux || mac-os')
 library;
 
@@ -70,5 +70,21 @@ void main() {
         'hello');
     expect(response.headers.value('strict-transport-security'),
         dvDefaultStrictTransportSecurity);
+  });
+
+  test('a plain server started after a TLS one speaks plain HTTP', () async {
+    final ServerHandle secure = await serve(hello,
+        port: 0, tls: TlsConfig(certPem: certPem, keyPem: keyPem));
+    addTearDown(secure.stop);
+    final ServerHandle plain = await serve(hello, port: 0);
+    addTearDown(plain.stop);
+    final HttpClient client = HttpClient();
+    addTearDown(() => client.close(force: true));
+    final HttpClientResponse response = await (await client
+            .getUrl(Uri.parse('http://127.0.0.1:${plain.port}/')))
+        .close();
+    expect(await response.transform(const SystemEncoding().decoder).join(),
+        'hello');
+    expect(response.headers.value('strict-transport-security'), isNull);
   });
 }
