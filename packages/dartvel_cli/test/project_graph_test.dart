@@ -247,9 +247,17 @@ Widget _cardPreview(BuildContext context) => const DVText('card');
 ''',
       });
 
-      expect(graph.routes.map((DVGraphRoute r) => r.path), <String>['/', '/pricing']);
-      expect(graph.routes.map((DVGraphRoute r) => r.page), <String>['homePage', 'PricingPage']);
-      expect(graph.routes.last.source, 'lib/screens/(marketing)/pricing.dart:4');
+      // The application's own pages: the ones under dartvel.pagesDir. The
+      // account pages Dartvel generates are in the router too and listed
+      // separately by the graph, so they are left out here.
+      final List<DVGraphRoute> pages = <DVGraphRoute>[
+        for (final DVGraphRoute r in graph.routes)
+          if (r.source.startsWith('lib/')) r,
+      ];
+      expect(pages.map((DVGraphRoute r) => r.path), <String>['/', '/pricing']);
+      expect(pages.map((DVGraphRoute r) => r.page), <String>['homePage', 'PricingPage']);
+      expect(pages.last.source, 'lib/screens/(marketing)/pricing.dart:4');
+      expect(graph.routes.map((DVGraphRoute r) => r.path), isNot(contains('/card-preview')));
     });
   });
 
