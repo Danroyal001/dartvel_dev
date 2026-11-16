@@ -319,6 +319,20 @@ String? dvVariantSource(String url) {
   return null;
 }
 
+/// [images] sorted by address, so two builds of the same page name its
+/// images in the same order.
+///
+/// The capture records an image when its response arrives, and which of two
+/// requests made together is answered first is up to the network: the
+/// preloads in a page's head changed from one build of dartvel.dev to the
+/// next with nothing on the page changed. The browser starts every preload
+/// as it parses the head, so their order there carries nothing a reader
+/// would miss.
+List<DVCapturedImage> dvImagesInStableOrder(List<DVCapturedImage> images) =>
+    <DVCapturedImage>[...images]
+      ..sort((DVCapturedImage a, DVCapturedImage b) =>
+          a.url == b.url ? a.as.compareTo(b.as) : a.url.compareTo(b.url));
+
 /// [images], each one DVImageView drew carrying the slot it was laid out in.
 ///
 /// Matched by the image a request was for, so the 384-wide file and the

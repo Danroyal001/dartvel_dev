@@ -1,3 +1,9 @@
+## Unreleased
+
+- Two builds of the same site write the same pages. The build reads each route's semantics tree with motion reduced, so sections that rise into view (`DVModifier.revealOnScroll`) are read in place, and it waits for the tree itself to hold still, not only its length. Flutter orders a tree by where things are on screen, and a read taken while sections were still rising put a section's heading before the link that ends the section above it (dartvel.dev's /vs/rails, /vs/laravel and /vs/hasura in 3.47.2 and 3.47.4, and not on a second read).
+- A page's image preloads are written sorted by address. They were in the order the responses happened to arrive, so the head changed from build to build with nothing on the page changed.
+- A page the web-server binary renders is logged and counted with the status it was sent. The router was given each page first, answered 404 (pages are not routes) and recorded that, so the access log and `http_requests_total` said 404 for pages every visitor received. `Router.measure` records a request once around whatever answers it.
+
 ## 3.47.4 — 2026-11-16
 
 - `DV.run()` takes nothing: `void main() => DV.run();` is the whole of an app's main.dart, in the `dartvel create` scaffold, the examples, the site and every page that teaches it. The process's arguments (a file opened with the app, a dartvel:// link, a command) still reach DV.run: the generator writes `lib/dartvel_client/main.g.dart`, which keeps them and calls your main, and `dartvel build` and `dartvel dev` compile it. An app still written as `main(List<String> args) => DV.run(args)` keeps working.

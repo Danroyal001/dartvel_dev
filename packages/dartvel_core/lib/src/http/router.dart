@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import '../observability/observability.dart';
@@ -86,15 +87,38 @@ class Router {
     '/metrics',
   };
 
-  Future<Response> call(Request req) async {
+  Future<Response> call(Request req) {
+    // Recorded once, by whoever answers last. A server that tries the router
+    // first and renders the page itself when the router has no route for it
+    // records the status it sent, and the router's 404 on the way is not a
+    // request of its own.
+    if (Zone.current[_measuredOutside] == true) return _dispatch(req);
+    return measure(req, () => _dispatch(req));
+  }
+
+  static final Object _measuredOutside = Object();
+
+  /// Runs [serve] for [req] and records the request once, with the status
+  /// [serve] answered: the count in `http_requests_total`, the duration and
+  /// the access record.
+  ///
+  /// For a server that passes a request through a [Router] and may answer it
+  /// some other way afterwards: a web-server build gives every page to the
+  /// router first, gets a 404 because pages are not routes, and renders the
+  /// page with 200. Measured at the router, every such page was logged and
+  /// counted as a 404. A router called inside [serve] records nothing itself.
+  static Future<Response> measure(
+      Request req, Future<Response> Function() serve) async {
+    final Future<Response> Function() inner = () => runZoned(serve,
+        zoneValues: <Object?, Object?>{_measuredOutside: true});
     if (_unmeasured.contains(req.url.path) ||
         req.url.path.startsWith('/_dartvel/')) {
-      return _dispatch(req);
+      return inner();
     }
 
     final Stopwatch clock = Stopwatch()..start();
     try {
-      final Response response = await _dispatch(req);
+      final Response response = await inner();
       clock.stop();
       _record(req, response.status, clock, response.headers.get('traceparent'));
       return response;
@@ -108,7 +132,7 @@ class Router {
     }
   }
 
-  void _record(
+  static void _record(
     Request req,
     int status,
     Stopwatch clock,
