@@ -5,6 +5,7 @@
 - The `securityHeaders` middleware starts from the framework's default headers and adds only `X-Frame-Options: DENY` and `X-XSS-Protection: 0`. It no longer sends HSTS with `includeSubDomains`.
 - `dvJsonLdScript` writes every `<` as `\u003c`.
 - `dvHostedSignInLocation`: where a signed-out request for a guarded page goes, at the sign-in page's public URL when the site has hosts.
+- `DVSecretServiceAppKeyStore.isAvailable` is true only when the Secret Service opens a session, not whenever there is a session bus.
 
 ## 3.47.3 — 2026-11-16
 

@@ -10,6 +10,9 @@
 - A guarded page asked for while signed out is sent to sign-in by one rule (`dvHostedSignInLocation`), shared by the deployed server and the preview, which each had their own copy.
 - `dartvel build android|ios|macos --brownfield` copies the project's top-level files into the staged module and links only folders, so Flutter tidying a file such as `analysis_options.yaml` can no longer change the project itself.
 - The web splash and Studio's splash use the same picture file names.
+- A server started after an HTTPS one in the same process speaks plain HTTP. The native server library kept the first TLS setup for the whole process, so every later server answered plain visitors with a TLS handshake. The library is rebuilt for Linux (x64 and arm64) and Windows x64; the macOS and Windows arm64 copies need their own machines and still behave the old way.
+- On Linux the app key goes to the Secret Service only when one really answers. A server with a session bus but no keyring was picked, and the first read of the key failed; the key file under the home is used instead.
+- `dartvel build --cloud` for a project inside a folder that a parent git repository ignores (a home directory kept in git, for example) sends the project, not the parent repository's files.
 
 ## 3.47.3 — 2026-11-16
 

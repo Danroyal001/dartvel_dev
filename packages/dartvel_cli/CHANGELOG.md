@@ -5,6 +5,7 @@
 - `--brownfield` copies top-level files into the staged module and links only folders, so the project is never written through a link.
 - The web splash and Studio's splash share one name per splash picture.
 - The deployed server and the preview send a signed-out visitor of a guarded page to sign-in by core's `dvHostedSignInLocation`.
+- `dartvel build --cloud` treats a project in a folder its parent repository ignores as its own project and sends its files.
 
 ## 3.47.3 — 2026-11-16
 
