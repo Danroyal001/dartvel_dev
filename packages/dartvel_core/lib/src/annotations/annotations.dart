@@ -158,7 +158,13 @@ class DVPageSitemap {
 
 /// Annotation for a functional widget Page
 class DVFunctionalWidget {
-  const DVFunctionalWidget({this.pageScrollToTop = false});
+  const DVFunctionalWidget({this.pageScrollToTop = false, this.initServerState});
+
+  /// On a page: the generated client function of the `@DVBackendFunction`
+  /// that produces its data (`getDashboard`, not `_getDashboard`). The route
+  /// runs it before the page is shown and the page reads the result as
+  /// `context.serverState`. See NEW_SPEC "Server State".
+  final Function? initServerState;
 
   /// A round "To the bottom / Back to top" button at the bottom right of a
   /// long page, for the scroll view this widget builds (its layout, usually).

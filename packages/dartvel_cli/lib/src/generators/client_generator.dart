@@ -311,6 +311,7 @@ class ClientGenerator {
       String publicName;
       bool isFunctional = false;
       String? pageExpressionBody;
+      String? serverState;
       DVFunctionBody? pageBody;
       Set<String> pageSourceSymbols = const <String>{};
       if (m != null) {
@@ -335,6 +336,12 @@ class ClientGenerator {
           continue;
         }
         className = mf.group(1)!;
+        // `@DVFunctionalWidget(initServerState: getDashboard)` above the page:
+        // the client function its loader calls. Read from the declaration
+        // this match covers, so another function's annotation is not taken.
+        serverState = RegExp(r'\binitServerState\s*:\s*([A-Za-z_][A-Za-z0-9_]*)')
+            .firstMatch(src.substring(mf.start, mf.end))
+            ?.group(1);
         if (className.startsWith('_')) {
           final openParen = mf.end - 1;
           final closeParen = _matchingParen(src, openParen);
@@ -483,6 +490,7 @@ class ClientGenerator {
           text: dvPageText(src),
           loadingAlias: loadingAlias,
           errorAlias: errorAlias,
+          serverState: serverState,
         ),
       );
     }
@@ -1228,6 +1236,10 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
       "import 'studio_documents.g.dart' show dartvelStudioDocuments;",
       "import 'env.g.dart';",
       "import 'functions.g.dart';",
+      // The client functions a page's initServerState names, prefixed so one
+      // can never be shadowed by a page's own alias.
+      if (pageEntries.any((_PageEntry e) => e.serverState != null))
+        "import 'functions.g.dart' as dvServerState;",
       "import 'models.g.dart';",
       "import 'widgets.g.dart';",
       ...pageImports,
@@ -1412,6 +1424,9 @@ Widget _dvView${e.generatedWidget}(Map<String, String> params, Map<String, Strin
 
   final loaderWrapped = DvDataLoader(
     load: () => page.loadData(params, query),
+    // Run again when the route's params or query change -- not on every
+    // rebuild, which hands the loader a new closure each time.
+    dependsOn: '\$params|\$query',
     child: withI18n,
 ${(() {
       final la = e.loadingAlias;
@@ -1989,7 +2004,17 @@ ${e.description == null ? '' : '''
   ) =>
       const SeoProps(description: ${e.description});
 '''}
-${e.isFunctional ? '''  @override
+${e.isFunctional && e.serverState != null ? '''  /// The page's code, then its server state: the client function
+  /// `@DVFunctionalWidget(initServerState:)` names. The page reads the result
+  /// as `context.serverState`.
+  @override
+  Future<Object?> loadData(
+    Map<String, String> params,
+    Map<String, String> query,
+  ) {
+    return loadLibrary().then((_) => dvServerState.${e.serverState}());
+  }
+''' : e.isFunctional ? '''  @override
   Future<Object?> loadData(
     Map<String, String> params,
     Map<String, String> query,
@@ -2003,7 +2028,10 @@ ${e.isFunctional ? '''  @override
     Map<String, String> query,
   ) async {
     await loadLibrary();
-    return p${e.importIndex}.${e.publicName}().loadData(params, query);
+    // Its server state when it declares one (`initServerState()`, typed by
+    // DVClassWidget<T>), else the deprecated loadData.
+    final page = p${e.importIndex}.${e.publicName}();
+    return page.initServerState() ?? page.loadData(params, query);
   }
 
   @override
@@ -5026,6 +5054,11 @@ class _PageEntry {
 
   final String? sitemap;
 
+  /// A function page's `@DVFunctionalWidget(initServerState: fn)`: the
+  /// generated client function its loader calls. Null for none, and for a
+  /// class page, whose own `initServerState()` the wrapper calls.
+  final String? serverState;
+
   const _PageEntry({
     this.policy,
     this.mfa,
@@ -5046,6 +5079,7 @@ class _PageEntry {
     this.sitemap,
     this.loadingAlias,
     this.errorAlias,
+    this.serverState,
   });
 }
 

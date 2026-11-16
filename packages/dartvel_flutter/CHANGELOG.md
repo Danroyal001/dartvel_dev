@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DartvelPage.initServerState()`, `DVClassWidget<T>` (typed server state), `context.serverState` and `context.refreshServerState()`. `DvDataLoader` takes `dependsOn` and reruns only when it changes, not whenever a rebuild hands it a new closure.
+
 ## 3.47.2 — 2026-11-15
 
 - The page shell reports each page shown to `DVPageViews` once its frame is drawn (not on Studio's canvas).
