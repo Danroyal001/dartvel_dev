@@ -42,3 +42,8 @@ void main(List<String> args) {
 }
 ''';
 }
+
+/// The entry a build hands Flutter: [requested] (`--target`) when given,
+/// else the generated entry in [root], else Flutter's own default.
+String? dvBuildEntryTarget(String? requested, String root) =>
+    requested ?? dvAppEntryTarget(root);

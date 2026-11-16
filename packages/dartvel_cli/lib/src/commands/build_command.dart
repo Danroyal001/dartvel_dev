@@ -980,7 +980,7 @@ class BuildCommand extends Command<void> {
     // lib/dartvel_client/main.g.dart, which keeps the process's arguments
     // for DV.run() and calls the app's own main. Read after generation,
     // which writes it.
-    final String? target = requestedTarget ?? dvAppEntryTarget(root);
+    final String? target = dvBuildEntryTarget(requestedTarget, root);
     final buildMode = buildProfile.flutterFlag;
 
     if (brownfield) {

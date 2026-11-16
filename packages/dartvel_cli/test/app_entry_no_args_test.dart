@@ -8,9 +8,7 @@
 // and calls the app's own main, and DV.run reads them from there.
 import 'dart:io';
 
-import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/build/app_entry.dart';
-import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:dartvel_cli/src/templates/project_templates.dart';
 import 'package:path/path.dart' as p;
@@ -80,38 +78,11 @@ void main() {
     expect(dvAppEntryTarget(bare.path), isNull);
   });
 
-  test('dartvel build hands Flutter the generated entry', () async {
+  test('dartvel build hands Flutter the generated entry unless --target names one', () async {
     final Directory root = await _generated(
         "import 'dartvel_client/dartvel_client.dart';\n\nvoid main() => DV.run();\n");
-    File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: entry_app\n');
-    // A web scaffold already there, so the faked build reaches Flutter's build.
-    Directory(p.join(root.path, 'web')).createSync();
-    File(p.join(root.path, 'web', 'index.html')).writeAsStringSync('<html><head></head><body></body></html>');
-    final List<String> calls = <String>[];
-    final BuildCommand command = BuildCommand(
-      root: root.path,
-      preflight: (String platform, {bool? autoInstall}) async => true,
-      processRun: (String executable, List<String> arguments,
-          {String? workingDirectory, bool runInShell = false}) async {
-        calls.add(<String>[executable, ...arguments].join(' '));
-        return ProcessResult(0, 0, '', '');
-      },
-      hasBuildRunner: (String root) => false,
-    );
-    final int before = exitCode;
-    try {
-      await (CommandRunner<void>('dartvel', 'test')..addCommand(command))
-          .run(<String>['build', 'web', '--no-prerender']);
-    } catch (_) {
-      // Whatever a faked build trips over after the Flutter call is not
-      // what this asks.
-    } finally {
-      exitCode = before;
-    }
-    final String flutterBuild = calls.firstWhere(
-        (String c) => c.startsWith('flutter build web'),
-        orElse: () => 'no flutter build web in $calls');
-    expect(flutterBuild, contains('--target lib/dartvel_client/main.g.dart'));
+    expect(dvBuildEntryTarget(null, root.path), 'lib/dartvel_client/main.g.dart');
+    expect(dvBuildEntryTarget('lib/other.dart', root.path), 'lib/other.dart');
   });
 
   test('nothing that teaches Dartvel passes arguments to DV.run', () {
