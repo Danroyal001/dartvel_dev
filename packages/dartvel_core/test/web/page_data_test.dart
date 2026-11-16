@@ -44,7 +44,10 @@ void main() {
       expect(html, contains('href="/icons/p.png"'));
       expect(html, isNot(contains('favicon.png')));
       expect(html, contains('<script type="application/ld+json">'));
-      expect(html, contains(r'<\/script>'), reason: 'a closing tag inside the JSON cannot end the script');
+      // Every < is written \u003c, so neither a closing tag nor <!-- or
+      // <script from a record reaches the markup.
+      expect(html, contains(r'\u003c/script>'), reason: 'a closing tag inside the JSON cannot end the script');
+      expect(html, isNot(contains('"</script>')), reason: 'the raw closing tag is not in the JSON');
       expect(html, contains('<div id="app">'));
     });
 

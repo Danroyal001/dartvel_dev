@@ -321,7 +321,10 @@ Future<Response> _fromManifest(
           onUncaptured: (String r) => stderr.writeln('dartvel: $r has no captured page; serving its source text'))
       : data == null
       ? dvRenderRoute(shell: shell, path: pagePath, title: title, text: text, siteUrl: pageSiteUrl, siteName: siteName, description: pageSite.description, image: site.image)
-      : dvRenderPage(shell: shell, path: pagePath, data: data, siteUrl: pageSiteUrl, siteName: siteName, description: pageSite.description, image: site.image);
+      : dvRenderPage(shell: shell, path: pagePath, data: data, siteUrl: pageSiteUrl, siteName: siteName, description: pageSite.description, image: site.image,
+          // The route's manifest entry: its hreflang alternates, robots and
+          // schema type, which the data does not carry.
+          route: routePage is Map ? DVRoutePage.fromJson(routePage.cast<String, Object?>()).at(pagePath, siteUrl: hosted?.siteUrl) : null);
   // A path nothing serves is a 404, with the shell still the body so the app
   // draws its not-found page. A 200 here was a soft 404 a crawler indexed as
   // a page. A Studio page is a route the manifest does not list, so the
@@ -365,6 +368,7 @@ Response? _shellFirst({
     description: site.description,
     image: site.image,
     preloads: preloads,
+    routePage: route?['page'] is Map ? DVRoutePage.fromJson((route!['page']! as Map).cast<String, Object?>()).at(path, siteUrl: siteUrl) : null,
   );
   if (chunks == null) return null;
 

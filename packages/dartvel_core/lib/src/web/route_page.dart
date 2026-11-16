@@ -40,6 +40,7 @@ String dvStaticPage({
   String? favicon,
   String? schemaType,
   String? robots,
+  Map<String, Object?>? structuredData,
 }) {
   final canonical =
       siteUrl == null ? null : dvStaticCanonical(siteUrl, route);
@@ -51,7 +52,12 @@ String dvStaticPage({
   // Folded into the one head application rather than applied after it.
   // dvSeoApply writes into a marked region, so a second call replaces the
   // first call's tags -- which took the title and the canonical with it.
-  final String jsonLd = dvStructuredData(
+  // The page's own JSON-LD when its data has one, in the same place as the
+  // generated block it replaces. `</` is escaped the way JSON allows, so a
+  // value of `</script>` cannot end the script.
+  final String jsonLd = structuredData != null
+      ? dvJsonLdScript(structuredData, indent: false)
+      : dvStructuredData(
     route: route,
     title: title,
     siteName: siteName ?? title,
@@ -145,6 +151,7 @@ class DVRoutePage {
     this.content,
     this.html,
     this.text = const <String>[],
+    this.structuredData,
   });
 
   factory DVRoutePage.fromJson(Map<String, Object?> json) => DVRoutePage(
@@ -169,6 +176,7 @@ class DVRoutePage {
           for (final Object? line in (json['text'] as List?) ?? const <Object?>[])
             '$line',
         ],
+        structuredData: (json['structuredData'] as Map?)?.cast<String, Object?>(),
       );
 
   final String route;
@@ -201,6 +209,11 @@ class DVRoutePage {
   /// Plain lines from the page's source, used only when nothing was captured.
   final List<String> text;
 
+  /// The page's own JSON-LD, from its data (a data model's page, a page Studio
+  /// published). It takes the place of the generated WebPage block, in the
+  /// same spot, so a page never carries two.
+  final Map<String, Object?>? structuredData;
+
   /// The same page at [path], for a route matched by a pattern, and on the
   /// site at [siteUrl] when one is given: a host of `dartvel.hosts` shows a
   /// route at its own path on its own origin.
@@ -222,6 +235,7 @@ class DVRoutePage {
           content: content,
           html: html,
           text: text,
+          structuredData: structuredData,
         );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -239,6 +253,7 @@ class DVRoutePage {
         if (content != null) 'content': content,
         if (html != null) 'html': html,
         if (text.isNotEmpty) 'text': text,
+        if (structuredData != null) 'structuredData': structuredData,
       };
 }
 
@@ -254,6 +269,7 @@ String dvRenderRoutePage(
   String shell,
   DVRoutePage page, {
   void Function(String route)? onUncaptured,
+  bool minify = true,
 }) {
   final String head = dvStaticPage(
     shell: shell,
@@ -269,6 +285,7 @@ String dvRenderRoutePage(
     schemaType: page.schemaType,
     robots: page.robots,
     content: page.content,
+    structuredData: page.structuredData,
   );
   final String? captured = page.html;
   final String body;
@@ -278,5 +295,7 @@ String dvRenderRoutePage(
     if (page.text.isNotEmpty) onUncaptured?.call(page.route);
     body = dvApplyPageText(head, page.text, path: page.route);
   }
-  return dvMinifyHtml(body);
+  // Unminified only for the streaming server, which cuts the head by the
+  // shell's own line breaks and minifies nothing it streams.
+  return minify ? dvMinifyHtml(body) : body;
 }

@@ -109,9 +109,12 @@ void main() {
       // comes from the real render. If the two disagreed about anything in
       // the early part, the browser would assemble a page nobody rendered.
       final String empty = dvRenderRoute(shell: shell, path: '/p/1', title: '');
+      // As the streaming mode renders it: unminified, like the empty render,
+      // since the head is cut by the shell's own line breaks.
       final String full = dvRenderPage(
         shell: shell,
         path: '/p/1',
+        minify: false,
         siteUrl: 'https://example.com',
         siteName: 'Example',
         data: const DVPageData(

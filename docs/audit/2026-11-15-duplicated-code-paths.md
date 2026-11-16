@@ -11,7 +11,7 @@ reader, a crawler or a security boundary sees when they do.
 
 | # | Risk | Job | Status |
 |---|---|---|---|
-| 1 | High | Rendering a data-backed page (model pages, page-data resolver) | Open |
+| 1 | High | Rendering a data-backed page (model pages, page-data resolver) | Fixed |
 | 2 | High | Answering a page request: deployed server vs `dartvel dev --release` preview | Partly fixed (redirect query) |
 | 3 | High | `dartvel prerender`: second capture, sitemap and robots pipeline | Open |
 | 4 | High | Which pages an application has: project graph (Studio, admin) vs client generator | Fixed |
@@ -54,6 +54,11 @@ reader, a crawler or a security boundary sees when they do.
   same function for the refusal bodies. One parity test: the same route and
   data through the static build and through `handleSsrFallback` give the same
   bytes.
+- **Fixed (16 Nov):** `dvRenderPage` builds a `DVRoutePage` from the data plus
+  the route's manifest entry and calls `dvRenderRoutePage`; the page's JSON-LD
+  takes the generated block's place. Both servers and the streaming path pass
+  the manifest entry. `dvRenderRoute` stays for the bare refusal bodies (no
+  data, no alternates by design). Test: `dartvel_core/test/one_render_path_test.dart`.
 
 ## 2. Answering a page request: deployed vs preview (High, partly fixed)
 
