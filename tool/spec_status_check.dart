@@ -186,6 +186,7 @@ List<String> _readmeDisagreements(String root, Map<String, Object?> decoded) {
     'Backend Runtime': 'Backend',
     'Database': 'Database',
     'Cache': 'Cache',
+    'Billing': 'Billing',
     'File Storage': 'File Storage',
     'Queues & Jobs': 'Queues, Jobs, and Signals',
     'Authentication': 'Authentication',
