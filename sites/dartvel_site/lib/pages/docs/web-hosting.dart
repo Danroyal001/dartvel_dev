@@ -245,6 +245,57 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'page-html',
+      title: 'Add your own HTML to every page',
+      children: <Widget>[
+        DocsText(
+          'Analytics, a tag manager, site verification or a chat widget '
+          'often comes as a snippet of HTML to paste into every page. '
+          'Put it in one of three places, and every page carries it: '
+          'prerendered pages, pages the web server renders, the not-found '
+          'and offline pages, and Studio.',
+        ),
+        DocsYaml('yaml-platforms-web'),
+        DocsText(
+          'A file entry names a file under web/, which suits a snippet longer '
+          'than a line. The same setting in a Dart config class:',
+        ),
+        DocsCode('platforms-web-config'),
+        Bullets(<String>[
+          'Three places: `head` (inside <head>), `bodyStart` (right after '
+              '<body> opens) and `bodyEnd` (right before </body> closes, after '
+              'the page itself).',
+          'Each entry is `html:` (the HTML itself) or `file:` (a file under '
+              'web/). In a Dart config class a file is a `DVWebFile` value, '
+              'generated for every HTML file under web/, so a renamed file is '
+              'a compile error.',
+          'Studio\'s Platforms screen edits the same setting. On `dartvel dev` '
+              'it saves into pubspec.yaml; on a deployed app it waits for the '
+              'GitHub screen, which sends it as a pubspec.yaml change.',
+          'The snippet goes into the page as you wrote it, and the minifier '
+              'leaves it alone. It is parsed once, with the page, so it is '
+              'there before the app starts and does not run again when the '
+              'app takes over.',
+          'HTML that would break the page stops the build, naming the file '
+              'or the entry: an element left open (a script, a comment, a div '
+              'in bodyStart), a closing tag with nothing open, <html>, <head> '
+              'or <body>, an element a head cannot hold, or a <title> or '
+              'description, which each page sets itself.',
+          'With `dartvel.security.pageCsp`, the policy lists the hosts your '
+              'snippets load scripts, styles, frames and images from. Inline '
+              'scripts are hashed into it per page when the policy has '
+              "'inline-scripts', and from the snippet otherwise.",
+          'The HTML runs with the page\'s full authority. Only add HTML from a '
+              'source you trust. In Studio, only the app\'s owner may change '
+              'it, unless the app names its own editors with '
+              '`registerAction(dvStudioEditPlatformsAction, ...)`.',
+          'Web settings now live under `dartvel.platforms.web`. '
+              '`dartvel.web` and `dartvel.android` keep working; where both '
+              'homes set the same key, `platforms` wins.',
+        ]),
+      ],
+    ),
+    DocsSection(
       id: 'other-hosts',
       title: 'Other static hosts',
       children: <Widget>[

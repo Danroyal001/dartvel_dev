@@ -577,6 +577,57 @@ The table is the contract. Each row says which entries a target has, what
   engine, entering as `embedded`; `DV.run` is called once per engine, not per
   element.
 
+#### The project's own HTML on every page
+
+`dartvel.platforms` groups each platform's settings under its name; the older
+top-level keys (`web`, `android`, `ios`, `macos`, `windows`, `linux`) are read
+as the same objects, the `platforms` home winning key by key, and the build
+notes an old key's new home. `platforms.web.document` takes three lists,
+`head` (inside `<head>`, after the shell's tags), `bodyStart` (right after
+`<body>` opens) and `bodyEnd` (right before `</body>` closes, after the page's
+own document), of entries that are exactly one of `html:` (inline) or
+`file:` (a file under `web/`, never `web/index.html`). The Dart config class
+field is `DartvelConfig.platforms` (`DVPlatformSettings`, `DVWebSettings`,
+`DVWebDocumentSlots`, `DVHtmlSnippet.html` / `.file`), round-tripping with the
+YAML through one parser; a file is a `DVWebFileRef`, and `dartvel routes`
+generates `DVWebFile` (`lib/dartvel_client/web_files.g.dart`) with a value per
+HTML file under `web/`.
+
+- **One render path.** The build writes the snippets into `build/web/index.html`
+  after the capture and the versioning, between `<!-- dartvel:head -->`,
+  `<!-- dartvel:body-start -->` and `<!-- dartvel:body-end -->` markers. Every
+  page — prerendered, rendered on request, not-found, offline, Studio — is made
+  from that shell, so each carries them in its server-rendered document, and
+  the takeover neither removes nor re-runs them. Content Dartvel puts at the
+  end of the body goes before the body-end region; the minifier copies the
+  regions verbatim.
+- **Refused HTML.** A snippet that would break the page fails the build before
+  Flutter compiles, naming the entry or file: an element left open (a raw-text
+  element or comment swallows the page; a div in `bodyStart` takes the app
+  inside it), a closing tag with nothing open, `<html>`/`<head>`/`<body>`, an
+  element a head cannot hold, a `<title>` or `<meta name="description">`
+  (each page's own). Studio applies the same checks as the HTML is typed.
+- **Content-Security-Policy.** With `dartvel.security.pageCsp`, the generated
+  policy gains each snippet's third-party https origins by directive
+  (`script-src`, `style-src`, `frame-src`, `img-src`, `media-src`). Inline
+  scripts are covered per page when the policy has `'inline-scripts'`; without
+  it each inline snippet script's hash is added to `script-src`, unless
+  `script-src` relies on `'unsafe-inline'`, which a hash would switch off.
+- **Studio.** The Platforms screen (`<mount>/platforms`, Web at
+  `<mount>/platforms/web`) reads and writes the same object through
+  `GET /api/platforms` and `PUT /api/platforms/web/document`: into
+  `pubspec.yaml` at once on a development server (every other line kept, the
+  old `dartvel.web.document` moved), otherwise held until the GitHub screen
+  sends it as a `pubspec.yaml` change. Editing is the `Studio.editPlatforms`
+  action, the first-run owner by default; a project configured in Dart is
+  shown read-only with where to change it. The screen previews the edges of
+  every page as the next build writes them.
+- **Escape hatch.** The HTML runs with the page's full authority; the docs say
+  so and Studio says so above the editor.
+- **Not yet:** per-route additions (a route pattern with extra snippets), and
+  Studio editing of the other platforms' settings.
+
+
 ### Browser extensions and VS Code
 
 - Popup, options and side-panel pages are `app` entries with their own route.

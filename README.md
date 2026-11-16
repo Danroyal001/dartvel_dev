@@ -653,6 +653,54 @@ dartvel admin list --database dartvel_data/data.db
 dartvel admin revoke user_123 --database dartvel_data/data.db
 ```
 
+### Your own HTML on every page
+
+Analytics, a tag manager, site verification or a chat widget usually arrives
+as HTML to paste into every page. Dartvel takes it in three places, under
+`dartvel.platforms.web.document`: `head` (inside `<head>`), `bodyStart`
+(right after `<body>` opens) and `bodyEnd` (right before `</body>` closes,
+after the page itself). Each entry is inline `html:` or a `file:` under `web/`:
+
+```yaml
+dartvel:
+  platforms:
+    web:
+      document:
+        head:
+          - html: <meta name="google-site-verification" content="your-code">
+          - file: web/analytics.html
+        bodyEnd:
+          - html: <script src="https://cdn.example.com/chat.js" async></script>
+```
+
+A Dart config class sets the same thing as `DartvelConfig.platforms`
+(`DVPlatformSettings` → `DVWebSettings` → `DVWebDocumentSlots` of
+`DVHtmlSnippet.html(...)` and `DVHtmlSnippet.file(DVWebFile.analytics)`;
+`DVWebFile` is generated for each HTML file under `web/`, so a renamed file is
+a compile error). Studio's **Platforms** screen (`/__studio/platforms/web`)
+edits the same setting: on `dartvel dev` it saves into `pubspec.yaml`, on a
+deployed app the GitHub screen sends it as a `pubspec.yaml` change.
+
+The build writes the snippets into the shell every page is made from, so
+prerendered pages, pages the web server renders on request, the not-found and
+offline pages and Studio all carry them, in the server-rendered document; the
+app taking over does not run them again. They are copied as written (the
+minifier leaves them alone). HTML that would break the page fails the build,
+naming the entry: an element left open, a stray closing tag, page structure,
+an element a head cannot hold, or a `<title>`/description, which each page
+sets. With `dartvel.security.pageCsp`, the policy gains the hosts the snippets
+load from, and their inline scripts' hashes (per page with `'inline-scripts'`,
+from the snippet otherwise).
+
+The HTML runs with the page's full authority: only add HTML from a source you
+trust. In Studio only the app's owner may change it (the `Studio.editPlatforms`
+action; an app names its own editors with
+`registerAction(dvStudioEditPlatformsAction, ...)`).
+
+Platform settings now group under `dartvel.platforms.<platform>`. The older
+homes, such as `dartvel.web.fonts` or `dartvel.android.permissions`, keep
+working; where both set the same key, `platforms` wins.
+
 dartvel.dev itself runs this way: one binary behind nginx, with Studio
 enabled and granted to its owner. `sites/dartvel_site/README.md` has the
 service, the deploy script and the rollback.
