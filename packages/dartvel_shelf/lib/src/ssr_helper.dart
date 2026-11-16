@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvSignInLocation, dvHostedSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -288,7 +288,7 @@ Future<Response> _fromManifest(
       return Response(
         302,
         headers: Headers()
-          ..set('location', _signInLocation(hosted, signIn, from))
+          ..set('location', dvHostedSignInLocation(hosted, signIn, from))
           ..set('cache-control', 'no-store'),
         body: const Stream<List<int>>.empty(),
       );
@@ -542,13 +542,6 @@ String? _requestHost(Request req) {
 /// Where a signed-out request for a guarded route goes: the sign-in page,
 /// at its public URL when the site has hosts -- it may be on another host
 /// from the one asked.
-String _signInLocation(DVHostedRequest? hosted, String signIn, String from) {
-  final String location = dvSignInLocation(signIn, from);
-  if (hosted == null) return location;
-  final Uri uri = Uri.parse(location);
-  return hosted.publicUrl(uri.path, query: uri.query);
-}
-
 /// `/robots.txt` and `/sitemap.xml` for the host asked, when the site's
 /// manifest declares `dartvel.hosts`; null for any other path, and for a
 /// site without hosts, whose files are served as they were built.

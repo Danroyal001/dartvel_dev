@@ -1362,13 +1362,7 @@ Future<dv.Response> _dvAuthenticated(
   final core.DVApiPrincipal? principal = auth.principal;
   if (principal != null) return core.DVApiPrincipal.actingAs(principal, run);''' : ''}
   final core.DVSessionAuthenticationResult session =
-      await core.DVSessionAuthentication.authenticateRequest(
-          authorization: req.headers.get('authorization'),
-          cookie: cookies ? req.headers.get('cookie') : null,
-          plainLocal: core.DVSessionCookie.plainLocal(req.url,
-              forwardedProto: req.headers.get('x-forwarded-proto'),
-              host: req.headers.get('host')),
-          host: core.DVSessionScope.requestHost(req));
+      await core.DVSessionAuthentication.ofRequest(req, cookies: cookies);
   if (session.refused) {
     return dv.Response(session.status!,
         headers: dv.Headers({

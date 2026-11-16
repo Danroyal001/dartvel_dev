@@ -47,6 +47,7 @@ import 'package:dartvel_core/dartvel.dart' as core
         DVSessionAuthenticationResult,
         DVSessionCookie,
         dvSignInLocation,
+        dvHostedSignInLocation,
         DVConfiguredRedirect,
         dvConfiguredRedirect,
         DVAdminServer,
@@ -594,7 +595,7 @@ Handler dvWebServerHandler({
       if (signIn is String && signIn.isNotEmpty && signIn != cleanPath) {
         final String from =
             '$cleanPath${request.url.hasQuery ? '?${request.url.query}' : ''}';
-        return Response.found(_signInLocation(hosted, signIn, from),
+        return Response.found(core.dvHostedSignInLocation(hosted, signIn, from),
             headers: const <String, String>{'cache-control': 'no-store'});
       }
       return Response(401,
@@ -794,16 +795,19 @@ Response _shelfResponse(core.Response response) => Response(
 /// Whether [request] carries a live session of the application's own.
 Future<bool> _signedIn(Request request) async {
   final core.DVSessionAuthenticationResult result =
-      await core.DVSessionAuthentication.authenticateRequest(
-    plainLocal: core.DVSessionCookie.plainLocal(
-      request.requestedUri,
-      forwardedProto: request.headers['x-forwarded-proto'],
-      host: request.headers['host'],
-    ),
-    authorization: request.headers['authorization'],
-    cookie: request.headers['cookie'],
-    host: _shelfRequestHost(request),
-  );
+      // The same question every server asks, on the request as the deployed
+      // server sees it.
+      await core.DVSessionAuthentication.ofRequest(core.Request(
+        method: request.method,
+        url: request.requestedUri,
+        headers: core.Headers(<String, dynamic>{
+          for (final MapEntry<String, List<String>> header in request.headersAll.entries)
+            header.key: header.value,
+        }),
+        // Headers only: shelf's body can be read once, and the handler
+        // that answers the request may still need it.
+        bodyStream: const Stream<List<int>>.empty(),
+      ));
   return !result.refused && result.principal != null;
 }
 
@@ -904,9 +908,3 @@ String? _shelfRequestHost(Request request) {
 
 /// The sign-in page for a signed-out request, at its public URL when the
 /// site has hosts: it may be on another host from the one asked.
-String _signInLocation(DVHostedRequest? hosted, String signIn, String from) {
-  final String location = core.dvSignInLocation(signIn, from);
-  if (hosted == null) return location;
-  final Uri uri = Uri.parse(location);
-  return hosted.publicUrl(uri.path, query: uri.query);
-}

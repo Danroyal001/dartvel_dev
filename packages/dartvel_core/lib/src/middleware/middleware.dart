@@ -9,6 +9,7 @@ import '../http/wintercg.dart' as dv;
 import '../observability/logging.dart' show DVLogLevel;
 import '../observability/observability.dart' show DVObservability;
 import '../privacy/opt_out.dart';
+import '../http/security_headers.dart' show dvDefaultSecurityHeaders, dvDefaultStrictTransportSecurity;
 import '../tenancy/tenants.dart';
 
 /// Request context for middleware
@@ -227,15 +228,21 @@ class CommonMiddleware {
   /// Security headers middleware
   static Middleware securityHeaders() {
     return (request, context) {
-      context.data['securityHeaders'] = {
-        'X-Content-Type-Options': 'nosniff',
+      // The framework default (dvDefaultSecurityHeaders), and only what this
+      // opt-in adds: no framing at all, and the XSS filter off. Its own list
+      // had drifted to an HSTS includeSubDomains the default refuses on
+      // purpose: a framework cannot know what else runs under the domain.
+      // Written in the headers' usual casing, as they were, since a
+      // handler may look one up by its exact name.
+      context.data['securityHeaders'] = <String, String>{
+        for (final MapEntry<String, String> header in dvDefaultSecurityHeaders.entries)
+          _headerCase(header.key): header.value,
         'X-Frame-Options': 'DENY',
         // Off, not on: the filter this switched on is gone from current
         // browsers, and where it survives its blocking mode can be used to
         // tell what a page contains from another origin.
         'X-XSS-Protection': '0',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        'Strict-Transport-Security': dvDefaultStrictTransportSecurity,
       };
     };
   }
@@ -691,3 +698,14 @@ final Expando<Map<String, List<DateTime>>> _rateLimitCallers =
 /// gone quiet instead of growing with every address that ever called.
 int dvRateLimitTrackedCallers(Middleware limiter) =>
     _rateLimitCallers[limiter]?.length ?? 0;
+
+/// `x-frame-options` as `X-Frame-Options`, and `x-xss-protection` as
+/// `X-XSS-Protection`.
+String _headerCase(String name) => name
+    .split('-')
+    .map((String part) => part == 'xss'
+        ? 'XSS'
+        : part.isEmpty
+            ? part
+            : part[0].toUpperCase() + part.substring(1))
+    .join('-');

@@ -137,16 +137,7 @@ class DVModelDataApi {
       (request.headers.get('x-dartvel-csrf-token') ?? '').trim().length >= 16;
 
   Future<DVSessionAuthenticationResult> _session(Request request) =>
-      DVSessionAuthentication.authenticateRequest(
-        plainLocal: DVSessionCookie.plainLocal(
-          request.url,
-          forwardedProto: request.headers.get('x-forwarded-proto'),
-          host: request.headers.get('host'),
-        ),
-        authorization: request.headers.get('authorization'),
-        cookie: request.headers.get('cookie'),
-          host: DVSessionScope.requestHost(request),
-      );
+      DVSessionAuthentication.ofRequest(request);
 
   Future<bool> _signedIn(Request request) async {
     final DVSessionAuthenticationResult result = await _session(request);

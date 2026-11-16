@@ -27,6 +27,8 @@ import 'dart:async';
 
 import '../observability/observability.dart';
 import '../tenancy/tenants.dart';
+import '../http/wintercg.dart' show Request;
+import 'session_scope.dart' show DVSessionScope;
 import 'sessions.dart';
 
 /// Who a request authenticated with the application's own session is.
@@ -204,6 +206,29 @@ class DVSessionAuthentication {
 
   /// Takes the installed stage away, for a test.
   static void uninstall() => _installed = null;
+
+  /// The session [request] carries, read the one way every server asks it:
+  /// the authorization header, the cookie (unless [cookies] is false), whether
+  /// the request is plain local, and the host the session is scoped to.
+  ///
+  /// Studio's API, the data-model API, the admin dashboard, the generated
+  /// backend and the preview each assembled this call by hand, and one had
+  /// started to read the host its own way; a new cookie name or header would
+  /// have had to land in five places.
+  static Future<DVSessionAuthenticationResult> ofRequest(
+    Request request, {
+    bool cookies = true,
+  }) =>
+      authenticateRequest(
+        plainLocal: DVSessionCookie.plainLocal(
+          request.url,
+          forwardedProto: request.headers.get('x-forwarded-proto'),
+          host: request.headers.get('host'),
+        ),
+        authorization: request.headers.get('authorization'),
+        cookie: cookies ? request.headers.get('cookie') : null,
+        host: DVSessionScope.requestHost(request),
+      );
 
   /// The sessions the installed stage checks: where a sign-in creates one,
   /// and a sign-out revokes it.

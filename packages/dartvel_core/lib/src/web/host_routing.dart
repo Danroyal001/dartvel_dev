@@ -22,6 +22,8 @@
 /// this route live.
 library;
 
+import 'page_data.dart' show dvSignInLocation;
+
 /// One `dartvel.hosts` entry.
 ///
 /// [pattern] is a hostname (`docs.example.com`) or a single leftmost-label
@@ -751,4 +753,15 @@ String? _origin(String url, {bool allowPath = false}) {
     return null;
   }
   return uri.origin;
+}
+
+/// Where a signed-out request for a guarded route is sent, on the host it
+/// asked: [dvSignInLocation], made the sign-in page's public URL when the
+/// request came through a host of `dartvel.hosts`. One rule for the deployed
+/// server and `dartvel dev --release`, which each kept a copy of it.
+String dvHostedSignInLocation(DVHostedRequest? hosted, String signIn, String from) {
+  final String location = dvSignInLocation(signIn, from);
+  if (hosted == null) return location;
+  final Uri uri = Uri.parse(location);
+  return hosted.publicUrl(uri.path, query: uri.query);
 }

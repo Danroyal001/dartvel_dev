@@ -13,14 +13,16 @@ reader, a crawler or a security boundary sees when they do.
 |---|---|---|---|
 | 1 | High | Rendering a data-backed page (model pages, page-data resolver) | Fixed |
 | 2 | High | Answering a page request: deployed server vs `dartvel dev --release` preview | Partly fixed (redirect query) |
+| 1 | High | Rendering a data-backed page (model pages, page-data resolver) | Open |
+| 2 | High | Answering a page request: deployed server vs `dartvel dev --release` preview | Partly fixed (redirect query, sign-in location, session check) |
 | 3 | High | `dartvel prerender`: second capture, sitemap and robots pipeline | Open |
 | 4 | High | Which pages an application has: project graph (Studio, admin) vs client generator | Fixed |
 | 5 | Medium | Route paths and annotation parsing: retired `dartvel_generator` vs CLI | Open |
-| 6 | Medium | "Is this request signed in?" assembled five times | Open |
+| 6 | Medium | "Is this request signed in?" assembled five times | Fixed |
 | 7 | Medium | The home page's head written outside `dvRenderRoutePage` | Open |
 | 8 | Medium | Docs site: a second web app with a hand-written HTML shell | Open |
 | 9 | Low-medium | Studio's splash redrawn in Flutter next to the web splash | Open |
-| 10 | Low-medium | Two default security-header sets that disagree | Open |
+| 10 | Low-medium | Two default security-header sets that disagree | Fixed |
 | 11 | Low | Rust runtime: SPA fallback and route matcher beside the Dart ones | Open (latent) |
 | 12 | Low | Semantics-capture file name computed twice in the build | Open |
 | 13 | Low | `encodeNativeRequest` duplicated for web | Accept |
