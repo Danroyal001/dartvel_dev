@@ -291,7 +291,9 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
               '`registerAction(dvStudioEditPlatformsAction, ...)`.',
           'Web settings now live under `dartvel.platforms.web`. '
               '`dartvel.web` and `dartvel.android` keep working; where both '
-              'homes set the same key, `platforms` wins.',
+              'homes set the same key, `platforms` wins. A `platforms:` list '
+              'of targets, as `dartvel create` writes it, still works; Studio '
+              'turns it into the map, every target kept, when it saves.',
         ]),
       ],
     ),

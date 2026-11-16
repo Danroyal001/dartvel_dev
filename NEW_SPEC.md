@@ -582,7 +582,9 @@ The table is the contract. Each row says which entries a target has, what
 `dartvel.platforms` groups each platform's settings under its name; the older
 top-level keys (`web`, `android`, `ios`, `macos`, `windows`, `linux`) are read
 as the same objects, the `platforms` home winning key by key, and the build
-notes an old key's new home. `platforms.web.document` takes three lists,
+notes an old key's new home. The map's keys are the platforms the project builds for;
+the older list of targets (`platforms: [web, android]`) is the same declaration
+with nothing set, still accepted, and read by `dvPlatformTargets` either way. `platforms.web.document` takes three lists,
 `head` (inside `<head>`, after the shell's tags), `bodyStart` (right after
 `<body>` opens) and `bodyEnd` (right before `</body>` closes, after the page's
 own document), of entries that are exactly one of `html:` (inline) or

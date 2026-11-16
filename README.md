@@ -699,7 +699,11 @@ action; an app names its own editors with
 
 Platform settings now group under `dartvel.platforms.<platform>`. The older
 homes, such as `dartvel.web.fonts` or `dartvel.android.permissions`, keep
-working; where both set the same key, `platforms` wins.
+working; where both set the same key, `platforms` wins. The map's keys are the
+platforms the project builds for, so the list `dartvel create` writes
+(`platforms: [web, android, ...]`) is the same declaration with nothing set
+yet; it keeps working, and Studio turns it into the map, every target kept,
+when it first saves a setting.
 
 dartvel.dev itself runs this way: one binary behind nginx, with Studio
 enabled and granted to its owner. `sites/dartvel_site/README.md` has the
