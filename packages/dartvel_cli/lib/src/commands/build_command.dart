@@ -30,6 +30,7 @@ import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
+        dvLegacyPlatformKeys,
         DVHosts,
         DVModuleEnvironment,
         DVHomeWidgetSpec,
@@ -59,6 +60,7 @@ import 'symbols_command.dart';
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_home_launcher.dart';
 import '../build/app_shortcuts.dart';
+import '../build/document_slots.dart' show DVDocumentSlotsWrite, dvReadDocumentSlots, dvWriteDocumentSlots;
 import '../build/android_capture_bridge.dart';
 import '../build/android_media_bridge.dart';
 import '../build/android_drag_drop_bridge.dart';
@@ -1461,6 +1463,22 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    // dartvel.platforms.web.document checked before anything compiles: a
+    // snippet that would break every page fails the build here, not after
+    // minutes of compiling.
+    if (platform == 'web' || platform == 'web-server') {
+      final List<String> slotProblems = <String>[];
+      dvReadDocumentSlots(_projectRoot, _dartvelSection(_projectRoot), slotProblems);
+      if (slotProblems.isNotEmpty) {
+        Logger.error('The HTML in dartvel.platforms.web.document would break the page:');
+        for (final String problem in slotProblems) {
+          stderr.writeln('   $problem');
+        }
+        Logger.log('❌ $platform build failed');
+        return DVBuildTargetResult.failed;
+      }
+    }
+
     // When this build began: the symbols it writes are newer than this, and
     // the ones an earlier build left in the same directories are not.
     final DateTime buildStartedAt = DateTime.now();
@@ -1685,9 +1703,17 @@ class BuildCommand extends Command<void> {
         // Also into index.html first, for the same reason: every page,
         // served or prerendered, starts fetching the renderer while it parses.
         _writeRendererHints(root);
-        // Last of the writes into index.html: every page made from it asks
-        // for this build's code.
+        // Before the versioning: every page made from it asks for this
+        // build's code.
         _versionIndexHtml(root);
+        // Last of the writes into index.html: the project's own HTML at the
+        // page's edges (dartvel.platforms.web.document), after the capture so
+        // an analytics tag never counts the build, and after everything else
+        // Dartvel writes so the body edges really are the edges.
+        if (!_writeDocumentSlots(root)) {
+          Logger.log('❌ $platform build failed');
+          return DVBuildTargetResult.failed;
+        }
         if (platform == 'web-server') {
           _writeWebServerManifest(root);
           final ({bool ok, DVAdminMount? admin}) dashboard =
@@ -4095,6 +4121,26 @@ class BuildCommand extends Command<void> {
   /// index.html asking for the bootstrap and the app's code at
   /// ?v=<build>, after the splash and renderer hints are in it and before
   /// any page is made from it.
+  /// `dartvel.platforms.web.document` into the shell. False, having said
+  /// why, when a snippet would break the page.
+  bool _writeDocumentSlots(String root) {
+    final DVDocumentSlotsWrite written = dvWriteDocumentSlots(root, _dartvelSection(root));
+    if (written.problems.isNotEmpty) {
+      Logger.error('The HTML in dartvel.platforms.web.document would break the page:');
+      for (final String problem in written.problems) {
+        stderr.writeln('   $problem');
+      }
+      return false;
+    }
+    if (written.snippets > 0) {
+      Logger.log('   Page edges: ${written.snippets} snippet(s) from dartvel.platforms.web.document on every page.');
+    }
+    for (final String key in dvLegacyPlatformKeys(_rawDartvelSection(root))) {
+      Logger.log('   ℹ dartvel.$key still works; its new home is dartvel.platforms.$key.');
+    }
+    return true;
+  }
+
   void _versionIndexHtml(String root) {
     final String? build = _serviceWorkerBuild;
     if (build == null) return;
@@ -5608,6 +5654,21 @@ class BuildCommand extends Command<void> {
 
   Map<Object?, Object?> _dartvelSection(String root) {
     return dvDartvelSection(root).values;
+  }
+
+  /// The `dartvel:` map exactly as pubspec.yaml writes it, without the
+  /// platform settings copied to both homes: for saying which old keys a
+  /// project still uses. Empty for a Dart config.
+  Map<Object?, Object?> _rawDartvelSection(String root) {
+    final file = File(p.join(root, 'pubspec.yaml'));
+    if (!file.existsSync()) return const <Object?, Object?>{};
+    try {
+      final doc = loadYaml(file.readAsStringSync());
+      final Object? section = doc is Map ? doc['dartvel'] : null;
+      return section is Map ? section.cast<Object?, Object?>() : const <Object?, Object?>{};
+    } on Object {
+      return const <Object?, Object?>{};
+    }
   }
 
   String? _packageName(String root) {

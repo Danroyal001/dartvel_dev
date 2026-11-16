@@ -17,6 +17,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartvel_core/config.dart' show dvWithPlatforms;
 import 'package:dartvel_core/dartvel.dart'
     show DVDeepLinkConfig, dvDeepLinkCovers;
 import 'package:path/path.dart' as p;
@@ -157,7 +158,8 @@ String dvIosAssociatedDomains(String entitlements, DVDeepLinkConfig? links) {
 Future<String?> dvAndroidSigningFingerprint(String root) async {
   final DVAndroidReleaseConfig config;
   try {
-    config = DVAndroidReleaseConfig.parse(readPubspecYaml(root)?['dartvel']);
+    final Object? section = readPubspecYaml(root)?['dartvel'];
+    config = DVAndroidReleaseConfig.parse(section is Map ? dvWithPlatforms(section.cast<Object?, Object?>()) : section);
   } on FormatException {
     return null;
   }

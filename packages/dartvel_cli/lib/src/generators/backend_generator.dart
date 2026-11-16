@@ -46,6 +46,7 @@ import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import '../build/document_slots.dart' show dvPageCspWithProjectSlots;
 import '../build/graphql_options.dart';
 import '../build/runtime_packages.dart';
 import '../build/server_options.dart';
@@ -1064,7 +1065,10 @@ $openApiJson\'\'\';
     final String? declaredPageCsp = _dvSecurityString(root, 'pageCsp');
     final String? pageCsp = declaredPageCsp == null
         ? null
-        : dvPageCspWithModules(declaredPageCsp, dvDiscoverModuleMounts(root));
+        // And with what the project's own page-edge HTML loads
+        // (dartvel.platforms.web.document): its hosts, and its inline
+        // scripts' hashes when the policy cannot work them out per page.
+        : dvPageCspWithProjectSlots(root, dvPageCspWithModules(declaredPageCsp, dvDiscoverModuleMounts(root)));
     final String pageCspLiteral = pageCsp == null ? 'null' : "'${esc(pageCsp)}'";
 
     // Every mounted module's models, for Studio beside the application's:

@@ -25,6 +25,7 @@ import 'package:dartvel_core/dartvel.dart'
 
 import '../build/runtime_packages.dart';
 import 'assets_generator.dart';
+import '../build/document_slots.dart' show dvWriteWebFileRefs;
 import '../analysis/dart_source_lexer.dart';
 import 'account_generator.dart';
 import 'config_routes.dart';
@@ -702,6 +703,7 @@ export 'package:dartvel_flutter/dartvel_flutter.dart' hide DV${hideModels.isEmpt
 export 'application.g.dart' hide dartvelRunEmbedded;
 export 'account.g.dart';
 export 'assets.g.dart';
+export 'web_files.g.dart';
 export 'config.g.dart';
 export 'dartvel_config.g.dart';
 export 'dartvel_runtime.dart';
@@ -2627,6 +2629,9 @@ ${(() {
         .writeAsStringSync(_studioDocumentsSource(root));
 
     dvGenerateAssets(root: root);
+    // Every HTML file under web/, as DVWebFile, for a Dart config class's
+    // platforms.web.document.
+    dvWriteWebFileRefs(root);
 
     // The mounted modules, in two files for one reason: the registration
     // has to be loadable by the backend, which is a pure Dart server with
