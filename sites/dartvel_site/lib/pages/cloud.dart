@@ -16,8 +16,7 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
   // The CLI sends an account with no plan to #plans.
   ids: const <String>['plans'],
   builder: (BuildContext inner, Map<String, GlobalKey> keys) => ScrollToFragment(
-    child: SingleChildScrollView(
-      child: DVBox.list(<Widget>[
+    child: SiteScroll(<Widget>[
         const Section(
           grain: true,
           children: <Widget>[
@@ -286,8 +285,6 @@ Widget _cloudPage(BuildContext context) => DocsAnchors(
             ], spacing: 12),
           ],
         ),
-        const SiteFooter(),
       ], spacing: 0),
-    ),
   ),
 );

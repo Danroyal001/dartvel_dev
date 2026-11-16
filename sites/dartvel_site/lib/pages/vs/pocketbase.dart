@@ -15,8 +15,7 @@ import '../../dartvel_client/dartvel_client.dart';
   ),
 )
 @pragma('vm:entry-point')
-Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
-      child: DVBox.list(<Widget>[
+Widget _vsPocketbasePage(BuildContext context) => const SiteScroll(<Widget>[
         Section(
           grain: true,
           children: <Widget>[
@@ -118,6 +117,4 @@ Widget _vsPocketbasePage(BuildContext context) => const SingleChildScrollView(
           ],
         ),
         Section(children: <Widget>[VersusMore(current: '/vs/pocketbase')]),
-        SiteFooter(),
-      ], spacing: 0),
-    );
+      ], spacing: 0);

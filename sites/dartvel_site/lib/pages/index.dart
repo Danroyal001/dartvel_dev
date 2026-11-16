@@ -11,7 +11,7 @@ import '../components/site.dart';
   showAppBar: false,
 )
 @pragma('vm:entry-point')
-Widget _indexPage(BuildContext context) => const SingleChildScrollView(
+Widget _indexPage(BuildContext context) => const SiteScroll(
       // A scroll, like every other page on the site. This was a deck: one
       // section per flick, snapped by PageScrollPhysics, with a wheel handler
       // holding a cooldown. On a phone that is a page that fights the finger --
@@ -21,7 +21,7 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
       //
       // Every section below backs the headline: one Dart project for the app
       // and its backend. Anything that did not was cut.
-      child: DVBox.list(<Widget>[
+      <Widget>[
         HeroSection(),
         Proof(),
         BackendProof(),
@@ -34,9 +34,7 @@ Widget _indexPage(BuildContext context) => const SingleChildScrollView(
         ExpoComparison(),
         Honest(),
         StartNow(),
-        SiteFooter(),
-      ], spacing: 0),
-    );
+      ], spacing: 0);
 
 @DVFunctionalWidget()
 Widget _heroSection(BuildContext context) {

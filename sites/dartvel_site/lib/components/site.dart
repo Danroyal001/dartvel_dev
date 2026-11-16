@@ -212,6 +212,22 @@ Widget _siteHeader(BuildContext context) {
   );
 }
 
+/// A page of this site: its content, scrolling, with the one [SiteFooter]
+/// after it.
+///
+/// The footer is shared UI, so it is placed here and nowhere else: a page
+/// returns its sections in a SiteScroll and never names the footer (the docs
+/// place theirs in DocsArticle). test/footer_component_test.dart holds every
+/// page to that.
+@DVFunctionalWidget()
+Widget _siteScroll(
+  BuildContext context,
+  List<Widget> children, {
+  double spacing = 8,
+}) => SingleChildScrollView(
+  child: DVBox.list(<Widget>[...children, const SiteFooter()], spacing: spacing),
+);
+
 @DVFunctionalWidget()
 Widget _siteFooter(BuildContext context) {
   final Palette palette = Palette.of(context);
