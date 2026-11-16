@@ -1,3 +1,11 @@
+## 3.47.4 — 2026-11-16
+
+- One render path for data-backed pages: `dvRenderPage` takes the route's page entry and renders through `dvRenderRoutePage`, so a data model's page or a Studio page keeps its hreflang links, robots meta and schema type, is minified, and carries one JSON-LD block.
+- `DVSessionAuthentication.ofRequest(request)`: one way to ask whether a request is signed in, used by Studio's API, the data-model API and the admin dashboard.
+- The `securityHeaders` middleware starts from the framework's default headers and adds only `X-Frame-Options: DENY` and `X-XSS-Protection: 0`. It no longer sends HSTS with `includeSubDomains`.
+- `dvJsonLdScript` writes every `<` as `\u003c`.
+- `dvHostedSignInLocation`: where a signed-out request for a guarded page goes, at the sign-in page's public URL when the site has hosts.
+
 ## 3.47.3 — 2026-11-16
 
 - `DV.Billing` takes one-time orders: `DVOneTimeCheckout` turns an order the application priced (reference, lines in minor units, buyer email, return addresses) into the provider's hosted page, and `orderStatus` asks the provider, with `DVBillingOrderStatus.paidInFull` true only for the exact total and currency. Webhook results name the order. New providers: `DVPaystackBillingProvider` and `DVFlutterwaveBillingProvider` (`dartvel.billing.provider: paystack | flutterwave`); Bachs checks out raw amounts with an idempotency key per order.

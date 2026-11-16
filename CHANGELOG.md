@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.4 — 2026-11-16
 
 - `DV.run()` takes nothing: `void main() => DV.run();` is the whole of an app's main.dart, in the `dartvel create` scaffold, the examples, the site and every page that teaches it. The process's arguments (a file opened with the app, a dartvel:// link, a command) still reach DV.run: the generator writes `lib/dartvel_client/main.g.dart`, which keeps them and calls your main, and `dartvel build` and `dartvel dev` compile it. An app still written as `main(List<String> args) => DV.run(args)` keeps working.
 - Ctrl+C (Cmd+C) with nothing selected on a page leaves the clipboard alone. It wrote an empty string over whatever the reader had copied (seen on dartvel.dev). With text selected it copies as before.
@@ -6,6 +6,10 @@
 - One way to ask whether a request is signed in: `DVSessionAuthentication.ofRequest(request)`, used by Studio's API, the data-model API, the admin dashboard, the generated backend and `dartvel dev --release`, which each built the call by hand.
 - The `securityHeaders` middleware starts from the framework's default headers and adds only `X-Frame-Options: DENY` and `X-XSS-Protection: 0`. It no longer sends HSTS with `includeSubDomains`, which the default refuses on purpose.
 - `dartvel prerender` runs the build's own capture (`dartvel build web`) and writes nothing itself. It was a second pipeline with an older page walker that wrote over the build's captures, captured guarded routes, and wrote a sitemap.xml and robots.txt naming `http://localhost:8080` unless told otherwise. Its old flags are accepted and ignored with a note.
+- A page's JSON-LD writes every `<` as `\u003c`, so text people type into page data can never end the script block early.
+- A guarded page asked for while signed out is sent to sign-in by one rule (`dvHostedSignInLocation`), shared by the deployed server and the preview, which each had their own copy.
+- `dartvel build android|ios|macos --brownfield` copies the project's top-level files into the staged module and links only folders, so Flutter tidying a file such as `analysis_options.yaml` can no longer change the project itself.
+- The web splash and Studio's splash use the same picture file names.
 
 ## 3.47.3 — 2026-11-16
 

@@ -1,3 +1,8 @@
+## 3.47.4 — 2026-11-16
+
+- A data-backed page rendered on request keeps its route's hreflang links, robots meta and schema type (core's one render path).
+- A signed-out request for a guarded page is redirected by core's `dvHostedSignInLocation`.
+
 ## 3.47.3 — 2026-11-16
 
 - Version aligned with dartvel_core 3.47.3.
