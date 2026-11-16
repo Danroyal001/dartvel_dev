@@ -338,21 +338,26 @@ Future<ServerHandle> serve(
       );
       if (file != null) return file;
 
-      // 2. Fall back to normal handler or SPA index
-      final resp = await handler(req);
-      if (resp.status == 404 && req.method == 'GET') {
-        return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
-      }
-      // HEAD is GET without the body. Answering it 404 told an uptime
-      // monitor, a link checker and a crawler that asks HEAD first that a
-      // page served to every browser was not there.
-      if (resp.status == 404 && req.method == 'HEAD') {
-        final page = await handleSsrFallback(req, spaRoot,
-            pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
-        return Response(page.status,
-            headers: page.headers, body: const Stream<List<int>>.empty());
-      }
-      return resp;
+      // 2. Fall back to normal handler or SPA index. Measured here, around
+      // both, so the request is logged and counted with the status it was
+      // sent: the router answers 404 for every page, since pages are not
+      // routes, and the page then goes out with 200.
+      return Router.measure(req, () async {
+        final resp = await handler(req);
+        if (resp.status == 404 && req.method == 'GET') {
+          return handleSsrFallback(req, spaRoot, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
+        }
+        // HEAD is GET without the body. Answering it 404 told an uptime
+        // monitor, a link checker and a crawler that asks HEAD first that a
+        // page served to every browser was not there.
+        if (resp.status == 404 && req.method == 'HEAD') {
+          final page = await handleSsrFallback(req, spaRoot,
+              pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes);
+          return Response(page.status,
+              headers: page.headers, body: const Stream<List<int>>.empty());
+        }
+        return resp;
+      });
     };
   }
 
