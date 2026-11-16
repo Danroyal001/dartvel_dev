@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart';
-import 'package:dartvel_shelf/dartvel_shelf.dart';
+import 'package:dartvel_shelf/src/ssr_helper.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -46,20 +46,22 @@ void main() {
 
   test('each request gets its own text; the rest is the capture', () async {
     String day = 'TUESDAY 17 NOVEMBER';
-    final ServerHandle server = await serve(Router().call,
-        host: '127.0.0.1',
-        port: 0,
-        spaRoot: site.path,
-        pageData: dvRoutePageResolver(<String, DVPageDataResolver>{
-          '/login': (DVPageRequest request) => DVPageData.slots(<String, String>{'menu-date': day}),
-        }));
-    addTearDown(server.stop);
-    final HttpClient client = HttpClient();
-    addTearDown(() => client.close(force: true));
-    Future<String> get() async =>
-        (await (await client.getUrl(Uri.parse('http://127.0.0.1:${server.port}/login'))).close())
-            .transform(utf8.decoder)
-            .join();
+    final DVPageDataResolver pageData = dvRoutePageResolver(<String, DVPageDataResolver>{
+      '/login': (DVPageRequest request) => DVPageData.slots(<String, String>{'menu-date': day}),
+    });
+    Future<String> get() async {
+      final Response response = await handleSsrFallback(
+        Request(
+          method: 'GET',
+          url: Uri.parse('http://localhost/login'),
+          headers: Headers(const <String, String>{}),
+          bodyStream: const Stream<List<int>>.empty(),
+        ),
+        site.path,
+        pageData: pageData,
+      );
+      return utf8.decode(await response.body!.bytes());
+    }
 
     final String tuesday = await get();
     expect(tuesday, contains('TUESDAY 17 NOVEMBER'));
