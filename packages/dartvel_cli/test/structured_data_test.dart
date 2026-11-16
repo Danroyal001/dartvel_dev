@@ -128,7 +128,8 @@ void main() {
       );
 
       expect(html, isNot(contains('</script><img')));
-      expect(html, contains(r'<\/script>'));
+      // The payload is still there, every < written as \u003c (dvJsonLdScript).
+      expect(html, contains(r'\u003c/script>\u003cimg src=x>'));
     });
 
     test('markup in a page title cannot either', () {
@@ -140,7 +141,8 @@ void main() {
       );
 
       expect(html, isNot(contains('</script><img')));
-      expect(html, contains(r'<\/script>'));
+      // The payload is still there, every < written as \u003c (dvJsonLdScript).
+      expect(html, contains(r'\u003c/script>\u003cimg src=x>'));
     });
   });
 }
