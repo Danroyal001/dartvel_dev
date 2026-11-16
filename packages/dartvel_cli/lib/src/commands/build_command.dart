@@ -5372,6 +5372,7 @@ class BuildCommand extends Command<void> {
       webRoot: web.path,
       routerSource: _routerSource(root),
       routes: routes,
+      wasmDeferredMap: _wasmDeferredMap,
     );
     Logger.log('   Preloads: $preloading route(s) name their own code for '
         'the server to send.');

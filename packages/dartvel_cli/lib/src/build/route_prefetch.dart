@@ -422,6 +422,26 @@ Map<String, List<String>> dvWasmDeferredModules(Map<String, Object?>? map) {
   return out;
 }
 
+/// [dvWasmDeferredModules] for the build in [webRoot]: only for a build that
+/// ships the wasm app, and only modules the web root carries -- Studio's are
+/// kept apart and served to its grant alone.
+Map<String, List<String>> dvPreloadableWasmModules(
+    String webRoot, Map<String, Object?>? wasmDeferredMap) {
+  final File bootstrap = File(p.join(webRoot, 'flutter_bootstrap.js'));
+  if (!bootstrap.existsSync() ||
+      !dvBuildCompilesToWasm(bootstrap.readAsStringSync())) {
+    return const <String, List<String>>{};
+  }
+  return <String, List<String>>{
+    for (final MapEntry<String, List<String>> entry
+        in dvWasmDeferredModules(wasmDeferredMap).entries)
+      entry.key: <String>[
+        for (final String module in entry.value)
+          if (File(p.join(webRoot, module)).existsSync()) module,
+      ],
+  };
+}
+
 DVPrefetchSummary dvWriteRoutePrefetch({
   required String projectRoot,
   required String webRoot,
@@ -430,20 +450,8 @@ DVPrefetchSummary dvWriteRoutePrefetch({
   Map<String, Object?>? wasmDeferredMap,
 }) {
   final Map<String, List<String>> parts = dvPreloadableParts(webRoot);
-  final File bootstrapFile = File(p.join(webRoot, 'flutter_bootstrap.js'));
-  // Only for a build that ships the wasm app, and only modules the web root
-  // carries: Studio's are kept apart and served to its grant alone.
-  final Map<String, List<String>> wasmModules = bootstrapFile.existsSync() &&
-          dvBuildCompilesToWasm(bootstrapFile.readAsStringSync())
-      ? <String, List<String>>{
-          for (final MapEntry<String, List<String>> entry
-              in dvWasmDeferredModules(wasmDeferredMap).entries)
-            entry.key: <String>[
-              for (final String module in entry.value)
-                if (File(p.join(webRoot, module)).existsSync()) module,
-            ],
-        }
-      : const <String, List<String>>{};
+  final Map<String, List<String>> wasmModules =
+      dvPreloadableWasmModules(webRoot, wasmDeferredMap);
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
   final File shell = File(p.join(webRoot, 'index.html'));
   final Set<String> namedByShell = shell.existsSync()
