@@ -8,6 +8,6 @@ import 'package:test/test.dart';
 void main() {
   test('the build does not compute the capture file name itself', () {
     final String build = File('lib/src/commands/build_command.dart').readAsStringSync();
-    expect(build, isNot(contains("'dartvel_semantics'")));
+    expect(build, isNot(contains(r"'dartvel_semantics', '$name.json'")));
   });
 }

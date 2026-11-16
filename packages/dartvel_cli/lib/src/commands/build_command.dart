@@ -4698,11 +4698,7 @@ class BuildCommand extends Command<void> {
   /// returns null and the caller falls back to the source-literal extractor,
   /// so a build with no browser still produces something rather than failing.
   String? _semanticHtmlFor(String root, String route) {
-    final String name =
-        route == '/' ? 'index' : route.replaceAll(RegExp(r'^/|/$'), '')
-            .replaceAll('/', '_');
-    final file = File(
-        p.join(root, '.dart_tool', 'dartvel_semantics', '$name.json'));
+    final file = File(dvSemanticsPathFor(root, route));
     if (!file.existsSync()) return null;
     final String html =
         dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
