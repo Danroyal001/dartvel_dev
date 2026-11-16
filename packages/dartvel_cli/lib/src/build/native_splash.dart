@@ -41,6 +41,12 @@ const String dvSplashDefaultDarkColor = '#121212';
 /// The web splash's loading line when a project names none.
 const String dvSplashDefaultLoadingText = 'Loading…';
 
+/// The web splash's picture beside index.html, and its dark version. One
+/// constant each, read by the web splash that writes them and by Studio's
+/// splash that shows them while its code loads.
+const String dvWebSplashImage = 'dartvel-splash.png';
+const String dvWebSplashDarkImage = 'dartvel-splash-dark.png';
+
 /// The loading bar's colour when a project names none: a blue that reads on
 /// a light splash and a dark one.
 const String dvProgressDefaultColor = '#2F6BFF';
@@ -458,18 +464,18 @@ DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
   if (source != null) {
     width = dvSplashLogicalWidth(splash, source);
     // 3x: the densest screens a browser reports, and the file stays small.
-    final File out = File(p.join(web.path, 'dartvel-splash.png'));
+    final File out = File(p.join(web.path, dvWebSplashImage));
     _record(result, root, out,
         _putBytes(out, dvPngEncode(_scaled(source, width * 3))));
-    imageUrl = 'dartvel-splash.png';
+    imageUrl = dvWebSplashImage;
 
     final DVRgbaImage? dark =
         splash.darkImage == null ? null : _decode(splash.darkImage!, result);
     if (dark != null) {
-      final File darkOut = File(p.join(web.path, 'dartvel-splash-dark.png'));
+      final File darkOut = File(p.join(web.path, dvWebSplashDarkImage));
       _record(result, root, darkOut,
           _putBytes(darkOut, dvPngEncode(_scaled(dark, width * 3))));
-      darkUrl = 'dartvel-splash-dark.png';
+      darkUrl = dvWebSplashDarkImage;
     }
   }
 

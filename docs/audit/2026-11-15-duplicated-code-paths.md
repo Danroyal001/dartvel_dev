@@ -19,7 +19,7 @@ reader, a crawler or a security boundary sees when they do.
 | 6 | Medium | "Is this request signed in?" assembled five times | Open |
 | 7 | Medium | The home page's head written outside `dvRenderRoutePage` | Open |
 | 8 | Medium | Docs site: a second web app with a hand-written HTML shell | Open |
-| 9 | Low-medium | Studio's splash redrawn in Flutter next to the web splash | Open |
+| 9 | Low-medium | Studio's splash redrawn in Flutter next to the web splash | Partly fixed (shared file names) |
 | 10 | Low-medium | Two default security-header sets that disagree | Open |
 | 11 | Low | Rust runtime: SPA fallback and route matcher beside the Dart ones | Open (latent) |
 | 12 | Low | Semantics-capture file name computed twice in the build | Open |
