@@ -20,6 +20,33 @@ import 'package:dartvel_cli/src/generators/page_policy.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('a guarded page and the start-up session restore', () {
+    // A signed-in person opening a guarded address directly (a reload, a
+    // link from an email, a return from a payment page) reached the guard
+    // before DV.Auth had restored the session, so the guard saw nobody and
+    // sent them to sign in. Seen on sigmadev.digital: /my-account/orders
+    // opened directly landed on /my-account.
+    final List<String> chains = <String>[
+      dvPageGuardChain(directoryGuards: const <String>['g0'], policy: null),
+      dvPageGuardChain(directoryGuards: const <String>[], policy: 'DVPolicies.viewAdmin'),
+      dvPageGuardChain(directoryGuards: const <String>[], policy: null, middleware: const <String>['auth']),
+      dvPageGuardChain(directoryGuards: const <String>[], policy: null, mfa: 'DVMfa.required'),
+    ];
+
+    test('every guard chain waits for the restore before it asks anything', () {
+      for (final String chain in chains) {
+        final int settle = chain.indexOf('await dvPageAuthSettled();');
+        expect(settle, greaterThan(0), reason: chain);
+        final int firstAsk = chain.indexOf('await ', settle + 1);
+        expect(firstAsk, greaterThan(settle), reason: chain);
+      }
+    });
+
+    test('a page with no guard still waits for nothing', () {
+      expect(dvPageGuardChain(directoryGuards: const <String>[], policy: null), isEmpty);
+    });
+  });
+
   group('what a declared policy generates', () {
     test('a page with one gets a check the router will actually run', () {
       // Not a comment, not a TODO. The redirect itself is the chain's --

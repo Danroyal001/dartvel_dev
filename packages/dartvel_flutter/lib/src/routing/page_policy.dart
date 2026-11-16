@@ -10,6 +10,23 @@
 /// every generated router in every application pinning the old shape.
 library dartvel_flutter.routing.page_policy;
 
+import '../../dartvel_flutter.dart' show DVAuth;
+
+/// Waits until the start-up session restore has answered, for the generated
+/// router's guards.
+///
+/// A guarded page opened directly -- a reload, a link from an email, the
+/// return from a payment page -- reached its guard before DV.Auth had
+/// restored the session, so the guard saw nobody and sent a signed-in person
+/// to sign in (sigmadev.digital: /my-account/orders opened directly landed on
+/// /my-account). Every guard chain the router generates awaits this first,
+/// so a guard written as `DV.Auth.currentUser == null` answers about the
+/// person who is really there. When no restore is running it returns at
+/// once.
+Future<void> dvPageAuthSettled() async {
+  if (const DVAuth().restoring) await const DVAuth().restored;
+}
+
 /// Where a refused request goes.
 ///
 /// A default rather than a constant, and the same one the role guard already

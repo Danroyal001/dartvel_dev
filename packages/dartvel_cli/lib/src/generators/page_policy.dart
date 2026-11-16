@@ -144,7 +144,10 @@ String dvPageGuardChain({
 
   final StringBuffer out = StringBuffer()
     ..writeln()
-    ..writeln('      redirect: (context, state) async {');
+    ..writeln('      redirect: (context, state) async {')
+    // Before any guard asks who is signed in: a page opened directly is
+    // reached before the start-up restore answers (dvPageAuthSettled).
+    ..writeln('        await dvPageAuthSettled();');
   if (middlewareGuard.isNotEmpty) out.writeln(middlewareGuard);
   for (final String guard in directoryGuards) {
     out.writeln(
