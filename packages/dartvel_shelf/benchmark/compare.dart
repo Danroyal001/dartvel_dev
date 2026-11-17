@@ -1,244 +1,348 @@
-// Run: ~/heavy.sh dart run benchmark/compare.dart
-// Each engine/scenario runs in a fresh process. RSS includes the Dart client,
-// VM/JIT and (for Dartvel) the native runtime, not just the server.
+// shelf, Relic 2 and dartvel_shelf, each server in a fresh process of its
+// own, measured from outside it.
 //
-// `websocket` runs its client in the server's own isolate, as the other
-// scenarios do. `websocket_remote` and `websocket_pipelined` run the client in
-// a separate process, as a real peer would be: the server isolate then waits
-// for the network like any server rather than for its own client's code.
+// Build the servers AOT first (from packages/dartvel_shelf):
+//   dart compile exe benchmark/serve.dart -o build/benchmark/serve
+//   (cd benchmark/relic && dart pub get && dart build cli -t bin/serve.dart)
+// then:
+//   ~/heavy.sh dart run benchmark/compare.dart [options]
+//
+// Options (all optional):
+//   --engines=shelf,relic_io,relic_native,relic_native4,dartvel
+//   --scenarios=plaintext,json,headers,static,many,startup,websocket,
+//               websocket_pipelined,upload,download
+//   --trials=3 --seconds=5 --connections=64 --many=1024
+//   --serve=build/benchmark/serve
+//   --relic=benchmark/relic/build/cli/linux_x64/bundle/bin/serve
+//
+// The HTTP scenarios are driven by oha (https://github.com/hatoo/oha), the
+// load tool Relic's own http_load.dart uses, in a closed loop: `connections`
+// requests always in flight on keep-alive connections, after a 2 s warm-up
+// of the same request. `many` is plaintext at `--many` connections.
+// `headers` is plaintext with the 18 browser headers of Relic's headers
+// workload. `static` is a 4 KiB file through each engine's own static
+// handler (shelf_static, Relic's StaticHandler, dartvel_shelf's staticDir).
+// WebSocket, upload and download use the Dart clients below, in a process of
+// their own. `startup` is the time from spawning the server to its first 200.
+//
+// Every row is printed as one JSON line with the server's peak RSS
+// (VmHWM, the server process alone), the CPU seconds it used, and the
+// one-minute load average when the row started, because this machine is
+// shared.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:dartvel_shelf/dartvel_shelf.dart' as dv;
-import 'package:dartvel_shelf/web_socket.dart' as native_ws;
-import 'package:shelf/shelf.dart' as shelf;
-import 'package:shelf/shelf_io.dart' as shelf_io;
-import 'package:shelf_web_socket/shelf_web_socket.dart' as shelf_ws;
+const allEngines = [
+  'shelf',
+  'relic_io',
+  'relic_native',
+  'relic_native4',
+  'dartvel',
+];
+const allScenarios = [
+  'plaintext',
+  'json',
+  'headers',
+  'static',
+  'many',
+  'startup',
+  'websocket',
+  'websocket_pipelined',
+  'upload',
+  'download',
+];
+const transferBytes = 50 * 1024 * 1024;
 
-const size = 50 * 1024 * 1024;
-Stream<List<int>> payload() async* {
-  final chunk = Uint8List(64 * 1024);
-  for (var i = 0; i < size; i += chunk.length) {
-    yield chunk;
-  }
-}
+/// What a browser sends, Cookie included: Relic's `headers` workload.
+const browserHeaders = [
+  'Host: localhost',
+  'Connection: keep-alive',
+  'Cache-Control: max-age=0',
+  'sec-ch-ua: "Chromium";v="130", "Google Chrome";v="130"',
+  'sec-ch-ua-mobile: ?0',
+  'sec-ch-ua-platform: "macOS"',
+  'Upgrade-Insecure-Requests: 1',
+  'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,'
+      'image/avif,image/webp,image/apng,*/*;q=0.8',
+  'Sec-Fetch-Site: same-origin',
+  'Sec-Fetch-Mode: navigate',
+  'Sec-Fetch-User: ?1',
+  'Sec-Fetch-Dest: document',
+  'Referer: http://localhost/',
+  'Accept-Encoding: gzip, deflate, br, zstd',
+  'Accept-Language: en-US,en;q=0.9,da;q=0.8',
+  'Cookie: session=0123456789abcdef0123456789abcdef0123456789abcdef; '
+      '_ga=GA1.1.1234567890.1700000000; _gid=GA1.1.0987654321.1700000000; '
+      'theme=dark; consent=analytics,marketing; '
+      'tracker=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+];
 
 Future<void> main(List<String> args) async {
-  if (args.isEmpty) {
-    for (var trial = 1; trial <= 3; trial++) {
-      for (final scenario in [
-        'hello',
-        'upload',
-        'download',
-        'websocket',
-        'websocket_remote',
-        'websocket_pipelined',
-      ]) {
-        for (final engine in ['shelf', 'dartvel']) {
-          final result = await _self([engine, scenario]);
-          if (result.exitCode != 0) {
-            stderr.write(result.stderr);
-            exitCode = result.exitCode;
-            return;
-          }
-          final data = jsonDecode(
-            (result.stdout as String).trim(),
-          ) as Map<String, dynamic>;
-          stdout.writeln(jsonEncode({'trial': trial, ...data}));
-        }
-      }
-    }
-    return;
-  }
-  if (args[0] == 'client') {
+  if (args.isNotEmpty && args.first == 'client') {
     stdout.writeln(jsonEncode(await _client(int.parse(args[1]), args[2])));
     return;
   }
-  final engine = args[0];
-  final scenario = args[1];
-  late int port;
-  late Future<void> Function() stop;
-  if (engine == 'dartvel') {
-    dv.embedNativeServerLibrary(
-      await File('lib/native/linux-x64/libdartvel_shelf.so').readAsBytes(),
-    );
-    final ws = native_ws.webSocketHandler((channel, _) {
-      channel.sink.addStream(channel.stream).then((_) => channel.sink.close());
-    });
-    final server = await dv.serve(
-      (req) async {
-        if (req.url.path == '/ws') return ws(req);
-        if (req.url.path == '/upload') {
-          final bytes = await req.body.stream.fold<int>(
-            0,
-            (n, chunk) => n + chunk.length,
-          );
-          return dv.Response.text('$bytes');
-        }
-        if (req.url.path == '/download') {
-          return dv.Response(
-            200,
-            body: payload(),
-            headers: dv.Headers({'content-length': '$size'}),
-          );
-        }
-        return dv.Response.text('hello');
-      },
-      port: 0,
-      compression: false,
-      maxBodyBytes: size + 1,
-    );
-    port = server.port;
-    stop = server.stop;
-  } else {
-    final ws = shelf_ws.webSocketHandler((channel, _) {
-      channel.sink.addStream(channel.stream).then((_) => channel.sink.close());
-    });
-    final server = await shelf_io.serve(
-      (req) async {
-        if (req.url.path == 'ws') return ws(req);
-        if (req.url.path == 'upload') {
-          final bytes = await req.read().fold<int>(
-            0,
-            (n, chunk) => n + chunk.length,
-          );
-          return shelf.Response.ok('$bytes');
-        }
-        if (req.url.path == 'download') {
-          return shelf.Response.ok(
-            payload(),
-            headers: {'content-length': '$size'},
-          );
-        }
-        return shelf.Response.ok('hello');
-      },
-      '127.0.0.1',
-      0,
-    );
-    port = server.port;
-    stop = () async {
-      await server.close(force: true);
-    };
-  }
-  final client = HttpClient()..maxConnectionsPerHost = 16;
-  final root = Uri.parse('http://127.0.0.1:$port/');
-  Future<int> hello() async {
-    final watch = Stopwatch()..start();
-    final response = await (await client.getUrl(root)).close();
-    if (response.statusCode != 200) {
-      throw StateError('HTTP ${response.statusCode}');
-    }
-    await response.drain<void>();
-    return watch.elapsedMicroseconds;
-  }
+  final options = {
+    for (final arg in args)
+      if (arg.startsWith('--') && arg.contains('='))
+        arg.substring(2, arg.indexOf('=')): arg.substring(arg.indexOf('=') + 1),
+  };
+  List<String> list(String name, List<String> all) =>
+      options[name]?.split(',') ?? all;
+  final engines = list('engines', allEngines);
+  final scenarios = list('scenarios', allScenarios);
+  final trials = int.parse(options['trials'] ?? '3');
+  final seconds = int.parse(options['seconds'] ?? '5');
+  final connections = int.parse(options['connections'] ?? '64');
+  final many = int.parse(options['many'] ?? '1024');
+  final serveBin = options['serve'] ?? 'build/benchmark/serve';
+  final relicBin = options['relic'] ??
+      'benchmark/relic/build/cli/linux_x64/bundle/bin/serve';
 
-  // Equal warm-up before the measured scenario.
-  for (var i = 0; i < 100; i++) {
-    await hello();
-  }
-  final watch = Stopwatch()..start();
-  final metrics = <String, Object>{};
-  switch (scenario) {
-    case 'hello':
-      final latencies = <int>[];
-      await Future.wait(
-        List.generate(16, (_) async {
-          for (var i = 0; i < 125; i++) {
-            latencies.add(await hello());
-          }
-        }),
-      );
-      watch.stop();
-      latencies.sort();
-      metrics.addAll({
-        'requests': latencies.length,
-        'rps': latencies.length * 1000000 / watch.elapsedMicroseconds,
-        'p50_ms': latencies[latencies.length ~/ 2] / 1000,
-        'p95_ms': latencies[(latencies.length * .95).floor()] / 1000,
-      });
-    case 'upload':
-      final req = await client.postUrl(root.resolve('upload'));
-      req.contentLength = size;
-      await req.addStream(payload());
-      final response = await req.close();
-      final text = await response.transform(utf8.decoder).join();
-      if (text != '$size') {
-        throw StateError('Upload received $text bytes');
-      }
-      watch.stop();
-      metrics['mib_per_second'] = 50 * 1000000 / watch.elapsedMicroseconds;
-    case 'download':
-      final response = await (await client.getUrl(root.resolve('download')))
-          .close();
-      final bytes = await response.fold<int>(0, (n, chunk) => n + chunk.length);
-      if (bytes != size) {
-        throw StateError('Download received $bytes bytes');
-      }
-      watch.stop();
-      metrics['mib_per_second'] = 50 * 1000000 / watch.elapsedMicroseconds;
-    case 'websocket':
-      final ws = await WebSocket.connect('ws://127.0.0.1:$port/ws');
-      final messages = StreamIterator<Object?>(ws);
-      final message = 'x' * 64;
-      final latencies = <int>[];
-      for (var i = 0; i < 500; i++) {
-        final sent = watch.elapsedMicroseconds;
-        ws.add(message);
-        if (!await messages.moveNext() || messages.current != message) {
-          throw StateError('Echo mismatch');
+  final staticDir = Directory.systemTemp.createTempSync('compare_static');
+  File('${staticDir.path}/file-4k.txt')
+      .writeAsBytesSync(List<int>.generate(4096, (i) => 0x61 + i % 26));
+  try {
+    for (var trial = 1; trial <= trials; trial++) {
+      for (final scenario in scenarios) {
+        for (final engine in engines) {
+          final row = await _measure(
+            engine: engine,
+            scenario: scenario,
+            command: _command(engine, serveBin, relicBin, staticDir.path),
+            seconds: seconds,
+            connections: scenario == 'many' ? many : connections,
+          );
+          stdout.writeln(jsonEncode({'trial': trial, ...row}));
         }
-        latencies.add(watch.elapsedMicroseconds - sent);
       }
-      watch.stop();
-      latencies.sort();
-      metrics['messages_per_second'] =
-          500 * 1000000 / watch.elapsedMicroseconds;
-      metrics['p50_us'] = latencies[latencies.length ~/ 2];
-      await ws.close();
-      await messages.cancel();
-    case 'websocket_remote':
-    case 'websocket_pipelined':
-      final result = await _self([
-        'client',
-        '$port',
-        scenario == 'websocket_remote' ? 'pingpong' : 'pipelined',
-      ]);
-      if (result.exitCode != 0) throw StateError('${result.stderr}');
-      watch.stop();
-      metrics.addAll(
-        (jsonDecode((result.stdout as String).trim()) as Map)
-            .cast<String, Object>(),
-      );
+    }
+  } finally {
+    staticDir.deleteSync(recursive: true);
   }
-  metrics['elapsed_ms'] = watch.elapsedMicroseconds / 1000;
-  metrics['peak_rss_mib'] = ProcessInfo.maxRss / (1024 * 1024);
-  client.close(force: true);
-  await stop();
-  stdout.writeln(
-    jsonEncode({'engine': engine, 'scenario': scenario, ...metrics}),
-  );
 }
 
-/// This program again, in a fresh process: `dart <script>` under the VM, the
-/// executable itself when compiled.
-Future<ProcessResult> _self(List<String> args) =>
-    Process.run(Platform.resolvedExecutable, [
-      if (['dart', 'dartvm', 'dart.exe'].contains(
-        Platform.resolvedExecutable.split(Platform.pathSeparator).last,
-      ))
-        Platform.script.toFilePath(),
-      ...args,
-    ]);
+List<String> _command(
+  String engine,
+  String serveBin,
+  String relicBin,
+  String staticDir,
+) =>
+    switch (engine) {
+      'shelf' || 'dartvel' => [serveBin, engine, staticDir],
+      'relic_io' => [relicBin, 'io', '1', staticDir],
+      'relic_native' => [relicBin, 'native', '1', staticDir],
+      'relic_native4' => [relicBin, 'native', '4', staticDir],
+      'dartvel4' => [serveBin, 'dartvel4', staticDir],
+      _ => throw ArgumentError.value(engine, 'engine'),
+    };
 
-/// A WebSocket peer in its own process.
+Future<Map<String, Object?>> _measure({
+  required String engine,
+  required String scenario,
+  required List<String> command,
+  required int seconds,
+  required int connections,
+}) async {
+  final load = File('/proc/loadavg').readAsStringSync().split(' ').first;
+  final spawned = Stopwatch()..start();
+  final server = await Process.start(command.first, command.skip(1).toList());
+  final stderrText = StringBuffer();
+  server.stderr.transform(utf8.decoder).listen(stderrText.write);
+  final lines = server.stdout.transform(utf8.decoder).transform(
+        const LineSplitter(),
+      );
+  final ready = Completer<int>();
+  lines.listen((line) {
+    if (!ready.isCompleted && line.startsWith('ready ')) {
+      ready.complete(int.parse(line.substring(6)));
+    }
+  });
+  final int port;
+  try {
+    port = await ready.future.timeout(const Duration(seconds: 60));
+  } on TimeoutException {
+    server.kill();
+    throw StateError('$engine never became ready: $stderrText');
+  }
+  final base = 'http://127.0.0.1:$port';
+  final metrics = <String, Object?>{};
+  try {
+    // The first 200 ends startup.
+    final probe = HttpClient();
+    while (true) {
+      try {
+        final response =
+            await (await probe.getUrl(Uri.parse('$base/plaintext'))).close();
+        await response.drain<void>();
+        if (response.statusCode == 200) break;
+      } on SocketException {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+    }
+    probe.close(force: true);
+    final startupMs = spawned.elapsedMicroseconds / 1000;
+    final cpuBefore = _cpuSeconds(server.pid);
+    switch (scenario) {
+      case 'startup':
+        metrics['startup_ms'] = startupMs;
+      case 'plaintext' || 'json' || 'headers' || 'static' || 'many':
+        final url = switch (scenario) {
+          'json' => '$base/json',
+          'static' => '$base/static/file-4k.txt',
+          _ => '$base/plaintext',
+        };
+        final headers = scenario == 'headers' ? browserHeaders : <String>[];
+        await _oha(url, connections, 2, headers);
+        final run = await _oha(url, connections, seconds, headers);
+        metrics.addAll(run);
+        final cpu = _cpuSeconds(server.pid) - cpuBefore;
+        final requests = run['requests'] as int;
+        if (requests > 0) metrics['cpu_us_per_req'] = cpu * 1e6 / requests;
+      case 'websocket' || 'websocket_pipelined' || 'upload' || 'download':
+        final kind = scenario == 'websocket' ? 'pingpong' : scenario;
+        final result = await Process.run(Platform.resolvedExecutable, [
+          if (_underDartVm) Platform.script.toFilePath(),
+          'client',
+          '$port',
+          kind == 'websocket_pipelined' ? 'pipelined' : kind,
+        ]);
+        if (result.exitCode != 0) {
+          throw StateError('client failed: ${result.stderr}');
+        }
+        metrics.addAll(
+          (jsonDecode((result.stdout as String).trim()) as Map)
+              .cast<String, Object?>(),
+        );
+      default:
+        throw ArgumentError.value(scenario, 'scenario');
+    }
+    metrics['server_cpu_s'] = _cpuSeconds(server.pid) - cpuBefore;
+    metrics['peak_rss_mib'] = _peakRssMib(server.pid);
+  } finally {
+    server.kill(ProcessSignal.sigterm);
+    final exited = await server.exitCode
+        .timeout(const Duration(seconds: 10), onTimeout: () {
+      server.kill(ProcessSignal.sigkill);
+      return -9;
+    });
+    if (exited == -9) metrics['killed'] = true;
+  }
+  return {
+    'engine': engine,
+    'scenario': scenario,
+    'load1': double.parse(load),
+    ...metrics,
+  };
+}
+
+bool get _underDartVm => ['dart', 'dartvm', 'dart.exe']
+    .contains(Platform.resolvedExecutable.split(Platform.pathSeparator).last);
+
+/// User plus system CPU seconds of [pid] and its threads.
+double _cpuSeconds(int pid) {
+  final stat = File('/proc/$pid/stat').readAsStringSync();
+  final fields = stat.substring(stat.lastIndexOf(')') + 2).split(' ');
+  // utime and stime are fields 14 and 15; the slice starts at field 3.
+  return (int.parse(fields[11]) + int.parse(fields[12])) / 100;
+}
+
+/// Peak resident set of [pid], the server alone.
+double _peakRssMib(int pid) {
+  final line = File('/proc/$pid/status')
+      .readAsLinesSync()
+      .firstWhere((l) => l.startsWith('VmHWM:'));
+  return int.parse(line.split(RegExp(r'\s+'))[1]) / 1024;
+}
+
+Future<Map<String, Object?>> _oha(
+  String url,
+  int connections,
+  int seconds,
+  List<String> headers,
+) async {
+  final result = await Process.run('oha', [
+    '--no-tui',
+    '--output-format',
+    'json',
+    '-c',
+    '$connections',
+    '-z',
+    '${seconds}s',
+    for (final header in headers) ...['-H', header],
+    url,
+  ]);
+  if (result.exitCode != 0) throw StateError('oha: ${result.stderr}');
+  final json = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+  final summary = json['summary'] as Map<String, dynamic>;
+  final percentiles = json['latencyPercentiles'] as Map<String, dynamic>;
+  final statuses = (json['statusCodeDistribution'] as Map<String, dynamic>)
+      .cast<String, int>();
+  final errors = (json['errorDistribution'] as Map<String, dynamic>)
+      .cast<String, int>();
+  double? ms(String key) =>
+      percentiles[key] == null ? null : (percentiles[key] as num) * 1000;
+  final ok = statuses['200'] ?? 0;
+  final all = statuses.values.fold<int>(0, (a, b) => a + b);
+  return {
+    'requests': all,
+    'rps': summary['requestsPerSec'],
+    'p50_ms': ms('p50'),
+    'p99_ms': ms('p99'),
+    'p99_9_ms': ms('p99.9'),
+    if (all != ok) 'non_200': all - ok,
+    // oha cuts the requests in flight at the deadline; those are not
+    // the server's errors.
+    if (errors.keys.any((k) => !k.contains('deadline')))
+      'errors': {
+        for (final entry in errors.entries)
+          if (!entry.key.contains('deadline')) entry.key: entry.value,
+      },
+  };
+}
+
+/// A peer in its own process.
 ///
-/// `pingpong` sends one 64-byte text message and waits for its echo before the
-/// next, through dart:io's client. `pipelined` writes pre-encoded frames from a
-/// raw socket without waiting and counts the echoes, so the server is measured
-/// rather than a client that encodes each frame in Dart.
+/// `pingpong` sends one 64-byte text message and waits for its echo before
+/// the next, through dart:io's client. `pipelined` writes pre-encoded frames
+/// from a raw socket without waiting and counts the echoes, so the server is
+/// measured rather than a client that encodes each frame in Dart. `upload`
+/// and `download` move 50 MiB through dart:io's HttpClient.
 Future<Map<String, Object>> _client(int port, String kind) async {
+  if (kind == 'upload' || kind == 'download') {
+    final client = HttpClient();
+    final watch = Stopwatch()..start();
+    if (kind == 'upload') {
+      final request =
+          await client.postUrl(Uri.parse('http://127.0.0.1:$port/upload'));
+      request.contentLength = transferBytes;
+      final chunk = Uint8List(64 * 1024);
+      for (var sent = 0; sent < transferBytes; sent += chunk.length) {
+        request.add(chunk);
+      }
+      final response = await request.close();
+      final text = await response.transform(utf8.decoder).join();
+      if (text != '$transferBytes') {
+        throw StateError('Upload received $text bytes');
+      }
+    } else {
+      final response = await (await client
+              .getUrl(Uri.parse('http://127.0.0.1:$port/download')))
+          .close();
+      final bytes = await response.fold<int>(0, (n, c) => n + c.length);
+      if (bytes != transferBytes) {
+        throw StateError('Download received $bytes bytes');
+      }
+    }
+    watch.stop();
+    client.close(force: true);
+    return {'mib_per_second': 50 * 1e6 / watch.elapsedMicroseconds};
+  }
   if (kind == 'pingpong') {
     final ws = await WebSocket.connect('ws://127.0.0.1:$port/ws');
     final messages = StreamIterator<Object?>(ws);
@@ -324,7 +428,7 @@ Future<Map<String, Object>> _client(int port, String kind) async {
       if (!done.isCompleted) done.completeError(StateError('Closed early'));
     },
   );
-  await done.future;
+  await done.future.timeout(const Duration(seconds: 120));
   watch.stop();
   await subscription.cancel();
   socket.destroy();

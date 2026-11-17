@@ -1,0 +1,11 @@
+# Relic 2 servers for benchmark/compare.dart, in a package of their own:
+# relic_core needs mime ^2 and dartvel_core mime ^1, so the two cannot share
+# one package graph. Never published.
+name: dartvel_shelf_relic_benchmark
+publish_to: none
+environment:
+  sdk: ">=3.13.0 <4.0.0"
+dependencies:
+  relic: 2.0.0
+  relic_native: 2.0.0
+  web_socket: ^1.0.1
