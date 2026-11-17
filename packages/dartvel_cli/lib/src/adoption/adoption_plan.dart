@@ -62,6 +62,8 @@ const Map<String, Map<String, String>> dvDartvelDependencyConstraints =
     'xml': '^6.5.0',
     'hooks': '^2.0.0',
     'code_assets': '^2.0.0',
+    'yaml': '^3.1.2',
+    'yaml_edit': '^2.2.4',
   },
   'dartvel_flutter': <String, String>{
     'path': '^1.9.0',
