@@ -255,10 +255,12 @@ class DVFanoutLogSink implements DVLogSink {
 ///
 /// Added to rather than replaced, because a module's generated client
 /// registers its own models in the same process.
-void dvRegisterSensitiveLogFields(Iterable<String> names) =>
-    DVLogger._sensitiveFields.addAll(<String>[
-      for (final String name in names) name.toLowerCase(),
-    ]);
+void dvRegisterSensitiveLogFields(Iterable<String> names) {
+  DVLogger._sensitiveFields.addAll(<String>[
+    for (final String name in names) name.toLowerCase(),
+  ]);
+  DVLogger._sensitiveRevision++;
+}
 
 /// The thing application code calls.
 class DVLogger {
@@ -311,7 +313,14 @@ class DVLogger {
       Set<String>.unmodifiable(_sensitiveFields);
 
   /// Forgets every registered sensitive field. For tests.
-  static void resetSensitiveFields() => _sensitiveFields.clear();
+  static void resetSensitiveFields() {
+    _sensitiveFields.clear();
+    _sensitiveRevision++;
+  }
+
+  /// Moves whenever the sensitive field names change, so what was decided
+  /// from them can be decided again.
+  static int _sensitiveRevision = 0;
 
   /// What a redacted value is replaced with. Present rather than removed, so
   /// a reader can tell the difference between a secret that was there and a
@@ -527,12 +536,29 @@ class DVLogger {
 /// credential that leaves through the other.
 String dvRedactTelemetryText(String text) {
   String redacted = dvRedactSecrets(text);
+  // Every shape needs at least a dozen characters and a telltale piece --
+  // `eyJ`, `://`, or Bearer/Basic -- so the usual attribute (a route, a
+  // method, a table name) skips the regular expressions altogether: this
+  // runs for every string attribute of every span.
+  if (redacted.length < 12) return redacted;
+  final bool jwt = redacted.contains('eyJ');
+  final bool url = redacted.contains('://');
+  // Plain substring tests: a case-insensitive alternation costs microseconds
+  // a string on the Dart VM, which is more than the rest of a span.
+  final bool scheme = redacted.contains('earer') ||
+      redacted.contains('EARER') ||
+      redacted.contains('asic') ||
+      redacted.contains('ASIC');
+  if (!jwt && !url && !scheme) return redacted;
   for (final (RegExp shape, String Function(Match) replace)
       in DVLogger._credentialShapes) {
     redacted = redacted.replaceAllMapped(shape, replace);
   }
   return redacted;
 }
+
+
+
 
 /// Whether a telemetry attribute named [key] is redacted whatever its value.
 ///
@@ -542,7 +568,25 @@ String dvRedactTelemetryText(String text) {
 /// contains, so `http.request.header.authorization` and `access_token` are
 /// redacted while `gen_ai.usage.input_tokens` -- a count -- is not.
 bool dvIsSensitiveTelemetryKey(String key) {
+  // Attribute keys are few and repeat on every span, so each is decided once.
+  // The answers are forgotten when the sensitive field names change.
+  if (_sensitiveKeyGeneration != DVLogger._sensitiveRevision) {
+    _sensitiveKeys.clear();
+    _sensitiveKeyGeneration = DVLogger._sensitiveRevision;
+  }
+
+  final bool? known = _sensitiveKeys[key];
+  if (known != null) return known;
+  if (_sensitiveKeys.length > 4096) _sensitiveKeys.clear();
+  return _sensitiveKeys[key] = _decideSensitiveKey(key);
+}
+
+final Map<String, bool> _sensitiveKeys = <String, bool>{};
+int _sensitiveKeyGeneration = -1;
+
+bool _decideSensitiveKey(String key) {
   final String lower = key.toLowerCase();
+
   for (final String segment in lower.split('.')) {
     if (DVLogger._sensitiveFields.contains(segment)) return true;
     for (final String needle in DVLogger.defaultRedactedKeys) {

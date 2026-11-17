@@ -48,8 +48,11 @@ Future<void> main(List<String> arguments) async {
     return const DVOtlpResponse(200);
   }
 
+  // `spans` records the spans and exports them nowhere: what recording costs
+  // without encoding or sending, to tell the two apart.
   final Map<String, DVOpenTelemetryConfig?> modes = <String, DVOpenTelemetryConfig?>{
     'off': null,
+    'spans': null,
     'traces': const DVOpenTelemetryConfig(
         enabled: true, metrics: false, logs: false, serviceName: 'bench'),
     'all': const DVOpenTelemetryConfig(enabled: true, serviceName: 'bench'),
@@ -75,7 +78,11 @@ Future<void> main(List<String> arguments) async {
     DVObservability.metrics.reset();
     bytes = 0;
     posts = 0;
+    if (mode.key == 'spans') {
+      DVObservability.useTracing(exporter: DVFanoutTraceExporter(<DVTraceExporter>[]));
+    }
     if (mode.value != null) {
+
       DVOpenTelemetry.install(mode.value!,
           environment: const <String, String>{}, send: send);
     }

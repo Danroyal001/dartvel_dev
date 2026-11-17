@@ -11,6 +11,7 @@ import 'logging.dart';
 import 'metrics.dart';
 import 'tracing.dart';
 
+export 'database_telemetry.dart';
 export 'health.dart';
 export 'log.dart';
 export 'log_config.dart';
@@ -24,7 +25,6 @@ export 'otlp.dart';
 export 'runtime_config.dart';
 export 'tracing.dart';
 export 'tracing_middleware.dart';
-export 'database_telemetry.dart';
 
 /// `DV.ObservabilityAndLogging` is built on these.
 class DVObservability {

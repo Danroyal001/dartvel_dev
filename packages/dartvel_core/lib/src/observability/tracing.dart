@@ -9,6 +9,8 @@
 library dartvel.observability.tracing;
 
 import 'dart:async';
+import 'dart:collection';
+
 import 'dart:math';
 
 import '../secrets/secrets.dart' show dvRedactedMarker;
@@ -103,14 +105,26 @@ class DVTraceContext {
   static String newTraceId() => _hex(16);
   static String newSpanId() => _hex(8);
 
+  static const List<int> _hexDigits = <int>[
+    0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+    0x38, 0x39, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66,
+  ];
+
   static String _hex(int bytes) {
-    final StringBuffer out = StringBuffer();
-    // Four bytes a draw: 2^32 is the largest bound nextInt takes on every
-    // platform, JavaScript included.
-    for (int i = 0; i < bytes; i += 4) {
-      out.write(_random.nextInt(0x100000000).toRadixString(16).padLeft(8, '0'));
+    // Two hex digits a byte from a table, sixteen bits a draw: an id is made
+    // for every span, and formatting each word with toRadixString and
+    // padLeft was most of what starting one cost. 2^16 also keeps every
+    // draw exact on the web, where int is a double.
+    final List<int> chars = List<int>.filled(bytes * 2, 0x30);
+    for (int i = 0; i < chars.length; i += 4) {
+      final int word = _random.nextInt(0x10000);
+      chars[i] = _hexDigits[(word >> 12) & 0xf];
+      chars[i + 1] = _hexDigits[(word >> 8) & 0xf];
+      chars[i + 2] = _hexDigits[(word >> 4) & 0xf];
+      chars[i + 3] = _hexDigits[word & 0xf];
     }
-    final String value = out.toString();
+    final String value = String.fromCharCodes(chars);
+
     // An all-zero id is invalid, and while the odds are negligible the check
     // is one comparison against emitting an id every consumer rejects.
     return int.parse(value.substring(0, 8), radix: 16) == 0 &&
@@ -417,7 +431,9 @@ class DVRecentSpansExporter implements DVTraceExporter {
       : assert(capacity > 0, 'a buffer that holds nothing records nothing');
 
   final int capacity;
-  final List<DVSpan> _spans = <DVSpan>[];
+  // A queue, so forgetting the oldest is one step rather than shifting the
+  // whole buffer on every span.
+  final ListQueue<DVSpan> _spans = ListQueue<DVSpan>();
 
   /// Oldest first.
   List<DVSpan> get spans => List<DVSpan>.unmodifiable(_spans);
@@ -425,8 +441,8 @@ class DVRecentSpansExporter implements DVTraceExporter {
   @override
   void export(DVSpan span) {
     _spans.add(span);
-    if (_spans.length > capacity) {
-      _spans.removeRange(0, _spans.length - capacity);
+    while (_spans.length > capacity) {
+      _spans.removeFirst();
     }
   }
 
