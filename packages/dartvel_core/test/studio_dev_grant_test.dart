@@ -27,6 +27,7 @@ Request _request(String path, {String? cookie}) => Request(
 
 void main() {
   late Directory root;
+  late MemoryDVDatabaseAdapter database;
   late DVAdminServer server;
   const DVStudioDevGrant grant = DVStudioDevGrant('0123456789abcdef0123456789abcdef');
 
@@ -40,7 +41,7 @@ void main() {
       // The application's shell, which Studio's pages are rendered from.
       webRoot: root.path,
       devGrant: grant,
-      database: MemoryDVDatabaseAdapter(),
+      database: database = MemoryDVDatabaseAdapter(),
     );
   });
 
@@ -87,6 +88,32 @@ void main() {
         await server.respond(_request('/__studio/api/access', cookie: cookie));
     expect(access?.status, 200);
     expect(jsonDecode(utf8.decode(await access!.body!.bytes())), containsPair('granted', true));
+  });
+
+  test("the Web screen's document lists the snippets the build used, then a change saved in Studio", () async {
+    // A shell with a body, so the screen's document has somewhere to go.
+    File('${root.path}/index.html')
+        .writeAsStringSync('<!DOCTYPE html><html><head><title>Studio</title></head><body></body></html>');
+    File('${root.path}/graph.json').writeAsStringSync(jsonEncode(<String, Object?>{
+      'platforms': <String, Object?>{
+        'web': <String, Object?>{
+          'document': <String, Object?>{
+            'head': <Object?>[<String, Object?>{'html': '<meta name="built" content="1">'}],
+          },
+        },
+      },
+    }));
+    final String cookie = '${DVStudioDevGrant.cookieName}=${grant.token}';
+    Future<String> document() async =>
+        utf8.decode(await (await server.respond(_request('/__studio/platforms/web', cookie: cookie)))!.body!.bytes());
+    expect(await document(), contains('&lt;meta name="built" content="1"&gt;'));
+
+    await dvStudioSavePendingPlatforms(database, <String, Object?>{
+      'bodyEnd': <Object?>[<String, Object?>{'html': '<script>saved()</script>'}],
+    });
+    final String after = await document();
+    expect(after, contains('&lt;script&gt;saved()&lt;/script&gt;'));
+    expect(after, isNot(contains('name="built"')));
   });
 
   test('anybody else gets what a missing route gets', () async {

@@ -30,6 +30,7 @@ import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
 import 'studio_document.dart';
+import 'studio_platforms.dart' show dvStudioPendingPlatforms;
 
 /// One of the application's own auth endpoints, as the mount answers it.
 typedef DVAdminAuthEndpoint = Future<Response> Function(Request);
@@ -609,7 +610,22 @@ class DVAdminServer {
   /// request rather than kept.
   Future<DVStudioProjectData> _projectData() async {
     final DVStudioProjectData graph = DVStudioProjectData.fromGraph(root);
+    // The platform settings as the Platforms screen shows them: a change
+    // saved in Studio and not yet sent, over what the build used.
+    final DVDatabaseAdapter? database = _database;
+    final Map<String, Object?>? pending = database == null ? null : await dvStudioPendingPlatforms(database);
+    final Object? builtWeb = graph.platforms['web'];
+    final Map<String, Object?> platforms = pending == null
+        ? graph.platforms
+        : <String, Object?>{
+            ...graph.platforms,
+            'web': <String, Object?>{
+              if (builtWeb is Map) ...builtWeb.cast<String, Object?>(),
+              'document': pending,
+            },
+          };
     return DVStudioProjectData(
+      platforms: platforms,
       compiled: graph.compiled,
       pages: await api.sitePages(compiled: graph.compiled),
       models: models,
