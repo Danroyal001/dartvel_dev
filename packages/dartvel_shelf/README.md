@@ -116,8 +116,10 @@ This is [example/hello.dart](example/hello.dart). `host` defaults to
 `0.0.0.0` (or `::` for IPv6) to listen on every interface. `port: 0` lets the
 OS choose, and `server.port` then tells you which it chose.
 
-The server writes one JSON log line per request to stdout. Set
-`DARTVEL_LOG_LEVEL=warn` to keep only warnings and errors.
+A router writes one JSON log line per request to stdout, up to 100 a second;
+the rest of that second is one line with their count, and every answer of
+500 or above is written. `DARTVEL_ACCESS_LOGS_PER_SECOND` changes the rate
+and `DARTVEL_LOG_LEVEL=warn` keeps only warnings and errors.
 
 ## Routing
 
@@ -184,6 +186,7 @@ Response.json({'id': 1}, status: 201);           // application/json
 Response.redirect('/login');                     // 302 with Location
 Response.redirect('/new-home', 308);
 Response(204);                                   // no body
+Response.bytes(200, bytes);                      // a Uint8List already in memory
 Response.json(
   {'error': 'not found'},
   status: 404,
@@ -195,6 +198,10 @@ Response.json(
 are case-insensitive. `Response.text` and `Response.json` set `content-type`
 only when you have not. A header value HTTP does not allow (a newline, for
 instance) makes the server answer 500 rather than send it.
+
+A body that is already in memory (`Response.text`, `Response.json`,
+`Response.bytes`) goes to the native side as one copy; a body given as a
+stream is read as a stream.
 
 ### Streaming and server-sent events
 
@@ -415,6 +422,31 @@ For a development certificate, `scripts/generate_dev_certs.sh` in this
 package uses `mkcert` when installed and a self-signed OpenSSL certificate
 otherwise. See [example/https_demo.dart](example/https_demo.dart).
 
+## Using more than one core
+
+One isolate runs every handler, so a server whose handlers are the limit uses
+one core for Dart however many the native side parses on. Start the same
+server in several isolates with `shared: true`, as `HttpServer.bind(shared:
+true)` does for dart:io: they listen on one port and the kernel spreads new
+connections over them.
+
+```dart
+Future<void> serveIn(int port) =>
+    serve(router.call, host: '0.0.0.0', port: port, shared: true);
+
+Future<void> main() async {
+  final first = await serve(router.call, host: '0.0.0.0', port: 8080, shared: true);
+  for (var i = 1; i < Platform.numberOfProcessors; i++) {
+    await Isolate.spawn(serveIn, first.port);
+  }
+}
+```
+
+Each isolate has its own router and its own state, so share data through a
+store rather than a variable. Every server on the port must ask to share it:
+one that does not fails to bind. Linux and macOS; on Windows the second bind
+fails.
+
 ## Stopping the server
 
 `serve()` returns a `ServerHandle` with `host`, `port` and `stop()`. `stop()`
@@ -469,6 +501,7 @@ container image and cross-platform notes.
 | Variable | Effect |
 |---|---|
 | `DARTVEL_LOG_LEVEL` | `trace`, `debug`, `info` (default), `warn`, `error` |
+| `DARTVEL_ACCESS_LOGS_PER_SECOND` | Access lines written one per request in any second (default 100); the rest of that second is one line with their count. Answers of 500 and above are always written. `0` writes none below 500 |
 | `DARTVEL_DIAGNOSTICS` | `1`/`true`/`yes`/`on` enables `/_dartvel/logs` and `/_dartvel/traces` |
 | `DARTVEL_ENVIRONMENT` | `preview` puts every response behind Dartvel's preview access gate. Leave it unset for a standalone server |
 

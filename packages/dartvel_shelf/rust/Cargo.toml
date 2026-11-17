@@ -43,3 +43,13 @@ cbindgen = "0.29"
 [dev-dependencies]
 # The client tests drive async paths directly.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+
+# One optimisation unit across every crate: inlining reaches through hyper,
+# axum and tokio into this library's own code, and the library is smaller.
+# Debug info is stripped (the symbol table stays, so a Rust panic still names
+# its function). Unwinding stays on: CatchPanicLayer turns a panic in a
+# request into a 500.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "debuginfo"

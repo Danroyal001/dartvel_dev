@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `serve(shared: true)`: servers in several isolates of one process listen on one port (SO_REUSEPORT on Linux and macOS), as `HttpServer.bind(shared: true)` does, so handlers use more than one core. Listening sockets take a backlog of 1024.
+- Requests reach the isolate in batches: the native side queues them and wakes the isolate once for all that arrived meanwhile, instead of one listener message per request.
+- A body already in memory (`Response.text`, `.json`, `.bytes`) is sent as one copy without listening to a stream, through one reusable native buffer per server; the handler starts in the callback's own turn of the event loop rather than a timer later; `securityHeaders` are given to the native side once and added to each response there.
+- `benchmark/compare.dart` measures shelf, Relic 2 (`relic_io`, `relic_native`) and dartvel_shelf from outside the server with oha; results in `doc/shelf-parity.md`.
 - A route whose page data answers `DVPageData.slots` is served as its captured page with the request's text in its slots (core's `dvRenderPage`).
 - The macOS (arm64, x64) and windows-arm64 libraries are rebuilt with the 3.47.4 TLS fix (and the October rustls update); 3.47.4 shipped them unrebuilt. Every library in `lib/native/` now carries the source revision it was built from, and `test/prebuilt_source_revision_test.dart` fails when one differs from `rust/`.
 

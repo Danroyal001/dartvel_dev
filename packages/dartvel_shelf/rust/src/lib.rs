@@ -230,6 +230,101 @@ fn build_cors(cfg: &CorsOptions) -> CorsLayer {
 // a header.
 pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, FfiBuf, FfiStr);
 
+/// Wakes a server's isolate to take the requests queued for it.
+pub type DartRequestWakeup = extern "C" fn();
+
+/// One request as `aw_take_requests` hands it over: the arguments the
+/// request handler takes, in one struct. The bytes stay where they are,
+/// retained as they are for the handler, until Dart acknowledges or answers.
+#[repr(C)]
+pub struct FfiRequest {
+    pub id: u64,
+    pub method: FfiStr,
+    pub target: FfiStr,
+    pub hdrs: *const u8,
+    pub hdrs_len: usize,
+    pub body: FfiBuf,
+    pub peer: FfiStr,
+}
+
+// SAFETY: the pointers name bytes retained in PENDING_REQUEST_PARTS, which
+// no thread frees until Dart has read them.
+unsafe impl Send for FfiRequest {}
+
+/// The requests waiting for one server's isolate, and whether it has been
+/// woken for them.
+///
+/// The request handler is a listener, so every request was one message to
+/// the isolate: posted, woken for and decoded one by one. Queued here, one
+/// wakeup takes every request that arrived meanwhile, which under load is
+/// many -- as WebSocket frames are taken.
+struct RequestQueue {
+    state: Mutex<RequestQueueState>,
+    wakeup: DartRequestWakeup,
+}
+
+struct RequestQueueState {
+    queued: std::collections::VecDeque<FfiRequest>,
+    woken: bool,
+}
+
+impl RequestQueue {
+    fn push(&self, request: FfiRequest) {
+        let wake = {
+            let mut state = safe_lock(&self.state);
+            state.queued.push_back(request);
+            !std::mem::replace(&mut state.woken, true)
+        };
+        if wake {
+            (self.wakeup)();
+        }
+    }
+}
+
+static PENDING_REQUEST_WAKEUPS: OnceCell<Mutex<HashMap<std::thread::ThreadId, DartRequestWakeup>>> =
+    OnceCell::new();
+static SERVER_REQUEST_QUEUES: OnceCell<Mutex<HashMap<u64, Arc<RequestQueue>>>> = OnceCell::new();
+
+/// The wakeup for the next server this thread starts. A server started with
+/// one queues its requests for `aw_take_requests` rather than calling the
+/// request handler with each.
+#[no_mangle]
+pub extern "C" fn aw_register_request_wakeup_handler(cb: DartRequestWakeup) {
+    safe_lock(PENDING_REQUEST_WAKEUPS.get_or_init(Default::default))
+        .insert(std::thread::current().id(), cb);
+}
+
+/// Moves up to [max] of [server_id]'s queued requests into [out] and returns
+/// how many. Fewer than [max] means the queue is empty, and the next request
+/// wakes the isolate again.
+#[no_mangle]
+pub extern "C" fn aw_take_requests(server_id: u64, out: *mut FfiRequest, max: usize) -> usize {
+    if out.is_null() || max == 0 {
+        return 0;
+    }
+    let Some(queue) = SERVER_REQUEST_QUEUES
+        .get()
+        .and_then(|queues| safe_lock(queues).get(&server_id).cloned())
+    else {
+        return 0;
+    };
+    let mut state = safe_lock(&queue.state);
+    let mut taken = 0;
+    while taken < max {
+        let Some(request) = state.queued.pop_front() else { break };
+        // SAFETY: the caller passes room for max requests at out.
+        unsafe { out.add(taken).write(request) };
+        taken += 1;
+    }
+    if taken < max {
+        state.woken = false;
+    }
+    taken
+}
+
+#[derive(Clone)]
+struct ServerRequestQueue(Arc<RequestQueue>);
+
 /// The shape of the calls between this library and Dart.
 ///
 /// Raised whenever a callback's signature changes. A Dart side built for one
@@ -406,6 +501,45 @@ static SERVER_PORTS: OnceCell<Mutex<HashMap<u64, u16>>> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
 #[derive(Clone, Default)]
 struct StaticPaths { directory: Option<String>, spa: Option<String> }
+
+/// Headers every response from Dart carries unless it set the same header
+/// itself: serve()'s securityHeaders. Added here rather than in Dart so a
+/// response does not encode and send them across on every request.
+#[derive(Clone)]
+struct DefaultHeaders(Arc<axum::http::HeaderMap>);
+
+static PENDING_DEFAULT_HEADERS: OnceCell<Mutex<HashMap<std::thread::ThreadId, DefaultHeaders>>> = OnceCell::new();
+
+/// The default headers for the next server this thread starts, as NUL-
+/// separated name and value pairs. 1 when a name or value is not one HTTP
+/// allows, and nothing is kept.
+#[no_mangle]
+pub extern "C" fn aw_configure_default_headers(hdrs: *const u8, len: usize) -> i32 {
+    let flat: &[u8] = if hdrs.is_null() || len == 0 {
+        &[]
+    } else {
+        // SAFETY: the caller passes len readable bytes at hdrs.
+        unsafe { std::slice::from_raw_parts(hdrs, len) }
+    };
+    let mut map = axum::http::HeaderMap::new();
+    let mut fields = flat.split(|&c| c == 0);
+    while let Some(name) = fields.next() {
+        let value = fields.next().unwrap_or_default();
+        if name.is_empty() {
+            continue;
+        }
+        let (Ok(name), Ok(value)) = (
+            header::HeaderName::from_bytes(name),
+            axum::http::HeaderValue::from_bytes(value),
+        ) else {
+            return 1;
+        };
+        map.append(name, value);
+    }
+    safe_lock(PENDING_DEFAULT_HEADERS.get_or_init(Default::default))
+        .insert(std::thread::current().id(), DefaultHeaders(Arc::new(map)));
+    0
+}
 static PENDING_STATIC: OnceCell<Mutex<HashMap<std::thread::ThreadId, StaticPaths>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
@@ -673,6 +807,10 @@ const AW_START_BIND_FAILED: i32 = -3;
 
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
+/// Listen with SO_REUSEPORT, so servers in several isolates that all ask for
+/// it share one address and the kernel spreads connections over them, as
+/// dart:io does for `HttpServer.bind(shared: true)`.
+pub const AW_FLAG_SHARED: u32 = 0x02;
 
 fn stream_ack(req_id: u64, server_id: Option<u64>) {
     let cb = server_id
@@ -1490,7 +1628,7 @@ fn bound_header_read(
 }
 
 #[no_mangle]
-pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
+pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
     if host.ptr.is_null() {
         return -1;
     }
@@ -1525,6 +1663,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     let body_limits = take_pending_body_limits();
     let static_paths = safe_lock(PENDING_STATIC.get_or_init(Default::default))
         .remove(&std::thread::current().id()).unwrap_or_default();
+    let default_headers = safe_lock(PENDING_DEFAULT_HEADERS.get_or_init(Default::default))
+        .remove(&std::thread::current().id());
     // This thread's TLS configuration, or none: plain HTTP.
     let tls_config = PENDING_TLS
         .get()
@@ -1555,7 +1695,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             Err(_) => return AW_START_BAD_ADDRESS,
         },
     };
-    let listener = match std::net::TcpListener::bind(parsed_addr) {
+    let listener = match bind_listener(parsed_addr, flags & AW_FLAG_SHARED != 0) {
         Ok(listener) => listener,
         Err(_) => return AW_START_BIND_FAILED,
     };
@@ -1607,6 +1747,21 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let handlers = SERVER_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
         safe_lock(handlers).insert(server_id, handler);
     }
+    let request_queue = PENDING_REQUEST_WAKEUPS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread))
+        .map(|wakeup| {
+            let queue = Arc::new(RequestQueue {
+                state: Mutex::new(RequestQueueState {
+                    queued: std::collections::VecDeque::new(),
+                    woken: false,
+                }),
+                wakeup,
+            });
+            safe_lock(SERVER_REQUEST_QUEUES.get_or_init(Default::default))
+                .insert(server_id, queue.clone());
+            ServerRequestQueue(queue)
+        });
     let ws_wakeup_handler = PENDING_WS_WAKEUP_HANDLERS
         .get()
         .and_then(|pending| safe_lock(pending).remove(&this_thread))
@@ -1646,6 +1801,12 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             app = app.layer(axum::Extension(RequestTimeout(request_timeout)));
             app = app.layer(axum::Extension(body_limits));
             app = app.layer(axum::Extension(static_paths));
+            if let Some(queue) = request_queue {
+                app = app.layer(axum::Extension(queue));
+            }
+            if let Some(defaults) = default_headers {
+                app = app.layer(axum::Extension(defaults));
+            }
             // Outermost: a panic anywhere in answering a request is a 500
             // rather than a connection dropped with no answer at all.
             app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
@@ -1696,6 +1857,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             }
             if let Some(handlers) = SERVER_WS_WAKEUP_HANDLERS.get() {
                 safe_lock(handlers).remove(&server_id);
+            }
+            if let Some(queues) = SERVER_REQUEST_QUEUES.get() {
+                safe_lock(queues).remove(&server_id);
             }
         });
     });
@@ -1879,6 +2043,8 @@ async fn dart_proxy_with_fallback(
 ) -> Response<Body> {
     // Read while the request is still whole; the body is taken further down.
     let server_id = req.extensions().get::<ServerId>().map(|ServerId(id)| *id);
+    let default_headers = req.extensions().get::<DefaultHeaders>().cloned();
+    let request_queue = req.extensions().get::<ServerRequestQueue>().cloned();
     // One deadline for the body and for Dart: a request is bounded as a
     // whole, not per phase, so a client cannot spend the timeout twice.
     let request_timeout = req
@@ -2005,14 +2171,15 @@ async fn dart_proxy_with_fallback(
 
     // This server's handler first. The global is the fallback, for any path
     // that reaches here without having gone through a server.
-    let request_handler = server_id
+    // Not looked up for a server whose requests are queued.
+    let request_handler = if request_queue.is_some() { None } else { server_id
         .and_then(|id| {
             SERVER_REQUEST_HANDLERS
                 .get()
                 .and_then(|handlers| safe_lock(handlers).get(&id).copied())
         })
-        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)));
-    let Some(cb) = request_handler else {
+        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot))) };
+    if request_handler.is_none() && request_queue.is_none() {
         if let Some(mutex) = PENDING_RESPONSES.get() {
             safe_lock(mutex).remove(&req_id);
         }
@@ -2032,15 +2199,27 @@ async fn dart_proxy_with_fallback(
             _peer: peer,
         },
     );
-    (cb)(
-        req_id,
-        method_ffi,
-        target_ffi,
-        headers_ptr,
-        headers_len,
-        body_ffi,
-        peer_ffi,
-    );
+    match (&request_queue, request_handler) {
+        (Some(ServerRequestQueue(queue)), _) => queue.push(FfiRequest {
+            id: req_id,
+            method: method_ffi,
+            target: target_ffi,
+            hdrs: headers_ptr,
+            hdrs_len: headers_len,
+            body: body_ffi,
+            peer: peer_ffi,
+        }),
+        (None, Some(cb)) => (cb)(
+            req_id,
+            method_ffi,
+            target_ffi,
+            headers_ptr,
+            headers_len,
+            body_ffi,
+            peer_ffi,
+        ),
+        (None, None) => unreachable!("refused above"),
+    }
 
     // The body and the answer are waited for together, under the one
     // deadline a request has. A refusal is the body saying the request may
@@ -2107,7 +2286,7 @@ async fn dart_proxy_with_fallback(
                 aw_ws_dispose(req_id);
                 return plain_response(StatusCode::BAD_REQUEST);
             }
-            response_from_dart(resp, req_id, server_id, fallback)
+            response_from_dart(resp, req_id, server_id, fallback, default_headers.as_ref())
         },
         Ok(Err(_)) => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
         Err(_) => {
@@ -2180,6 +2359,7 @@ fn response_from_dart(
     req_id: u64,
     server_id: Option<u64>,
     fallback: Option<fn() -> Response<Body>>,
+    defaults: Option<&DefaultHeaders>,
 ) -> Response<Body> {
     let refuse = |why: &str| {
         eprintln!("dartvel: a handler's response {why}; answered 500");
@@ -2205,6 +2385,13 @@ fn response_from_dart(
             return refuse("has a header value HTTP does not allow");
         };
         headers.append(name, value);
+    }
+    if let Some(DefaultHeaders(defaults)) = defaults {
+        for (name, value) in defaults.iter() {
+            if !headers.contains_key(name) {
+                headers.insert(name.clone(), value.clone());
+            }
+        }
     }
 
     if status_code == StatusCode::NOT_FOUND {
@@ -2308,21 +2495,33 @@ async fn catch_all_handler(
     dart_proxy(req).await
 }
 
-fn get_static_file(dir: &str, path: &str) -> Option<std::path::PathBuf> {
+/// The file [path] names under [dir], with its metadata, when it is a file
+/// inside [dir] after every symlink is resolved.
+///
+/// The metadata comes from the same stat that decided it is a file, so the
+/// response's validator does not need a second one on the blocking pool.
+fn get_static_file(dir: &str, path: &str) -> Option<(std::path::PathBuf, std::fs::Metadata)> {
     let root = std::fs::canonicalize(dir).ok()?;
     let path = root.join(path.trim_start_matches('/'));
     let resolved = std::fs::canonicalize(path).ok()?;
-    if resolved.starts_with(&root) && resolved.is_file() { Some(resolved) } else { None }
+    if !resolved.starts_with(&root) {
+        return None;
+    }
+    let meta = std::fs::metadata(&resolved).ok()?;
+    if meta.is_file() { Some((resolved, meta)) } else { None }
 }
 
-async fn serve_file_response(path: std::path::PathBuf, mut req: Request<Body>) -> Response<Body> {
+async fn serve_file_response(
+    (path, meta): (std::path::PathBuf, std::fs::Metadata),
+    mut req: Request<Body>,
+) -> Response<Body> {
     use tower::ServiceExt;
     use tower_http::services::ServeFile;
     // A weak validator: metadata identifies a version, not byte equality.
-    let etag = tokio::fs::metadata(&path).await.ok().and_then(|meta| {
+    let etag = (|| {
         let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
         Some(format!("W/\"{:x}-{:x}\"", meta.len(), modified.as_nanos()))
-    });
+    })();
     let retrieval = req.method() == Method::GET || req.method() == Method::HEAD;
     if retrieval {
         if let Some(condition) = req.headers().get(header::IF_NONE_MATCH) {
@@ -2391,20 +2590,88 @@ mod request_tests {
 
     #[test]
     fn a_header_value_http_does_not_allow_is_a_500_not_a_panic() {
-        let response = response_from_dart(answered(200, b"x-a\0line\r\nsplit\0"), 9001, None, None);
+        let response = response_from_dart(answered(200, b"x-a\0line\r\nsplit\0"), 9001, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn a_header_name_http_does_not_allow_is_a_500() {
-        let response = response_from_dart(answered(200, b"bad name\0v\0"), 9002, None, None);
+        let response = response_from_dart(answered(200, b"bad name\0v\0"), 9002, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn a_status_that_is_not_one_is_a_500_not_a_200() {
-        let response = response_from_dart(answered(42, b""), 9003, None, None);
+        let response = response_from_dart(answered(42, b""), 9003, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn default_headers_fill_in_only_what_the_response_did_not_set() {
+        let mut map = axum::http::HeaderMap::new();
+        map.insert("x-content-type-options", "nosniff".parse().unwrap());
+        map.insert("x-frame-options", "SAMEORIGIN".parse().unwrap());
+        let defaults = DefaultHeaders(Arc::new(map));
+        let response = response_from_dart(
+            answered(200, b"x-frame-options\0DENY\0"),
+            9005,
+            None,
+            None,
+            Some(&defaults),
+        );
+        assert_eq!(response.headers()["x-frame-options"], "DENY");
+        assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    }
+
+    static WAKEUPS: AtomicU64 = AtomicU64::new(0);
+    extern "C" fn count_wakeup() {
+        WAKEUPS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn queued(id: u64) -> FfiRequest {
+        let empty = || FfiStr { ptr: std::ptr::null(), len: 0 };
+        FfiRequest {
+            id,
+            method: empty(),
+            target: empty(),
+            hdrs: std::ptr::null(),
+            hdrs_len: 0,
+            body: FfiBuf { ptr: std::ptr::null(), len: 0 },
+            peer: empty(),
+        }
+    }
+
+    #[test]
+    fn one_wakeup_takes_every_request_queued_until_the_queue_is_empty() {
+        let queue = Arc::new(RequestQueue {
+            state: Mutex::new(RequestQueueState {
+                queued: std::collections::VecDeque::new(),
+                woken: false,
+            }),
+            wakeup: count_wakeup,
+        });
+        let server_id = 990_001;
+        safe_lock(SERVER_REQUEST_QUEUES.get_or_init(Default::default))
+            .insert(server_id, queue.clone());
+        let before = WAKEUPS.load(Ordering::SeqCst);
+        for id in 1..=5 {
+            queue.push(queued(id));
+        }
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1, "one wakeup for five requests");
+
+        let mut out: Vec<FfiRequest> = (0..3).map(|_| queued(0)).collect();
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
+        assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [1, 2, 3]);
+        // A full batch: still woken, so a new request does not wake again.
+        queue.push(queued(6));
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1);
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
+        assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [4, 5, 6]);
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 0);
+        // Emptied: the next request wakes the isolate again.
+        queue.push(queued(7));
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 2);
+        safe_lock(SERVER_REQUEST_QUEUES.get().unwrap()).remove(&server_id);
     }
 
     #[test]
@@ -2412,6 +2679,7 @@ mod request_tests {
         let response = response_from_dart(
             answered(201, b"x-a\0one\0x-a\0two\0content-type\0text/plain\0"),
             9004,
+            None,
             None,
             None,
         );
@@ -3408,5 +3676,91 @@ mod ws_bridge_tests {
         ws_wakeup(1, None);
         assert_eq!(CALLS.load(Ordering::SeqCst), 1);
         *safe_lock(slot) = previous;
+    }
+}
+
+/// The listening socket for [addr], with a backlog of 1024 rather than the
+/// standard library's, so a burst of new connections is queued rather than
+/// dropped into SYN retries; and with SO_REUSEPORT when [shared], on the
+/// platforms that have it.
+fn bind_listener(addr: std::net::SocketAddr, shared: bool) -> std::io::Result<std::net::TcpListener> {
+    #[cfg(unix)]
+    {
+        use std::os::fd::FromRawFd;
+        let domain = if addr.is_ipv4() { libc::AF_INET } else { libc::AF_INET6 };
+        // SAFETY: plain socket calls on a descriptor this function owns until
+        // it is handed to TcpListener, which closes it.
+        unsafe {
+            let fd = libc::socket(domain, libc::SOCK_STREAM, 0);
+            if fd < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // Not inherited by a process this one starts.
+            libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC);
+            let listener = std::net::TcpListener::from_raw_fd(fd);
+            let on: libc::c_int = 1;
+            let set = |name| {
+                libc::setsockopt(
+                    fd,
+                    libc::SOL_SOCKET,
+                    name,
+                    &on as *const libc::c_int as *const libc::c_void,
+                    std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                )
+            };
+            // What std sets too: a restarted server can bind a port whose old
+            // connections are still in TIME_WAIT.
+            if set(libc::SO_REUSEADDR) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if shared && set(libc::SO_REUSEPORT) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let (storage, len) = sockaddr_of(&addr);
+            if libc::bind(fd, &storage as *const libc::sockaddr_storage as *const libc::sockaddr, len) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::listen(fd, 1024) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(listener)
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        // No SO_REUSEPORT: a second shared bind fails as an unshared one does.
+        let _ = shared;
+        std::net::TcpListener::bind(addr)
+    }
+}
+
+#[cfg(unix)]
+fn sockaddr_of(addr: &std::net::SocketAddr) -> (libc::sockaddr_storage, libc::socklen_t) {
+    // SAFETY: an all-zero sockaddr_storage is valid, and each arm writes the
+    // family-specific struct that fits inside it.
+    unsafe {
+        let mut storage: libc::sockaddr_storage = std::mem::zeroed();
+        match addr {
+            std::net::SocketAddr::V4(v4) => {
+                let sin = &mut storage as *mut libc::sockaddr_storage as *mut libc::sockaddr_in;
+                (*sin).sin_family = libc::AF_INET as libc::sa_family_t;
+                #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+                { (*sin).sin_len = std::mem::size_of::<libc::sockaddr_in>() as u8; }
+                (*sin).sin_port = v4.port().to_be();
+                (*sin).sin_addr = libc::in_addr { s_addr: u32::from_ne_bytes(v4.ip().octets()) };
+                (storage, std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t)
+            }
+            std::net::SocketAddr::V6(v6) => {
+                let sin6 = &mut storage as *mut libc::sockaddr_storage as *mut libc::sockaddr_in6;
+                (*sin6).sin6_family = libc::AF_INET6 as libc::sa_family_t;
+                #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+                { (*sin6).sin6_len = std::mem::size_of::<libc::sockaddr_in6>() as u8; }
+                (*sin6).sin6_port = v6.port().to_be();
+                (*sin6).sin6_flowinfo = v6.flowinfo();
+                (*sin6).sin6_scope_id = v6.scope_id();
+                (*sin6).sin6_addr = libc::in6_addr { s6_addr: v6.ip().octets() };
+                (storage, std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t)
+            }
+        }
     }
 }
