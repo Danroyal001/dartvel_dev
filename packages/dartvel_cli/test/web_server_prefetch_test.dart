@@ -135,4 +135,36 @@ void main() {
     expect((routes()['/products/:id']! as Map<String, Object?>)['scripts'],
         isEmpty);
   });
+
+  test('a --wasm build names each route\'s public wasm modules', () {
+    // The server serves the same lists in the head a route is sent with.
+    // Only modules the web root carries: Studio's are kept apart.
+    File(p.join(web.path, 'flutter_bootstrap.js')).writeAsStringSync(
+        '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+        '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+        '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n');
+    for (final int n in <int>[1, 2, 3]) {
+      File(p.join(web.path, 'main.dart_module$n.wasm')).writeAsStringSync('');
+    }
+    dvWriteWebServerPrefetch(
+      projectRoot: project.path,
+      webRoot: web.path,
+      routerSource: router,
+      routes: <String>['/', '/docs', '/products/:id'],
+      wasmDeferredMap: <String, Object?>{
+        'package:site/dartvel_client/router.g.dart': <String, Object?>{
+          'imports': <String, Object?>{
+            '1': <String>['main.dart_module1.wasm', 'main.dart_module2.wasm', 'main.dart_module8.wasm'],
+            '2': <String>['main.dart_module1.wasm', 'main.dart_module3.wasm'],
+          },
+          'importPrefixToLoadId': <String, Object?>{'p1': '1', 'p2': '2'},
+        },
+      },
+    );
+    expect((routes()['/docs']! as Map<String, Object?>)['wasm'],
+        <String>['main.dart_module1.wasm', 'main.dart_module2.wasm']);
+    expect((routes()['/products/:id']! as Map<String, Object?>)['wasm'],
+        <String>['main.dart_module1.wasm', 'main.dart_module3.wasm']);
+    expect(routes()['/']! as Map<String, Object?>, isNot(contains('wasm')));
+  });
 }
