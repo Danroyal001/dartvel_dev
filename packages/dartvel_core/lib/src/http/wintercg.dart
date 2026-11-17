@@ -130,15 +130,40 @@ class Request {
 class Response {
   final int status;
   final Headers headers;
-  final Stream<List<int>>? _body;
+  final Stream<List<int>>? _stream;
+  final Uint8List? _whole;
   final bool isStream;
-  Response(this.status, {Headers? headers, this._body, this.isStream = false})
-      : headers = headers ?? Headers();
+  Response(this.status,
+      {Headers? headers, Stream<List<int>>? body, this.isStream = false})
+      : headers = headers ?? Headers(),
+        _stream = body,
+        _whole = null;
 
-  // No `!` here: with the language version this package now declares, a
-  // private final field promotes after a null check, so the assertion is
-  // provably redundant rather than merely unfashionable.
-  Body? get body => _body == null ? null : Body(_body);
+  /// A response whose body is [bytes], already in memory.
+  ///
+  /// The same response as one built with `body: Stream.value(bytes)`, except
+  /// that [bufferedBytes] hands the bytes over directly, so a server sends
+  /// them as one copy rather than listening to a stream for them.
+  Response.bytes(this.status, Uint8List bytes, {Headers? headers})
+      : headers = headers ?? Headers(),
+        _stream = null,
+        _whole = bytes,
+        isStream = false;
+
+  /// The whole body when it is already in memory as one piece
+  /// ([Response.bytes], [Response.text], [Response.json]); null for a body
+  /// that is a stream, or for no body.
+  Uint8List? get bufferedBytes => _whole;
+
+  Stream<List<int>>? get _body {
+    final Uint8List? whole = _whole;
+    return whole == null ? _stream : Stream<List<int>>.value(whole);
+  }
+
+  Body? get body {
+    final Stream<List<int>>? stream = _body;
+    return stream == null ? null : Body(stream);
+  }
 
   static Response text(String s,
       {int status = 200, Headers? headers, Encoding encoding = utf8}) {
@@ -147,8 +172,9 @@ class Response {
       h.set('content-type', 'text/plain; charset=${encoding.name}');
     }
     final data = encoding.encode(s);
-    return Response(status,
-        headers: h, body: Stream<List<int>>.value(Uint8List.fromList(data)));
+    return Response.bytes(
+        status, data is Uint8List ? data : Uint8List.fromList(data),
+        headers: h);
   }
 
   static Response json(Object? data, {int status = 200, Headers? headers}) {
@@ -156,8 +182,7 @@ class Response {
     if (!h.has('content-type')) {
       h.set('content-type', 'application/json; charset=utf-8');
     }
-    final payload = Uint8List.fromList(utf8.encode(jsonEncode(data)));
-    return Response(status, headers: h, body: Stream<List<int>>.value(payload));
+    return Response.bytes(status, utf8.encode(jsonEncode(data)), headers: h);
   }
 
   static Response stream(void Function(StreamSink<List<int>>) fn,

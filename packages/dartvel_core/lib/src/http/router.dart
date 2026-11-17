@@ -98,6 +98,24 @@ class Router {
 
   static final Object _measuredOutside = Object();
 
+  /// [accessLogsPerSecond] unless the process says otherwise.
+  static const int defaultAccessLogsPerSecond = 100;
+
+  /// Access records written one per request in any one second; the rest of
+  /// that second is one summary line with their count. Answers of 500 and
+  /// above, and failures, are always written one each, and the request
+  /// metrics count every request whatever this is. Zero writes no individual
+  /// access lines below 500. `DARTVEL_ACCESS_LOGS_PER_SECOND` sets it for a
+  /// server.
+  ///
+  /// A line per request at volume costs more than the request: the JSON
+  /// encoding, the redaction scans and the write to stdout took more of the
+  /// isolate than the handlers did, and a shipper billed per line turns it
+  /// into a bill.
+  static int accessLogsPerSecond = defaultAccessLogsPerSecond;
+
+  static final _AccessLogBudget _accessBudget = _AccessLogBudget();
+
   /// Runs [serve] for [req] and records the request once, with the status
   /// [serve] answered: the count in `http_requests_total`, the duration and
   /// the access record.
@@ -159,6 +177,10 @@ class Router {
           'How long serving a request took, in seconds.',
         )
         .observe(seconds);
+
+    // Decided before the record is built, so a request past the rate costs
+    // nothing more than its metrics.
+    if (error == null && status < 500 && !_accessBudget.take()) return;
 
     // The span was created inside the handler, so it is out of scope by now;
     // the header the tracing middleware set on the response is what is left
@@ -339,4 +361,50 @@ bool _sameText(String a, String b) {
     difference |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
   }
   return difference == 0;
+}
+
+/// How many access records may still be written this second, and how many
+/// were not.
+final class _AccessLogBudget {
+  final Stopwatch _clock = Stopwatch()..start();
+  int _windowStartMs = 0;
+  int _taken = 0;
+  int _skipped = 0;
+  Timer? _flush;
+
+  /// Whether one more record may be written now.
+  bool take() {
+    _roll();
+    if (_taken < Router.accessLogsPerSecond) {
+      _taken++;
+      return true;
+    }
+    _skipped++;
+    // The summary is written when the second ends, whether or not another
+    // request comes to notice it.
+    _flush ??= Timer(
+        Duration(milliseconds: 1000 - (_clock.elapsedMilliseconds - _windowStartMs)),
+        _summarise);
+    return false;
+  }
+
+  void _roll() {
+    if (_clock.elapsedMilliseconds - _windowStartMs < 1000) return;
+    _summarise();
+    _windowStartMs = _clock.elapsedMilliseconds;
+    _taken = 0;
+  }
+
+  void _summarise() {
+    _flush?.cancel();
+    _flush = null;
+    final int skipped = _skipped;
+    if (skipped == 0) return;
+    _skipped = 0;
+    DVObservability.logger.info(
+      '$skipped requests not logged one by one (over '
+      '${Router.accessLogsPerSecond} a second)',
+      context: <String, Object?>{'notLogged': skipped},
+    );
+  }
 }
