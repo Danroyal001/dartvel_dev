@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartvel_core/dartvel.dart'
-    show dvImageEndpointPath, dvStaticImageVariantDir;
+    show dvImageEndpointPath, dvStaticImageVariantDir, dvWasmModulePreloads;
 import 'package:path/path.dart' as p;
 
 import 'semantics_capture.dart' show dvSemanticsPathFor;
@@ -252,9 +252,10 @@ String dvApplyPreloadHead(
   String html, {
   required List<String> scripts,
   required List<DVCapturedImage> images,
+  List<String> wasm = const <String>[],
 }) {
   final String cleared = _withoutPreloads(html);
-  if (scripts.isEmpty && images.isEmpty) return cleared;
+  if (scripts.isEmpty && images.isEmpty && wasm.isEmpty) return cleared;
   final int at = cleared.indexOf('</head>');
   if (at < 0) return cleared;
 
@@ -270,6 +271,9 @@ String dvApplyPreloadHead(
           // browser does not hand one to the other.
           : '<link rel="preload" href="${_attribute(image.url)}" '
               'as="fetch" crossorigin="anonymous">',
+    // The route's deferred wasm modules, only where the wasm app will run;
+    // the same script a served page gets (DVRoutePreloads).
+    if (wasm.isNotEmpty) dvWasmModulePreloads(wasm),
     _close,
   ].join('\n');
   return '${cleared.substring(0, at)}$block\n${cleared.substring(at)}';
@@ -382,13 +386,72 @@ Map<String, List<String>> dvPreloadableParts(String webRoot) {
       : const <String, List<String>>{};
 }
 
+/// Which generated library holds the pages' deferred imports.
+const String _routerLibrary = 'dartvel_client/router.g.dart';
+
+/// Each page import's wasm modules, by the prefix the generated router gives
+/// it, from the map dart2wasm wrote with `--deferred-map` (wasm_deferred.dart).
+///
+/// Every page library names the shared modules it needs as well as its own,
+/// so one route's list is everything its page needs beyond main.dart.wasm.
+/// A minified map keys imports by load id and names the prefix of each in
+/// `importPrefixToLoadId`. Nothing for no map, or one of another shape.
+Map<String, List<String>> dvWasmDeferredModules(Map<String, Object?>? map) {
+  if (map == null) return const <String, List<String>>{};
+  final Map<String, List<String>> out = <String, List<String>>{};
+  for (final MapEntry<String, Object?> library in map.entries) {
+    if (!library.key.endsWith(_routerLibrary)) continue;
+    final Object? entry = library.value;
+    if (entry is! Map) continue;
+    final Object? imports = entry['imports'];
+    if (imports is! Map) continue;
+    final Object? ids = entry['importPrefixToLoadId'];
+    final Map<Object?, Object?> byPrefix = ids is Map
+        ? <Object?, Object?>{
+            for (final MapEntry<Object?, Object?> id in ids.entries)
+              id.key: imports[id.value],
+          }
+        : imports;
+    for (final MapEntry<Object?, Object?> import in byPrefix.entries) {
+      final Object? prefix = import.key;
+      final Object? modules = import.value;
+      if (prefix is! String || modules is! List) continue;
+      out[prefix] = <String>[...modules.whereType<String>()];
+    }
+  }
+  return out;
+}
+
+/// [dvWasmDeferredModules] for the build in [webRoot]: only for a build that
+/// ships the wasm app, and only modules the web root carries -- Studio's are
+/// kept apart and served to its grant alone.
+Map<String, List<String>> dvPreloadableWasmModules(
+    String webRoot, Map<String, Object?>? wasmDeferredMap) {
+  final File bootstrap = File(p.join(webRoot, 'flutter_bootstrap.js'));
+  if (!bootstrap.existsSync() ||
+      !dvBuildCompilesToWasm(bootstrap.readAsStringSync())) {
+    return const <String, List<String>>{};
+  }
+  return <String, List<String>>{
+    for (final MapEntry<String, List<String>> entry
+        in dvWasmDeferredModules(wasmDeferredMap).entries)
+      entry.key: <String>[
+        for (final String module in entry.value)
+          if (File(p.join(webRoot, module)).existsSync()) module,
+      ],
+  };
+}
+
 DVPrefetchSummary dvWriteRoutePrefetch({
   required String projectRoot,
   required String webRoot,
   required String routerSource,
   required List<String> routes,
+  Map<String, Object?>? wasmDeferredMap,
 }) {
   final Map<String, List<String>> parts = dvPreloadableParts(webRoot);
+  final Map<String, List<String>> wasmModules =
+      dvPreloadableWasmModules(webRoot, wasmDeferredMap);
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
   final File shell = File(p.join(webRoot, 'index.html'));
   final Set<String> namedByShell = shell.existsSync()
@@ -400,6 +463,7 @@ DVPrefetchSummary dvWriteRoutePrefetch({
   var imageCount = 0;
   for (final String route in routes) {
     final List<String> scripts = parts[prefixes[route]] ?? const <String>[];
+    final List<String> wasm = wasmModules[prefixes[route]] ?? const <String>[];
     final String? target = dvStaticRoutePath(route);
     final File? page = target == null ? null : File(p.join(webRoot, target));
     final String? before =
@@ -413,6 +477,7 @@ DVPrefetchSummary dvWriteRoutePrefetch({
     ];
     manifest[route] = <String, Object?>{
       'scripts': scripts,
+      if (wasm.isNotEmpty) 'wasm': wasm,
       'images': <Object?>[
         for (final DVCapturedImage image in images) image.toJson(),
       ],
@@ -426,9 +491,9 @@ DVPrefetchSummary dvWriteRoutePrefetch({
         if (!image.isVariant) image,
     ];
     final String after =
-        dvApplyPreloadHead(before, scripts: scripts, images: preloaded);
+        dvApplyPreloadHead(before, scripts: scripts, images: preloaded, wasm: wasm);
     if (after != before) page.writeAsStringSync(after);
-    if (scripts.isNotEmpty || preloaded.isNotEmpty) {
+    if (scripts.isNotEmpty || preloaded.isNotEmpty || wasm.isNotEmpty) {
       pages++;
       imageCount += preloaded.length;
     }

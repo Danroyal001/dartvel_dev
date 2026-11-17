@@ -745,10 +745,13 @@ String dvBootstrapRegisteringServiceWorker(String bootstrap, {String? build}) {
           'r.active.postMessage({type:"dartvel:warm",build:${jsonEncode(build)},'
           'urls:performance.getEntriesByType("resource").map((e)=>e.name)});})'
           '.catch(()=>{});w();setTimeout(w,15000);';
-  // After the load event AND the app's first frame (or thirty seconds after
-  // load, for a page whose app never draws): the worker's install downloads
-  // the page parts, and on a slow connection that download would otherwise
-  // share the line with the renderer the first frame is waiting for.
+  // After the load event AND the app's first frame: the worker's install
+  // downloads the boot files and the page parts, and on a slow connection
+  // that download would otherwise share the line with what the first frame
+  // is waiting for. No timer stands in for the frame: thirty seconds after
+  // load used to, and on Slow 3G that is long before the first frame
+  // (sigmadev.digital: over a minute). A page whose app never draws has no
+  // use for the worker's offline copy of it.
   return '$bootstrap$separator$dvServiceWorkerRegistrationMarker\n'
       '(()=>{if(!("serviceWorker"in navigator))return;'
       'let f=false,l=false,d=false;'
@@ -756,7 +759,7 @@ String dvBootstrapRegisteringServiceWorker(String bootstrap, {String? build}) {
       'navigator.serviceWorker.register(new URL("$url",document.baseURI).href)'
       '.catch(()=>{});$warm};'
       'addEventListener("flutter-first-frame",()=>{f=true;go();},{once:true});'
-      'addEventListener("load",()=>{l=true;setTimeout(()=>{f=true;go();},30000);go();});'
+      'addEventListener("load",()=>{l=true;go();});'
       '})();\n';
 }
 

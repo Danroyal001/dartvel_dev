@@ -130,6 +130,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                   'pointer shows the hand over its text too.',
               'The target page starts loading after 300 ms on screen, once the '
                   'page has stopped scrolling, one link at a time.',
+              'On the web nothing preloads before the page itself is showing, '
+                  'so links never compete with the first screen.',
               'A pointer resting on the link for 900 ms, or a long press on '
                   'a phone, shows a live preview of the page.',
             ]),

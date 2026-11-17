@@ -104,6 +104,7 @@ void dvWatchWebFirstFrame() {
     dvFlushFirstFrameTimings(WidgetsBinding.instance).then((_) async {
       await dvWaitForPostLayoutRaster(WidgetsBinding.instance);
       platform.dvPublishFirstFrame();
+      _markShown();
     }),
   );
 }
@@ -120,4 +121,42 @@ bool get dvHoldWebFirstFrame {
     return true;
   }());
   return web;
+}
+
+bool _firstFrameShown = false;
+
+/// Made by the first caller, in its zone, so the wait resumes where it began.
+Completer<void>? _shown;
+
+/// Completes once the app's first frame is on screen.
+///
+/// Work that would compete with that frame -- a link preloading another
+/// page's document, images and code -- waits on this. On the web the first
+/// frame is held while the initial route loads, yet frames still build and
+/// lay out behind the splash, so a post-frame callback is no sign the page
+/// shows. Where nothing holds the first frame (devices, tests, an app not
+/// started by Dartvel) it completes at once.
+Future<void> dvFirstFrameShown() {
+  if (_firstFrameShown || !dvHoldWebFirstFrame) return Future<void>.value();
+  // On the web only DV.run's watcher publishes the frame; without it there is
+  // nobody to wait for.
+  if (kIsWeb && !_watching) return Future<void>.value();
+  return (_shown ??= Completer<void>()).future;
+}
+
+void _markShown() {
+  if (_firstFrameShown) return;
+  _firstFrameShown = true;
+  _shown?.complete();
+}
+
+/// Marks the first frame as on screen, as the web watcher does.
+@visibleForTesting
+void dvDebugMarkFirstFrameShown() => _markShown();
+
+/// Forgets that the first frame was shown.
+@visibleForTesting
+void dvDebugResetFirstFrameShown() {
+  _firstFrameShown = false;
+  _shown = null;
 }

@@ -112,6 +112,13 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'same either way.',
         ),
         DocsText(
+          'Each page asks for its own code as soon as the app and its '
+          'renderer have downloaded, instead of one piece after another '
+          'once the app starts. Links on the page wait until that first '
+          'screen is showing before they fetch the pages they point to, '
+          'and the offline copy is made only after it too.',
+        ),
+        DocsText(
           'On the web-server build, the WebAssembly version draws on '
           'a second thread, which keeps scrolling smooth on slow phones. '
           'That needs two headers the build turns on by itself unless '
