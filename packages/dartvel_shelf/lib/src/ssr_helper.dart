@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvHostedSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor;
+    show DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvHostedSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor, DVSpan, dvCurrentSpan, dvRecordHttpRoute;
+import 'package:dartvel_core/dv.dart' show DV;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
@@ -68,7 +69,14 @@ Future<Response> _handleSsrFallback(
   // assembled from it on request, with the route's data from the resolver
   // the backend was started with, by the declared mode.
   if (dvSiteHash(spaRoot, 'dartvel_routes.json') != null) {
-    return _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
+    Future<Response> render() => _fromManifest(req, html, spaRoot: spaRoot, pageData: pageData, cache: cache, pageStore: pageStore, publishedRoutes: publishedRoutes);
+    // The page render as a span of its own inside the request's, so the
+    // time spent resolving the route's data and assembling its HTML is
+    // separate from the time the router and the middleware took. Named
+    // after the route template once it has matched.
+    if (dvCurrentSpan == null) return render();
+    return DV.ObservabilityAndLogging.tracer.trace('render page', (DVSpan _) => render(),
+        attributes: <String, Object>{'dartvel.render.mode': 'server'});
   }
 
   // Check for prerendered metadata
@@ -224,6 +232,18 @@ Future<Response> _fromManifest(
         );
 
   final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
+  if (matched != null) {
+    // The template, for the request's span name and metrics, and this
+    // render's.
+    dvRecordHttpRoute(matched.pattern);
+    final DVSpan? render = dvCurrentSpan;
+    if (render != null && render.name == 'render page') {
+      render
+        ..updateName('render ${matched.pattern}')
+        ..setAttribute('http.route', matched.pattern);
+    }
+  }
+
   // The route's own deferred parts and first-frame images, by the pattern it
   // matched. They depend on the route and never on the data, so they go in
   // whatever part of the head goes first.
