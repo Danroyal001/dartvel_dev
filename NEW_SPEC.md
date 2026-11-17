@@ -1215,8 +1215,8 @@ still laid out at the screen's height, so centred content stays centred.
 
 The page scrollbar is left out where scrolling is a finger's: Android, iOS, a
 browser whose main pointer is touch (an iPad reports macOS), and any screen as
-narrow as a phone (under 840 logical pixels, the `mobile` breakpoint). Desktop
-keeps it.
+narrow as a phone (under 782 logical pixels). Desktop keeps it, in any window
+from 782 wide.
 
 A layout with a fixed header writes no scroll code either. `DartvelLayout` has
 two optional getters, `header` and `footer`; when either is set the framework

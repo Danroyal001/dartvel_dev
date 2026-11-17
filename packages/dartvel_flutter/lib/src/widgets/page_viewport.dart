@@ -781,6 +781,12 @@ class RenderDVPageViewport extends RenderBox
 /// whose main pointer is touch (an iPad's Safari reports macOS), or a screen
 /// as narrow as a phone. The page's scrollbar is left out there and kept on
 /// desktop.
+/// Narrower than this, a desktop window is laid out as a phone and gets no
+/// page scrollbar. 782 logical pixels, where sigmadev.digital already drew
+/// that line by hand (its columns stack below it), so no existing app changes:
+/// a desktop window from 782 wide keeps its scrollbar.
+const double dvPageNarrowWidth = 782;
+
 bool dvPageScrollsByTouch(BuildContext context) {
   final TargetPlatform platform = Theme.of(context).platform;
   if (platform == TargetPlatform.android ||
@@ -790,8 +796,7 @@ bool dvPageScrollsByTouch(BuildContext context) {
   }
   if (dvPrimaryPointerIsTouch()) return true;
   final double width = MediaQuery.maybeSizeOf(context)?.width ?? double.infinity;
-  // The phone breakpoint (dvBreakpointFor): under 840 logical pixels.
-  return width < 840;
+  return width < dvPageNarrowWidth;
 }
 
 /// Whether the browser's main pointer is a finger. Tests replace it.

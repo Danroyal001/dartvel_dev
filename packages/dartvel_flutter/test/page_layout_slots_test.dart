@@ -125,6 +125,10 @@ void main() {
       expect(await scrollbars(tester, platform: TargetPlatform.linux, size: const Size(390, 844)), 0);
     });
 
+    testWidgets('is kept in a desktop window from 782 wide', variant: TargetPlatformVariant.only(TargetPlatform.linux), (WidgetTester tester) async {
+      expect(await scrollbars(tester, platform: TargetPlatform.linux, size: const Size(800, 900)), 1);
+    });
+
     testWidgets('is left out in a touch browser, an iPad reporting macOS', variant: TargetPlatformVariant.only(TargetPlatform.macOS), (WidgetTester tester) async {
       expect(await scrollbars(tester, platform: TargetPlatform.macOS, size: const Size(1024, 1366), touch: true), 0);
     });
