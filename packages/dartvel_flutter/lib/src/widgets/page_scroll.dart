@@ -10,6 +10,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'page_viewport.dart' show DVPageViewportScope, DVPageViewportState;
+
 /// Gives the page inside it a scroll controller of its own, and a round
 /// button at the bottom right that jumps to the bottom, or back to the top
 /// once the reader is there.
@@ -34,66 +36,91 @@ class DVPageScrollFrame extends StatefulWidget {
 class _DVPageScrollFrameState extends State<DVPageScrollFrame> {
   final ScrollController _controller = ScrollController();
 
-  /// Within this of the bottom counts as there.
-  static const double _slack = 24;
+  /// The page shell this frame hands its button to, when there is one.
+  DVPageViewportState? _host;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final DVPageViewportState? host = DVPageViewportScope.maybeOf(context);
+    if (identical(host, _host)) return;
+    _host?.removeJumpFrame(_controller);
+    _host = host?..addJumpFrame(_controller);
+  }
 
   @override
   void dispose() {
+    _host?.removeJumpFrame(_controller);
     _controller.dispose();
     super.dispose();
   }
 
-  void _jump(bool toTop) {
-    if (_controller.positions.length != 1) return;
-    final ScrollPosition position = _controller.position;
-    final double target = toTop ? 0 : position.maxScrollExtent;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
-      position.jumpTo(target);
-    } else {
-      position.animateTo(target, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return PrimaryScrollController(
+    final Widget primary = PrimaryScrollController(
       controller: _controller,
       automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+      child: widget.child,
+    );
+    // Inside a page shell the shell draws the button, outside its scroll
+    // view: the page may be one the shell scrolls, where a button inside
+    // would scroll away with it.
+    if (_host != null) return primary;
+    return NotificationListener<ScrollMetricsNotification>(
       // A page that grows as it loads changes how far there is to go without
       // scrolling, which the controller alone does not report.
-      child: NotificationListener<ScrollMetricsNotification>(
-        onNotification: (ScrollMetricsNotification _) {
-          setState(() {});
-          return false;
-        },
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(child: widget.child),
-            Positioned(
-              right: 20,
-              bottom: 20,
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (BuildContext context, Widget? _) {
-                  if (_controller.positions.length != 1) return const SizedBox.shrink();
-                  final ScrollPosition position = _controller.position;
-                  if (!position.hasContentDimensions || position.maxScrollExtent < widget.minimumScroll) {
-                    return const SizedBox.shrink();
-                  }
-                  final bool atBottom = position.pixels >= position.maxScrollExtent - _slack;
-                  return _JumpButton(toTop: atBottom, onTap: () => _jump(atBottom));
-                },
-              ),
+      onNotification: (ScrollMetricsNotification _) {
+        setState(() {});
+        return false;
+      },
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(child: primary),
+          Positioned(
+            right: 20,
+            bottom: 20,
+            child: ListenableBuilder(
+              listenable: _controller,
+              builder: (BuildContext context, Widget? _) {
+                if (_controller.positions.length != 1) return const SizedBox.shrink();
+                return DVPageJumpButton.forPosition(_controller.position, minimumScroll: widget.minimumScroll);
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _JumpButton extends StatelessWidget {
-  const _JumpButton({required this.toTop, required this.onTap});
+/// The round button itself, for [position]: nothing while the page is
+/// shorter than [minimumScroll] of scrolling, "To the bottom" until the
+/// reader is there, then "Back to top".
+class DVPageJumpButton extends StatelessWidget {
+  const DVPageJumpButton._({required this.toTop, required this.onTap});
+
+  static Widget forPosition(ScrollPosition position, {double minimumScroll = 400}) {
+    if (!position.hasContentDimensions || position.maxScrollExtent < minimumScroll) {
+      return const SizedBox.shrink();
+    }
+    final bool atBottom = position.pixels >= position.maxScrollExtent - _slack;
+    return Builder(
+      builder: (BuildContext context) => DVPageJumpButton._(
+        toTop: atBottom,
+        onTap: () {
+          final double target = atBottom ? 0 : position.maxScrollExtent;
+          if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+            position.jumpTo(target);
+          } else {
+            position.animateTo(target, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
+          }
+        },
+      ),
+    );
+  }
+
+  /// Within this of the bottom counts as there.
+  static const double _slack = 24;
 
   final bool toTop;
   final VoidCallback onTap;
