@@ -80,6 +80,14 @@ class DVPage {
   /// text should never be anywhere but its canvas. What the build wrote for
   /// crawlers and printers is left, and not searched.
   final bool findable;
+
+  /// Whether the page scrolls when it is taller than the screen. True by
+  /// default, with nothing for the page to add: the shell is the page's
+  /// scroll view, and steps aside by itself for a page that brings its own
+  /// (a ListView, a scrollable DVBox list, a CustomScrollView) or fills the
+  /// screen (an Expanded in a column, a Scaffold, a map). False for a page
+  /// that must never scroll.
+  final bool scroll;
   final bool safeArea;
   final bool centerTitle;
   final bool extendBody;
@@ -112,6 +120,7 @@ class DVPage {
     this.showAppBar = false,
     this.selectable = true,
     this.findable = true,
+    this.scroll = true,
     this.safeArea = true,
     this.centerTitle = false,
     this.extendBody = false,
