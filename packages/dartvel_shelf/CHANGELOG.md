@@ -1,7 +1,8 @@
-## Unreleased
+## 3.47.5 — 2026-11-17
 
 - A route whose page data answers `DVPageData.slots` is served as its captured page with the request's text in its slots (core's `dvRenderPage`).
 - The macOS (arm64, x64) and windows-arm64 libraries are rebuilt with the 3.47.4 TLS fix (and the October rustls update); 3.47.4 shipped them unrebuilt. Every library in `lib/native/` now carries the source revision it was built from, and `test/prebuilt_source_revision_test.dart` fails when one differs from `rust/`.
+- Imports left unused in 3.47.4 are gone, so pub.dev's analysis shows no warnings.
 
 ## 3.47.4 — 2026-11-16
 
