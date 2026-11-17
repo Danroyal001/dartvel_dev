@@ -15,6 +15,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSessionScope,
         DVSessionScopeResolution,
         DVLogConfig,
+        DVOpenTelemetryConfig,
         DVPlatformApiConfig,
         DVWebhooksConfig,
         DVWebhooksConfigException,
@@ -100,6 +101,38 @@ class BackendGenerator {
         'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
       );
     }
+  }
+
+  /// `dartvel.openTelemetry`, read with the parser the runtime uses, with
+  /// the service named after the package and versioned by its pubspec where
+  /// the section does not say. A setting the runtime could not honour fails
+  /// the build here.
+  static DVOpenTelemetryConfig _dvOpenTelemetryConfig(String root, String pkgName) {
+    final File pubspec = File(p.join(root, 'pubspec.yaml'));
+    if (!pubspec.existsSync()) return const DVOpenTelemetryConfig();
+    final Object? doc = loadYaml(pubspec.readAsStringSync());
+    final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+    final Object? version = doc is Map ? doc['version'] : null;
+    try {
+      return DVOpenTelemetryConfig.parse(
+              dartvel is Map ? _dvPlainYaml(dartvel['openTelemetry']) : null)
+          .withServiceDefaults(name: pkgName, version: version == null ? null : '$version');
+    } on ArgumentError catch (error) {
+      throw StateError(
+        'pubspec.yaml ${error.name}: ${error.message} (got ${error.invalidValue})',
+      );
+    }
+  }
+
+  static Object? _dvPlainYaml(Object? value) {
+    if (value is Map) {
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          '${entry.key}': _dvPlainYaml(entry.value),
+      };
+    }
+    if (value is List) return <Object?>[for (final Object? item in value) _dvPlainYaml(item)];
+    return value;
   }
 
   /// `dartvel.logging`, read with the parser the runtime uses.
@@ -978,6 +1011,11 @@ $openApiJson\'\'\';
     final bool servesCrashes = crashes.sink == DVCrashSinkChoice.dartvel;
     // dartvel.logging: whether this backend receives its devices' records.
     final DVLogConfig logging = _dvLogConfig(root);
+    // dartvel.openTelemetry: embedded as the build read it, so the server
+    // installs export with no code; OTEL_* on the deployment wins over it.
+    final String openTelemetryDeclaration = jsonEncode(jsonEncode(
+            _dvOpenTelemetryConfig(root, pkgName).toDeclaration()))
+        .replaceAll(r'$', r'\$');
     final bool servesClientLogs = logging.ship;
     // dartvel.purchases: the device's purchase calls and the stores'
     // notifications. Absent, nothing is registered and the routes 404.
@@ -2112,6 +2150,8 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   // Crash reporting, labelled with this process's role, before anything
   // that can fail a request.
   _dartvelInstallServerCrashes(processConfiguration.role);
+  // OpenTelemetry, before the first request, query or job can happen.
+  _dartvelInstallOpenTelemetry();
   // The hosts dartvel.http declares, before a backend function, a job or a
   // webhook can send: the same declaration the client runtime installs.
   configureDartvelHttp();
@@ -2343,6 +2383,22 @@ Future<void> _dartvelStartBackendPrivacy(core.DVProcessStores stores) async {
   await core.DVPrivacyRuntime.start();
 }
 
+/// OpenTelemetry export from `dartvel.openTelemetry`, with the standard
+/// OTEL_* environment variables over it: traces, metrics and logs to any
+/// OTLP collector, with no code. Off unless the section enables it or the
+/// deployment names an endpoint. A process that cannot install it says so
+/// and serves anyway: telemetry is not a reason to be down.
+void _dartvelInstallOpenTelemetry() {
+  try {
+    core.DVOpenTelemetry.install(
+      core.DVOpenTelemetryConfig.parse(conv.jsonDecode($openTelemetryDeclaration)),
+      environment: Platform.environment,
+    );
+  } on Object catch (error) {
+    stderr.writeln('dartvel: OpenTelemetry export is off: \$error');
+  }
+}
+
 bool _dartvelServerCrashesInstalled = false;
 
 /// Installs crash reporting in this server process, as [role].
@@ -2427,6 +2483,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       _dartvelPrivacyTimer?.cancel();
       _dartvelCaptureTimer?.cancel();
       await handle.stop();
+      // What is still queued for the collector, before the process goes.
+      await core.DVOpenTelemetry.shutdown();
     case core.DVProcessRole.worker:
       // The same start a web process makes, less what only serving needs: a
       // preview's worker must consume the preview's queues, and a module's
@@ -2434,6 +2492,7 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       // A job that fails until it is dead-lettered is this worker's crash.
       _dartvelInstallServerCrashes(process.role);
+      _dartvelInstallOpenTelemetry();
       configureDartvelHttp();
       // dartvel.webhooks: the envelope and signature deliveries go out in.
       _dartvelConfigureWebhooks();
@@ -2476,11 +2535,13 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
         }
       } finally {
         await workerHealth?.close();
+        await core.DVOpenTelemetry.shutdown();
       }
     case core.DVProcessRole.cron:
       core.DVPreviewServer.start(Platform.environment, membership: previewMembership);
       // A schedule that throws is this cron process's crash.
       _dartvelInstallServerCrashes(process.role);
+      _dartvelInstallOpenTelemetry();
       configureDartvelHttp();
       // dartvel.webhooks: the envelope and signature deliveries go out in.
       _dartvelConfigureWebhooks();
@@ -2522,6 +2583,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       privacySchedules?.cancel();
       captureSchedules?.cancel();
       await cronHealth?.close();
+      await core.DVOpenTelemetry.shutdown();
+
   }
 }
 
