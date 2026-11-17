@@ -502,6 +502,10 @@ them nowhere, and the Flutter client prints to the debug console and nothing
 more. Both are gaps in the framework, not something an application wires up.
 
 **Not built yet** (Monitoring and Observability is Partial): a log sink for
-worker and cron processes and the client; an OTLP exporter, so spans stay in
-an in-process buffer served at `/_dartvel/traces` when diagnostics endpoints
-are on and reach no collector; profiling and structured diagnostics.
+worker and cron processes and the client; profiling and structured
+diagnostics. OpenTelemetry export is built: `dartvel.openTelemetry` or the
+standard `OTEL_*` variables send traces, metrics and logs over OTLP/HTTP from
+web, worker and cron processes (`DVOpenTelemetry`, `DVOpenTelemetryConfig`,
+`DVOtlpExporter`), and `DV.ObservabilityAndLogging.useOpenTelemetry` does the
+same in code on any target.
+

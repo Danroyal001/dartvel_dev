@@ -271,6 +271,13 @@ const List<DocsPageInfo> kDocsPages = <DocsPageInfo>[
     'Operations',
   ),
   DocsPageInfo(
+    DVRoutes.docsopentelemetry,
+    'OpenTelemetry',
+    'Traces, metrics and logs to any OTLP collector',
+    'Operations',
+  ),
+
+  DocsPageInfo(
     DVRoutes.docsreleases,
     'Releases',
     'Flags, branch previews, rollouts and old clients',
