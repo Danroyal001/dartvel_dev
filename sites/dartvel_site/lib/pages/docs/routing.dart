@@ -171,6 +171,17 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
             DocsCode('routing-nested-layout'),
             DocsText('A page under /blog is wrapped by the root layout first, '
                 'then by the blog layout.'),
+            DocsSubheading('Keep a header fixed and scroll the rest'),
+            DocsText('Override header and footer on the layout, and leave '
+                'build out: the header stays at the top, and the page and '
+                'then the footer scroll beneath it. On a page shorter than '
+                'the screen the footer sits at the bottom. A page that '
+                'scrolls itself, such as a ListView, is not scrolled twice. '
+                'Write no scroll view: every page already scrolls.'),
+            DocsText('Widget? get header => const SiteHeader(); and '
+                'Widget? get footer => const SiteFooter(); in the layout class '
+                'are all it takes. build, when you do override it, wraps the '
+                'page between them.'),
           ],
         ),
         DocsSection(
