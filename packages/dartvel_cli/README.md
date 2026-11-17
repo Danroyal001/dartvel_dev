@@ -514,6 +514,7 @@ dartvel:
 | `startRoutes` | empty | The page an installed target opens on, e.g. `{linux: /editor}`. The web opens at its address. |
 | `plugins` | `[]` | Enabled Dartvel plugins. |
 | `ota` | `false` | Over-the-air updates. |
+| `platforms` | empty | Each platform's own settings, under its name. `platforms.web.document` takes `head`, `bodyStart` and `bodyEnd`: lists of `html:` or `file: html/...` entries the build writes into every page (see the root README, "Your own HTML on every page"). The older top-level `web`, `android`, `ios`, `macos`, `windows` and `linux` keys are read as the same objects; where both set a key, `platforms` wins, and the build notes the old key's new home. Its keys are the platforms the project builds for; the older list form (`platforms: [web, android]`, which `dartvel create` writes) still works, and Studio turns it into the map, keeping every target, when it first saves a setting. |
 
 Other sections are read by the commands that need them, for example
 `tasks` (`dartvel task`), `database` (`provider`, `path`; used by `dartvel db`),

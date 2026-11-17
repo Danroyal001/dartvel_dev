@@ -15,6 +15,8 @@
 /// silently changes what a page means is a bug that ships.
 library;
 
+import 'document_slots.dart' show dvDocumentSlotCloseFor;
+
 /// Elements whose surrounding whitespace is part of the sentence.
 ///
 /// `<span>a</span> <span>b</span>` reads "a b"; dropping that space runs the
@@ -61,6 +63,18 @@ String dvMinifyHtml(String html) {
         final int end = html.indexOf('-->', i + 4);
         final int stop = end < 0 ? html.length : end + 3;
         final String comment = html.substring(i, stop);
+        // A project's own HTML at the page's edges (document_slots.dart):
+        // copied as written, so a vendor's script runs exactly as pasted and
+        // the hash a policy lists for it is the hash of what is sent.
+        final String? slotClose = dvDocumentSlotCloseFor(comment);
+        if (slotClose != null) {
+          final int closeAt = html.indexOf(slotClose, stop);
+          final int through = closeAt < 0 ? html.length : closeAt + slotClose.length;
+          out.write(html.substring(i, through));
+          i = through;
+          previousTag = '';
+          continue;
+        }
         if (comment.startsWith('<!--[') || _isMarker(comment)) {
           out.write(comment);
         }

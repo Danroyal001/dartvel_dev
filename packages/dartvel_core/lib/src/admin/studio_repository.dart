@@ -22,6 +22,8 @@ import 'package:crypto/crypto.dart' show sha1;
 import '../database/adapter.dart';
 import '../database/records.dart';
 import 'studio_api.dart' show dvStudioPagesShape, dvStudioPagesTable;
+import 'studio_platforms.dart'
+    show DVStudioPlatformsRefusal, dvStudioClearPendingPlatforms, dvStudioPendingPlatforms, dvStudioPubspecWithPlatforms;
 import 'studio_model_schema.dart' show dvStudioModelDartSource, dvStudioSnakeCase;
 import 'studio_api.dart' show DVStudioModelSpec;
 import 'studio_source_files.dart'
@@ -249,6 +251,17 @@ class DVStudioRepository {
           '${entry['path']}': '${entry['sha']}',
     };
     final Map<String, String> here = await _files();
+    // A Platforms change saved in Studio is a change to the repository's own
+    // pubspec.yaml, made with every other line of it kept.
+    final Map<String, Object?>? platforms = await dvStudioPendingPlatforms(database);
+    if (platforms != null && there.containsKey('pubspec.yaml')) {
+      final String current = await _content(github, s.repository, s.base, 'pubspec.yaml');
+      try {
+        here['pubspec.yaml'] = dvStudioPubspecWithPlatforms(current, platforms);
+      } on DVStudioPlatformsRefusal catch (refusal) {
+        throw DVStudioRepositoryRefusal(refusal.status, refusal.code, refusal.message);
+      }
+    }
     final List<DVStudioFileChange> out = <DVStudioFileChange>[];
     for (final MapEntry<String, String> file in here.entries) {
       final String? sha = there[file.key];
@@ -270,10 +283,12 @@ class DVStudioRepository {
   }
 
   /// A file Studio writes: its studio/ documents, and a lib/models file of
-  /// a model it designed. A studio/ file Studio no longer has is removed; a
+  /// a model it designed. And pubspec.yaml, for a Platforms change,
+  /// which is only ever edited. A studio/ file Studio no longer has is removed; a
   /// model file is only ever written, since code may have added its own.
   static bool _ours(String path) =>
-      path.startsWith('$dvStudioSourceDirectory/') || path.startsWith('lib/models/');
+      path.startsWith('$dvStudioSourceDirectory/') || path.startsWith('lib/models/') ||
+      path == 'pubspec.yaml';
 
   Future<String> _content(
       DVGitHubTransport github, String repository, String base, String path) async {
@@ -314,6 +329,8 @@ class DVStudioRepository {
             },
       ],
     }), <String>['sha'])}';
+    final bool sendsPlatforms =
+        changes.any((DVStudioFileChange change) => change.path == 'pubspec.yaml');
     final String title = (message == null || message.trim().isEmpty)
         ? 'Changes made in Studio'
         : message.trim();
@@ -325,6 +342,7 @@ class DVStudioRepository {
     if (!pullRequest) {
       await _call(github, 'PATCH', '/repos/${s.repository}/git/refs/heads/${s.base}',
           body: <String, Object?>{'sha': commit, 'force': false});
+      if (sendsPlatforms) await dvStudioClearPendingPlatforms(database);
       return <String, Object?>{
         'pushed': s.base,
         'commit': commit,
@@ -347,6 +365,7 @@ class DVStudioRepository {
               '- ${change.kind} `${change.path}`',
           ].join('\n')}',
         });
+    if (sendsPlatforms) await dvStudioClearPendingPlatforms(database);
     return <String, Object?>{
       'branch': branch,
       'url': '${_field(pull, <String>['html_url'])}',

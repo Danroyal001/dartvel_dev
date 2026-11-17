@@ -12,8 +12,11 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartvel_core/config.dart' show dvWithPlatforms;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+
+import '../build/document_slots.dart' show dvWriteWebFileRefs;
 
 /// What reading the section found.
 class DVDartvelSection {
@@ -34,7 +37,21 @@ class DVDartvelSection {
 }
 
 /// Reads the `dartvel:` section of the project at [root]. Never throws.
+///
+/// Each platform's settings are readable at both of their homes,
+/// `platforms.<name>` and the older top-level `<name>` (`dvWithPlatforms`),
+/// so a reader that has not moved still sees a setting written under
+/// `platforms:`, and the other way round.
 DVDartvelSection dvDartvelSection(String root) {
+  final DVDartvelSection read = _readDartvelSection(root);
+  return DVDartvelSection(
+    dvWithPlatforms(read.values),
+    problems: read.problems,
+    fromDartConfig: read.fromDartConfig,
+  );
+}
+
+DVDartvelSection _readDartvelSection(String root) {
   final File pubspec = File(p.join(root, 'pubspec.yaml'));
   if (!pubspec.existsSync())
     return const DVDartvelSection(<Object?, Object?>{});
@@ -82,6 +99,10 @@ DVDartvelSection dvEvaluateDartConfig(String root, String relativePath) {
     );
   }
   final String className = declaration.group(1)!;
+  // Before the probe: a config naming DVWebFile.head imports the generated
+  // lib/dartvel_client/web_files.g.dart, which the routes generator would
+  // otherwise only write after reading this very config.
+  if (source.contains('web_files.g.dart')) dvWriteWebFileRefs(root);
   final Directory work = Directory(p.join(root, '.dart_tool', 'dartvel'))
     ..createSync(recursive: true);
   final String stamp = '${_configSourcesDigest(root, configFile)}:$className';

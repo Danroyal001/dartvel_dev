@@ -62,6 +62,17 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
 
+  # docs:start yaml-platforms-web
+  platforms:
+    web:
+      document:
+        head: # inside <head>
+          - html: <meta name="google-site-verification" content="your-code">
+          - file: html/analytics.html
+        bodyEnd: # right before </body> closes
+          - html: <script src="https://cdn.example.com/chat.js" async></script>
+  # docs:end
+
   # docs:start yaml-file-associations
   fileAssociations:
     - mimeType: application/x-shop-order

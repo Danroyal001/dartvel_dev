@@ -11,6 +11,7 @@ library;
 
 import 'dart:convert';
 
+import 'document_slots.dart' show dvBodyEndInsertionPoint;
 import 'minify.dart';
 import 'page_data.dart' show dvApplyFavicon;
 import 'page_text.dart';
@@ -114,7 +115,7 @@ const String _closeBody = '<!-- /dartvel:prerendered -->';
 String _injectContent(String html, String content) {
   final cleaned = html.replaceAll(
       RegExp('$_openBody.*?$_closeBody\n?', dotAll: true), '');
-  final at = cleaned.indexOf('</body>');
+  final at = dvBodyEndInsertionPoint(cleaned);
   if (at < 0) return cleaned;
 
   // Off-screen rather than hidden: `display: none` is ignored by some
