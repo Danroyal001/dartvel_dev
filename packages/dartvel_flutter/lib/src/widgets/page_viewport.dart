@@ -360,6 +360,17 @@ class DVPageViewportState extends State<DVPageViewport> {
 
   @override
   Widget build(BuildContext context) {
+    // The page's text registers with the page's selection area directly, as
+    // it did before the shell scrolled: a Scrollable between them makes a
+    // selection container of its own, and the menu then offered no Select
+    // all while nothing was selected. Hidden from the Scrollable, handed back
+    // inside it.
+    final SelectionRegistrar? registrar = SelectionContainer.maybeOf(context);
+    Widget body = KeyedSubtree(
+      key: _bodyKey,
+      child: DVPageViewportScope(host: this, child: widget.child),
+    );
+    if (registrar != null) body = SelectionRegistrarScope(registrar: registrar, child: body);
     final Widget scrollable = NotificationListener<Notification>(
       onNotification: _fromShell,
       child: Scrollable(
@@ -382,19 +393,17 @@ class DVPageViewportState extends State<DVPageViewport> {
               child: _DVPageViewportBox(
                 offset: offset,
                 onDecided: _layoutDecided,
-                child: KeyedSubtree(
-                  key: _bodyKey,
-                  child: DVPageViewportScope(host: this, child: widget.child),
-                ),
+                child: body,
               ),
             ),
       ),
     );
-    if (_jumpFrames.isEmpty) return scrollable;
+    final Widget shell = registrar == null ? scrollable : SelectionContainer.disabled(child: scrollable);
+    if (_jumpFrames.isEmpty) return shell;
     return Stack(
       fit: StackFit.passthrough,
       children: <Widget>[
-        scrollable,
+        shell,
         Positioned(
           right: 20,
           bottom: 20,
@@ -660,7 +669,8 @@ class RenderDVPageViewport extends RenderBox
     offset.applyViewportDimension(size.height);
     offset.applyContentDimensions(0, _maxScrollExtent);
     if (wasScrolling != _scrolls) markNeedsSemanticsUpdate();
-    onDecided(_scrolls);
+    // A page that fits is not a scroll container: no scrollbar, no node.
+    onDecided(_scrolls && _maxScrollExtent > 0);
   }
 
   Offset get _paintOffset => _paintOffsetFor(offset.pixels);

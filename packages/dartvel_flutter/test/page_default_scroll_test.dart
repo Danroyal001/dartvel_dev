@@ -112,6 +112,18 @@ void main() {
       expect(find.text('Item 299', skipOffstage: false), findsNothing);
     });
 
+    testWidgets('the selection menu still offers Select all with nothing selected', (WidgetTester tester) async {
+      // A Scrollable between the text and the selection area made a selection
+      // container of its own, and the menu lost Select all.
+      await tester.pumpWidget(shell(longColumn()));
+      await tester.pumpAndSettle();
+      final TestGesture mouse = await tester.startGesture(tester.getCenter(find.text('Row 2')),
+          kind: PointerDeviceKind.mouse, buttons: kSecondaryMouseButton);
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(find.text('Select all'), findsOneWidget);
+    });
+
     testWidgets('a screen reader sees one scroll container', (WidgetTester tester) async {
       final SemanticsHandle semantics = tester.ensureSemantics();
       await tester.pumpWidget(shell(longColumn()));
