@@ -24,6 +24,8 @@ import '../auth/session_authentication.dart';
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../observability/observability.dart'
+    show DVSpan, dvCurrentSpan, dvRecordHttpRoute;
 import '../web/asset_source.dart';
 import '../web/route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'studio_access.dart';
@@ -545,7 +547,24 @@ class DVAdminServer {
       );
     }
     if (decision != DVAdminRequest.serve) return null;
+    // Studio's own request names its span and metrics after what it is --
+    // the screen or the API action -- never after the record ids deeper in
+    // the path.
+    final String section = path
+        .substring(mount.path.length)
+        .split('/')
+        .where((String part) => part.isNotEmpty)
+        .skip(isApi ? 1 : 0)
+        .firstOrNull ?? '';
+    dvRecordHttpRoute(
+        '${mount.path}${isApi ? '/api' : ''}${section.isEmpty ? '' : '/$section'}');
+    final DVSpan? span = dvCurrentSpan;
+    if (span != null) {
+      span.setAttribute('dartvel.studio.${isApi ? 'action' : 'screen'}',
+          isApi ? '${request.method} $section' : section);
+    }
     if (path.startsWith(apiPrefix)) {
+
       // On the request's tenant, as every route of the application is, so a
       // tenant-scoped model shows this tenant's records and nobody else's.
       return dvWithRequestTenant(

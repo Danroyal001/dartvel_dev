@@ -116,20 +116,78 @@ class Router {
       return inner();
     }
 
+    // The request's server span, when anything is reading spans. Checked as a
+    // field read, so a process nobody traces pays nothing else here.
+    final DVSpan? span = DVObservability.requestTracing
+        ? dvStartServerSpan(DVObservability.tracer, req)
+        : null;
+    final bool semantic = DVObservability.semanticMetrics;
+    // Only when something will read it back: the metrics, or a route matched
+    // inside a child span naming the request's span.
+    final DVRequestTelemetry? scope =
+        semantic || span != null ? DVRequestTelemetry(span) : null;
+
+    final Map<String, String> activeLabels = semantic
+        ? <String, String>{
+            'http.request.method': req.method,
+            'url.scheme': req.url.scheme.isEmpty ? 'http' : req.url.scheme,
+          }
+        : const <String, String>{};
+    final DVGauge? active = semantic ? _activeRequests(activeLabels) : null;
+    active?.increment();
+
     final Stopwatch clock = Stopwatch()..start();
     try {
-      final Response response = await inner();
+      Future<Response> traced() => span == null ? inner() : dvInSpan(span, inner);
+      final Response response = await (scope == null ? traced() : scope.run(traced));
       clock.stop();
-      _record(req, response.status, clock, response.headers.get('traceparent'));
+      if (span != null) dvFinishServerSpan(span, response);
+      // Inside the span, so the access line names the request's trace.
+      void record() => _record(
+          req, response.status, clock, response.headers.get('traceparent'));
+      span == null ? record() : dvInSpan(span, record);
+      if (semantic) _recordSemantic(activeLabels, scope?.route, response.status, clock);
       return response;
     } on Object catch (error, stack) {
       clock.stop();
+      span?.recordError(error, stack);
+      span?.setAttribute('http.response.status_code', 500);
       // The server layer turns this into a 500 inside a bare `catch (_)`, so
       // if it is not recorded here the exception is gone: no line, no count,
       // and a client holding a 500 nobody can explain.
-      _record(req, 500, clock, null, error: error, stackTrace: stack);
+      void record() =>
+          _record(req, 500, clock, null, error: error, stackTrace: stack);
+      span == null ? record() : dvInSpan(span, record);
+      if (semantic) _recordSemantic(activeLabels, scope?.route, 500, clock);
       rethrow;
+    } finally {
+      active?.decrement();
+      span?.end();
     }
+  }
+
+  static DVGauge _activeRequests(Map<String, String> labels) {
+    DVObservability.metrics.setUnit('http.server.active_requests', '{request}');
+    return DVObservability.metrics.gauge('http.server.active_requests', labels,
+        'Number of active HTTP server requests.');
+  }
+
+  /// `http.server.request.duration`, labelled as the semantic conventions
+  /// say: the route template, never the path, which is where ids are.
+  static void _recordSemantic(Map<String, String> base, String? route,
+      int status, Stopwatch clock) {
+    DVObservability.metrics.setUnit('http.server.request.duration', 's');
+    DVObservability.metrics
+        .histogram(
+          'http.server.request.duration',
+          <String, String>{
+            ...base,
+            if (route != null) 'http.route': route,
+            'http.response.status_code': '$status',
+          },
+          'Duration of HTTP server requests.',
+        )
+        .observe(clock.elapsedMicroseconds / 1000000);
   }
 
   static void _record(
@@ -164,7 +222,8 @@ class Router {
     // the header the tracing middleware set on the response is what is left
     // of it. Reading the id back from there is what lets a support ticket
     // quoting a traceparent find the log line for that request.
-    final DVTraceContext? context = DVTraceContext.parse(traceparent);
+    final DVTraceContext? context =
+        dvCurrentSpan == null ? DVTraceContext.parse(traceparent) : null;
     final Map<String, Object?> fields = <String, Object?>{
       'method': req.method,
       'path': req.url.path,
@@ -198,7 +257,10 @@ class Router {
         req.params
           ..clear()
           ..addAll(match.pathname);
+        // The template, for the request's span name and its metrics.
+        dvRecordHttpRoute(route.source);
         return route.handler(req);
+
       }
     }
     // Reached only when the application registered no route of its own for
