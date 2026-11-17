@@ -517,3 +517,37 @@ class DVLogger {
     }
   }
 }
+
+/// [text] as it may leave the process in telemetry: resolved `DV.Secrets`
+/// values and credential shapes (bearer and basic headers, JWTs, the password
+/// in a URL) struck out, exactly as a log line is.
+///
+/// One function for both, because a span attribute and a log line go to the
+/// same collector, and a redaction rule that only one of them follows is a
+/// credential that leaves through the other.
+String dvRedactTelemetryText(String text) {
+  String redacted = dvRedactSecrets(text);
+  for (final (RegExp shape, String Function(Match) replace)
+      in DVLogger._credentialShapes) {
+    redacted = redacted.replaceAllMapped(shape, replace);
+  }
+  return redacted;
+}
+
+/// Whether a telemetry attribute named [key] is redacted whatever its value.
+///
+/// Matched on the key's dotted segments: a segment that is a registered
+/// `@DVModel.sensitiveField()` name, or that ends in a credential word
+/// (`password`, `token`, `authorization`, `cookie`...). Ends in rather than
+/// contains, so `http.request.header.authorization` and `access_token` are
+/// redacted while `gen_ai.usage.input_tokens` -- a count -- is not.
+bool dvIsSensitiveTelemetryKey(String key) {
+  final String lower = key.toLowerCase();
+  for (final String segment in lower.split('.')) {
+    if (DVLogger._sensitiveFields.contains(segment)) return true;
+    for (final String needle in DVLogger.defaultRedactedKeys) {
+      if (segment.endsWith(needle)) return true;
+    }
+  }
+  return false;
+}

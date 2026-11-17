@@ -11,7 +11,8 @@ library dartvel.observability.tracing;
 import 'dart:async';
 import 'dart:math';
 
-import '../secrets/secrets.dart';
+import '../secrets/secrets.dart' show dvRedactedMarker;
+import 'logging.dart' show dvIsSensitiveTelemetryKey, dvRedactTelemetryText;
 
 /// The zone key the current span hangs on.
 ///
@@ -53,7 +54,10 @@ class DVTraceContext {
   /// dice drops the middle out of a trace someone else chose to keep.
   final bool sampled;
 
-  static final Random _random = Random.secure();
+  // Seeded once from the secure source and fast after that. Ids must be
+  // unpredictable enough not to collide, not secret: a secure draw per byte
+  // was most of what starting a span cost.
+  static final Random _random = Random(Random.secure().nextInt(0x100000000));
 
   /// Reads a `traceparent`, or null if it is not one.
   ///
@@ -101,8 +105,10 @@ class DVTraceContext {
 
   static String _hex(int bytes) {
     final StringBuffer out = StringBuffer();
-    for (int i = 0; i < bytes; i += 1) {
-      out.write(_random.nextInt(256).toRadixString(16).padLeft(2, '0'));
+    // Four bytes a draw: 2^32 is the largest bound nextInt takes on every
+    // platform, JavaScript included.
+    for (int i = 0; i < bytes; i += 4) {
+      out.write(_random.nextInt(0x100000000).toRadixString(16).padLeft(8, '0'));
     }
     final String value = out.toString();
     // An all-zero id is invalid, and while the odds are negligible the check
@@ -125,34 +131,102 @@ class DVTraceContext {
 
 enum DVSpanStatus { unset, ok, error }
 
+/// What a span is, in the OpenTelemetry sense: whether it answers a call
+/// ([server]), makes one ([client]), hands work to a queue ([producer]),
+/// takes it from one ([consumer]), or is work inside the process ([internal]).
+///
+/// A tracing backend draws service maps from these. A request that arrives
+/// as an internal span is a service with no callers.
+enum DVSpanKind { internal, server, client, producer, consumer }
+
+/// Something that happened at a moment inside a span: an exception, a retry.
+class DVSpanEvent {
+  DVSpanEvent(this.name, this.timeUnixNano, this.attributes);
+
+  final String name;
+
+  /// Nanoseconds since the Unix epoch.
+  final int timeUnixNano;
+  final Map<String, Object> attributes;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+        'name': name,
+        'timeUnixNano': timeUnixNano,
+        if (attributes.isNotEmpty) 'attributes': attributes,
+      };
+}
+
 /// One unit of work inside a trace.
 class DVSpan {
   DVSpan._({
-    required this.name,
+    required String name,
     required this.traceId,
     required this.spanId,
     required this.parentSpanId,
     required this.sampled,
     required DVTraceExporter? exporter,
-  })  : _exporter = exporter,
+    this.kind = DVSpanKind.internal,
+  })  : _name = name,
+        _exporter = exporter,
         startedAt = DateTime.now(),
-        _stopwatch = Stopwatch()..start();
+        _stopwatch = Stopwatch()..start() {
+    startTimeUnixNano = startedAt.microsecondsSinceEpoch * 1000;
+  }
 
-  final String name;
+  /// The most attributes a span keeps; past it they are dropped and counted
+  /// in [droppedAttributes]. The OpenTelemetry default, and the bound that
+  /// keeps a loop calling setAttribute from growing one span without end.
+  static const int attributeLimit = 128;
+
+  /// The most events a span keeps.
+  static const int eventLimit = 128;
+
+  String _name;
+
+  /// The span's name. A server span is named by its route template once the
+  /// route is known, which is after the span started.
+  String get name => _name;
+
+  /// Renames the span: the router knows the route template only after the
+  /// request has been matched.
+  void updateName(String name) => _name = name;
+
   final String traceId;
   final String spanId;
   final String? parentSpanId;
   final bool sampled;
+  final DVSpanKind kind;
   final DateTime startedAt;
 
-  final Map<String, String> attributes = <String, String>{};
+  /// Nanoseconds since the Unix epoch, as OTLP carries a start time.
+  late final int startTimeUnixNano;
+
+  /// Nanoseconds since the Unix epoch when the span ended, or null while it
+  /// is open. Measured on a monotonic clock from the start, so a wall clock
+  /// stepped backwards by NTP mid-request cannot give a negative duration.
+  int? get endTimeUnixNano => _ended
+      ? startTimeUnixNano + _stopwatch.elapsedMicroseconds * 1000
+      : null;
+
+  final Map<String, Object> attributes = <String, Object>{};
+
+  /// Attributes refused because the span already held [attributeLimit].
+  int droppedAttributes = 0;
+
+  final List<DVSpanEvent> events = <DVSpanEvent>[];
+
   DVSpanStatus status = DVSpanStatus.unset;
+
+  /// Why the span is an error, when it is one.
+  String? statusMessage;
 
   final DVTraceExporter? _exporter;
   final Stopwatch _stopwatch;
   bool _ended = false;
 
   Duration? get duration => _ended ? _stopwatch.elapsed : null;
+
+  bool get isEnded => _ended;
 
   /// The context a call made inside this span should send.
   ///
@@ -165,14 +239,54 @@ class DVSpan {
         sampled: sampled,
       );
 
-  /// Records [value] against [key], with any resolved secret struck out.
+  /// Records [value] against [key].
+  ///
+  /// A string, a number, a bool, or a list of one of those, as OpenTelemetry
+  /// types attributes: a status code is the int 200 so a backend can compare
+  /// it, not the string "200". Anything else is recorded as its text.
   ///
   /// Spans usually leave the building. A log file at least sits on
   /// infrastructure the operator runs, while traces go to a hosted backend,
   /// so a database URL carrying its password into `db.url` is a credential
   /// handed to a third party and then to everyone who can read that account.
-  void setAttribute(String key, String value) =>
-      attributes[key] = dvRedactSecrets(value);
+  /// Every string is passed through the same redaction as a log line --
+  /// resolved secrets and credential shapes -- and a key naming a
+  /// `@DVModel.sensitiveField()` or a credential is redacted whatever its
+  /// value.
+  void setAttribute(String key, Object value) {
+    if (!attributes.containsKey(key) && attributes.length >= attributeLimit) {
+      droppedAttributes++;
+      return;
+    }
+    attributes[key] = _attributeValue(key, value);
+  }
+
+  static Object _attributeValue(String key, Object value) {
+    if (dvIsSensitiveTelemetryKey(key)) return dvRedactedMarker;
+    if (value is String) return dvRedactTelemetryText(value);
+    if (value is int || value is double || value is bool) return value;
+    if (value is List<String>) {
+      return <String>[for (final String item in value) dvRedactTelemetryText(item)];
+    }
+    if (value is List<int> || value is List<double> || value is List<bool>) {
+      return value;
+    }
+    return dvRedactTelemetryText('$value');
+  }
+
+  /// Adds an event at this moment.
+  void addEvent(String name,
+      [Map<String, Object> attributes = const <String, Object>{}]) {
+    if (events.length >= eventLimit) return;
+    events.add(DVSpanEvent(
+      name,
+      DateTime.now().microsecondsSinceEpoch * 1000,
+      <String, Object>{
+        for (final MapEntry<String, Object> entry in attributes.entries)
+          entry.key: _attributeValue(entry.key, entry.value),
+      },
+    ));
+  }
 
   /// The span as a trace view reads it.
   ///
@@ -184,20 +298,33 @@ class DVSpan {
         'traceId': traceId,
         'spanId': spanId,
         if (parentSpanId != null) 'parentSpanId': parentSpanId,
+        'kind': kind.name,
         'startedAt': startedAt.toUtc().toIso8601String(),
         if (duration != null)
           'durationMs': duration!.inMicroseconds / 1000,
         'status': status.name,
         if (attributes.isNotEmpty) 'attributes': attributes,
+        if (events.isNotEmpty)
+          'events': <Object?>[for (final DVSpanEvent e in events) e.toJson()],
       };
 
+  /// Marks the span failed by [error], as the semantic conventions record an
+  /// exception: an `exception` event carrying its type, message and stack.
   void recordError(Object error, [StackTrace? stackTrace]) {
     status = DVSpanStatus.error;
+    final String message = dvRedactTelemetryText('$error');
+    statusMessage = message;
     // Through setAttribute rather than straight into the map, because an
     // upstream client quoting the rejected key back at you is one of the
     // commonest ways a credential ends up in an error string.
-    setAttribute('error', '$error');
+    setAttribute('error', message);
+    setAttribute('error.type', '${error.runtimeType}');
     if (stackTrace != null) setAttribute('error.stack', '$stackTrace');
+    addEvent('exception', <String, Object>{
+      'exception.type': '${error.runtimeType}',
+      'exception.message': message,
+      if (stackTrace != null) 'exception.stacktrace': '$stackTrace',
+    });
   }
 
   /// Finishes the span and exports it.
@@ -215,14 +342,21 @@ class DVSpan {
 }
 
 /// Decides whether a trace is recorded.
+///
+/// The OpenTelemetry samplers, by their `OTEL_TRACES_SAMPLER` names: a ratio
+/// decided from the trace id, and whether a caller's decision is honoured
+/// (`parentbased_*`, the default) or re-made here.
 class DVTraceSampler {
-  const DVTraceSampler._(this._ratio);
+  const DVTraceSampler._(this._ratio, {this.parentBased = true});
 
   factory DVTraceSampler.always() => const DVTraceSampler._(1);
   factory DVTraceSampler.never() => const DVTraceSampler._(0);
 
   /// Samples [ratio] of traces, deterministically per trace id.
-  factory DVTraceSampler.ratio(double ratio) {
+  ///
+  /// [parentBased] false re-decides even a trace a caller chose: what the
+  /// non-parent-based OpenTelemetry samplers do.
+  factory DVTraceSampler.ratio(double ratio, {bool parentBased = true}) {
     if (ratio < 0 || ratio > 1) {
       throw ArgumentError.value(
         ratio,
@@ -230,10 +364,13 @@ class DVTraceSampler {
         'a sampling ratio is between 0 and 1',
       );
     }
-    return DVTraceSampler._(ratio);
+    return DVTraceSampler._(ratio, parentBased: parentBased);
   }
 
   final double _ratio;
+
+  /// Whether a caller's sampled flag decides, rather than this sampler.
+  final bool parentBased;
 
   /// Whether [traceId] is sampled.
   ///
@@ -332,58 +469,80 @@ class DVTracer {
   /// Begins a span.
   ///
   /// [context] is an incoming trace to join; [parent] is a span in this
-  /// process. Given neither, this starts a new trace.
+  /// process. Given neither, this starts a new trace. [kind] says what the
+  /// span is (see [DVSpanKind]) and [attributes] are recorded as by
+  /// [DVSpan.setAttribute].
   DVSpan startSpan(
     String name, {
     DVSpan? parent,
     DVTraceContext? context,
+    DVSpanKind kind = DVSpanKind.internal,
+    Map<String, Object>? attributes,
   }) {
+    final DVSpan span;
     if (parent != null) {
-      return DVSpan._(
+      span = DVSpan._(
         name: name,
         traceId: parent.traceId,
         spanId: DVTraceContext.newSpanId(),
         parentSpanId: parent.spanId,
         sampled: parent.sampled,
         exporter: _exporter,
+        kind: kind,
       );
-    }
-
-    if (context != null) {
+    } else if (context != null) {
       // The caller's decision, not ours: re-deciding drops the middle out of
       // a trace someone upstream chose to keep, and keeps the middle of one
-      // they chose to drop.
-      return DVSpan._(
+      // they chose to drop. Unless the configured sampler is one of the
+      // non-parent-based ones, which exist to re-decide.
+      span = DVSpan._(
         name: name,
         traceId: context.traceId,
         spanId: DVTraceContext.newSpanId(),
         parentSpanId: context.parentSpanId,
-        sampled: context.sampled,
+        sampled: _sampler.parentBased
+            ? context.sampled
+            : _sampler.shouldSample(context.traceId),
         exporter: _exporter,
+        kind: kind,
+      );
+    } else {
+      final String traceId = DVTraceContext.newTraceId();
+      span = DVSpan._(
+        name: name,
+        traceId: traceId,
+        spanId: DVTraceContext.newSpanId(),
+        parentSpanId: null,
+        sampled: _sampler.shouldSample(traceId),
+        exporter: _exporter,
+        kind: kind,
       );
     }
-
-    final String traceId = DVTraceContext.newTraceId();
-    return DVSpan._(
-      name: name,
-      traceId: traceId,
-      spanId: DVTraceContext.newSpanId(),
-      parentSpanId: null,
-      sampled: _sampler.shouldSample(traceId),
-      exporter: _exporter,
-    );
+    if (attributes != null) attributes.forEach(span.setAttribute);
+    return span;
   }
 
   /// Runs [body] inside a span, ending it either way and recording a throw.
+  ///
+  /// The span hangs off [parent] when given, and otherwise off the span the
+  /// caller is already inside, so `trace` inside a request is a step of that
+  /// request rather than a trace of its own. [body] runs with the span
+  /// current: a query or an outbound call inside it nests under it.
   Future<T> trace<T>(
     String name,
     Future<T> Function(DVSpan span) body, {
     DVSpan? parent,
     DVTraceContext? context,
+    DVSpanKind kind = DVSpanKind.internal,
+    Map<String, Object>? attributes,
   }) async {
-    final DVSpan span = startSpan(name, parent: parent, context: context);
+    final DVSpan span = startSpan(name,
+        parent: parent ?? (context == null ? dvCurrentSpan : null),
+        context: context,
+        kind: kind,
+        attributes: attributes);
     try {
-      return await body(span);
+      return await dvInSpan(span, () => body(span));
     } on Object catch (error, stack) {
       span.recordError(error, stack);
       rethrow;
