@@ -19,7 +19,37 @@ import 'stripe.dart';
 import 'webhooks.dart';
 
 /// The official billing adapters.
-enum DVBillingProviderName { stripe, paddle, bachs, paystack, flutterwave }
+enum DVBillingProviderName {
+  stripe,
+  paddle,
+  bachs,
+  paystack,
+  flutterwave;
+
+  /// Whether a buyer coming back from the provider's page may confirm the
+  /// payment, by asking the provider's API (`orderStatus`).
+  ///
+  /// The address a buyer returns to proves nothing on its own -- anyone can
+  /// type it -- so a confirmation there is always a question to the provider,
+  /// never a reading of the query string. Bachs answers no: its signed
+  /// webhook is the only source of truth it documents for fulfilment, so the
+  /// return only shows what the webhook recorded. Paystack and Flutterwave
+  /// document their verify endpoints for exactly this, and Stripe and Paddle
+  /// are asked the same way.
+  bool get confirmsOnReturn => this != DVBillingProviderName.bachs;
+
+  /// The name of [provider], one of the official adapters, or null for any
+  /// other (a local provider, a test double, an application's own).
+  static DVBillingProviderName? of(DVBillingProvider provider) =>
+      switch (provider) {
+        DVStripeBillingProvider() => DVBillingProviderName.stripe,
+        DVPaddleBillingProvider() => DVBillingProviderName.paddle,
+        DVBachsBillingProvider() => DVBillingProviderName.bachs,
+        DVPaystackBillingProvider() => DVBillingProviderName.paystack,
+        DVFlutterwaveBillingProvider() => DVBillingProviderName.flutterwave,
+        _ => null,
+      };
+}
 
 /// Thrown for a `dartvel.billing` block the reader does not understand.
 class DVBillingConfigException implements Exception {

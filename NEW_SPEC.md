@@ -16241,6 +16241,19 @@ https or mailto address, and keeps the document in the page cache. A resolver
 is not authentication: a private page still needs its guard, its policy or a
 boundary in front of the server.
 
+Text that changes by request inside an otherwise captured page -- a date, "today's
+menu", an opening-hours line -- is a slot. `DVModifier.pageSlot(name)` puts the
+semantics identifier `dartvel:slot:<name>` on the text (names are
+`[A-Za-z0-9._-]+`); the capture writes it as `<span data-dv-slot="name">` inside
+the paragraph or heading; a resolver answering `DVPageData.slots({...})` has
+`dvRenderPage` serve the route's captured page with each named span's text
+replaced (`dvFillPageSlots`, escaped) and everything else -- head, form fields,
+other text -- as captured. A slot the data does not name keeps its captured text.
+The static `dartvel build web` output keeps the build's text, as it must; slots
+are filled only where a page is rendered on request. With `pageDataMode: cache`
+the filled text is as old as the page cache allows (`cacheTtlSeconds`, 60 by
+default).
+
 The same binary also answers `/_dartvel/image` (Media Pipeline) and the admin
 mount (Admin, Devtools, and Scaffolding). Rendering Flutter widgets to HTML on
 the server is not part of this section.

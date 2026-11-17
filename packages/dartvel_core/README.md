@@ -77,6 +77,7 @@ yet exist.
 | Mail and notifications | `DV.Notifications`, `DV.Notifications.mail` | Partial |
 | Privacy: subject paths, retention, erasure, export | `DV.Privacy` | Partial |
 | Outbound webhooks | `DV.Webhooks` | Partial |
+| Billing: subscriptions, one-time orders and signed webhooks; the provider named in `dartvel.billing`, switched with `DARTVEL_BILLING_PROVIDER` | `DV.Billing` | Partial |
 | Offline data models | `@DVModel(offline: ...)`, then `save()` | Partial |
 | Logs (one stream, redacted, a capped device file, opt-in shipping), metrics, health, traces | `DV.log`, `DV.log.export()`, `DV.ObservabilityAndLogging` | Partial |
 

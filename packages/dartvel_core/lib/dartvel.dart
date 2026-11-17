@@ -91,6 +91,7 @@ export 'src/billing/paystack.dart';
 export 'src/billing/flutterwave.dart';
 export 'src/billing/bachs.dart';
 export 'src/billing/config.dart';
+export 'src/billing/dv_billing.dart';
 export 'src/commerce/commerce.dart';
 export 'src/commerce/disputes.dart';
 export 'src/commerce/payouts.dart';

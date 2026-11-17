@@ -134,7 +134,15 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
 
     final int? level = node.headingLevel;
     if (level != null && level >= 1 && level <= 6 && hasLabel) {
-      out.writeln('<h$level>${_text.convert(label)}</h$level>');
+      out.writeln('<h$level>${_slotted(node, label)}</h$level>');
+      continue;
+    }
+
+    // Request-time text (`DVModifier.pageSlot`): the server fills it on each
+    // request, so the build's day is never what a reader is served.
+    if (_slotName(node) != null) {
+      if (hasLabel) out.writeln('<p>${_slotted(node, label)}</p>');
+      _write(out, node.children, depth + 1, fields);
       continue;
     }
 
@@ -222,6 +230,21 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
     }
     _write(out, node.children, depth + 1, fields);
   }
+}
+
+/// The slot a node was marked with, when it is a plain name.
+String? _slotName(DVSemanticNode node) {
+  final String? role = node.role;
+  if (role == null || !role.startsWith('slot:')) return null;
+  final String name = role.substring('slot:'.length);
+  return RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(name) ? name : null;
+}
+
+/// [label] escaped, inside the slot's span when [node] is marked with one.
+String _slotted(DVSemanticNode node, String label) {
+  final String? name = _slotName(node);
+  final String text = _text.convert(label);
+  return name == null ? text : '<span data-dv-slot="$name">$text</span>';
 }
 
 /// A source a page may load: http(s), or a path relative to the site.

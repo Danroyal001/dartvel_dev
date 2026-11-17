@@ -93,6 +93,47 @@ Widget _docsBillingPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'configure',
+      title: 'Choose the provider in pubspec.yaml, switch it without a rebuild',
+      children: <Widget>[
+        Bullets(<String>[
+          'dartvel.billing names the provider, its return addresses and the '
+              'secrets that hold its keys: provider: flutterwave, successUrl: '
+              'https://example.com/payments/return, cancelUrl: '
+              'https://example.com/cart. The build reads it and the server '
+              'hands it to DV.Billing at start; no provider is built in code.',
+          'DV.Billing builds the provider the first time something asks for '
+              'it and reads the keys then, so a server without its keys still '
+              'starts: DV.Billing.isSetUp is false and checkout says which '
+              'variable is missing.',
+          'Backend functions reach the same DV.Billing as pages, through '
+              'package:dartvel_core/dv.dart: DV.Billing.checkoutOrder, '
+              'orderStatus, providerName, successUrl and cancelUrl.',
+          'DV.Billing.confirmsOnReturn says whether a buyer coming back may '
+              'confirm a payment by asking the provider\'s API: yes for '
+              'Paystack and Flutterwave, no for Bachs, whose signed webhook '
+              'is the only answer it documents.',
+          'Each provider keeps its own webhook route: '
+              'DV.Billing.handleWebhook(body, headers, provider: .paystack) '
+              'verifies with that provider\'s secret, so payments started '
+              'before a switch are still believed.',
+          'DARTVEL_BILLING_PROVIDER=paystack moves billing to another '
+              'provider on the next start, with that provider\'s own key '
+              'variables (PAYSTACK_SECRET_KEY). DARTVEL_BILLING_SITE_URL '
+              'sends buyers back to another origin, for a staging copy or a '
+              'test on a spare port.',
+        ]),
+        DocsStatus(
+          'Billing',
+          missing: <String>[
+            'Plan ids in dartvel.billing.prices belong to the declared '
+                'provider, so a switch covers one-time orders unless the '
+                'prices hold the new provider\'s ids.',
+          ],
+        ),
+      ],
+    ),
+    DocsSection(
       id: 'purchases',
       title: 'Sell in-app purchases, checked on your server',
       children: <Widget>[

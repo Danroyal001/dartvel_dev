@@ -6,6 +6,8 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheConfig,
         DVCacheConfigException,
+        DVBillingConfig,
+        DVBillingConfigException,
         DVCrashConfig,
         DVCrashSinkChoice,
         DVHosts,
@@ -460,6 +462,10 @@ class BackendGenerator {
     // is written: a block the runtime could not honour (DV-WEBHOOK-009) or an
     // event the AsyncAPI document could not list (DV-WEBHOOK-010) stops here.
     final DVWebhooksConfig webhooks = _dvWebhooksConfig(root, pkgName);
+    // dartvel.billing, read with the reader the server reads it with: a
+    // block it refuses (DV-BILLING-001) stops here, before anything is
+    // written.
+    final DVBillingConfig? billing = _dvBillingConfig(root);
     // Module calls carried to the backend, refused here when one names no
     // policy (DV-MODULE-021), before anything is written.
     final List<DVModuleRpcRoute> moduleRpcRoutes = dvModuleRpcRoutes(root);
@@ -933,6 +939,7 @@ const String dartvelAsyncApiJson = r\'\'\'
 $asyncApiJson\'\'\';
 ''');
     final String webhooksConfiguration = _dvWebhooksConfiguration(webhooks);
+    final String billingConfiguration = _dvBillingConfiguration(billing);
     File(p.join(libClientDir.path, 'openapi.g.dart')).writeAsStringSync('''
 // GENERATED – do not edit.
 library dartvel_client_openapi;
@@ -1246,6 +1253,7 @@ Future<void> _dartvelPrepareDatabase(core.DVProcessStores stores) async {
 
 $cacheInstaller
 $webhooksConfiguration
+$billingConfiguration
 // Multipart structures and parser (bytes): collects text fields and files
 class DvMultipartFile {
   final String name;
@@ -2113,6 +2121,8 @@ Future<dv.ServerHandle> startBackend({String? host, int? port, dv.TlsConfig? tls
   configureDartvelHttp();
   // dartvel.webhooks: the envelope and signature deliveries go out in.
   _dartvelConfigureWebhooks();
+  // dartvel.billing: the provider DV.Billing builds at first use.
+  _dartvelConfigureBilling();
   registerDartvelJobs();
   // Every @DVPolicy class, before the first await below. The router registers
   // them again when it is built; nothing that runs while the database is
@@ -2431,6 +2441,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       configureDartvelHttp();
       // dartvel.webhooks: the envelope and signature deliveries go out in.
       _dartvelConfigureWebhooks();
+      // dartvel.billing: the provider DV.Billing builds at first use.
+      _dartvelConfigureBilling();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // The codecs and the handlers a server can run, and the queue this
@@ -2476,6 +2488,8 @@ Future<void> dartvelMain(List<String> arguments, {Future<void>? until, core.DVPr
       configureDartvelHttp();
       // dartvel.webhooks: the envelope and signature deliveries go out in.
       _dartvelConfigureWebhooks();
+      // dartvel.billing: the provider DV.Billing builds at first use.
+      _dartvelConfigureBilling();
       registerDartvelModules();$tenancyConfiguration
       registerDartvelAITools();
       // A schedule may dispatch a job, and that job has to reach the worker.
@@ -5382,6 +5396,44 @@ String _dvWebhooksConfiguration(DVWebhooksConfig config) =>
 void _dartvelConfigureWebhooks() {
   core.DVWebhooks.config = core.DVWebhooksConfig.read(
       conv.jsonDecode('${esc(jsonEncode(config.toMap()))}'));
+}
+''';
+
+/// `dartvel.billing`, read with the reader the generated server reads it
+/// with, so the build and the process cannot disagree about a key. Null when
+/// the project declares no billing.
+DVBillingConfig? _dvBillingConfig(String root) {
+  final File pubspec = File(p.join(root, 'pubspec.yaml'));
+  if (!pubspec.existsSync()) return null;
+  final Object? parsed = loadYaml(pubspec.readAsStringSync());
+  final Object? dartvel = parsed is YamlMap ? parsed['dartvel'] : null;
+  final Object? block = dartvel is YamlMap ? dartvel['billing'] : null;
+  if (block == null) return null;
+  try {
+    return DVBillingConfig.read(block);
+  } on DVBillingConfigException catch (error) {
+    throw StateError('$error');
+  }
+}
+
+/// The generated `_dartvelConfigureBilling`, which every role calls before
+/// application code runs. The block is carried as the map the build read and
+/// read again by the same reader at startup. No key is read here: DV.Billing
+/// builds the provider at first use, so a server whose keys are not set yet
+/// starts, and checkout says billing is not set up.
+String _dvBillingConfiguration(DVBillingConfig? config) => config == null
+    ? '''
+/// `dartvel.billing` is not declared; DV.Billing bills only through a
+/// provider installed in code.
+void _dartvelConfigureBilling() {}
+'''
+    : '''
+/// `dartvel.billing` from pubspec.yaml: the provider DV.Billing builds at
+/// first use. DARTVEL_BILLING_PROVIDER and DARTVEL_BILLING_SITE_URL change it
+/// without a rebuild.
+void _dartvelConfigureBilling() {
+  const core.DVBilling().configure(core.DVBillingConfig.read(
+      conv.jsonDecode('${esc(jsonEncode(config.toMap()))}')));
 }
 ''';
 

@@ -7,6 +7,7 @@
 /// `DVObservability.log`, which is neither.
 library dartvel_core.dv;
 
+import 'billing/dv_billing.dart';
 import 'cache/dv_cache.dart';
 import 'observability/observability.dart';
 
@@ -106,6 +107,11 @@ abstract final class DV {
   /// store in code.
   // ignore: non_constant_identifier_names -- the specification's spelling.
   static const DVCache Cache = DVCache();
+
+  /// Billing: the provider `dartvel.billing` declares, built at first use
+  /// with its keys from the environment. The same DV.Billing a page reaches.
+  // ignore: non_constant_identifier_names -- the specification's spelling.
+  static const DVBilling Billing = DVBilling();
 
   /// One structured log stream: `DV.log('message', tag: ..., context: ...)`,
   /// `DV.log.warn(...)` and the other levels, `DV.log.export()`.
