@@ -180,8 +180,8 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                 'the screen the footer sits at the bottom. A page that '
                 'scrolls itself, such as a ListView, is not scrolled twice. '
                 'Write no scroll view: every page already scrolls.'),
-            DocsText('Widget? get header => const SiteHeader(); and '
-                'Widget? get footer => const SiteFooter(); in the layout class '
+            DocsText('Widget? get header => const Header(); and '
+                'Widget? get footer => const Footer(); in the layout class '
                 'are all it takes. build, when you do override it, wraps the '
                 'page between them.'),
           ],
