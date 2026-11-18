@@ -149,6 +149,7 @@ final class DVConsentPolicy {
   DVConsentPolicy({
     required this.version,
     required List<DVConsentDeclaration> categories,
+    this.banner = const DVConsentBannerText(),
   }) : categories = List<DVConsentDeclaration>.unmodifiable(categories) {
     if (version.trim().isEmpty) {
       throw ArgumentError.value(version, 'version', 'must be set');
@@ -234,10 +235,18 @@ final class DVConsentPolicy {
         tracking: tracking,
       ));
     }
-    return DVConsentPolicy(version: '$version', categories: declarations);
+    return DVConsentPolicy(
+      version: '$version',
+      categories: declarations,
+      banner: DVConsentBannerText.fromConfig(consent['banner']),
+    );
   }
 
-  static const List<String> _consentKeys = <String>['version', 'categories'];
+  static const List<String> _consentKeys = <String>[
+    'version',
+    'categories',
+    'banner',
+  ];
   static const List<String> _categoryKeys = <String>[
     'required',
     'default',
@@ -246,6 +255,9 @@ final class DVConsentPolicy {
 
   final String version;
   final List<DVConsentDeclaration> categories;
+
+  /// What the consent banner says: `dartvel.analytics.consent.banner`.
+  final DVConsentBannerText banner;
 
   DVConsentDeclaration? declaration(DVConsentCategory category) {
     for (final DVConsentDeclaration d in categories) {
@@ -607,4 +619,103 @@ void dvLogAnalyticsDiagnostic(String code, String message) {
     },
     context: <String, Object?>{'code': code},
   );
+}
+
+/// The consent banner's words and privacy link,
+/// `dartvel.analytics.consent.banner` in pubspec.yaml:
+///
+/// ```yaml
+/// dartvel:
+///   analytics:
+///     consent:
+///       version: "2026-11-18"
+///       categories: { ... }
+///       banner:
+///         title: We value your privacy
+///         body: We use cookies to measure which ads bring visitors.
+///         privacyUrl: /privacy
+/// ```
+///
+/// Every key is optional. Without [body] the banner names the categories it
+/// asks about; without [privacyUrl] it shows no link.
+final class DVConsentBannerText {
+  const DVConsentBannerText({
+    this.title = 'Your privacy choices',
+    this.body,
+    this.privacyUrl,
+    this.privacyLabel = 'Privacy policy',
+    this.acceptLabel = 'Accept all',
+    this.rejectLabel = 'Reject all',
+    this.settingsLabel = 'Settings',
+  });
+
+  final String title;
+  final String? body;
+
+  /// A web address (`https://...`) or a path on this site (`/privacy`).
+  final String? privacyUrl;
+  final String privacyLabel;
+  final String acceptLabel;
+  final String rejectLabel;
+  final String settingsLabel;
+
+  /// Reads `dartvel.analytics.consent.banner`. Null is the defaults; an
+  /// unknown key, a value that is not text, or a privacy link that is not a
+  /// web address or a path is refused.
+  factory DVConsentBannerText.fromConfig(Object? config) {
+    if (config == null) return const DVConsentBannerText();
+    if (config is! Map) {
+      throw ArgumentError.value(config, 'banner',
+          'must be a map, such as { title: ..., privacyUrl: /privacy }');
+    }
+    for (final Object? key in config.keys) {
+      if (!_keys.contains(key)) {
+        throw ArgumentError.value(key, 'banner',
+            'is not a banner setting; accepted: ${_keys.join(', ')}');
+      }
+    }
+    String? text(String key) {
+      final Object? value = config[key];
+      if (value == null) return null;
+      if (value is! String) {
+        throw ArgumentError.value(value, 'banner.$key', 'must be text');
+      }
+      return value;
+    }
+
+    final String? privacyUrl = text('privacyUrl');
+    if (privacyUrl != null) {
+      final Uri? uri = Uri.tryParse(privacyUrl.trim());
+      final bool web = uri != null &&
+          (uri.scheme == 'https' || uri.scheme == 'http') &&
+          uri.host.isNotEmpty;
+      final bool path = privacyUrl.trim().startsWith('/') &&
+          !privacyUrl.trim().startsWith('//');
+      if (!web && !path) {
+        throw ArgumentError.value(privacyUrl, 'banner.privacyUrl',
+            'must be a web address (https://...) or a path on this site '
+                '(/privacy)');
+      }
+    }
+    const DVConsentBannerText defaults = DVConsentBannerText();
+    return DVConsentBannerText(
+      title: text('title') ?? defaults.title,
+      body: text('body'),
+      privacyUrl: privacyUrl?.trim(),
+      privacyLabel: text('privacyLabel') ?? defaults.privacyLabel,
+      acceptLabel: text('acceptLabel') ?? defaults.acceptLabel,
+      rejectLabel: text('rejectLabel') ?? defaults.rejectLabel,
+      settingsLabel: text('settingsLabel') ?? defaults.settingsLabel,
+    );
+  }
+
+  static const List<String> _keys = <String>[
+    'title',
+    'body',
+    'privacyUrl',
+    'privacyLabel',
+    'acceptLabel',
+    'rejectLabel',
+    'settingsLabel',
+  ];
 }
