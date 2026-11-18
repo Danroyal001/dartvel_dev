@@ -51,6 +51,13 @@ pub struct BinaryBuilder<'a> {
     sourceUriTable: Vec<UriId>,
     /// `_constantTable`: constant by index.
     constantTable: Vec<ConstId>,
+    /// The string table of the component being read, by index, from the
+    /// second component of a concatenated file on (the first component's
+    /// strings are the pool's first ids, so it needs none).
+    stringTable: Option<Vec<StrId>>,
+    /// The constants read so far, by value, from the second component of a
+    /// concatenated file on.
+    constantsByKey: Option<std::collections::HashMap<ConstantKey, ConstId>>,
     variableStack: Vec<VarId>,
     typeParameterStack: Vec<TypeParamId>,
     labelStack: Vec<LabelId>,
@@ -70,6 +77,8 @@ impl<'a> BinaryBuilder<'a> {
             linkTable: Vec::new(),
             sourceUriTable: Vec::new(),
             constantTable: Vec::new(),
+            stringTable: None,
+            constantsByKey: None,
             variableStack: Vec::new(),
             typeParameterStack: Vec::new(),
             labelStack: Vec::new(),
@@ -160,10 +169,11 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readStringReference(&mut self) -> Result<StrId> {
         let index = self.readUInt30()?;
-        if index as usize >= self.component.strings.len() {
-            return self.fail(format!("string index {index} out of range"));
+        match &self.stringTable {
+            None if (index as usize) < self.component.strings.len() => Ok(index),
+            Some(table) if (index as usize) < table.len() => Ok(table[index as usize]),
+            _ => self.fail(format!("string index {index} out of range")),
         }
-        Ok(index)
     }
 
     fn readStringReferenceList(&mut self) -> Result<Vec<StrId>> {
@@ -234,30 +244,64 @@ impl<'a> BinaryBuilder<'a> {
 
     // The component.
 
-    /// `readSingleFileComponent`: reads the one component in the input.
+    /// `readComponent`: reads every component in the input (a file may hold
+    /// several, concatenated) into one component.
     pub fn readComponent(mut self) -> Result<Component> {
         if self.bytes.is_empty() {
             return self.fail("Empty input given.");
         }
-        // `_indexComponents`: the sizes of the concatenated components.
-        let componentFileSize = {
-            let end = self.bytes.len();
-            if end < 4 {
-                return self.fail("input too short");
+        let componentFileSizes = self.indexComponents()?;
+        let mut componentFileIndex = 0;
+        while self.byteOffset < self.bytes.len() {
+            let Some(&componentFileSize) = componentFileSizes.get(componentFileIndex) else {
+                return self.fail("component index out of range");
+            };
+            if componentFileIndex == 1 {
+                self.startSecondComponent();
             }
-            self.byteOffset = end - 4;
-            let size = self.readUint32()? as usize;
-            if size < 16 || size > end {
+            self.readOneComponent(componentFileSize)?;
+            componentFileIndex += 1;
+        }
+        Ok(self.component)
+    }
+
+    /// `_indexComponents`: the sizes of the concatenated components, read
+    /// backwards from the end of the input (each component ends with its
+    /// size).
+    fn indexComponents(&mut self) -> Result<Vec<usize>> {
+        let savedByteOffset = self.byteOffset;
+        let mut index = Vec::new();
+        let mut offset = self.bytes.len() as isize - 4;
+        while offset > 0 {
+            self.byteOffset = offset as usize;
+            let size = self.readUint32()? as isize;
+            // Upstream refuses only sizes <= 0 here; a component holds at
+            // least its header and index, so a smaller one is refused too
+            // (upstream fails reading it).
+            if size < 16 {
                 return self.fail(format!("invalid size '{size}' reported"));
             }
-            if size != end {
-                return self.fail("Concatenated component file given when a single component was expected.");
+            let start = self.byteOffset as isize - size;
+            if start < 0 {
+                return self.fail("indicated size does not match file size");
             }
-            size
-        };
-        self.byteOffset = 0;
-        self.readOneComponent(componentFileSize)?;
-        Ok(self.component)
+            index.push(size as usize);
+            offset = start - 4;
+        }
+        self.byteOffset = savedByteOffset;
+        index.reverse();
+        Ok(index)
+    }
+
+    /// From the second component of a concatenated file on, strings and
+    /// constants are merged by value, as upstream's are values: the strings
+    /// of the first component are distinct, and so are its constants.
+    fn startSecondComponent(&mut self) {
+        let mut byKey = std::collections::HashMap::with_capacity(self.component.constants.len());
+        for (id, constant) in self.component.constants.iter().enumerate() {
+            byKey.entry(constantKey(constant)).or_insert(id as ConstId);
+        }
+        self.constantsByKey = Some(byKey);
     }
 
     fn verifyComponentInitialBytes(&mut self) -> Result<()> {
@@ -321,7 +365,10 @@ impl<'a> BinaryBuilder<'a> {
     fn readOneComponent(&mut self, componentFileSize: usize) -> Result<()> {
         self.componentStartOffset = self.byteOffset;
         self.verifyComponentInitialBytes()?;
-        self.component.problemsAsJson = self.readListOfStrings()?;
+        // `component.problemsAsJson.addAll`: concatenated components add up.
+        if let Some(problems) = self.readListOfStrings()? {
+            self.component.problemsAsJson.get_or_insert_with(Vec::new).extend(problems);
+        }
         let index = self.readComponentIndex(componentFileSize)?;
 
         self.byteOffset = index.binaryOffsetForStringTable;
@@ -339,10 +386,21 @@ impl<'a> BinaryBuilder<'a> {
         for i in 0..index.libraryCount {
             self.byteOffset = index.libraryOffsets[i];
             let library = self.readLibrary(index.libraryOffsets[i + 1])?;
-            self.component.libraries.push(library);
+            // A library read again (a concatenated file) is the same node,
+            // read over: it keeps its place in the component.
+            let existing = match self.constantsByKey {
+                None => None,
+                Some(_) => self.component.libraries.iter().position(|l| l.reference == library.reference),
+            };
+            match existing {
+                Some(existing) => {
+                    self.component.libraries[existing] = library;
+                }
+                _ => self.component.libraries.push(library),
+            }
         }
 
-        self.component.mainMethod = if index.mainMethodReference == 0 {
+        let mainMethod = if index.mainMethodReference == 0 {
             None
         } else {
             match self.linkTable.get(index.mainMethodReference as usize - 1) {
@@ -350,6 +408,11 @@ impl<'a> BinaryBuilder<'a> {
                 None => return self.fail("main method reference out of range"),
             }
         };
+        // `setMainMethodAndMode(mainMethod, false)`: in a concatenated file
+        // the first component with a main method keeps it.
+        if self.component.mainMethod.is_none() {
+            self.component.mainMethod = mainMethod;
+        }
         self.byteOffset = self.componentStartOffset + componentFileSize;
         Ok(())
     }
@@ -381,7 +444,12 @@ impl<'a> BinaryBuilder<'a> {
             strings.push(self.readBytes(endOffset - startOffset)?.into());
             startOffset = endOffset;
         }
-        self.component.strings = StringPool::from_table(strings);
+        if self.constantsByKey.is_none() {
+            self.component.strings = StringPool::from_table(strings);
+        } else {
+            let table = strings.iter().map(|s| self.component.strings.intern(s)).collect();
+            self.stringTable = Some(table);
+        }
         Ok(())
     }
 
@@ -433,12 +501,31 @@ impl<'a> BinaryBuilder<'a> {
             if self.component.sources.len() <= slot {
                 self.component.sources.resize(slot + 1, None);
             }
-            self.component.sources[slot] = Some(Source {
+            let value = Source {
                 source,
                 lineStarts,
                 importUri,
                 constantCoverageConstructors: coverage,
-            });
+            };
+            // `_mergeUriToSource`: a URI read again (a concatenated file)
+            // keeps the source that has text, and the coverage of both.
+            let (mut mergeTo, mergeFrom) = match self.component.sources[slot].take() {
+                None => (value, None),
+                Some(original) if !value.source.is_empty() => (value, Some(original)),
+                Some(original) => (original, Some(value)),
+            };
+            if let Some(mergeFrom) = mergeFrom {
+                if mergeTo.constantCoverageConstructors.is_empty() {
+                    mergeTo.constantCoverageConstructors = mergeFrom.constantCoverageConstructors;
+                } else {
+                    for name in mergeFrom.constantCoverageConstructors {
+                        if !mergeTo.constantCoverageConstructors.contains(&name) {
+                            mergeTo.constantCoverageConstructors.push(name);
+                        }
+                    }
+                }
+            }
+            self.component.sources[slot] = Some(mergeTo);
         }
         for _ in 0..length {
             self.readUint32()?;
@@ -453,8 +540,16 @@ impl<'a> BinaryBuilder<'a> {
         self.constantTable = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let constant = self.readConstantTableEntry()?;
-            let id = self.component.constants.len() as ConstId;
-            self.component.constants.push(constant);
+            let id = match &mut self.constantsByKey {
+                None => {
+                    self.component.constants.push(constant);
+                    (self.component.constants.len() - 1) as ConstId
+                }
+                Some(byKey) => *byKey.entry(constantKey(&constant)).or_insert_with(|| {
+                    self.component.constants.push(constant);
+                    (self.component.constants.len() - 1) as ConstId
+                }),
+            };
             self.constantTable.push(id);
         }
         Ok(())
@@ -3063,4 +3158,21 @@ fn parseDartInt(text: &[u8]) -> Option<i64> {
 /// Reads the component in [bytes].
 pub fn loadComponentFromBytes(bytes: &[u8]) -> Result<Component> {
     BinaryBuilder::new(bytes).readComponent()
+}
+
+/// A constant's value, as upstream compares constants (`Constant.==`):
+/// structurally, a double by identity (its bits). Constants refer to other
+/// constants by id, and equal constants have one id, so comparing the
+/// fields compares the values.
+#[derive(PartialEq, Eq, Hash)]
+enum ConstantKey {
+    Double(u64),
+    Other(String),
+}
+
+fn constantKey(constant: &Constant) -> ConstantKey {
+    match constant {
+        Constant::Double(value) => ConstantKey::Double(value.to_bits()),
+        other => ConstantKey::Other(format!("{other:?}")),
+    }
 }
