@@ -136,11 +136,15 @@ void main() {
         File(p.join(dir.path, 'lib', 'dartvel_client', 'router.g.dart'))
             .readAsStringSync();
 
-    test('is on every generated page when analytics is declared', () async {
+    // The page shell draws it, over the page and outside the page's scroll
+    // view and layouts. Wrapped around the page here it was inside both,
+    // sized to the content, and drawn at the end of a long page where nobody
+    // saw it. See dartvel_flutter's consent_banner_over_layout_test.dart.
+    test('is not wrapped around the page, under its layouts', () async {
       final Directory dir = project(_notTracking);
       await routes.generate(root_: dir.path);
-      expect(router(dir),
-          contains('DVPageLifecycleHost(child: DVConsentBanner(child: body))'));
+      expect(router(dir), isNot(contains('DVConsentBanner')));
+      expect(router(dir), contains('DVPageShell('));
     });
 
     test('is not on a page of an application with no analytics', () async {

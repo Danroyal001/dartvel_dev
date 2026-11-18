@@ -1425,10 +1425,11 @@ Widget _dvView${e.generatedWidget}(Map<String, String> params, Map<String, Strin
   // Inside the route rather than around the router, because two pages
   // are alive at once whenever one is leaving as the next enters, and
   // a single signal would report whichever moved last for both.
-  // Under the consent banner when the application declares analytics:
-  // a banner an application had to remember to place is one nobody
-  // sees, and every default-denied category would stay denied.
-  final withLifecycle = DVPageLifecycleHost(child: ${dv['analytics'] != null ? 'DVConsentBanner(child: body)' : 'body'});
+  // The consent banner is not placed here: DVPageShell draws it over the
+  // page, outside the page's scroll view and its layouts. Placed here it
+  // was inside both, sized to the content, and drawn at the end of a long
+  // page where nobody saw it.
+  final withLifecycle = DVPageLifecycleHost(child: body);
   final withState = DartvelRouteState(params: params, query: query, child: withLifecycle);
 
   // i18n scope using the configured query parameter strategy.
