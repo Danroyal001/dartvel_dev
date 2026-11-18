@@ -64,11 +64,12 @@ Future<void> main(List<String> arguments) async {
   );
 
   final String dart = Platform.resolvedExecutable;
+  final String? genKernel = Platform.environment['GEN_KERNEL'];
   final String platform = '${out.path}/vm_platform.dill';
   if (!File(platform).existsSync()) {
     await run(dart, [
       '--packages=${packageConfig.path}',
-      '$sdk/pkg/front_end/tool/compile_platform.dart',
+      '$sdk/pkg/kernel/rust/oracle/compile_vm_platform.dart',
       'dart:core',
       '-Ddart.vm.product=false',
       '-Ddart.vm.asan=false',
@@ -99,9 +100,14 @@ Future<void> main(List<String> arguments) async {
     for (final bool aot in [false, true]) {
       final String output = '${out.path}/$name${aot ? '-aot' : ''}.dill';
       if (File(output).existsSync()) continue;
-      await run(dart, [
-        '--packages=${packageConfig.path}',
-        '$sdk/pkg/vm/bin/gen_kernel.dart',
+      // GEN_KERNEL may name gen_kernel.dart compiled from this checkout
+      // (`dart compile exe`): the same code, faster than running it from
+      // source for every program.
+      await run(genKernel ?? dart, [
+        if (genKernel == null) ...[
+          '--packages=${packageConfig.path}',
+          '$sdk/pkg/vm/bin/gen_kernel.dart',
+        ],
         '--platform=$platform',
         if (aot) '--aot',
         '--output=$output',
