@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'document_slots.dart' show dvBodyEndInsertionPoint;
 import 'document_fields.dart' show dvRevealNoscriptCss;
 import 'find_in_page.dart';
+import 'ssr_first.dart' show dvIsSsrFirst;
 
 /// Every string literal in the source.
 ///
@@ -203,6 +204,17 @@ String _openFallback(String? path) {
   return '<div class="dv-fallback" data-dv-path="${escape.convert(path)}">';
 }
 
+/// Where the block goes in [html]: at the end of the body, or first in it
+/// when the shell is SSR-first (see `dvSsrFirstHead`), so the document is
+/// parsed -- and painted -- before the splash ever is.
+int _insertionPoint(String html) {
+  if (dvIsSsrFirst(html)) {
+    final Match? body = RegExp(r'<body\b[^>]*>').firstMatch(html);
+    if (body != null) return body.end;
+  }
+  return dvBodyEndInsertionPoint(html);
+}
+
 /// Markers, so a rebuild replaces the block rather than adding another.
 const String _open = '<!-- dartvel:text -->';
 const String _close = '<!-- /dartvel:text -->';
@@ -220,7 +232,7 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (lines.isEmpty) return cleaned;
 
-  final at = dvBodyEndInsertionPoint(cleaned);
+  final at = _insertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;
@@ -260,7 +272,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (content.trim().isEmpty) return cleaned;
 
-  final at = dvBodyEndInsertionPoint(cleaned);
+  final at = _insertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;
