@@ -36,11 +36,16 @@ final Set<String> _reported = <String>{};
 /// Calls [changed] when the stored consent has been read, and again each
 /// time the visitor changes it. Does nothing when the application declares
 /// no consent policy.
+///
+/// Whichever starts first: the generated client starts the modules before
+/// `DV.Analytics`, and a module that asked then whether analytics was
+/// configured heard no, listened to nothing, and never loaded its script
+/// after the visitor accepted.
 void dvMetaPixelOnConsent(void Function() changed) {
-  if (!DVAnalyticsRuntime.isConfigured) return;
-  final DVAnalyticsRuntime analytics = DVAnalyticsRuntime.current;
-  analytics.whenReady(() {
-    analytics.loadedConsent?.addListener((DVConsentChange _) => changed());
-    changed();
+  DVAnalyticsRuntime.whenStarted((DVAnalyticsRuntime analytics) {
+    analytics.whenReady(() {
+      analytics.loadedConsent?.addListener((DVConsentChange _) => changed());
+      changed();
+    });
   });
 }

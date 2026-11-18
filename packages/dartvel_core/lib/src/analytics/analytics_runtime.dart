@@ -168,7 +168,32 @@ class DVAnalyticsRuntime {
   static bool get isConfigured => _current != null;
 
   /// Forgets the runtime, for tests.
-  static void resetForTest() => _current = null;
+  static void resetForTest() {
+    _current = null;
+    _startListeners.clear();
+  }
+
+  static final List<void Function(DVAnalyticsRuntime runtime)> _startListeners =
+      <void Function(DVAnalyticsRuntime runtime)>[];
+
+  /// Calls [listener] with the runtime once it is started: now, if it is
+  /// already, or when [start] is called.
+  ///
+  /// For code that starts before the runtime does and needs it -- an
+  /// analytics module, which the generated client starts before
+  /// `DV.Analytics`. Asking [isConfigured] at that moment answered no, and a
+  /// module that took the answer listened to nothing: the visitor's consent
+  /// never reached it and it never loaded its script. An application that
+  /// declares no `dartvel.analytics` never starts one, and [listener] is
+  /// never called.
+  static void whenStarted(void Function(DVAnalyticsRuntime runtime) listener) {
+    final DVAnalyticsRuntime? current = _current;
+    if (current != null) {
+      listener(current);
+      return;
+    }
+    _startListeners.add(listener);
+  }
 
   final DVAnalyticsSettings settings;
   final List<DVAnalyticsProvider> _providers;
@@ -197,6 +222,17 @@ class DVAnalyticsRuntime {
     final DVAnalyticsRuntime runtime =
         DVAnalyticsRuntime._(settings, providers, sensitiveFields);
     _current = runtime;
+    for (final void Function(DVAnalyticsRuntime runtime) listener
+        in List<void Function(DVAnalyticsRuntime runtime)>.of(_startListeners)) {
+      // Somebody else's code: it does not stop the runtime starting.
+      try {
+        listener(runtime);
+      } on Object catch (error) {
+        DVObservability.log('a listener failed as analytics started: $error',
+            level: DVLogLevel.warn);
+      }
+    }
+    _startListeners.clear();
     // Handled here so a pipeline that cannot start is reported through
     // track's result rather than as an unhandled error in the zone.
     unawaited(runtime._pipeline.future.then((_) {}, onError: (Object _) {}));
