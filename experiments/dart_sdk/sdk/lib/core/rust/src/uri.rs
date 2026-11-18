@@ -45,8 +45,47 @@ pub fn parseUriToString(text: &[u16]) -> Result<Vec<u16>, String> {
 /// encoded as pkg/kernel's `_writeWtf8` writes it. Input that is not WTF-8
 /// (a sequence cut short) is refused with a message that is not Dart's.
 pub fn parseUriToStringWtf8(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    if isAlreadyCanonical(bytes) {
+        return Ok(bytes.to_vec());
+    }
     let text = decodeWtf8(bytes)?;
     parseUriToString(&text).map(|result| writeWtf8(&result))
+}
+
+/// Whether `Uri.parse(text).toString()` is [text] itself, by a test that is
+/// cheap and only ever says yes when it is (`tests/uri_oracle.rs` checks
+/// every input it says yes to): a lowercase scheme, then `///` and a path
+/// for `file:`, or a path that does not start with `/` for other schemes
+/// (not `data:`), the path made only of letters, digits and
+/// `-._~!$&'()*+,;=@/`, with no empty, `.` or `..` segment. URIs as
+/// upstream writes them (`"$uri"`) mostly are like this; anything else
+/// goes through the full parse.
+pub fn isAlreadyCanonical(text: &[u8]) -> bool {
+    let colon = match text.iter().position(|&b| b == b':') {
+        Some(i) if i > 0 => i,
+        _ => return false,
+    };
+    let scheme = &text[..colon];
+    if !scheme[0].is_ascii_lowercase()
+        || !scheme.iter().all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'+' || b == b'-' || b == b'.')
+        || scheme == b"data"
+    {
+        return false;
+    }
+    let rest = &text[colon + 1..];
+    let path = if scheme == b"file" {
+        match rest.strip_prefix(b"///") {
+            Some(path) => path,
+            None => return false,
+        }
+    } else if rest.first() == Some(&b'/') {
+        return false;
+    } else {
+        rest
+    };
+    !path.is_empty()
+        && path.iter().all(|&b| b.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=@/".contains(&b))
+        && path.split(|&b| b == b'/').all(|segment| !segment.is_empty() && segment != b"." && segment != b"..")
 }
 
 /// pkg/kernel/lib/binary/ast_from_binary.dart `_decodeWtf8`.

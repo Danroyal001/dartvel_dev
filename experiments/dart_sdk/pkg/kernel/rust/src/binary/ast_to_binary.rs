@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
+use crate::binary::ast_from_binary::{callerStackBudget, needsDeepStack, needsStackCheck, stackAddress, withDeepStack};
 use crate::binary::tag::{ConstantTag, Tag, expectedSdkHash, numberOfFixedFields};
 use crate::canonical_name::CanonicalNames;
 
@@ -27,6 +28,8 @@ impl std::error::Error for WriteError {}
 
 type Result<T> = std::result::Result<T, WriteError>;
 
+#[cold]
+#[inline(never)]
 fn error<T>(message: impl Into<String>) -> Result<T> {
     Err(WriteError(message.into()))
 }
@@ -181,18 +184,34 @@ pub struct BinaryPrinter<'c> {
     /// How deeply the expression, statement, type and pattern being
     /// written are nested (see `nestingLimit`).
     nesting: u32,
+    /// See `BinaryBuilder`'s fields of the same names.
+    stackBase: usize,
+    stackBudget: Option<usize>,
 }
 
 impl<'c> BinaryPrinter<'c> {
     /// One more level of nesting: past `nestingLimit`, upstream runs out of
     /// stack and throws a `StackOverflowError`.
-    #[inline]
+    #[inline(always)]
     fn enterNesting(&mut self) -> Result<()> {
-        if self.nesting >= crate::binary::ast_from_binary::nestingLimit {
-            return error("Stack Overflow");
+        if self.nesting >= crate::binary::ast_from_binary::nestingLimit
+            || (needsStackCheck(self.nesting)
+                && self.stackBudget.is_some_and(|budget| self.stackBase.saturating_sub(stackAddress()) > budget))
+        {
+            return self.nestingFailure();
         }
         self.nesting += 1;
         Ok(())
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn nestingFailure(&self) -> Result<()> {
+        if self.nesting >= crate::binary::ast_from_binary::nestingLimit {
+            error("Stack Overflow")
+        } else {
+            error(needsDeepStack)
+        }
     }
 
     pub fn new(component: &'c Component) -> Self {
@@ -235,6 +254,8 @@ impl<'c> BinaryPrinter<'c> {
             includeSourceBytes: true,
             includeOffsets: true,
             nesting: 0,
+            stackBase: stackAddress(),
+            stackBudget: Some(callerStackBudget),
         }
     }
 
@@ -3307,5 +3328,12 @@ impl<'c> BinaryPrinter<'c> {
 /// Writes [component] in the binary format, as upstream's
 /// `BinaryPrinter(sink).writeComponentFile(component)` does.
 pub fn writeComponentToBytes(component: &Component) -> std::result::Result<Vec<u8>, WriteError> {
-    crate::binary::ast_from_binary::withDeepStack(|| BinaryPrinter::new(component).writeComponentFile())
+    match BinaryPrinter::new(component).writeComponentFile() {
+        Err(WriteError(message)) if message == needsDeepStack => withDeepStack(|| {
+            let mut printer = BinaryPrinter::new(component);
+            printer.stackBudget = None;
+            printer.writeComponentFile()
+        }),
+        result => result,
+    }
 }

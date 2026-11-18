@@ -100,7 +100,9 @@ pub struct BinaryBuilder<'a> {
     stringTable: Option<Vec<StrId>>,
     /// The constants read so far, by value, from the second component of a
     /// concatenated file on.
-    constantsByHash: Option<std::collections::HashMap<u64, Vec<ConstId>, FxBuildHasher>>,
+    constantsByHash: Option<std::collections::HashMap<u64, ConstId, FxBuildHasher>>,
+    /// Constants whose hash an earlier, unequal constant has (rare).
+    constantsByHashOverflow: std::collections::HashMap<u64, Vec<ConstId>, FxBuildHasher>,
     /// `_constantTable`'s length (its entries not read yet are upstream's
     /// `dummyConstant`).
     constantTableLength: usize,
@@ -119,6 +121,10 @@ pub struct BinaryBuilder<'a> {
     /// How deeply the expression, statement, type and pattern being read
     /// are nested (see [nestingLimit]).
     nesting: u32,
+    /// Where the stack was when reading began, and how much of it the
+    /// reader may use on the caller's thread (None on [withDeepStack]'s).
+    stackBase: usize,
+    stackBudget: Option<usize>,
 }
 
 impl<'a> BinaryBuilder<'a> {
@@ -134,6 +140,7 @@ impl<'a> BinaryBuilder<'a> {
             stringTableLength: 0,
             stringTable: None,
             constantsByHash: None,
+            constantsByHashOverflow: Default::default(),
             constantTableLength: 0,
             laterComponent: false,
             disableLazyReading: false,
@@ -145,6 +152,8 @@ impl<'a> BinaryBuilder<'a> {
             switchCaseStackBase: 0,
             variableContextStack: Vec::new(),
             nesting: 0,
+            stackBase: stackAddress(),
+            stackBudget: Some(callerStackBudget),
         }
     }
 
@@ -157,11 +166,18 @@ impl<'a> BinaryBuilder<'a> {
 
     /// Upstream allocating [bytes] at once: `Out of Memory` beyond
     /// [dartAllocationLimit].
+    #[inline(always)]
     fn dartAllocate(&self, bytes: u64) -> Result<()> {
         if bytes > dartAllocationLimit {
-            return self.thrown("Out of Memory");
+            return self.outOfMemory();
         }
         Ok(())
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn outOfMemory(&self) -> Result<()> {
+        self.thrown("Out of Memory")
     }
 
     /// Upstream allocating a list of [length] elements (8 bytes each) at
@@ -188,13 +204,23 @@ impl<'a> BinaryBuilder<'a> {
 
     /// One more level of nesting: past [nestingLimit], upstream's stack
     /// runs out and it throws a `StackOverflowError`.
-    #[inline]
+    #[inline(always)]
     fn enterNesting(&mut self) -> Result<()> {
-        if self.nesting >= nestingLimit {
-            return self.thrown("Stack Overflow");
+        if self.nesting >= nestingLimit || (needsStackCheck(self.nesting) && self.stackBudget.is_some_and(|budget| self.stackBase.saturating_sub(stackAddress()) > budget)) {
+            return self.nestingFailure();
         }
         self.nesting += 1;
         Ok(())
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn nestingFailure(&self) -> Result<()> {
+        if self.nesting >= nestingLimit {
+            self.thrown("Stack Overflow")
+        } else {
+            self.thrown(needsDeepStack)
+        }
     }
 
     /// `throw fail(message)`: a `ParseError`.
@@ -219,20 +245,28 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     /// `list[index]` on a list of [length] elements.
+    #[inline(always)]
     fn index<T: Copy>(&self, list: &[T], index: i64) -> Result<T> {
-        match usize::try_from(index).ok().and_then(|i| list.get(i)) {
-            Some(&value) => Ok(value),
-            None => self.thrown(indexError(index, list.len())),
+        match list.get(index as usize) {
+            Some(&value) if index >= 0 => Ok(value),
+            _ => self.indexFailure(index, list.len()),
         }
     }
 
-    #[inline]
+    /// The VM's `RangeError` for `list[index]`, off the hot paths.
+    #[cold]
+    #[inline(never)]
+    fn indexFailure<T>(&self, index: i64, length: usize) -> Result<T> {
+        self.thrown(indexError(index, length))
+    }
+
+    #[inline(always)]
     fn readByte(&mut self) -> Result<u32> {
         let index = self.byteOffset;
         self.byteOffset = index.wrapping_add(1);
         match self.bytes.get(index) {
             Some(&b) => Ok(b as u32),
-            None => self.thrown(indexError(index as i64, self.bytes.len())),
+            None => self.indexFailure(index as i64, self.bytes.len()),
         }
     }
 
@@ -403,10 +437,11 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     /// `_stringTable[readUInt30()]`.
+    #[inline]
     fn readStringReference(&mut self) -> Result<StrId> {
         let index = self.readUInt30()? as i64;
         if index as usize >= self.stringTableLength {
-            return self.thrown(indexError(index, self.stringTableLength));
+            return self.indexFailure(index, self.stringTableLength);
         }
         Ok(match &self.stringTable {
             None => index as StrId,
@@ -849,21 +884,42 @@ impl<'a> BinaryBuilder<'a> {
     /// are one constant (only a damaged table, a forward reference or a
     /// concatenated file has equal ones).
     fn internConstant(&mut self, constant: Constant) -> ConstId {
-        let constants = &mut self.component.constants;
-        let byHash = self.constantsByHash.get_or_insert_with(|| {
-            let mut byHash: std::collections::HashMap<u64, Vec<ConstId>, FxBuildHasher> = Default::default();
-            for (id, constant) in constants.iter().enumerate() {
-                byHash.entry(constantHash(constant)).or_default().push(id as ConstId);
+        if self.constantsByHash.is_none() {
+            // Index the constants already there (distinct, as they all came
+            // through here) without renumbering them.
+            let mut byHash: std::collections::HashMap<u64, ConstId, FxBuildHasher> = Default::default();
+            for (id, constant) in self.component.constants.iter().enumerate() {
+                let hash = constantHash(constant);
+                if byHash.contains_key(&hash) {
+                    self.constantsByHashOverflow.entry(hash).or_default().push(id as ConstId);
+                } else {
+                    byHash.insert(hash, id as ConstId);
+                }
             }
-            byHash
-        });
-        let bucket = byHash.entry(constantHash(&constant)).or_default();
-        if let Some(&id) = bucket.iter().find(|&&id| constantsEqual(&constants[id as usize], &constant)) {
+            self.constantsByHash = Some(byHash);
+        }
+        let constants = &mut self.component.constants;
+        let byHash = self.constantsByHash.as_mut().unwrap();
+        let hash = constantHash(&constant);
+        let first = match byHash.entry(hash) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                constants.push(constant);
+                let id = (constants.len() - 1) as ConstId;
+                e.insert(id);
+                return id;
+            }
+            std::collections::hash_map::Entry::Occupied(e) => *e.get(),
+        };
+        if constantsEqual(&constants[first as usize], &constant) {
+            return first;
+        }
+        let overflow = self.constantsByHashOverflow.entry(hash).or_default();
+        if let Some(&id) = overflow.iter().find(|&&id| constantsEqual(&constants[id as usize], &constant)) {
             return id;
         }
         constants.push(constant);
         let id = (constants.len() - 1) as ConstId;
-        bucket.push(id);
+        overflow.push(id);
         id
     }
 
@@ -3538,7 +3594,43 @@ pub fn loadComponentFromBytes(bytes: &[u8]) -> Result<Component> {
     // On a thread with a stack deep enough for [nestingLimit] levels, so
     // that the reader throws upstream's `Stack Overflow` instead of running
     // out of its own stack.
-    withDeepStack(|| BinaryBuilder::new(bytes).readComponent())
+    // On the caller's thread (its allocator arena is warm); only nesting
+    // too deep for that thread's stack is read again on a deep one.
+    match BinaryBuilder::new(bytes).readComponent() {
+        Err(e) if e.message == needsDeepStack => withDeepStack(|| {
+            let mut builder = BinaryBuilder::new(bytes);
+            builder.stackBudget = None;
+            builder.readComponent()
+        }),
+        result => result,
+    }
+}
+
+/// The stack the reader and the writer may use on the caller's thread
+/// before starting again on [withDeepStack]'s: well inside the 2 MiB of a
+/// test thread and the 8 MiB of a main thread.
+pub const callerStackBudget: usize = 1 << 20;
+
+/// Not an error upstream throws: the reader or the writer needs more stack
+/// than the caller's thread is known to have (see [callerStackBudget]).
+pub const needsDeepStack: &str = "\u{0}needs a deeper stack";
+
+/// Whether to look at the stack at this level of nesting. An unoptimised
+/// build's frames can be large, so it looks at every level; an optimised
+/// build's are small (well under a kilobyte), so it skips the first 64
+/// levels and then looks at every eighth, which keeps the check off the
+/// hot path.
+#[inline(always)]
+pub fn needsStackCheck(nesting: u32) -> bool {
+    cfg!(debug_assertions) || (nesting >= 64 && nesting % 8 == 0)
+}
+
+/// Where this thread's stack is now (it grows down): the address of a
+/// local.
+#[inline(always)]
+pub fn stackAddress() -> usize {
+    let marker = 0u8;
+    std::hint::black_box(&marker) as *const u8 as usize
 }
 
 /// Runs [work] on a thread whose stack holds [nestingLimit] levels of the
@@ -3558,11 +3650,38 @@ pub fn withDeepStack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
 pub const deepStackBytes: usize = 512 << 20;
 
 
-/// Whether no string in [strings] is there twice.
+/// Whether no string in [strings] is there twice: strings are bucketed by
+/// their length and first and last eight bytes, and compared whole only
+/// within a bucket, so a long string is not hashed end to end.
 fn stringsAreDistinct(strings: &[Box<[u8]>]) -> bool {
-    let mut seen: std::collections::HashSet<&[u8], FxBuildHasher> =
-        std::collections::HashSet::with_capacity_and_hasher(strings.len(), Default::default());
-    strings.iter().all(|s| seen.insert(&**s))
+    fn key(s: &[u8]) -> (usize, u64, u64) {
+        let mut head = [0u8; 8];
+        let mut tail = [0u8; 8];
+        let n = s.len().min(8);
+        head[..n].copy_from_slice(&s[..n]);
+        tail[..n].copy_from_slice(&s[s.len() - n..]);
+        (s.len(), u64::from_le_bytes(head), u64::from_le_bytes(tail))
+    }
+    // The first string of each bucket; strings that share a bucket go into
+    // a set of whole strings, made only if two ever do.
+    let mut first: std::collections::HashMap<(usize, u64, u64), u32, FxBuildHasher> =
+        std::collections::HashMap::with_capacity_and_hasher(strings.len(), Default::default());
+    let mut shared: Option<std::collections::HashSet<&[u8], FxBuildHasher>> = None;
+    for (i, s) in strings.iter().enumerate() {
+        match first.entry(key(s)) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(i as u32);
+            }
+            std::collections::hash_map::Entry::Occupied(e) => {
+                let shared = shared.get_or_insert_with(Default::default);
+                shared.insert(&strings[*e.get() as usize]);
+                if !shared.insert(&**s) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 /// `_writeWtf8` (lib/binary/ast_to_binary.dart): how upstream's writer

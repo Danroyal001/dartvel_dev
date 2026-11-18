@@ -244,9 +244,22 @@ fn uri_parse_does_what_upstream_does() {
     assert_eq!(expected.len(), inputs.len(), "oracle wrote one line per input");
     let mut differences = 0;
     let mut okCount = 0;
+    let mut shortcuts = 0;
     for (text, expectedLine) in inputs.iter().zip(&expected) {
         if expectedLine.starts_with("ok ") {
             okCount += 1;
+        }
+        // `isAlreadyCanonical` must only say yes when upstream gives the
+        // input back unchanged.
+        if text.iter().all(|&u| u < 0x80) {
+            let ascii: Vec<u8> = text.iter().map(|&u| u as u8).collect();
+            if dart_core::uri::isAlreadyCanonical(&ascii) {
+                shortcuts += 1;
+                if *expectedLine != format!("ok {}", encode(text)) {
+                    differences += 1;
+                    eprintln!("isAlreadyCanonical said yes, wrongly:\ninput:    {}\nexpected: {expectedLine}\n", encode(text));
+                }
+            }
         }
         let actual = portResult(text);
         if actual != *expectedLine {
@@ -256,6 +269,7 @@ fn uri_parse_does_what_upstream_does() {
             }
         }
     }
+    eprintln!("{shortcuts} inputs took isAlreadyCanonical's shortcut");
     eprintln!(
         "{} inputs ({} parsed, {} threw), {} differences",
         inputs.len(),
