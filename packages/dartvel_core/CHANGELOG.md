@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `Request(peerAddressOf: () => ...)`: the peer address read the first time `peerAddress` is asked for, once. `peerAddress` is now a getter; a request given one outright keeps it.
 - Every page document records how far the reader has scrolled it (`window.__dvScrollY`, `dvTakeoverScrollScript`) until the app is in, so the page opens where the reader was.
 - `Headers.decodedOnRead(decode)`: headers decoded the first time anything reads or changes them, for a server building a request from raw bytes. `Headers.forEachValue((name, value) => ...)` visits every value without the copy `multiValueMap` makes.
 - A route pattern with no parameter is compared with the path rather than run as a regular expression; the router keeps each method and status's metric series between requests (`DVMetrics.generation`, raised by `reset`) and forks its measuring zone once rather than per request.

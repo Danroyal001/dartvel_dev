@@ -18,8 +18,9 @@ const String _library = 'lib/native/linux-x64/libdartvel_shelf.so';
 
 /// Where this isolate's copy of the library keeps its source revision: the
 /// same address in two isolates is the same loaded library.
-Future<int> _revisionAddress(String path) async {
-  embedNativeServerLibraryAt(path, offset: 0, length: File(path).lengthSync());
+Future<int> _revisionAddress(String path, {int offset = 0, int? length}) async {
+  embedNativeServerLibraryAt(path,
+      offset: offset, length: length ?? File(path).lengthSync() - offset);
   final ffi.DynamicLibrary library = (await openNativeServerLibrary()).library;
   final ffi.Pointer<ffi.Uint8> Function() revision = library.lookupFunction<
       ffi.Pointer<ffi.Uint8> Function(),
@@ -39,17 +40,43 @@ int _memfdCount() => Directory('/proc/self/fd')
     })
     .length;
 
+/// The library inside a larger file, at an offset, as a web-server binary
+/// carries it.
+(String, int, int) _carried() {
+  final Directory dir = Directory.systemTemp.createTempSync('carried');
+  final List<int> library = File(_library).readAsBytesSync();
+  final File binary = File('${dir.path}/server')
+    ..writeAsBytesSync(<int>[...List<int>.filled(4096, 7), ...library, 1, 2, 3]);
+  return (binary.path, 4096, library.length);
+}
+
 void main() {
   test('isolates of one process open one copy of the embedded library',
       () async {
-    final String path = File(_library).absolute.path;
-    final int here = await _revisionAddress(path);
+    final (String path, int offset, int length) = _carried();
+    final int here = await _revisionAddress(path, offset: offset, length: length);
     final List<int> there = await Future.wait(<Future<int>>[
-      for (var i = 0; i < 3; i++) Isolate.run(() => _revisionAddress(path)),
+      for (var i = 0; i < 3; i++)
+        Isolate.run(() => _revisionAddress(path, offset: offset, length: length)),
     ]);
     expect(there, everyElement(here),
         reason: 'every isolate must call into the same loaded library');
     expect(_memfdCount(), 1,
         reason: 'one in-memory copy of the library, not one per isolate');
+  });
+  test('a library given as a whole file is opened from that file, uncopied',
+      () async {
+    final Directory dir = Directory.systemTemp.createTempSync('whole');
+    final String path = '${dir.path}/libdartvel_shelf.so';
+    File(_library).copySync(path);
+    final int before = _memfdCount();
+    final int here = await _revisionAddress(path);
+    final int there = await Isolate.run(() => _revisionAddress(path));
+    expect(there, here);
+    expect(_memfdCount(), before,
+        reason: 'no in-memory copy: the loader maps the file itself, so only '
+            'the pages that run are resident');
+    expect(
+        File('/proc/self/maps').readAsStringSync().contains(path), isTrue);
   });
 }

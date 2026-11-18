@@ -25,6 +25,7 @@ use rustls::{
 };
 
 mod codec;
+mod h1;
 pub use codec::{aw_codec_decode, aw_codec_encode};
 mod units;
 pub use units::{aw_units_completed, aw_units_load, aw_units_loaded, aw_units_register, aw_units_supported};
@@ -806,6 +807,10 @@ struct RequestParts {
     _headers: Vec<u8>,
     _body: Bytes,
     _peer: Vec<u8>,
+    /// For a request read by src/h1.rs: the head its method and target point
+    /// into, and the connection's peer text.
+    _head: Option<Bytes>,
+    _peer_bytes: Option<Bytes>,
 }
 
 static PENDING_REQUEST_PARTS: OnceCell<Mutex<HashMap<u64, RequestParts, IdHash>>> = OnceCell::new();
@@ -1826,6 +1831,11 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
 
     let handle_clone = handle.clone();
 
+    // A driven server on plain TCP without CORS reads its own HTTP/1
+    // (src/h1.rs). TLS and CORS keep the hyper server as it was.
+    let lean = driven.is_some() && tls_config.is_none() && cors_config.is_none();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    safe_lock(SERVER_SHUTDOWN.get_or_init(Default::default)).insert(server_id, shutdown_tx);
     let serve = async move {
         let mut app = Router::new()
             .route("/health", get(health_handler))
@@ -1847,14 +1857,15 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
         // One extension for all of it: each extension is a boxed clone in
         // every request's extension map, and these were six, two of them
         // cloning strings, on every request.
-        app = app.layer(axum::Extension(ServerContext(Arc::new(ServerContextInner {
+        let context = ServerContext(Arc::new(ServerContextInner {
             id: server_id,
             timeout: request_timeout,
             body_limits,
             static_paths,
             queue: request_queue,
             defaults: default_headers,
-        }))));
+        }));
+        app = app.layer(axum::Extension(context.clone()));
         // Outermost: a panic anywhere in answering a request is a 500
         // rather than a connection dropped with no answer at all.
         app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
@@ -1865,7 +1876,21 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
         // thread nobody is watching.
         // With connect info, so each request carries the socket address it
         // was accepted from and dart_proxy can hand it to Dart.
-        let result = if let Some(tls_config) = tls_config {
+        let result = if lean {
+            // Plain HTTP/1 read and answered by src/h1.rs; every other
+            // connection handed to the same hyper service as below.
+            h1::serve(
+                listener,
+                Arc::new(h1::Lean {
+                    context,
+                    app,
+                    compression: compression_enabled,
+                    header_timeout: request_timeout,
+                    shutdown: shutdown_rx,
+                }),
+            )
+            .await
+        } else if let Some(tls_config) = tls_config {
             let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config);
             let mut server = axum_server::from_tcp_rustls(listener, rustls_config);
             bound_header_read(server.http_builder(), request_timeout);
@@ -1912,6 +1937,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
         if let Some(driven) = SERVER_DRIVEN.get() {
             safe_lock(driven).remove(&server_id);
         }
+        if let Some(shutdowns) = SERVER_SHUTDOWN.get() {
+            safe_lock(shutdowns).remove(&server_id);
+        }
     };
     let server_thread = match driven {
         Some(driven) => {
@@ -1955,6 +1983,13 @@ pub extern "C" fn aw_stop(server_id: u64) -> i32 {
         .and_then(|servers| safe_lock(servers).get(&server_id).cloned());
     if let Some(driven) = &driven {
         driven.stop();
+    }
+    // A lean server stops accepting and finishes its connections.
+    if let Some(shutdown) = SERVER_SHUTDOWN
+        .get()
+        .and_then(|shutdowns| safe_lock(shutdowns).get(&server_id).cloned())
+    {
+        let _ = shutdown.send(true);
     }
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).retain(|_, bridge| bridge.server != Some(server_id));
     if let Some(handles) = SERVER_HANDLES.get() {
@@ -2300,6 +2335,8 @@ async fn dart_proxy_with_fallback(
             _headers: flattened_headers,
             _body: bytes,
             _peer: peer,
+            _head: None,
+            _peer_bytes: None,
         },
     );
     match (&request_queue, request_handler) {
@@ -2691,6 +2728,8 @@ mod request_tests {
             _headers: Vec::new(),
             _body: Bytes::new(),
             _peer: Vec::new(),
+            _head: None,
+            _peer_bytes: None,
         }
     }
 
@@ -4068,3 +4107,6 @@ pub extern "C" fn aw_linger(server_id: u64, micros: u32) -> i32 {
     driven.lingering.store(false, Ordering::Relaxed);
     if arrived { 0 } else { 2 }
 }
+
+/// Tells a lean server (src/h1.rs) to stop: aw_stop sends true.
+static SERVER_SHUTDOWN: OnceCell<Mutex<HashMap<u64, tokio::sync::watch::Sender<bool>>>> = OnceCell::new();
