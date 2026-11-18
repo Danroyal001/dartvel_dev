@@ -47,20 +47,31 @@ abstract class DVTableSnapshots {
 /// Each write saves the table it touched before it returns, so a write that
 /// has returned has been kept. Reads save nothing.
 class DVSnapshotDatabaseAdapter implements DVDatabaseAdapter {
-  DVSnapshotDatabaseAdapter._(this._snapshots);
+  DVSnapshotDatabaseAdapter._(this._snapshots, this._kept);
 
   final DVTableSnapshots _snapshots;
+
+  /// The tables written to [_snapshots]; every table when null. The rest live
+  /// in memory for the session.
+  final Set<String>? _kept;
   final MemoryDVDatabaseAdapter _memory = MemoryDVDatabaseAdapter();
   Future<void> _saving = Future<void>.value();
 
   /// Opens the database [snapshots] holds.
+  ///
+  /// With [tables], only those tables are kept in [snapshots] and the others
+  /// last as long as the session: a store that keeps a small record -- the
+  /// visitor's consent -- beside a table that grows with every event would
+  /// otherwise rewrite the growing one on every write.
   static Future<DVSnapshotDatabaseAdapter> open(
-    DVTableSnapshots snapshots,
-  ) async {
+    DVTableSnapshots snapshots, {
+    Set<String>? tables,
+  }) async {
     final DVSnapshotDatabaseAdapter adapter =
-        DVSnapshotDatabaseAdapter._(snapshots);
+        DVSnapshotDatabaseAdapter._(snapshots, tables);
     final Map<String, String> saved = await snapshots.readAll();
     for (final MapEntry<String, String> table in saved.entries) {
+      if (tables != null && !tables.contains(table.key)) continue;
       adapter._memory.importTable(
         table.key,
         jsonDecode(table.value) as Map<String, Object?>,
@@ -87,7 +98,9 @@ class DVSnapshotDatabaseAdapter implements DVDatabaseAdapter {
   Future<int> execute(String sql, [List<Object?>? params]) async {
     final int changed = await _memory.execute(sql, params);
     final String? table = _writes.firstMatch(sql)?.group(1);
-    if (table != null) await _save(table);
+    if (table != null && (_kept == null || _kept.contains(table))) {
+      await _save(table);
+    }
     return changed;
   }
 

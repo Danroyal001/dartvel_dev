@@ -399,9 +399,15 @@ class DVConsent {
     final List<DVConsentRecord> mine = await records();
     _answers = null;
     if (mine.isEmpty) return;
-    final DVConsentRecord latest = mine.last;
-    if (latest.policyVersion == policy.version) {
-      _answers = Map<String, bool>.of(latest.answers);
+    // Every choice under this version, oldest first: a partial choice -- a
+    // withdrawal of one category from the settings screen -- keeps the
+    // earlier answers for the categories it did not present, after a
+    // restart exactly as before it. Reading only the latest record forgot
+    // them, so a visitor who withdrew marketing found analytics withdrawn
+    // too on their next visit.
+    for (final DVConsentRecord record in mine) {
+      if (record.policyVersion != policy.version) continue;
+      _answers = <String, bool>{...?_answers, ...record.answers};
     }
   }
 
