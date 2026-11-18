@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'document_slots.dart' show dvBodyEndInsertionPoint;
 import 'document_fields.dart' show dvRevealNoscriptCss;
 import 'find_in_page.dart';
+import 'ssr_first.dart' show dvIsSsrFirst;
 
 /// Every string literal in the source.
 ///
@@ -176,6 +177,19 @@ const String dvFallbackStyle =
     '<noscript class="dv-fallback-style">'
     '<style>$dvFallbackNoscriptCss</style></noscript>';
 
+/// Records how far the reader has scrolled the server-rendered document, in
+/// `window.__dvScrollY`, until the app is in.
+///
+/// The engine fixes the body in place when it starts, which puts the
+/// document back at the top, so the app could never ask the window where the
+/// reader was. The page shell reads this once and opens the page there.
+/// Recording stops once the engine's view is in the document: its own reset
+/// to the top is not the reader.
+const String dvTakeoverScrollScript =
+    '<script>(function(){var w=window,d=document;function r(){'
+    'if(!d.querySelector("flutter-view,flt-glass-pane"))w.__dvScrollY=w.scrollY}'
+    'r();w.addEventListener("scroll",r,{passive:true})})()</script>';
+
 /// Whether the block a page was served with is no longer the page on screen.
 ///
 /// The application routes on the client, so one navigation later the block in
@@ -203,6 +217,17 @@ String _openFallback(String? path) {
   return '<div class="dv-fallback" data-dv-path="${escape.convert(path)}">';
 }
 
+/// Where the block goes in [html]: at the end of the body, or first in it
+/// when the shell is SSR-first (see `dvSsrFirstHead`), so the document is
+/// parsed -- and painted -- before the splash ever is.
+int _insertionPoint(String html) {
+  if (dvIsSsrFirst(html)) {
+    final Match? body = RegExp(r'<body\b[^>]*>').firstMatch(html);
+    if (body != null) return body.end;
+  }
+  return dvBodyEndInsertionPoint(html);
+}
+
 /// Markers, so a rebuild replaces the block rather than adding another.
 const String _open = '<!-- dartvel:text -->';
 const String _close = '<!-- /dartvel:text -->';
@@ -220,7 +245,7 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (lines.isEmpty) return cleaned;
 
-  final at = dvBodyEndInsertionPoint(cleaned);
+  final at = _insertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;
@@ -236,6 +261,7 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
+    ..writeln(dvTakeoverScrollScript)
     ..writeln(_openFallback(path))
     // Each paragraph in a section the browser's find searches.
     ..write(dvFindableHtml(content.toString()))
@@ -260,7 +286,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (content.trim().isEmpty) return cleaned;
 
-  final at = dvBodyEndInsertionPoint(cleaned);
+  final at = _insertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;
@@ -268,6 +294,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
+    ..writeln(dvTakeoverScrollScript)
     ..writeln(_openFallback(path))
     ..writeln(dvFindableHtml(content.trim()))
     ..writeln('</div>')

@@ -103,6 +103,7 @@ import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/widgets/password_reveal.dart';
 import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
+import 'src/widgets/page_viewport.dart' show DVPageViewport, DVLayoutSlots;
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -11402,8 +11403,15 @@ class _DVPageScrollElement extends StatelessElement {
 
   @override
   Widget build() {
-    final Widget built = super.build();
+    Widget built = super.build();
     final Widget owner = widget;
+    if (owner is DartvelLayout) {
+      final Widget? header = owner.header;
+      final Widget? footer = owner.footer;
+      if (header != null || footer != null) {
+        built = DVLayoutSlots(header: header, footer: footer, body: built);
+      }
+    }
     final bool on = owner is DVClassWidget
         ? owner.pageScrollToTop
         : owner is DartvelLayout && owner.pageScrollToTop;
@@ -11455,6 +11463,26 @@ abstract class DartvelLayout extends StatelessWidget {
   /// `@DVFunctionalWidget(pageScrollToTop: true)`.
   final bool pageScrollToTop;
 
+  /// What stays at the top of every page in this layout while the page
+  /// scrolls beneath it: a site header. Null, the default, for none.
+  ///
+  /// With a header or a [footer], the framework scrolls the page and then the
+  /// footer below the header, so the layout writes no scroll view: what
+  /// sigmadev and dartvel.dev each wrote by hand. A page that scrolls itself
+  /// is not scrolled twice, and on a page shorter than the screen the footer
+  /// sits at the bottom of the screen.
+  Widget? get header => null;
+
+  /// What comes after every page in this layout, scrolling with it: a site
+  /// footer. Null, the default, for none. See [header].
+  Widget? get footer => null;
+
+  /// The page, by default. A layout with a [header] or [footer] overrides
+  /// this only to wrap the page itself between them; a layout without them
+  /// places [child] wherever it likes, as before.
+  @override
+  Widget build(BuildContext context) => child;
+
   @override
   StatelessElement createElement() => _DVPageScrollElement(this);
 }
@@ -11492,6 +11520,16 @@ class DVPageScaffoldSpec {
   /// never be anywhere but the canvas.
   final bool findable;
 
+  /// Whether the shell scrolls the page when it is taller than the screen.
+  ///
+  /// True, because a page cut off at the bottom of the screen is a defect
+  /// rather than a style (owner, 17 Nov 2026). The shell steps aside by
+  /// itself for a page that brings its own scroll view or fills the screen
+  /// (an Expanded in a column, a Scaffold, a map), so there is never a second
+  /// scroll inside the first. False turns it off for a page that must never
+  /// scroll, such as a kiosk screen sized to its display.
+  final bool scroll;
+
   const DVPageScaffoldSpec({
     this.title,
     this.shell = DVPageShellMode.adaptive,
@@ -11505,6 +11543,7 @@ class DVPageScaffoldSpec {
     this.appBarBackgroundColor,
     this.selectable = true,
     this.findable = true,
+    this.scroll = true,
   });
 }
 
@@ -11912,9 +11951,16 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // keys first and only what is left over scrolls -- and no page has to ask
     // for this, because a page a keyboard cannot move is a broken page rather
     // than a style.
+    // The page's scroll view, which every page has without asking: a page
+    // taller than the screen scrolls, and a page that scrolls itself or
+    // fills the screen is left as it is. See page_viewport.dart. Not on
+    // Studio's canvas, which draws the page as it is laid out.
+    final Widget scrolled = spec.scroll && !DVPagePreviewScope.of(context)
+        ? DVPageViewport(address: _pageAddress, onTop: onTop, child: keyed)
+        : keyed;
     final Widget scrollable = DVKeyboardScroll(
       takesFocusFrom: selectable ? _selectionFocusNode : null,
-      child: keyed,
+      child: scrolled,
     );
     // And every other way somebody drives a page: a TV remote's D-pad and
     // select key, and one or two switches. On the same argument as the keys

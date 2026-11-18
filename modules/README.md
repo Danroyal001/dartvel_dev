@@ -38,6 +38,15 @@ use, all of it declared in its own `pubspec.yaml`:
 - **`config:`** at the mount, the settings the application gives it. They
   are compiled into the client, so never a secret: a module reads secrets
   from the server's environment by name.
+- **`capabilities:`** the secrets and hosts its code reaches, by names the
+  build reads from the code (a literal, or a `const String` the module
+  declares once). `dartvel add` writes the same list as the mount's
+  `grant:`, and the build refuses a grant that differs.
+
+One thing differs from a module anybody publishes: identity. A first-party
+module resolved from the same checkout or pub.dev release as the
+application's `dartvel_core`, at the same version, is not pinned in
+`dartvel.module.lock`, as `dartvel_core` is not. Its grant is still checked.
 
 Modules that do not depend on each other talk through topics on the
 registry: `DV.Modules.publish('commerce.purchase', payload)` and

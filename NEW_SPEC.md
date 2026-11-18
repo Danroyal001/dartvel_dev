@@ -508,6 +508,25 @@ The table is the contract. Each row says which entries a target has, what
   visitors took the site for broken, so it was removed from the framework. A
   pubspec that still sets `dartvel.web.firstFrame` (true, false or a map)
   builds, with one warning that the key is ignored and can be deleted.
+- **SSR-first (opt-in).** `dartvel.web.ssrFirst: true` shows each page's
+  server-rendered document (the `.dv-fallback` block both the static build
+  and the web server write, through the one render path) as the page from
+  the first paint, instead of the splash. The build writes a style and a
+  handover script into the shell's head; a page made from that shell carries
+  its document first in the body, so the browser never paints the splash
+  over it, and a page with no document keeps the splash. The document is its
+  own fixed scroller above the Flutter view and below the loading bar, in
+  the splash's colours (`splash.color`/`splash.darkColor`, so the app's
+  page colours, light and dark), with links in `splash.progressColor` where
+  that reads at 4.5:1. Its links are normal navigations; selection, find,
+  Tab and screen readers work on it while the engine boots. At
+  `dartvel-first-frame` the script waits for a selection inside it to end
+  (at most 10 s), reveals the section at the top of the screen if the reader
+  had scrolled (the find runtime then scrolls the app there), moves focus
+  off it, fades it out over 200 ms (none with reduced motion) and marks
+  `<html data-dv-app>`, which puts it back in the clipped box for find,
+  crawlers and print. Off by default: with it off every page is byte for
+  byte what it was.
 - **The splash and its bar on a device too.** On Android, iOS, macOS, Windows
   and Linux the launch screen the platform draws stays up until Flutter's first
   frame, and nothing can move on it. `DV.run` draws the application's own
@@ -1204,6 +1223,48 @@ to top" button at its bottom right, in the app theme: an attribute, not a
 widget the app nests its page in. The generated class (or the class's element)
 puts the framework's frame round what it builds; a page under 400 px of
 scrolling shows no button.
+
+Every page scrolls with nothing added. The page shell is the page's scroll view:
+a page taller than the screen scrolls by mouse wheel, trackpad, touch (with the
+platform's physics), keyboard (Page Up/Down, Space and Shift+Space, Home/End,
+the arrows when nothing is focused), the scrollbar, and focus traversal, which
+scrolls a focused control into view. A screen reader sees one scroll container,
+the browser's find reaches the whole page, and a page shorter than the screen is
+still laid out at the screen's height, so centred content stays centred.
+
+The page scrollbar is left out where scrolling is a finger's: Android, iOS, a
+browser whose main pointer is touch (an iPad reports macOS), and any screen as
+narrow as a phone (under 782 logical pixels). Desktop keeps it, in any window
+from 782 wide.
+
+A layout with a fixed header writes no scroll code either. `DartvelLayout` has
+two optional getters, `header` and `footer`; when either is set the framework
+draws the header fixed at the top and scrolls the page and then the footer
+beneath it, with the footer at the bottom of the screen on a short page.
+`build`, when the layout overrides it, wraps the page between them (its default
+is the page itself). A page inside that scrolls itself is not scrolled twice.
+
+There is never a scroll inside a scroll. The shell reads the page's own layout
+each time it is laid out and steps aside, laying the page out at the screen's
+height exactly as before, when the page scrolls itself (a
+`SingleChildScrollView`, a `ListView`, a `CustomScrollView`, a scrollable
+`DVBox` list, a `PageView`) or fills the screen (an `Expanded`, `Flexible` or
+`Spacer` in a column, a `Scaffold`, a stretched row, `SizedBox.expand`, an
+expanding `Stack`, a platform view such as a map). A page that shows a spinner
+and then a list changes over by itself. `@DVPage(scroll: false)` turns the
+shell's scrolling off for a page that must never scroll, such as a kiosk screen
+sized to its display. Long `DVBox` lists in a page the shell scrolls build their
+rows as they come near the screen, as they do in any scroll view.
+
+Back and forward in a browser rebuild a page; the shell puts it back where the
+reader left it, per history entry, as a browser does with a document, and a new
+visit starts at the top. When the app takes over from the server-rendered
+document it keeps that document's scroll position: every page document records
+`window.__dvScrollY` as the reader scrolls it, until the engine's view is in, and
+the shell waits up to ten seconds for a late page (a deferred library, its data)
+to be long enough, leaving a reader who scrolled first where they are. The back-to-top button moves
+whichever scroll view is the page's, the shell's or the page's own, and is drawn
+by the shell outside the scroll view so it never scrolls away.
 
 `@DVFunctionalWidget()` remains valid; Dartvel treats them the same for pages
 and performs the generated wrapping internally.

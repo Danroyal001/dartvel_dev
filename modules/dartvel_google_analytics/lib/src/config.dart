@@ -26,13 +26,13 @@ enum GoogleAnalyticsPageViews {
 /// The measurement id is public: it is in the page's own requests to
 /// Google. The Measurement Protocol API secret is not, and is never one of
 /// these settings: it is read from the server's environment by the name
-/// [apiSecretName] and exists only in the backend process.
+/// [defaultApiSecretName] (`GA4_API_SECRET`) and exists only in the backend
+/// process. The name is fixed, so the application's grant can name it.
 final class GoogleAnalyticsConfig {
   const GoogleAnalyticsConfig({
     this.measurementId,
     this.consentCategory = defaultConsentCategory,
     this.pageViews = GoogleAnalyticsPageViews.manual,
-    this.apiSecretName = defaultApiSecretName,
     this.collectInEu = false,
     this.origin,
     this.excludedPaths = defaultExcludedPaths,
@@ -62,9 +62,6 @@ final class GoogleAnalyticsConfig {
 
   final GoogleAnalyticsPageViews pageViews;
 
-  /// The name of the secret holding the Measurement Protocol API secret.
-  final String apiSecretName;
-
   /// Sends Measurement Protocol events to `region1.google-analytics.com`,
   /// which Google documents for data to be collected in the EU.
   final bool collectInEu;
@@ -89,7 +86,6 @@ final class GoogleAnalyticsConfig {
         measurementId: measurementId ?? this.measurementId,
         consentCategory: consentCategory ?? this.consentCategory,
         pageViews: pageViews ?? this.pageViews,
-        apiSecretName: apiSecretName,
         collectInEu: collectInEu ?? this.collectInEu,
         origin: origin ?? this.origin,
         excludedPaths: excludedPaths,
@@ -125,7 +121,6 @@ final class GoogleAnalyticsConfig {
       'measurementId',
       'consent',
       'pageViews',
-      'apiSecretName',
       'collectInEu',
       'origin',
       'excludePaths',
@@ -161,7 +156,6 @@ final class GoogleAnalyticsConfig {
           config['measurementId'] == null ? null : '${config['measurementId']}',
       consentCategory: '${config['consent'] ?? defaultConsentCategory}',
       pageViews: mode,
-      apiSecretName: '${config['apiSecretName'] ?? defaultApiSecretName}',
       collectInEu: config['collectInEu'] == true,
       origin: config['origin'] == null ? null : '${config['origin']}',
       excludedPaths: excluded is List

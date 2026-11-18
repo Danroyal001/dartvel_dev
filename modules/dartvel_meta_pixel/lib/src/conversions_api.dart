@@ -77,10 +77,11 @@ final class MetaConversionsApi {
       return const MetaConversionsResult.notSent('no pixel id is configured');
     }
     final String? token =
-        const DVSecrets().maybeGet(config.accessTokenSecret);
+        const DVSecrets()
+        .maybeGet(MetaPixelConfig.defaultAccessTokenSecret);
     if (token == null) {
-      return MetaConversionsResult.notSent(
-          '${config.accessTokenSecret} is not set in the server\'s '
+      return const MetaConversionsResult.notSent(
+          '${MetaPixelConfig.defaultAccessTokenSecret} is not set in the server\'s '
           'environment');
     }
     final DateTime oldest = _clock().toUtc().subtract(oldestEvent);

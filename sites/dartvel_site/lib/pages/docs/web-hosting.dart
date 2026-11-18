@@ -105,6 +105,24 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'web.firstFrame, the build ignores it and says so: delete it.',
         ),
         DocsText(
+          'On a slow phone network that wait can be half a minute. '
+          'Turn on web.ssrFirst and each page shows its own text and '
+          'links from the first moment instead of the splash, in your '
+          "app's colours, light and dark: readers can read it, select "
+          'it, search it, tab through it and follow its links, which '
+          'open as normal pages. The loading bar stays at the top. '
+          'When the app has drawn its first screen it takes over in '
+          'place and the text fades out. It is off unless you turn it '
+          'on, because the text is a plain reading column, not your '
+          'layout, until the app arrives.',
+        ),
+        DocsShell(<String>[
+          '# pubspec.yaml',
+          'dartvel:',
+          '  web:',
+          '    ssrFirst: true   # the page text instead of the splash',
+        ]),
+        DocsText(
           'Every web build is compiled twice: Chrome, Edge and '
           'Chrome for Android run the WebAssembly version, other '
           'browsers the JavaScript one. Each page loads its own code '

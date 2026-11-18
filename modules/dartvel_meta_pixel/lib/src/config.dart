@@ -8,14 +8,15 @@ import 'package:dartvel_core/dartvel.dart';
 ///
 /// The pixel id is public: it is in the page's own requests to Meta. The
 /// Conversions API access token is not, and is never one of these settings:
-/// it is read from the server's environment by the name [accessTokenSecret]
-/// and exists only in the backend process.
+/// it is read from the server's environment by the name
+/// [defaultAccessTokenSecret] (`META_CONVERSIONS_API_TOKEN`) and exists only
+/// in the backend process. The name is fixed, so the application's grant can
+/// name it.
 final class MetaPixelConfig {
   const MetaPixelConfig({
     this.pixelId,
     this.consentCategory = defaultConsentCategory,
     this.serverEvents = true,
-    this.accessTokenSecret = defaultAccessTokenSecret,
     this.apiVersion = defaultApiVersion,
     this.testEventCode,
     this.excludedPaths = defaultExcludedPaths,
@@ -50,9 +51,6 @@ final class MetaPixelConfig {
   /// backend to the Conversions API, with the same event id as the browser's.
   final bool serverEvents;
 
-  /// The name of the secret holding the Conversions API access token.
-  final String accessTokenSecret;
-
   final String apiVersion;
 
   /// Events Manager's test code. Events sent with it appear under Test
@@ -73,7 +71,6 @@ final class MetaPixelConfig {
         pixelId: pixelId ?? this.pixelId,
         consentCategory: consentCategory ?? this.consentCategory,
         serverEvents: serverEvents ?? this.serverEvents,
-        accessTokenSecret: accessTokenSecret,
         apiVersion: apiVersion,
         testEventCode: testEventCode ?? this.testEventCode,
         excludedPaths: excludedPaths,
@@ -109,7 +106,6 @@ final class MetaPixelConfig {
       'pixelId',
       'consent',
       'serverEvents',
-      'accessTokenSecret',
       'apiVersion',
       'testEventCode',
       'excludePaths',
@@ -136,8 +132,6 @@ final class MetaPixelConfig {
       pixelId: config['pixelId'] == null ? null : '${config['pixelId']}',
       consentCategory: '${config['consent'] ?? defaultConsentCategory}',
       serverEvents: config['serverEvents'] != false,
-      accessTokenSecret:
-          '${config['accessTokenSecret'] ?? defaultAccessTokenSecret}',
       apiVersion: '${config['apiVersion'] ?? defaultApiVersion}',
       testEventCode:
           config['testEventCode'] == null ? null : '${config['testEventCode']}',
