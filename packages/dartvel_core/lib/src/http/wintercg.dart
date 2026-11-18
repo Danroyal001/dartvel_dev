@@ -142,16 +142,33 @@ class Request {
   /// Never read from a header. When a proxy sits in front of the server this
   /// is the proxy; who the proxy was forwarding for is the client address
   /// resolver's question, answered only for proxies the application trusts.
-  final DVPeerAddress? peerAddress;
+  DVPeerAddress? get peerAddress {
+    final DVPeerAddress? Function()? read = _peerAddressOf;
+    if (read != null) {
+      _peerAddressOf = null;
+      _peerAddress = read();
+    }
+    return _peerAddress;
+  }
 
+  DVPeerAddress? _peerAddress;
+  DVPeerAddress? Function()? _peerAddressOf;
+
+  /// [peerAddress] is the address itself; [peerAddressOf] reads it the
+  /// first time [peerAddress] is asked for, for a server that has it as text
+  /// and would otherwise parse it for every request, most of which never
+  /// look. Given both, [peerAddressOf] wins.
   Request({
     required this.method,
     required this.url,
     required this.headers,
     required Stream<List<int>> bodyStream,
     Map<String, String>? params,
-    this.peerAddress,
-  })  : params = params == null
+    DVPeerAddress? peerAddress,
+    DVPeerAddress? Function()? peerAddressOf,
+  })  : _peerAddress = peerAddress,
+        _peerAddressOf = peerAddressOf,
+        params = params == null
             ? <String, String>{}
             : Map<String, String>.from(params),
         body = Body(bodyStream);
