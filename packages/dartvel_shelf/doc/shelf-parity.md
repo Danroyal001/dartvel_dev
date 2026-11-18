@@ -114,7 +114,147 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
-## Benchmarks (AOT, fresh processes, 3 trials via heavy.sh)
+## Against Relic 2 (18 November 2026)
+
+Serverpod's Relic 2 (pub `relic` 2.0.0) publishes these numbers from its own
+machine (oha, 64 connections): `relic_native` on one isolate about 94,500
+req/s for plaintext, on four isolates about 148,000, Relic on dart:io about
+16,700, shelf about 9,600. `relic_native` is a Zig server that parses HTTP on
+each isolate's own thread and hands requests to Dart in batches.
+
+### How it was measured
+
+`benchmark/compare.dart`, compiled servers, each engine in a fresh process of
+its own, driven from outside by oha 1.17.0 (the tool Relic's own
+`http_load.dart` uses): 64 keep-alive connections, a 2 s warm-up, then 5 s
+closed loop; `many` is 1,024 connections; `headers` is plaintext with Relic's
+18 browser headers (cookie included); `static` a 4 KiB file through each
+engine's own static handler. WebSocket, upload (50 MiB) and download use the
+Dart clients in `compare.dart` in a process of their own. CPU per request is
+the server process's user + system time divided by the requests it answered;
+RSS is the server's own peak (VmHWM). Three trials of every row, run in one
+`~/heavy.sh` slot on 18 Nov 2026 04:02-04:25 CEST; the table is the median.
+`dartvel_before` is `origin/main` at dfbee33eb with its committed library;
+`dartvel` and `dartvel4` (four isolates, `serve(shared: true)`) are this
+branch. Relic's servers are `benchmark/relic/bin/serve.dart`.
+
+**The machine is a shared, busy production server** (8 vCPU, 24 GB, swap
+full): the one-minute load average was 5.6-20.7 during these rows (median
+13.2), so every number is far below what an idle machine gives, and trials
+of one cell differ by up to 2x (plaintext, `relic_native`: 23,936, 11,640 and
+26,674 req/s; `dartvel`: 13,254, 8,208 and 15,042). Compare engines within a
+row, not with Relic's published figures. `startup_ms` is the spread of three
+single samples (48-164 ms for `dartvel`) and says nothing either way.
+
+| scenario | metric | shelf | relic_io | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
+|---|---|---|---|---|---|---|---|---|
+| plaintext | rps | 4242 | 4030 | 23936 | 45669 | 4847 | 13254 | 17391 |
+| plaintext | p50_ms | 11.2 | 11.2 | 1.77 | 0.56 | 10.5 | 3.43 | 1.32 |
+| plaintext | p99_ms | 60.7 | 83.9 | 16.3 | 14.6 | 56.4 | 28.4 | 43.4 |
+| plaintext | cpu_us_per_req | 320 | 296 | 49.6 | 52.4 | 492 | 90.4 | 119 |
+| plaintext | peak_rss_mib | 21.3 | 21.0 | 16.9 | 27.0 | 61.7 | 31.0 | 34.9 |
+| json | rps | 3210 | 3646 | 11610 | 32606 | 3605 | 10787 | 18866 |
+| json | p50_ms | 14.1 | 12.1 | 1.91 | 0.69 | 12.6 | 3.95 | 1.41 |
+| json | p99_ms | 87.3 | 104 | 73.0 | 22.3 | 82.1 | 40.6 | 34.6 |
+| json | cpu_us_per_req | 342 | 312 | 68.4 | 88.0 | 627 | 107 | 123 |
+| json | peak_rss_mib | 20.7 | 20.8 | 17.3 | 27.0 | 60.9 | 31.8 | 34.9 |
+| headers | rps | 2942 | 3342 | 19790 | 28039 | 3276 | 11192 | 13937 |
+| headers | p50_ms | 17.1 | 15.6 | 1.92 | 0.68 | 13.3 | 4.11 | 1.52 |
+| headers | p99_ms | 85.9 | 65.9 | 24.1 | 24.4 | 99.4 | 35.4 | 47.9 |
+| headers | cpu_us_per_req | 486 | 386 | 58.2 | 78.0 | 608 | 106 | 161 |
+| headers | peak_rss_mib | 45.5 | 46.7 | 16.8 | 26.8 | 64.2 | 31.6 | 35.7 |
+| static | rps | 1586 | 1777 | 1904 | 3184 | 1289 | 1475 | 1588 |
+| static | p50_ms | 31.9 | 29.1 | 28.3 | 16.0 | 46.0 | 44.7 | 43.2 |
+| static | p99_ms | 192 | 136 | 115 | 77.3 | 152 | 103 | 167 |
+| static | cpu_us_per_req | 1018 | 979 | 786 | 820 | 1002 | 642 | 889 |
+| static | peak_rss_mib | 51.8 | 53.6 | 31.6 | 37.8 | 29.5 | 23.7 | 25.5 |
+| many | rps | 2830 | 5098 | 18041 | 40298 | 3889 | 9949 | 26349 |
+| many | p50_ms | 41.0 | 49.1 | 8.13 | 14.0 | 208 | 88.9 | 30.2 |
+| many | p99_ms | 2213 | 1187 | 501 | 151 | 714 | 276 | 148 |
+| many | cpu_us_per_req | 520 | 324 | 71.9 | 66.0 | 532 | 110 | 105 |
+| many | peak_rss_mib | 47.6 | 47.2 | 37.4 | 47.2 | 92.3 | 83.8 | 96.6 |
+| many | non_200 | - | - | - | - | - | - | - |
+| startup | startup_ms | 56.2 | 51.6 | 42.9 | 41.8 | 73.7 | 103 | 88.7 |
+| startup | peak_rss_mib | 9.02 | 9.99 | 12.5 | 16.2 | 21.6 | 18.8 | 19.4 |
+| websocket | messages_per_second | 801 | 568 | 948 | 1107 | 913 | 934 | 851 |
+| websocket | p50_us | 678 | 968 | 447 | 336 | 605 | 405 | 513 |
+| websocket | p99_us | 9389 | 13998 | 8925 | 10701 | 6386 | 8224 | 15019 |
+| websocket | peak_rss_mib | 12.2 | 13.1 | 14.9 | 17.7 | 24.4 | 22.2 | 22.2 |
+| websocket_pipelined | messages_per_second | 28648 | 33390 | 172179 | 184445 | 62636 | 75101 | 69599 |
+| websocket_pipelined | peak_rss_mib | 82.7 | 79.3 | 15.8 | 25.5 | 25.3 | 28.4 | 28.8 |
+| upload | mib_per_second | 104 | 128 | 197 | 199 | 105 | 86.0 | 102 |
+| upload | peak_rss_mib | 42.3 | 48.4 | 15.4 | 24.3 | 49.0 | 47.3 | 48.8 |
+| download | mib_per_second | 120 | 144 | 125 | 142 | 129 | 135 | 128 |
+| download | peak_rss_mib | 11.5 | 12.5 | 13.1 | 16.6 | 24.2 | 21.7 | 22.4 |
+
+load1 during rows: median 13.195, min 5.6, max 20.68; rows 210
+
+
+Raw rows: `benchmark/compare.dart` prints them as JSON lines; this run's are
+kept with the PR.
+
+### What the numbers say
+
+- **Against `origin/main`** dartvel_shelf answers 2.6x to 3.4x as many requests
+  per second on one isolate (plaintext 4,847 to 13,254; JSON 3,605 to 10,787;
+  browser headers 3,276 to 11,192; 1,024 connections 3,889 to 9,949), uses
+  4.8x to 5.9x less CPU per request (492 to 90 us for plaintext), and half
+  the memory (62 to 31 MiB). Four isolates reach 17,391 (plaintext),
+  18,866 (JSON) and 26,349 req/s (1,024 connections).
+- **Against Relic 2, Relic still wins most rows.** `relic_native` on one
+  isolate answered 1.8x as many plaintext requests as `dartvel` (23,936 vs
+  13,254) for about half the CPU per request (50 vs 90 us), and
+  `relic_native4` 2.6x as many as `dartvel4`. Relic also wins JSON, browser
+  headers, 1,024 connections, pipelined WebSocket (172,179 vs 75,101 msgs/s),
+  upload, start-up and memory (17 vs 31 MiB). dartvel_shelf is ahead of
+  shelf and of Relic on dart:io in plaintext, JSON, browser headers, 1,024
+  connections and both WebSocket rows, and behind them on static files
+  (requests per second), upload, start-up and memory.
+- **Where dartvel_shelf is ahead of `relic_native`:** the static file costs
+  less CPU (642 vs 786 us per request) with a lower p99 (103 vs 115 ms) and
+  less memory, but fewer requests per second (1,475 vs 1,904), so this is not
+  a win overall; WebSocket ping-pong and download are within the noise.
+
+### Where the remaining time goes
+
+Measured with `perf` on this branch's server under plaintext load (one
+isolate, driven mode; the server ran under the Dart JIT so that perf could
+name the library's symbols, Relic's AOT): about 37% of the process's CPU is the kernel's TCP
+path, 29% the native library (hyper's HTTP/1 parse and encode, axum and tower
+plumbing, Tokio's scheduler), 15% Dart, 10% libc (malloc, memcpy). Relic's
+process spends about 65% in the kernel, 21% in Dart and 12% in its Zig
+library. The Dart side of a request now costs less than the native side;
+closing the gap to Relic means a leaner HTTP/1 path in Rust than
+hyper + axum (a parser and writer of our own for plain HTTP/1, as Relic has
+in Zig), which this change does not attempt.
+
+### What changed to get here
+
+- The isolate drives its server's connections itself (`AW_FLAG_DRIVEN`,
+  `aw_drive`, `aw_linger`, `aw_park`): a current-thread Tokio runtime per
+  server, turned by the isolate between its own work while it has requests,
+  and by a helper thread of the server's while it is idle. A request is read,
+  handled and answered on one thread with no hand-off; before, every request
+  woke the isolate from a Tokio worker and every answer woke a worker back.
+  An idle turn waits up to 250 us for the next request before parking.
+  Answers given between turns are handed over at the next turn, inside the
+  runtime, so waking their task costs no system call.
+- Requests are taken in batches from a native queue (one wakeup for many).
+- One server-context extension per request instead of six boxed ones; a
+  request with no body skips the body reader and the route body-limit match;
+  the request target is not formatted again; request and server ids hash
+  with a multiply instead of SipHash.
+- `securityHeaders` are added natively; responses go through one reusable
+  buffer; headers are decoded only when a handler reads one;
+  `Headers.forEachValue` instead of a copied map; literal route patterns are
+  compared rather than run as regular expressions; the router's metric
+  series and measuring zone are kept between requests; access lines are
+  sampled (100 a second by default).
+- Every isolate of a process opens one in-memory copy of an embedded library
+  (a sealed, named memfd) instead of one each.
+- `serve(shared: true)` lets several isolates listen on one port.
+
+## Benchmarks (September 2026, in-process Dart client; superseded by the section above)
 
 Compiled with `dart compile exe benchmark/compare.dart` and run inside a
 `~/heavy.sh` slot only once the one-minute load average was under 4, from the
