@@ -12,3 +12,10 @@
 pub mod ast;
 pub mod binary;
 pub mod canonical_name;
+pub mod class_hierarchy;
+pub mod core_types;
+pub mod reference_index;
+pub mod src;
+pub mod type_algebra;
+pub mod type_environment;
+pub mod visitor;
