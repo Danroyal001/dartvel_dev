@@ -31,6 +31,7 @@ import 'native_codec.dart';
 import 'site_files.dart';
 export 'mime_type.dart' show getMimeType;
 import 'request_body.dart';
+import 'request_queue.dart';
 import 'web_socket.dart';
 import 'ssr_helper.dart';
 import 'package:ffi/ffi.dart' as pkgffi;
@@ -41,6 +42,13 @@ typedef _NativeBodyChunkCb = gen.DartBodyChunkHandlerFunction;
 /// The callback shape this file is written for; see `AW_ABI_VERSION` in
 /// rust/src/lib.rs. 2 added the peer address.
 const int _nativeAbiVersion = 2;
+
+/// AW_FLAG_SHARED in rust/src/lib.rs: listen with SO_REUSEPORT.
+const int _awFlagShared = 0x02;
+
+/// AW_FLAG_DRIVEN in rust/src/lib.rs: this isolate drives the server's
+/// runtime itself while it has requests to take.
+const int _awFlagDriven = 0x04;
 
 /// The native side's own default, so a library that cannot be configured is
 /// refused only when a caller asked for something else.
@@ -78,6 +86,8 @@ class ServerHandle {
   final ffi.NativeCallable<_NativeWakeupCb>? _dartWsWakeupHandler;
   bool _stopped = false;
   final Set<NativeWebSocketChannel> _webSockets;
+  // Frees what the server kept between requests, once it can take no more.
+  final void Function()? _release;
 
   ServerHandle(
     this.host,
@@ -90,6 +100,7 @@ class ServerHandle {
     this._dartStreamAckHandler,
     this._webSockets = const {},
     this._dartWsWakeupHandler,
+    this._release,
   ]);
 
   Future<void> stop() async {
@@ -102,6 +113,131 @@ class ServerHandle {
     _dartBodyChunkHandler?.close();
     _dartStreamAckHandler?.close();
     _dartWsWakeupHandler?.close();
+    _release?.call();
+  }
+}
+
+/// The memory a response crosses to the native side in, kept from one
+/// response to the next.
+///
+/// aw_complete copies the status, headers and body before it returns, and an
+/// isolate runs one thing at a time, so one buffer serves every response a
+/// server sends: no allocation and no free per request. Headers are written
+/// straight into it in the NUL-separated form [encodeHeaders] produces.
+final class _ResponseScratch {
+  /// Grown to fit, up to this; a larger response gets memory of its own for
+  /// the one call, so one large answer does not stay resident.
+  static const int _keep = 256 * 1024;
+
+  final ffi.Pointer<gen.FfiResp> _resp = pkgffi.calloc<gen.FfiResp>();
+
+  // Handlers still running, which may yet fill this. A server stopped with
+  // one still at work frees the memory only once that one is done: freed at
+  // the stop, a late answer was written into memory malloc had taken back.
+  int _users = 0;
+  bool _released = false;
+
+  void enter() => _users++;
+
+  void leave() {
+    _users--;
+    if (_released && _users == 0) _free();
+  }
+  ffi.Pointer<ffi.Uint8> _kept = pkgffi.malloc<ffi.Uint8>(4096);
+  int _keptCapacity = 4096;
+  ffi.Pointer<ffi.Uint8> _bytes = ffi.nullptr;
+  Uint8List _view = Uint8List(0);
+  int _length = 0;
+
+  /// [status], [headers] and [body] laid out for aw_complete; a null [body]
+  /// is a streamed response. Valid until [done].
+  ffi.Pointer<gen.FfiResp> fill(int status, Headers headers, Uint8List? body) {
+    _bytes = _kept;
+    _view = _kept.asTypedList(_keptCapacity);
+    _length = 0;
+    headers.forEachValue(_writeHeader);
+    final int headersLength = _length;
+    if (body != null && body.isNotEmpty) {
+      _reserve(body.length);
+      _view.setRange(_length, _length + body.length, body);
+      _length += body.length;
+    }
+    _resp.ref
+      ..status = status
+      ..is_stream = body == null ? 1 : 0
+      ..hdrs = _bytes.cast()
+      ..hdrs_len = headersLength;
+    _resp.ref.body
+      ..ptr = body == null ? ffi.nullptr : (_bytes + headersLength).cast()
+      ..len = body == null ? 0 : body.length;
+    return _resp;
+  }
+
+  /// Gives back memory taken for a response larger than the kept buffer.
+  void done() {
+    if (_bytes != _kept) pkgffi.malloc.free(_bytes);
+    _bytes = _kept;
+  }
+
+  void release() {
+    if (_released) return;
+    _released = true;
+    if (_users == 0) _free();
+  }
+
+  void _free() {
+    done();
+    pkgffi.malloc.free(_kept);
+    pkgffi.calloc.free(_resp);
+  }
+
+  void _writeHeader(String name, String value) {
+    _write(name);
+    _write(value);
+  }
+
+  /// [text] as UTF-8, then a NUL.
+  void _write(String text) {
+    final int units = text.length;
+    // Three bytes is the most UTF-8 spends on one UTF-16 unit.
+    _reserve(units * 3 + 1);
+    final Uint8List view = _view;
+    var at = _length;
+    for (var i = 0; i < units; i++) {
+      final int unit = text.codeUnitAt(i);
+      if (unit >= 0x80) {
+        // Not ASCII: written whole by the encoder from here.
+        at = _length;
+        final Uint8List encoded = utf8.encode(text);
+        view.setRange(at, at + encoded.length, encoded);
+        at += encoded.length;
+        view[at++] = 0;
+        _length = at;
+        return;
+      }
+      view[at++] = unit;
+    }
+    view[at++] = 0;
+    _length = at;
+  }
+
+  void _reserve(int more) {
+    final int needed = _length + more;
+    if (needed <= _view.length) return;
+    var capacity = _view.length * 2;
+    while (capacity < needed) {
+      capacity *= 2;
+    }
+    final ffi.Pointer<ffi.Uint8> grown = pkgffi.malloc<ffi.Uint8>(capacity);
+    grown.asTypedList(_length).setAll(0, _view.sublist(0, _length));
+    if (_bytes != _kept) pkgffi.malloc.free(_bytes);
+    if (capacity <= _keep) {
+      pkgffi.malloc.free(_kept);
+      _kept = grown;
+      _keptCapacity = capacity;
+    }
+    _bytes = grown;
+    _view = grown.asTypedList(capacity);
   }
 }
 
@@ -158,6 +294,12 @@ Future<ServerHandle> serve(
   int port = 8080,
   TlsConfig? tls, // enables HTTPS + ALPN → HTTP/2
   bool h2c = false, // plaintext HTTP/2 (advanced)
+  // Share host:port with servers started with shared: true in other isolates
+  // of this process, as HttpServer.bind(shared: true) does: each isolate
+  // runs its own handlers and the kernel spreads connections over them, so
+  // a server uses more than one thread for Dart. Linux and macOS; elsewhere
+  // a second bind fails as it would without it.
+  bool shared = false,
   CorsOptions? cors,
   String? staticDir, // Path to static files directory
   String? spaRoot, // Path to SPA root (e.g. build/web) for SSR injection
@@ -374,11 +516,16 @@ Future<ServerHandle> serve(
     if (pageContentSecurityPolicy != null && spaRoot != null)
       if (dvSiteText(spaRoot, 'index.html') case final String shell) ...<String>[shell, dvMinifyHtml(shell)],
   ];
+  final bool nativeDefaults =
+      dylib.providesSymbol('aw_configure_default_headers');
   Future<Response> routed(Request request) async {
     final Response response = await dispatched(request);
     if (response is WebSocketResponse) return response;
-    dvApplySecurityHeaders(response.headers,
-        baseline: securityHeaders, overTls: overTls);
+    // A library that takes the defaults adds them to every response itself.
+    if (!nativeDefaults) {
+      dvApplySecurityHeaders(response.headers,
+          baseline: securityHeaders, overTls: overTls);
+    }
     final String? pagePolicy = pageContentSecurityPolicy;
     if (pagePolicy == null ||
         response.headers.has('content-security-policy') ||
@@ -407,6 +554,8 @@ Future<ServerHandle> serve(
 
   final webSockets = <NativeWebSocketChannel>{};
   final activeWebSockets = <int, NativeWebSocketChannel>{};
+
+  final _ResponseScratch scratch = _ResponseScratch();
 
   void handleRequest(
       int reqId,
@@ -458,7 +607,11 @@ Future<ServerHandle> serve(
       return;
     }
 
-    Future<void>(() async {
+    // Started now, in the callback's own turn of the event loop. It was a
+    // `Future(...)`, which is a timer: every request waited for one more
+    // trip around the event loop before its handler ran.
+    scratch.enter();
+    unawaited(() async {
       try {
         final resp = await effective(req);
         if (resp is WebSocketResponse) {
@@ -503,7 +656,25 @@ Future<ServerHandle> serve(
                 true;
         Uint8List buffered = Uint8List(0);
         Stream<List<int>>? source;
-        if (resp.body != null && !marked) {
+        final Uint8List? held = marked ? null : resp.bufferedBytes;
+        // The same bound the stream below is read to: a declared length
+        // under the cap, or the cap.
+        final int? declaredLength = held == null
+            ? null
+            : int.tryParse(resp.headers.get('content-length') ?? '');
+        final int wholeCap = declaredLength != null &&
+                declaredLength >= 0 &&
+                declaredLength < _bufferedResponseBytes
+            ? declaredLength
+            : _bufferedResponseBytes;
+        final Uint8List? whole =
+            held != null && held.length <= wholeCap ? held : null;
+        if (whole != null) {
+          // Already in memory as one small piece: nothing to listen to. A
+          // large one is streamed below as it always was, so it is not
+          // copied whole twice more on its way out.
+          buffered = whole;
+        } else if (resp.body != null && !marked) {
           final int? declared =
               int.tryParse(resp.headers.get('content-length') ?? '');
           // A declared length is the handler's own answer for how big this is,
@@ -548,26 +719,18 @@ Future<ServerHandle> serve(
           if (!whole) source = _restOfBody(prefix.takeBytes(), parts, pending);
         }
 
-        final hdrsFlat = encodeHeaders(resp.headers.multiValueMap);
-        final hdrsNative = pkgffi.malloc<ffi.Uint8>(hdrsFlat.length)
-          ..asTypedList(hdrsFlat.length).setAll(0, hdrsFlat);
+        final bool streamed =
+            (marked || source != null) && resp.body != null;
+        // The status, headers and body go across in this server's one
+        // reusable buffer: aw_complete copies them before it returns, and
+        // nothing else runs on this isolate in between.
+        final ffi.Pointer<gen.FfiResp> out = scratch.fill(
+            resp.status, resp.headers,
+            streamed ? null : buffered);
 
-        final out = pkgffi.calloc<gen.FfiResp>();
-        out.ref.status = resp.status;
-        out.ref.hdrs = hdrsNative.cast();
-        out.ref.hdrs_len = hdrsFlat.length;
-
-        if ((marked || source != null) && resp.body != null) {
-          out.ref.is_stream = 1;
-          final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
-          bodyBuf.ref.ptr = ffi.Pointer.fromAddress(0);
-          bodyBuf.ref.len = 0;
-          out.ref.body = bodyBuf.ref;
-
+        if (streamed) {
           final int accepted = api.aw_complete(reqId, out.ref);
-          pkgffi.calloc.free(bodyBuf);
-          pkgffi.calloc.free(out);
-          pkgffi.malloc.free(hdrsNative);
+          scratch.done();
           // The native side gave up on this request -- it timed out, or the
           // server stopped -- so nothing would read the stream. Not listened
           // to, rather than produced into a channel that is gone.
@@ -632,20 +795,8 @@ Future<ServerHandle> serve(
           activeStreamStates[reqId] = streamState;
 
         } else {
-          out.ref.is_stream = 0;
-          final bodyNative = pkgffi.malloc<ffi.Uint8>(buffered.length)
-            ..asTypedList(buffered.length).setAll(0, buffered);
-
-          final bodyBuf = pkgffi.calloc<gen.FfiBuf>();
-          bodyBuf.ref.ptr = bodyNative.cast();
-          bodyBuf.ref.len = buffered.length;
-          out.ref.body = bodyBuf.ref;
-
           api.aw_complete(reqId, out.ref);
-          pkgffi.calloc.free(bodyBuf);
-          pkgffi.calloc.free(out);
-          pkgffi.malloc.free(bodyNative);
-          pkgffi.malloc.free(hdrsNative);
+          scratch.done();
         }
       } catch (error, stack) {
         // By type alone: an error's message is free to quote the request
@@ -661,13 +812,18 @@ Future<ServerHandle> serve(
         // told the native side so, and a chunk that arrives after it is
         // dropped rather than waiting for a pull nobody will make.
         bodies.remove(reqId);
+        scratch.leave();
       }
-    });
+    }());
   }
 
   final dartRequestHandler =
       ffi.NativeCallable<_NativeCb>.listener(handleRequest);
   api.aw_register_handler(dartRequestHandler.nativeFunction);
+  // Requests taken in batches on one wakeup, where the library can queue
+  // them; the handler above stays registered for one that cannot.
+  final RequestQueue? requestQueue = RequestQueue.of(dylib)
+    ?..register(handleRequest);
 
   final dartCancelHandler =
       ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
@@ -724,6 +880,14 @@ Future<ServerHandle> serve(
 
   _configureCors(api, cors);
   _configureStatic(api, staticDir);
+  if (nativeDefaults) {
+    // The same headers dvApplySecurityHeaders would add, in the same order,
+    // given once rather than encoded into every response.
+    final Headers defaults = Headers();
+    dvApplySecurityHeaders(defaults,
+        baseline: securityHeaders, overTls: overTls);
+    _configureDefaultHeaders(dylib, defaults);
+  }
   _configureSpaRoot(api, null);
   _configureCompression(api, compression);
   if (configuresTimeout) {
@@ -771,8 +935,11 @@ Future<ServerHandle> serve(
     ..ptr = hostPtr.cast()
     ..len = hostBytes.length;
 
-  final flags = h2c ? 0x01 : 0x00; // AW_FLAG_H2C
+  final flags = (h2c ? gen.AW_FLAG_H2C : 0) |
+      (shared ? _awFlagShared : 0) |
+      ((requestQueue?.drives ?? false) ? _awFlagDriven : 0);
   final serverId = api.aw_start(hostFfiPtr.ref, port, flags);
+  requestQueue?.attach(serverId);
 
   pkgffi.malloc.free(hostPtr);
   pkgffi.calloc.free(hostFfiPtr);
@@ -806,6 +973,10 @@ Future<ServerHandle> serve(
     dartStreamAckHandler,
     webSockets,
     dartWsWakeupHandler,
+    () {
+      scratch.release();
+      requestQueue?.close();
+    },
   );
 }
 
@@ -869,7 +1040,11 @@ Request _readRequest({
       method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
   final targetStr = String.fromCharCodes(
       target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
-  final headers = decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
+  // Copied now, because the native side frees them once the request is
+  // acknowledged, and decoded only when the handler first reads a header:
+  // many routes never do.
+  final Uint8List headerBytes =
+      Uint8List.fromList(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
   // A body the native side streamed is pulled one chunk at a time as the
   // handler reads it; one it read whole arrives here and is already in memory.
   final Stream<List<int>> bodySource = bodyStream == null
@@ -879,7 +1054,7 @@ Request _readRequest({
   return Request(
     method: methodStr,
     url: _requestUrl(targetStr, authority: authority, port: port),
-    headers: Headers(headers),
+    headers: Headers.decodedOnRead(() => decodeHeaders(headerBytes)),
     bodyStream: bodySource,
     peerAddress: peerAddress,
   );
@@ -953,6 +1128,9 @@ Uri _requestUrl(String target,
   if (url == null) {
     throw const _MalformedRequest('the request target is not a URL path');
   }
+  // Only an escape can fail to decode; a target without one is not decoded
+  // ahead of a route that may never read it.
+  if (!pathAndQuery.contains('%')) return url;
   try {
     // Decoded now, once -- Uri keeps the result -- so a target that cannot
     // be decoded is the client's 400 here rather than a route's 500 later.
@@ -1044,6 +1222,24 @@ void _configureCors(gen.DartvelShelfBindings api, CorsOptions? cors) {
 
   if (rc != 0) {
     throw StateError('CORS config failed (code=$rc)');
+  }
+}
+
+/// The headers every response from Dart carries unless it set its own, for
+/// the server this thread starts next.
+void _configureDefaultHeaders(ffi.DynamicLibrary dylib, Headers headers) {
+  final configure = dylib.lookupFunction<
+      ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Size),
+      int Function(ffi.Pointer<ffi.Uint8>, int)>('aw_configure_default_headers');
+  final Uint8List flat = encodeHeaders(headers.multiValueMap);
+  final ffi.Pointer<ffi.Uint8> native =
+      pkgffi.malloc<ffi.Uint8>(flat.isEmpty ? 1 : flat.length);
+  native.asTypedList(flat.length).setAll(0, flat);
+  final int refused = configure(native, flat.length);
+  pkgffi.malloc.free(native);
+  if (refused != 0) {
+    throw ArgumentError.value(headers.singleValueMap, 'securityHeaders',
+        'a name or value HTTP does not allow');
   }
 }
 

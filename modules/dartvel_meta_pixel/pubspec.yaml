@@ -40,6 +40,13 @@ flutter:
 dartvel:
   module:
     id: metaPixel
+    # What the code reaches past the module, read by the build and compared
+    # with the grant an application writes under dartvel.modules.<id>.grant:
+    # the server's pixel id (used when the mount gives none) and Conversions
+    # API token, and the Graph API host.
+    capabilities:
+      secrets: [META_PIXEL_ID, META_CONVERSIONS_API_TOKEN]
+      egress: [graph.facebook.com]
     name: Meta Pixel
     surface: MetaPixel
     # Run once the module is registered, in the client and in the server:

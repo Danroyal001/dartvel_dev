@@ -19,6 +19,7 @@ final class _WebBrowser implements GoogleAnalyticsBrowser {
   bool _requested = false;
   bool _ready = false;
   bool _failed = false;
+  bool _consentDefaults = false;
   final List<void Function()> _waiting = <void Function()>[];
   String? _clientId;
   String? _sessionId;
@@ -46,6 +47,27 @@ final class _WebBrowser implements GoogleAnalyticsBrowser {
     stub['onload'] = (() {
       _ready = true;
       _safely(() {
+        if (_consentDefaults) {
+          // Consent Mode v2: everything denied by default, then analytics
+          // storage granted, because the module loads the tag only once the
+          // visitor has granted its category. Advertising storage stays
+          // denied: these are the origins for Google Analytics alone.
+          _gtag(<JSAny?>[
+            'consent'.toJS,
+            'default'.toJS,
+            <String, Object?>{
+              'ad_storage': 'denied',
+              'ad_user_data': 'denied',
+              'ad_personalization': 'denied',
+              'analytics_storage': 'denied',
+            }.jsify(),
+          ]);
+          _gtag(<JSAny?>[
+            'consent'.toJS,
+            'update'.toJS,
+            <String, Object?>{'analytics_storage': 'granted'}.jsify(),
+          ]);
+        }
         _gtag(<JSAny?>[
           'config'.toJS,
           measurementId.toJS,
@@ -101,6 +123,9 @@ final class _WebBrowser implements GoogleAnalyticsBrowser {
     if (dart is num) return dart.toInt().toString();
     return null;
   }
+
+  @override
+  void consentDefaults() => _consentDefaults = true;
 
   @override
   void event(String name, Map<String, Object?> params) {

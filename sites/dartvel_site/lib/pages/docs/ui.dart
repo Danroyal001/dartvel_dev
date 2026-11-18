@@ -232,6 +232,17 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
           'way; Class widgets has the details.',
         ),
         DocsText(
+          'Every page scrolls with nothing added. A page taller than the '
+          'screen scrolls by wheel, trackpad, touch, keyboard and scrollbar, '
+          'and Tab scrolls the focused control into view. A page that scrolls '
+          'itself (a ListView, a scrollable DVBox list) or fills the screen '
+          '(an Expanded in a column, a Scaffold, a map) is left as it is, so '
+          'there is never a scroll inside a scroll. Back and forward return a '
+          'page to where the reader left it. Write @DVPage(scroll: false) for a '
+          'page that must never scroll. The scrollbar shows on desktop and is '
+          'left out on phones, tablets and touch screens.',
+        ),
+        DocsText(
           'A long page can have a round "To the bottom / Back to top" '
           'button at its bottom right: write @DVFunctionalWidget(pageScrollToTop: '
           'true), or pass pageScrollToTop: true to a DVClassWidget or a '

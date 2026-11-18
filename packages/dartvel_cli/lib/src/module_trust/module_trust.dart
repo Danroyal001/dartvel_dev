@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 import 'package:pub_semver/pub_semver.dart';
 import 'package:yaml/yaml.dart';
 
+import '../modules/first_party.dart';
 import 'capabilities.dart';
 import 'capability_analysis.dart';
 import 'module_lock.dart';
@@ -312,6 +313,7 @@ DVModuleTrustReport dvEvaluateModuleTrust(
   for (final _Module m in parent.modules) {
     final DVCapabilityParse declared = _declared(m);
     _checkCapabilities(parent.name, m, declared, findings);
+    final bool framework = _releasedWithFramework(root, m);
     _checkPin(
       m,
       declared.capabilities,
@@ -319,6 +321,7 @@ DVModuleTrustReport dvEvaluateModuleTrust(
       parent.revoked,
       publishers,
       findings,
+      releasedWithFramework: framework,
     );
   }
   return DVModuleTrustReport(findings);
@@ -422,8 +425,9 @@ void _checkPin(
   DVModuleLock lock,
   Set<String> revoked,
   DVModulePublisherDirectory? publishers,
-  List<DVModuleTrustFinding> findings,
-) {
+  List<DVModuleTrustFinding> findings, {
+  bool releasedWithFramework = false,
+}) {
   void add(String? code, String message) => findings.add(
     DVModuleTrustFinding(module: m.id, code: code, message: message),
   );
@@ -432,7 +436,7 @@ void _checkPin(
   final File signatureFile = File(p.join(m.root, dvModuleSignatureFile));
   final bool signed = signatureFile.existsSync();
   if (pin == null) {
-    if (m.viaPackage || signed) {
+    if (!releasedWithFramework && (m.viaPackage || signed)) {
       add(
         null,
         'module "${m.id}" (${m.packageName}) is not pinned. Review it '
@@ -812,4 +816,44 @@ DVModulePinResult dvPinModules(
 
   if (pinned.isNotEmpty) DVModuleLock(pins).write(root);
   return DVModulePinResult(pinned, refused);
+}
+
+/// Whether [m] is one of the framework's own modules, resolved from the same
+/// place and at the same version as the `dartvel_core` the application
+/// resolved: the same checkout (`modules/<package>` beside
+/// `packages/dartvel_core`, which is how a path or git dependency on the
+/// framework lays them out), or the same pub.dev release.
+///
+/// Such a module is not pinned, for the reason `dartvel_core` is not: it is
+/// part of the framework the application already chose, and it changes when
+/// the framework does. A pin would only go stale on every framework upgrade
+/// and teach people to re-pin without looking. Its capabilities are still
+/// checked against the grant like any module's; only identity comes from the
+/// framework. A package of the same name from anywhere else, or at another
+/// version, is an ordinary module and is pinned.
+bool _releasedWithFramework(String root, _Module m) {
+  if (!m.viaPackage) return false;
+  if (!dvFirstPartyModules.any(
+    (DVFirstPartyModule f) => f.package == m.packageName,
+  )) {
+    return false;
+  }
+  final String? core = dvResolvePackageRoot(root, 'dartvel_core');
+  if (core == null) return false;
+  final String? moduleVersion = _versionOf(m.root);
+  if (moduleVersion == null || moduleVersion != _versionOf(core)) {
+    return false;
+  }
+  final String module = p.normalize(m.root);
+  final String sameCheckout = p.normalize(
+    p.join(core, '..', '..', 'modules', m.packageName),
+  );
+  if (module == sameCheckout) return true;
+  // pub's cache keeps every hosted package of one registry side by side:
+  // <cache>/hosted/pub.dev/<package>-<version>.
+  final String coreParent = p.dirname(p.normalize(core));
+  return p.dirname(module) == coreParent &&
+      p.basename(coreParent) == 'pub.dev' &&
+      p.basename(p.dirname(coreParent)) == 'hosted' &&
+      p.basename(module) == '${m.packageName}-$moduleVersion';
 }

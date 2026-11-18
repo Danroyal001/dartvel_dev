@@ -240,8 +240,9 @@ const List<SpecCoverage> kSpecCoverage = <SpecCoverage>[
   SpecCoverage('Monitoring and Observability', 'Operations', DVRoutes.docsmonitoring,
       'Read metrics and health from any backend', anchor: 'metrics'),
 
-  SpecCoverage('Distributed Tracing', 'Operations', DVRoutes.docsmonitoring,
-      'Follow one request across services', anchor: 'tracing'),
+  SpecCoverage('Distributed Tracing', 'Operations', DVRoutes.docsopentelemetry,
+      'Turn it on', anchor: 'turn-on'),
+
 
   SpecCoverage('Crash Reporting and Release Health', 'Operations', DVRoutes.docsmonitoring,
       'Crash reports are on from the first build', anchor: 'crashes'),

@@ -79,7 +79,7 @@ yet exist.
 | Outbound webhooks | `DV.Webhooks` | Partial |
 | Billing: subscriptions, one-time orders and signed webhooks; the provider named in `dartvel.billing`, switched with `DARTVEL_BILLING_PROVIDER` | `DV.Billing` | Partial |
 | Offline data models | `@DVModel(offline: ...)`, then `save()` | Partial |
-| Logs (one stream, redacted, a capped device file, opt-in shipping), metrics, health, traces | `DV.log`, `DV.log.export()`, `DV.ObservabilityAndLogging` | Partial |
+| Logs (one stream, redacted, a capped device file, opt-in shipping), metrics, health, traces, OpenTelemetry export over OTLP/HTTP (`dartvel.openTelemetry` or `OTEL_*`) | `DV.log`, `DV.log.export()`, `DV.ObservabilityAndLogging`, `useOpenTelemetry` | Partial |
 
 The full list of what `dartvel.dart` exports is in the
 [API reference](https://pub.dev/documentation/dartvel_core/latest/).

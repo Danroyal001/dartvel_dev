@@ -353,6 +353,18 @@ Beside the pages:
 - `_guard.dart` runs before every page in its folder, and
   `@DVPage(policy: ...)` puts a page behind an authorization policy.
 
+Every page scrolls with nothing added: the page shell is the page's scroll
+view when it is taller than the screen (wheel, trackpad, touch, keyboard,
+scrollbar, focus traversal, one scroll container for screen readers), and it
+steps aside by itself when the page scrolls itself (a `ListView`, a
+`SingleChildScrollView`, a scrollable `DVBox` list) or fills the screen (an
+`Expanded` in a column, a `Scaffold`, a map), so there is never a scroll inside
+a scroll. Back and forward in a browser return a page to where the reader left
+it. `@DVPage(scroll: false)` turns it off for one page.
+A layout keeps a header fixed by overriding `header` (and `footer`): the
+framework scrolls the page and footer beneath it. The page scrollbar is left
+out on phones, tablets and touch browsers and kept on desktop.
+
 Every page can be reached by keyboard, a TV remote's D-pad and switch control
 with nothing added: the page shell carries keyboard scrolling, D-pad focus
 and switch scanning, and they stay inert until used. The reader's own choices

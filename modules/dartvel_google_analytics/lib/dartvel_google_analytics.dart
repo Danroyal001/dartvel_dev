@@ -63,8 +63,12 @@ void startGoogleAnalytics(DVModule module) {
       GoogleAnalyticsRuntime.purchaseTopic, runtime.purchaseConfirmed);
   if (runtime.environment == DVModuleEnvironment.backend) return;
 
+  // The landing address, before a route change takes its campaign out; a
+  // no-op once the analytics runtime has read it.
+  DVAttribution.captureLanding();
   dvModuleRegistry.subscribe(
       GoogleAnalyticsRuntime.contextTopic, runtime.contributeContext);
+  dvModuleRegistry.subscribe(DVStandardEvent.topic, runtime.standardEvent);
   DVPageViews.addListener((DVPageView view) => runtime.pageShown(view));
   dvGoogleAnalyticsOnConsent(() => runtime.consentChanged());
 }

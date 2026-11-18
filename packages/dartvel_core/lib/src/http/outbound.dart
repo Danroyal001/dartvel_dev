@@ -977,15 +977,26 @@ class DVHttp {
       sent['authorization'] = 'Bearer ${const DVSecrets().get(secretName)}';
     }
 
+    // A client span by the HTTP semantic conventions, named by the method:
+    // the URL is where ids are. The query string is left out of url.full,
+    // because it is where API keys travel.
     final DVSpan? parent = dvCurrentSpan;
     final DVSpan? span = parent == null
         ? null
-        : DVObservability.tracer.startSpan('http $method $key', parent: parent);
+        : DVObservability.tracer.startSpan(
+            method,
+            parent: parent,
+            kind: DVSpanKind.client,
+            attributes: <String, Object>{
+              'http.request.method': method,
+              'server.address': url.host,
+              if (url.hasPort) 'server.port': url.port,
+              'url.full': '${url.scheme}://${url.host}${url.hasPort ? ':${url.port}' : ''}${url.path}',
+              'dartvel.http.host': key,
+            },
+          );
     if (span != null) {
       sent.putIfAbsent('traceparent', () => span.context.toHeader());
-      span
-        ..setAttribute('http.method', method)
-        ..setAttribute('http.host', key);
     }
 
     final DVHttpRequest request = DVHttpRequest(
@@ -1038,9 +1049,14 @@ class DVHttp {
             span?.recordError(failure, failureStack);
             Error.throwWithStackTrace(failure, failureStack!);
           }
-          span?.setAttribute('http.status_code', '${received!.status}');
+          span?.setAttribute('http.response.status_code', received!.status);
+          if (received!.status >= 400) {
+            span?.status = DVSpanStatus.error;
+            span?.setAttribute('error.type', '${received.status}');
+          }
+
           return Response(
-            received!.status,
+            received.status,
             headers: Headers(received.headers),
             body: Stream<List<int>>.value(Uint8List.fromList(received.bytes)),
           );

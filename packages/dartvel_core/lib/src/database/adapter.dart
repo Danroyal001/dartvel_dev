@@ -3,6 +3,7 @@ library dartvel_core.database.adapter;
 
 import 'dart:async';
 
+import '../observability/database_telemetry.dart';
 import '../preview/preview_database_guard.dart';
 import '../tenancy/tenants.dart';
 import 'records.dart';
@@ -140,7 +141,10 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
   }
 
   @override
-  Future<List<Map<String, Object?>>> query(
+  Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('other_sql', sql, () => _queryNow(sql, params));
+
+  Future<List<Map<String, Object?>>> _queryNow(
     String sql, [
     List<Object?>? params,
   ]) async {
@@ -173,7 +177,10 @@ class MemoryDVDatabaseAdapter implements DVDatabaseAdapter {
   }
 
   @override
-  Future<int> execute(String sql, [List<Object?>? params]) async {
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('other_sql', sql, () => _executeNow(sql, params));
+
+  Future<int> _executeNow(String sql, [List<Object?>? params]) async {
     final statement = _normalize(sql);
     final binding = _Binding(statement, params);
 

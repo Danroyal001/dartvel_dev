@@ -30,6 +30,8 @@ final class GoogleAnalyticsRuntime {
     GoogleAnalyticsBrowser? browser,
     GoogleAnalyticsRelay? relay,
     bool Function(String category)? consentGranted,
+    bool Function()? consentRequired,
+    DVAttribution Function()? attribution,
     DVModuleEnvironment? environment,
     DateTime Function()? clock,
     String Function()? newClientId,
@@ -39,6 +41,9 @@ final class GoogleAnalyticsRuntime {
         // ignore: prefer_initializing_formals
         _relay = relay,
         _consentGranted = consentGranted ?? dvGoogleAnalyticsConsentGranted,
+        _consentRequired =
+            consentRequired ?? (() => DVAnalyticsRuntime.isConfigured),
+        _attribution = attribution ?? (() => DVAttribution.current),
         environment = environment ?? DVModuleEnvironment.current,
         _clock = clock ?? DateTime.now,
         // ignore: prefer_initializing_formals
@@ -67,6 +72,14 @@ final class GoogleAnalyticsRuntime {
 
   final GoogleAnalyticsRelay? _relay;
   final bool Function(String category) _consentGranted;
+
+  /// Whether the application declares a consent policy, which is when the
+  /// tag starts under Consent Mode v2 defaults.
+  final bool Function() _consentRequired;
+  final DVAttribution Function() _attribution;
+
+  /// Whether this page load's campaign has gone out with a page view.
+  bool _campaignSent = false;
   final DateTime Function() _clock;
   final String Function()? _newClientId;
 
@@ -139,8 +152,50 @@ final class GoogleAnalyticsRuntime {
         : _deviceLocation(page.location);
     await track(GoogleAnalyticsEvent.pageView(
       location: location,
+      path: page.location.path.isEmpty ? '/' : page.location.path,
       title: page.title ?? _guardedValue(() => browser.pageTitle),
+      campaign: _campaign(),
     ));
+  }
+
+  /// The campaign this page load landed with, as Google's `campaign_*`
+  /// parameters, for the first page view only: the landing address carries
+  /// it, and the first route change takes it out of the address.
+  Map<String, Object?> _campaign() {
+    if (_campaignSent) return const <String, Object?>{};
+    _campaignSent = true;
+    final DVTouch? visit = _guardedValue(() => _attribution().visit);
+    if (visit == null) return const <String, Object?>{};
+    return <String, Object?>{
+      'campaign_source': ?visit.source,
+      'campaign_medium': ?visit.medium,
+      'campaign_name': ?visit.campaign,
+      'campaign_content': ?visit.content,
+      'campaign_term': ?visit.term,
+      'campaign_id': ?visit.id,
+    };
+  }
+
+  /// One of the framework's standard events (`DV.Analytics.track(DVPurchase(...))`),
+  /// the payload of [DVStandardEvent.topic]: `{name, params}`, already with
+  /// Google's recommended names. Sent as it is tracked, under this module's
+  /// own consent category. A payload Google Analytics would refuse is
+  /// dropped.
+  Future<void> standardEvent(Object? payload) async {
+    if (payload is! Map) return;
+    final Object? name = payload['name'];
+    final Object? params = payload['params'] ?? const <String, Object?>{};
+    if (name is! String || params is! Map) return;
+    final GoogleAnalyticsEvent event;
+    try {
+      event = GoogleAnalyticsEvent(name, params: <String, Object?>{
+        for (final MapEntry<Object?, Object?> e in params.entries)
+          '${e.key}': e.value,
+      });
+    } on ArgumentError {
+      return;
+    }
+    await track(event);
   }
 
   /// A device's page as a full URL, which `page_location` has to be.
@@ -363,6 +418,7 @@ final class GoogleAnalyticsRuntime {
   void _ensureLoaded() {
     if (_loaded) return;
     _loaded = true;
+    if (_consentRequired()) browser.consentDefaults();
     browser.load(
       config.resolvedMeasurementId!,
       scriptUrl: scriptUrl,

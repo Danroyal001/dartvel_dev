@@ -309,4 +309,137 @@ Future<void> _pay(DVContext context) async => DV.Jobs.dispatch('x');
       expect(a.uses.secrets, <String>{'HOOK_KEY'});
     },
   );
+
+  // A name kept in one constant and read in several places is how a careful
+  // module is written: GA4_API_SECRET spelled once, in the config class, and
+  // read where the request is made. Reading only literals at the call refused
+  // exactly those modules, while a module that repeats the string at every
+  // call passed. A constant the module declares, with a literal value and no
+  // other declaration of that name anywhere in the module, is as readable as
+  // the literal; anything else stays unresolved.
+  group('constants the module declares', () {
+    DVModuleCodeAnalysis analyseFiles(Map<String, String> files) =>
+        dvAnalyseModuleSources(files);
+
+    test('a secret named by a const String in the same file', () {
+      final DVModuleCodeAnalysis a = analyse('''
+const String apiSecret = 'GA4_API_SECRET';
+final k = const DVSecrets().maybeGet(apiSecret);
+''');
+      expect(a.uses.secrets, <String>{'GA4_API_SECRET'});
+      expect(a.unresolved, isEmpty);
+    });
+
+    test('a secret named by a static const of a class in another file', () {
+      final DVModuleCodeAnalysis a = analyseFiles(<String, String>{
+        'lib/src/config.dart': '''
+final class Config {
+  static const String measurementIdVariable = 'GA4_MEASUREMENT_ID';
+  String? get id => const DVSecrets().maybeGet(measurementIdVariable)?.trim();
+}
+''',
+        'lib/src/send.dart': '''
+final s = const DVSecrets().maybeGet(Config.measurementIdVariable);
+''',
+      });
+      expect(a.uses.secrets, <String>{'GA4_MEASUREMENT_ID'});
+      expect(a.unresolved, isEmpty);
+    });
+
+    test('a declared host whose base URL is a const', () {
+      final DVModuleCodeAnalysis a = analyse('''
+final class Api {
+  static const String baseUrl = 'https://graph.facebook.com';
+  void declare() => const DVHttp().declare('meta',
+      const DVHttpHostConfig(baseUrl: baseUrl));
+}
+''');
+      expect(a.uses.egress, <String>{'graph.facebook.com'});
+      expect(a.unresolved, isEmpty);
+    });
+
+    test('a choice between two consts is a use of both', () {
+      final DVModuleCodeAnalysis a = analyse('''
+final class Api {
+  static const String baseUrl = 'https://www.google-analytics.com';
+  static const String euBaseUrl = 'https://region1.google-analytics.com';
+  void declare(bool eu) => const DVHttp().declare('ga',
+      DVHttpHostConfig(baseUrl: config.collectInEu ? euBaseUrl : baseUrl));
+}
+''');
+      expect(a.uses.egress, <String>{
+        'www.google-analytics.com',
+        'region1.google-analytics.com',
+      });
+      expect(a.unresolved, isEmpty);
+    });
+
+    test('a choice with one side the build cannot read is unresolved', () {
+      final DVModuleCodeAnalysis a = analyse('''
+const String baseUrl = 'https://a.example.com';
+final h = DVHttpHostConfig(baseUrl: eu ? custom : baseUrl);
+''');
+      expect(a.uses.egress, isEmpty);
+      expect(a.unresolved.single.what, contains('base URL'));
+    });
+
+    test('an instance field is not a constant, whatever its default', () {
+      final DVModuleCodeAnalysis a = analyse('''
+final class Config {
+  const Config({this.apiSecretName = defaultName});
+  static const String defaultName = 'GA4_API_SECRET';
+  final String apiSecretName;
+}
+final s = const DVSecrets().maybeGet(config.apiSecretName);
+''');
+      expect(a.uses.secrets, isEmpty);
+      expect(a.unresolved.single.what, contains('secret'));
+    });
+
+    test('a name declared again anywhere in the module is not trusted', () {
+      // The const says one thing and a parameter of the same name, which
+      // shadows it inside its function, says whatever the caller passed.
+      final DVModuleCodeAnalysis a = analyseFiles(<String, String>{
+        'lib/a.dart': "const String key = 'SAFE_KEY';\n",
+        'lib/b.dart': '''
+String read(String key) => const DVSecrets().get(key);
+''',
+      });
+      expect(a.uses.secrets, isEmpty);
+      expect(a.unresolved.single.what, contains('secret'));
+    });
+
+    test('two consts of one name with different values are not trusted', () {
+      final DVModuleCodeAnalysis a = analyseFiles(<String, String>{
+        'lib/a.dart': "class A { static const String key = 'ONE'; }\n",
+        'lib/b.dart': '''
+class B {
+  static const String key = 'TWO';
+  final v = const DVSecrets().get(key);
+}
+''',
+      });
+      expect(a.uses.secrets, isEmpty);
+      expect(a.unresolved, hasLength(1));
+    });
+
+    test('a const built from other values is not a literal', () {
+      final DVModuleCodeAnalysis a = analyse(r'''
+const String prefix = 'GA4';
+const String key = '${prefix}_SECRET';
+final v = DV.Secrets.get(key);
+''');
+      expect(a.uses.secrets, isEmpty);
+      expect(a.unresolved, hasLength(1));
+    });
+
+    test('a lower-case qualifier is an instance, not a class', () {
+      final DVModuleCodeAnalysis a = analyse('''
+const String key = 'SAFE_KEY';
+final v = DV.Secrets.get(other.key);
+''');
+      expect(a.uses.secrets, isEmpty);
+      expect(a.unresolved, hasLength(1));
+    });
+  });
 }

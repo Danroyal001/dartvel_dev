@@ -24,7 +24,16 @@ dartvel:
       backendPolicy: public
       config:
         measurementId: G-XXXXXXXXXX
+      grant:
+        secrets: [GA4_MEASUREMENT_ID, GA4_API_SECRET]
+        egress: [www.google-analytics.com, region1.google-analytics.com]
 ```
+
+The `grant:` is what the module's code reaches past it, and `dartvel add`
+writes it. The build reads the same list from the code and refuses a mount
+whose grant differs (DV-MODULE-001, DV-MODULE-003). No pin is needed: the
+module is released with the framework, and resolved from the same checkout
+or release as `dartvel_core` it carries the framework's identity.
 
 and, for the Measurement Protocol, the API secret in the **server's**
 environment (Admin > Data streams > your stream > Measurement Protocol API
@@ -45,7 +54,16 @@ counted twice. Or set `pageViews: automatic` and let Google's tag count them.
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `page_view`
-  with `page_location` and `page_title`.
+  with `page_location`, `page_path` and `page_title`. The landing page's
+  view also carries the campaign the visitor arrived with
+  (`campaign_source`, `campaign_medium`, `campaign_name`,
+  `campaign_content`, `campaign_term`, `campaign_id`), read from its
+  address before the first route change takes it out; see `DV.Analytics.attribution`.
+- **The framework's standard events.** `DV.Analytics.track(DVPurchase(...))`
+  and the other `DVStandardEvent`s (`DVViewItem`, `DVAddToCart`,
+  `DVBeginCheckout`, `DVSignUp`, `DVLogin`, `DVGenerateLead`) are sent to
+  gtag as the recommended event of the same name the moment they are
+  tracked, under this module's consent category.
 - **Purchases**, when a store module such as `dartvel_woocommerce` is
   mounted: the store publishes a purchase when the payment is confirmed, and
   this module reports `purchase` from the backend with the buyer's client
@@ -118,6 +136,13 @@ under `dartvel.analytics.consent`.
   When consent is withdrawn the tag is told
   (`gtag('consent', 'update', {analytics_storage: 'denied'})`) and events
   stop.
+- **Consent Mode v2.** With a policy, the tag starts with `ad_storage`,
+  `ad_user_data`, `ad_personalization` and `analytics_storage` all
+  `denied` (`gtag('consent', 'default', ...)`, before `config`), then
+  `analytics_storage` granted, since the tag is loaded only once the
+  visitor granted the category. Advertising storage stays denied.
+- The visitor's choice is kept in the browser (IndexedDB), so the banner
+  asks once rather than on every page load.
 - **With no policy**, the application has not asked for consent to be
   required and the module sends from the first page. This is the default.
 
@@ -142,7 +167,6 @@ passed to `DV.Modules.googleAnalytics.configure(...)`:
 | `measurementId` | none | The web stream's `G-` id. Without it the module does nothing. The server also reads `GA4_MEASUREMENT_ID`. |
 | `consent` | `product` | The consent category to wait for. |
 | `pageViews` | `manual` | `manual` (the module sends them), `automatic` (Google's tag does) or `off`. |
-| `apiSecretName` | `GA4_API_SECRET` | The name of the environment variable holding the API secret. |
 | `collectInEu` | `false` | Send Measurement Protocol events to `region1.google-analytics.com`. |
 | `origin` | `app://app` | The address a device's pages are reported under, such as `https://example.com`. |
 | `excludePaths` | `[/__studio]` | Paths that are not page views. |

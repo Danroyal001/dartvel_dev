@@ -6,6 +6,7 @@ library dartvel_core.database.sqlite_ffi;
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
+import '../observability/database_telemetry.dart';
 import '../schema/schema_change.dart';
 import 'adapter.dart';
 
@@ -76,7 +77,10 @@ class SqliteDVDatabaseAdapter
   }
 
   @override
-  Future<List<Map<String, Object?>>> query(
+  Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('sqlite', sql, () => _queryNow(sql, params));
+
+  Future<List<Map<String, Object?>>> _queryNow(
     String sql, [
     List<Object?>? params,
   ]) async {
@@ -91,7 +95,10 @@ class SqliteDVDatabaseAdapter
   }
 
   @override
-  Future<int> execute(String sql, [List<Object?>? params]) async {
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('sqlite', sql, () => _executeNow(sql, params));
+
+  Future<int> _executeNow(String sql, [List<Object?>? params]) async {
     _assertOpen();
     _db.execute(sql, _bind(params));
     return _db.updatedRows;

@@ -177,6 +177,19 @@ const String dvFallbackStyle =
     '<noscript class="dv-fallback-style">'
     '<style>$dvFallbackNoscriptCss</style></noscript>';
 
+/// Records how far the reader has scrolled the server-rendered document, in
+/// `window.__dvScrollY`, until the app is in.
+///
+/// The engine fixes the body in place when it starts, which puts the
+/// document back at the top, so the app could never ask the window where the
+/// reader was. The page shell reads this once and opens the page there.
+/// Recording stops once the engine's view is in the document: its own reset
+/// to the top is not the reader.
+const String dvTakeoverScrollScript =
+    '<script>(function(){var w=window,d=document;function r(){'
+    'if(!d.querySelector("flutter-view,flt-glass-pane"))w.__dvScrollY=w.scrollY}'
+    'r();w.addEventListener("scroll",r,{passive:true})})()</script>';
+
 /// Whether the block a page was served with is no longer the page on screen.
 ///
 /// The application routes on the client, so one navigation later the block in
@@ -248,6 +261,7 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
+    ..writeln(dvTakeoverScrollScript)
     ..writeln(_openFallback(path))
     // Each paragraph in a section the browser's find searches.
     ..write(dvFindableHtml(content.toString()))
@@ -280,6 +294,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
   final buffer = StringBuffer()
     ..writeln(_open)
     ..writeln(dvFallbackStyle)
+    ..writeln(dvTakeoverScrollScript)
     ..writeln(_openFallback(path))
     ..writeln(dvFindableHtml(content.trim()))
     ..writeln('</div>')

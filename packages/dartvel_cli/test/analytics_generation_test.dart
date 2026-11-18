@@ -121,6 +121,33 @@ void main() {
     });
   });
 
+  test('the banner\'s words and privacy link reach the generated policy',
+      () async {
+    final Directory dir = project('''
+  analytics:
+    consent:
+      version: "2026-11-18"
+      categories:
+        essential: { required: true }
+        analytics: { default: denied }
+      banner:
+        title: "We value your privacy"
+        body: "It's how we know which ads work: \$1 well spent."
+        privacyUrl: /privacy
+        rejectLabel: Reject
+''');
+    await routes.generate(root_: dir.path);
+    final String generated = _read(dir, 'analytics.g.dart');
+    expect(generated, contains('banner: DVConsentBannerText('));
+    expect(generated, contains("title: 'We value your privacy'"));
+    // Quoted for Dart: an apostrophe and a dollar sign in the copy must not
+    // end the string or interpolate.
+    expect(generated,
+        contains(r"body: 'It\'s how we know which ads work: \$1 well spent.'"));
+    expect(generated, contains("privacyUrl: '/privacy'"));
+    expect(generated, contains("rejectLabel: 'Reject'"));
+  });
+
   test('a project that declares no analytics starts nothing', () async {
     final Directory dir = project('');
     await routes.generate(root_: dir.path);

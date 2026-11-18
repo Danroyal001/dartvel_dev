@@ -107,15 +107,14 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'trace makes the same choice without talking to the others.',
               'Recent spans are kept in memory and served at /_dartvel/traces '
                   'when diagnostics endpoints are on.',
+              'With OpenTelemetry on, every request, query, outbound call, '
+                  'job and schedule is a span, and spans, metrics and log '
+                  'lines go to your collector over OTLP. The OpenTelemetry '
+                  'page has the details.',
             ]),
             DocsCode('monitoring-trace'),
             DocsCode('monitoring-server-trace'),
-            DocsStatus('Distributed Tracing', missing: <String>[
-              'No OTLP exporter, so spans do not reach a collector yet.',
-              'Only the request itself gets a span. Database queries, outbound '
-                  'HTTP, jobs and AI calls do not.',
-              'A job is not linked back to the request that queued it.',
-            ]),
+
           ],
         ),
         DocsSection(

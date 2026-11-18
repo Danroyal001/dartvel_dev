@@ -46,6 +46,9 @@ class FakeBrowser implements GoogleAnalyticsBrowser {
   }
 
   @override
+  void consentDefaults() => log.add('consent defaults');
+
+  @override
   void consent({required bool granted}) =>
       log.add('consent ${granted ? 'granted' : 'denied'}');
 }
@@ -119,7 +122,7 @@ void main() {
             'assets/packages/dartvel_google_analytics/assets/google_analytics.js '
             'sendPageView=false',
         'event page_view {"page_location":"https://example.com/pricing?plan=pro",'
-            '"page_title":"Pricing"}',
+            '"page_path":"/pricing","page_title":"Pricing"}',
       ]);
       // gtag reports it; a second copy through the backend would be a
       // second page view.
@@ -268,6 +271,7 @@ void main() {
       expect(relayed.single['name'], 'page_view');
       expect(relayed.single['params'], <String, Object?>{
         'page_location': 'https://example.com/pricing?plan=pro',
+        'page_path': '/pricing',
         'page_title': 'Pricing',
       });
     });

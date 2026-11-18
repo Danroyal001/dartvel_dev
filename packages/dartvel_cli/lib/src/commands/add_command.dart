@@ -140,6 +140,9 @@ class DVAddPlan {
         if (official.secrets.isNotEmpty)
           'secrets  in the server\'s environment, never in pubspec.yaml: '
               '${official.secrets.join(', ')}',
+        if (official.secrets.isNotEmpty || official.egress.isNotEmpty)
+          'grant    dartvel.modules.$id.grant: what its code reaches, as the '
+              'build reads it',
       ];
     }
     final DVGeneratedModule? module = generated;
@@ -919,6 +922,17 @@ class AddCommand extends Command<void> {
   /// because a pubspec is a file a person wrote: round-tripping it through a
   /// YAML writer would reformat every line they did not ask about and lose
   /// every comment they left.
+  /// The mount's `grant:` for a first-party module: the secrets and hosts
+  /// its code uses, which the build compares with what it declares. Written
+  /// rather than left for the developer, because without it the first build
+  /// after `dartvel add` refuses the module it just added.
+  static String _grant(DVFirstPartyModule module) {
+    if (module.secrets.isEmpty && module.egress.isEmpty) return '';
+    return '      grant:\n'
+        '${module.secrets.isEmpty ? '' : '        secrets: [${module.secrets.join(', ')}]\n'}'
+        '${module.egress.isEmpty ? '' : '        egress: [${module.egress.join(', ')}]\n'}';
+  }
+
   static void _mount(String root, DVAddPlan plan) {
     final File file = File(p.join(root, 'pubspec.yaml'));
     final String text = file.readAsStringSync();
@@ -928,6 +942,7 @@ class AddCommand extends Command<void> {
         ? '    ${plan.id}:\n'
             '      package: ${plan.packageName}\n'
             '${official.backendPolicy == null ? '' : '      backendPolicy: ${official.backendPolicy}\n'}'
+            '${_grant(official)}'
         : '    ${plan.id}:\n'
             '      source:\n'
             '        path: ${plan.path}\n'

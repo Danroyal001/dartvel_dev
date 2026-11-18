@@ -2,7 +2,9 @@
 ///
 /// They live in this repository's `modules/` folder, one package each, and
 /// are published to pub.dev with every release. A first-party module is a
-/// normal module with no privileged status: what the catalogue adds is that
+/// normal module, checked like any other against the grant the application
+/// writes; it is not pinned when it resolves with the framework itself (see
+/// module_trust.dart). What the catalogue adds is that
 /// `dartvel add <name>` knows the package, the id and the policy its carried
 /// operations need, so nobody has to look them up.
 ///
@@ -22,6 +24,7 @@ class DVFirstPartyModule {
     this.backendPolicy,
     this.settings = const <String>[],
     this.secrets = const <String>[],
+    this.egress = const <String>[],
   });
 
   /// What it is added as: `dartvel add <name>`.
@@ -53,6 +56,10 @@ class DVFirstPartyModule {
   /// The names of the secrets the server's environment supplies, for the
   /// plan. Names only: values are never written into a pubspec.
   final List<String> secrets;
+
+  /// The hosts its code calls, as a grant names them: a bare domain each.
+  /// With [secrets], what `dartvel add` writes as the mount's `grant:`.
+  final List<String> egress;
 }
 
 /// Every first-party module, in the order the docs list them.
@@ -65,7 +72,8 @@ const List<DVFirstPartyModule> dvFirstPartyModules = <DVFirstPartyModule>[
     summary: 'Meta (Facebook) Pixel and Conversions API',
     backendPolicy: 'public',
     settings: <String>['pixelId', 'consent'],
-    secrets: <String>['META_CONVERSIONS_API_TOKEN'],
+    secrets: <String>['META_PIXEL_ID', 'META_CONVERSIONS_API_TOKEN'],
+    egress: <String>['graph.facebook.com'],
   ),
   DVFirstPartyModule(
     name: 'google-analytics',
@@ -76,7 +84,11 @@ const List<DVFirstPartyModule> dvFirstPartyModules = <DVFirstPartyModule>[
         'everywhere else',
     backendPolicy: 'public',
     settings: <String>['measurementId', 'consent'],
-    secrets: <String>['GA4_API_SECRET'],
+    secrets: <String>['GA4_MEASUREMENT_ID', 'GA4_API_SECRET'],
+    egress: <String>[
+      'www.google-analytics.com',
+      'region1.google-analytics.com',
+    ],
   ),
   DVFirstPartyModule(
     name: 'woocommerce',
