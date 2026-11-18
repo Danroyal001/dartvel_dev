@@ -114,6 +114,120 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
+## Structural round: per-request cost (18 November 2026, evening)
+
+User-space instructions per `/plaintext` request, `perf stat -e
+instructions:u` on the server during a 5 s, 64-connection oha run, three
+alternating runs each, main (#280) against this change. Box load 11-14.
+
+| | main | this change |
+|---|---|---|
+| whole server, as fast as it goes | 37,816 / 37,840 / 37,107 | 24,753 / 24,214 / 24,140 |
+| whole server, held at 8,000 requests a second | 39,338 / 38,484 / 38,524 | 26,882 / 26,957 / 27,335 |
+| the native library alone (below) | 10,889 / 11,457 / 11,258 | 7,381 / 6,992 / 7,373 |
+
+About 36% fewer instructions per request; Relic's server spent about 20,000
+in the last round's measurement. "The native library alone" is a test
+(`native_only_server` in `rust/src/lib.rs`) that drives a server the way the
+isolate's request queue does -- drive, take up to 64, answer each with the
+benchmark's plaintext answer, park when idle -- with no Dart at all, under
+the same load. It is what showed where the cost was: sampled profiles on
+this virtual machine put most of it in the native library, because the
+counter interrupt arrives late and lands on the instructions after a
+system call; counting the library alone puts it at a third.
+
+**Requests a second** (`compare.dart`, compiled servers, three trials,
+medians; 18 Nov 2026 19:39-19:48 CEST, load 9.3-20.8, median 14.5;
+`dartvel_before` is main at 878342e0c):
+
+| scenario | metric | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
+|---|---|---|---|---|---|---|
+| plaintext | rps | 15005 | 34139 | 14043 | 17763 | 18147 |
+| plaintext | cpu_us_per_req | 71.9 | 78.6 | 78.0 | 61.2 | 117 |
+| json | rps | 19185 | 27257 | 11350 | 13355 | 25857 |
+| headers | rps | 21972 | 32046 | 14530 | 17693 | 27753 |
+| static | rps | 1454 | 2144 | 3096 | 3528 | 6474 |
+| websocket | messages_per_second | 2362 | 1459 | 1094 | 1070 | 1825 |
+| websocket_pipelined | messages_per_second | 197747 | 172459 | 106654 | 153346 | 159541 |
+
+On one isolate this server now answers plaintext faster than
+`relic_native` in this run, with less CPU a request; Relic is still ahead on
+json and headers, on four isolates, and on both WebSocket rows (pipelined
+WebSocket rose from 107k to 153k with the WebSocket code unchanged, because
+the box was less loaded or the request path freed time; not claimed as a
+WebSocket win). Static files stay well ahead.
+
+**Native side** (about 11,200 to about 7,400):
+
+- *A direct write path.* A whole answer on the lean HTTP/1 path is written
+  to the socket by `aw_complete` itself, from Dart's buffer, with a
+  non-blocking write. It used to be copied into two new buffers, sent down a
+  oneshot channel, and the connection's task woken, polled and made to write
+  it. The task is now woken only when something is left for it: the rest of
+  an answer the socket would not take, a connection to close, or an answer
+  the generic path writes (streamed, compressed, an upgrade). One wakeup per
+  request is left: the client's next request.
+- *A response-head cache.* A route answers with the same status, fields and
+  body length request after request, so within one second (the Date) its
+  head is the same bytes. Each thread keeps the last head and what it was
+  written from; an answer whose head matches costs a comparison and a copy,
+  404 instructions where checking and formatting it cost 1,405.
+- *Timers armed once per connection.* The header and answer timeouts were a
+  Tokio timer per read and per answer, each put into the wheel and taken out
+  again for every request. Each kind is now one timer per connection that is
+  re-armed only when it rings before its deadline; a deadline still passes
+  exactly when due.
+- *The queue keeps a request's bytes.* A queued request's bytes were held in
+  a table until Dart acknowledged the request: an insert, an acknowledgement
+  call from Dart, and two locked removes per request. The queue now hands
+  each batch's bytes to the taking thread, which frees them at its next
+  take, by when the isolate has read them all; Dart makes no
+  acknowledgement call for a queued request (`aw_queue_holds_requests`).
+- The server's default fields are rendered once per server, and a field
+  name is checked and lowercased with one table lookup a byte.
+
+**Dart side** (about 26,000 to about 17,000: the whole server less the library alone):
+
+- *Two async functions fewer per request.* `Router._dispatch` returns the
+  route's own future instead of awaiting it in an async function of its own,
+  and `serve()` passes the router's future through when it has nothing to add
+  to a response (the library adds the default fields and there is no page
+  policy). Each was a suspend state, a future and a resumption per request.
+- *A request's URL is parsed once per target.* Uri is immutable, so the
+  requests for one target share one: every request built its URL again --
+  a concatenation and a whole parse -- which was the largest single cost of
+  reading a request. Bounded (512 targets of up to 256 characters); a
+  target that is not a URL is refused every time, as before.
+- *A smaller function around the await every request makes.* The upgrade
+  and streaming paths are functions of their own, so the function that
+  awaits the handler no longer saves and restores all their locals.
+- `Router.call` times a request without the async `measure` around it, on
+  one clock read at the start and one at the end, which the access-log
+  budget reuses.
+- *The recent-records buffer is a ring.* Once full, it dropped the oldest
+  record by moving every other record down by one, for every record written:
+  an access line cost 107,000 instructions, 26,000 of them that move. It
+  costs 81,000 now.
+
+**Not done, and why.** The access log was not moved off the isolate: it is
+capped at 100 lines a second, so at 13,000 requests a second it costs about
+600 instructions a request in all, and moving the JSON encoding and the
+write to another isolate would save part of that while adding a copy of
+every record between isolates and losing lines at exit. The Dart side is
+still above the 13,000 aimed for; what is left is spread thin (the request
+and response objects, the one remaining measuring zone hop, the metrics).
+The lean single-threaded WebSocket path is the next piece of work.
+
+**Tests added:** `test/lean_direct_write_test.dart` (answers in order on a
+pipelined connection; 2.4 MB of whole answers to a client that reads late,
+every byte in place; a handler's `Connection: close`),
+`test/request_url_reuse_test.dart`, three timeout tests in
+`test/request_failure_answered_test.dart` (a reused connection's request gets
+its own full timeout; a never-answered one is answered 504 a full timeout
+after it was sent; the next head is timed from the answer), and Rust tests
+for the head cache, more than 64 default fields, the name table, and the
+queue's hold on a batch (which must outlive the server's queue).
+
 ## Per-request cost, counted in instructions (18 November 2026, afternoon)
 
 Requests per second on this shared machine move by up to 2x between trials,
