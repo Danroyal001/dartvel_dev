@@ -1089,30 +1089,38 @@ impl<'a> BinaryBuilder<'a> {
     /// followed by `count`, ending `fields_after` words before [end].
     fn readOffsetsTable(&mut self, end: usize, wordsAfter: usize) -> Result<(usize, Vec<usize>)> {
         let saved = self.byteOffset;
-        self.byteOffset = match end.checked_sub((wordsAfter + 1) * 4) {
-            Some(offset) => offset,
-            None => return self.fail("index out of range"),
-        };
+        self.byteOffset = end.wrapping_sub((wordsAfter + 1) * 4);
         let count = self.readUint32()? as usize;
-        self.byteOffset = match count
-            .checked_add(wordsAfter + 2)
-            .and_then(|words| words.checked_mul(4))
-            .and_then(|bytes| end.checked_sub(bytes))
-        {
-            Some(offset) => offset,
-            None => return self.fail("index out of range"),
-        };
-        let mut offsets = Vec::with_capacity(self.cap(count + 1 as usize));
+        self.byteOffset = end.wrapping_sub(((count as u64 + wordsAfter as u64 + 2) * 4) as usize);
+        self.dartList(count as u64 + 1)?;
+        let mut offsets = Vec::with_capacity(self.cap(count + 1));
         for _ in 0..count + 1 {
-            offsets.push(self.componentStartOffset + self.readUint32()? as usize);
+            offsets.push(self.componentStartOffset.wrapping_add(self.readUint32()? as usize));
         }
         self.byteOffset = saved;
         Ok((count, offsets))
     }
 
     fn readLibrary(&mut self, endOffset: usize) -> Result<Library> {
-        let (procedureCount, procedureOffsets) = self.readOffsetsTable(endOffset, 0)?;
-        let (_classCount, classOffsets) = self.readOffsetsTable(endOffset, procedureCount + 2)?;
+        // The library's index, read as upstream reads it: the procedure
+        // count, the class count, then both lists of offsets.
+        let savedByteOffset = self.byteOffset;
+        self.byteOffset = endOffset.wrapping_sub(4);
+        let procedureCount = self.readUint32()? as u64;
+        self.byteOffset = endOffset.wrapping_sub(((procedureCount + 3) * 4) as usize);
+        let classCount = self.readUint32()? as u64;
+        self.dartList(procedureCount + 1)?;
+        let mut procedureOffsets = Vec::with_capacity(self.cap(procedureCount as usize + 1));
+        for _ in 0..=procedureCount {
+            procedureOffsets.push(self.componentStartOffset.wrapping_add(self.readUint32()? as usize));
+        }
+        self.byteOffset = endOffset.wrapping_sub(((procedureCount + classCount + 4) * 4) as usize);
+        self.dartList(classCount + 1)?;
+        let mut classOffsets = Vec::with_capacity(self.cap(classCount as usize + 1));
+        for _ in 0..=classCount {
+            classOffsets.push(self.componentStartOffset.wrapping_add(self.readUint32()? as usize));
+        }
+        self.byteOffset = savedByteOffset;
 
         let flags = self.readByte()? as u8;
         let languageVersionMajor = self.readUInt30()?;
@@ -1150,16 +1158,18 @@ impl<'a> BinaryBuilder<'a> {
         for _ in 0..length {
             typedefs.push(self.readTypedef()?);
         }
+        // `_readClassList`.
         let length = self.readUInt30()? as usize;
-        if length + 1 != classOffsets.len() {
-            return self.fail("class count disagrees with the index");
-        }
+        self.dartList(length as u64)?;
         let mut classes = Vec::with_capacity(self.cap(length as usize));
         for index in 0..length {
-            self.byteOffset = classOffsets[index];
-            classes.push(self.readClass(classOffsets[index + 1])?);
+            self.byteOffset = self.index(&classOffsets, index as i64)?;
+            let endOffset = self.index(&classOffsets, index as i64 + 1)?;
+            classes.push(self.readClass(endOffset)?);
         }
-        self.byteOffset = classOffsets[length.min(classOffsets.len() - 1)];
+        if length > 0 {
+            self.byteOffset = *classOffsets.last().unwrap();
+        }
         let length = self.readUInt30()?;
         let mut extensions = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
@@ -1238,10 +1248,8 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     fn readClass(&mut self, endOffset: usize) -> Result<Class> {
-        let tag = self.readByte()?;
-        if tag != Tag::Class {
-            return self.fail(format!("expected a class, found tag {tag}"));
-        }
+        // Upstream only asserts the tag (asserts are off in its oracle).
+        let _tag = self.readByte()?;
         let (_procedureCount, procedureOffsets) = self.readOffsetsTable(endOffset, 0)?;
         let reference = self.readNonNullCanonicalNameReference()?;
         let fileUri = self.readUriReference()?;
@@ -1379,12 +1387,12 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readProcedureList(&mut self, procedureOffsets: &[usize]) -> Result<Vec<Procedure>> {
         let length = self.readUInt30()? as usize;
-        if length + 1 != procedureOffsets.len() {
-            return self.fail("procedure count disagrees with the index");
-        }
+        self.dartList(length as u64)?;
         let mut procedures = Vec::with_capacity(self.cap(length as usize));
-        for &offset in &procedureOffsets[..length] {
-            self.byteOffset = offset;
+        for index in 0..length {
+            self.byteOffset = self.index(procedureOffsets, index as i64)?;
+            // `readProcedure(procedureOffsets[index + 1])`.
+            self.index(procedureOffsets, index as i64 + 1)?;
             procedures.push(self.readProcedure()?);
         }
         self.byteOffset = *procedureOffsets.last().unwrap();
