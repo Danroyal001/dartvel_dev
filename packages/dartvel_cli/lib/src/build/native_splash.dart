@@ -25,6 +25,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:dartvel_core/dartvel.dart' show dvSsrFirstHead;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -67,7 +68,13 @@ class DVSplash {
     this.progress = true,
     this.progressColor = dvProgressDefaultColor,
     this.loadingText = dvSplashDefaultLoadingText,
+    this.ssrFirst = false,
   });
+
+  /// `dartvel.web.ssrFirst`: each page shows its server-rendered document
+  /// from the first paint instead of the splash, and Flutter takes over at
+  /// its first frame (see `dvSsrFirstHead`). Off unless set to `true`.
+  final bool ssrFirst;
 
   /// The line under the logo on the web splash, pulsing, so a slow load does
   /// not look hung: `splash.loadingText`, [dvSplashDefaultLoadingText] when
@@ -99,6 +106,8 @@ class DVSplash {
     final Map<Object?, Object?> pwa =
         rawPwa is Map ? rawPwa : const <Object?, Object?>{};
     final List<String> problems = <String>[];
+    final Object? rawWeb = dartvel['web'];
+    final bool ssrFirst = rawWeb is Map && rawWeb['ssrFirst'] == true;
 
     String? colour(Object? value, String key) {
       if (value == null) return null;
@@ -158,6 +167,7 @@ class DVSplash {
         final String text when text.trim().isNotEmpty => text.trim(),
         _ => dvSplashDefaultLoadingText,
       },
+      ssrFirst: ssrFirst,
     );
   }
 
@@ -398,7 +408,10 @@ String dvWebSplashApply(
 
   // The logo first: until it arrives the splash is a blank page, and its
   // <img> sits in the body behind the page's own text.
-  final String logoPreload = imageUrl == null
+  // SSR-first pages show their document, not the logo: on a slow line the
+  // logo would take bandwidth from the page. A page with no document still
+  // draws the splash, and its picture loads when it is drawn (lazily).
+  final String logoPreload = imageUrl == null || splash.ssrFirst
       ? ''
       : darkImageUrl == null
           ? '<link rel="preload" href="$imageUrl" as="image">\n'
@@ -416,6 +429,7 @@ String dvWebSplashApply(
         if (splash.enabled) '#dartvel-splash',
         if (splash.progress) '#dartvel-progress',
       ].join(',')}{display:none}</style></noscript>\n'
+      '${splash.ssrFirst ? dvSsrFirstHead(background: splash.color, darkBackground: splash.darkColor, accent: splash.progressColor) : ''}'
       '$_headClose\n';
 
   final StringBuffer picture = StringBuffer();
@@ -425,7 +439,8 @@ String dvWebSplashApply(
       picture.write('<source srcset="$darkImageUrl" '
           'media="(prefers-color-scheme: dark)">');
     }
-    picture.write('<img src="$imageUrl" alt=""></picture>');
+    picture.write('<img src="$imageUrl" alt=""'
+        '${splash.ssrFirst ? ' loading="lazy"' : ''}></picture>');
   }
   final String bodyBlock = '\n$_bodyOpen\n'
       '${splash.enabled ? '<div id="dartvel-splash" aria-hidden="true">$picture${splash.loadingText == null ? '' : '<p class="dv-loading">${const HtmlEscape(HtmlEscapeMode.element).convert(splash.loadingText!)}</p>'}</div>\n' : ''}'
@@ -451,7 +466,8 @@ String dvWebSplashApply(
 DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
   final DVSplashResult result = DVSplashResult();
   final File index = File(p.join(web.path, 'index.html'));
-  if ((!splash.enabled && !splash.progress) || !index.existsSync()) {
+  if ((!splash.enabled && !splash.progress && !splash.ssrFirst) ||
+      !index.existsSync()) {
     return result;
   }
   final String root = p.dirname(p.dirname(web.path));
