@@ -12,6 +12,9 @@ String? dvTakeHistoryNavigation() => null;
 /// The browser's key for the history entry on screen, or null.
 Object? dvHistoryEntryKey() => null;
 
+/// Lets the next page shown take the document's position again, for tests.
+void dvRearmTakeoverScroll() {}
+
 /// How far the document was scrolled before the app took over, once.
 double dvTakeTakeoverScroll() => 0;
 

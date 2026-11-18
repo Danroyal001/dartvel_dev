@@ -49,6 +49,10 @@ Object? dvHistoryEntryKey() {
   return null;
 }
 
+/// Lets the next page shown take the document's position again, for tests:
+/// in a browser it is taken once per page load.
+void dvRearmTakeoverScroll() => _takeoverRead = false;
+
 double dvTakeTakeoverScroll() {
   if (_takeoverRead) return 0;
   _takeoverRead = true;
@@ -77,3 +81,4 @@ bool dvPrimaryPointerIsTouch() {
     return false;
   }
 }
+

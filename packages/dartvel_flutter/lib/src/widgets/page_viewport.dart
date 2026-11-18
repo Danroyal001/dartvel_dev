@@ -24,6 +24,7 @@
 /// the page's own when it does not.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -69,6 +70,7 @@ abstract final class DVPageScrollMemory {
     takeHistoryNavigation = history.dvTakeHistoryNavigation;
     historyEntryKey = history.dvHistoryEntryKey;
     takeTakeoverScroll = history.dvTakeTakeoverScroll;
+    history.dvRearmTakeoverScroll();
     dvPrimaryPointerIsTouch = history.dvPrimaryPointerIsTouch;
   }
 }
@@ -230,19 +232,23 @@ class DVPageViewportState extends State<DVPageViewport> {
   void _firstShown() {
     if (_shown || !widget.onTop) return;
     _shown = true;
-    final Uri Function()? addressOf = widget.address;
-    if (_nested || addressOf == null) return;
-    final Uri address = addressOf();
-    _memoryKey = '${DVPageScrollMemory.historyEntryKey() ?? ''}|$address';
+    if (_nested) return;
     _tracked = primaryPosition;
+    // The server-rendered document's position belongs to whichever page
+    // the app opens on, with or without a router to name it.
     double target = DVPageScrollMemory.takeTakeoverScroll();
-    if (target <= 0) {
-      final String? popped = DVPageScrollMemory.takeHistoryNavigation();
-      if (popped != null && _samePage(Uri.tryParse(popped), address)) {
-        target = DVPageScrollMemory.recall(_memoryKey!) ?? 0;
+    final Uri Function()? addressOf = widget.address;
+    if (addressOf != null) {
+      final Uri address = addressOf();
+      _memoryKey = '${DVPageScrollMemory.historyEntryKey() ?? ''}|$address';
+      if (target <= 0) {
+        final String? popped = DVPageScrollMemory.takeHistoryNavigation();
+        if (popped != null && _samePage(Uri.tryParse(popped), address)) {
+          target = DVPageScrollMemory.recall(_memoryKey!) ?? 0;
+        }
       }
     }
-    if (target > 0) _restore(target, 60);
+    if (target > 0) _restore(target);
   }
 
   static bool _samePage(Uri? popped, Uri address) {
@@ -254,22 +260,53 @@ class DVPageViewportState extends State<DVPageViewport> {
     return poppedUri.path == route;
   }
 
-  /// Scrolls the page to [target] once it is long enough to get there, for
-  /// up to [frames] frames while what it loads arrives.
-  void _restore(double target, int frames) {
-    if (!mounted) return;
+  /// How long a position waits for its page to be long enough. A deferred
+  /// page library and its data can take seconds on a slow connection; a fixed
+  /// count of frames ran out first, and the page opened at the top.
+  static const Duration restoreWait = Duration(seconds: 10);
+
+  /// The position the page is to be put back at, while it is too short yet.
+  double? _pendingTarget;
+  Timer? _pendingGiveUp;
+
+  /// Scrolls the page to [target] once it is long enough to get there: now,
+  /// or as what it loads arrives, until [restoreWait] runs out or the reader
+  /// scrolls first.
+  void _restore(double target) {
+    _pendingTarget = target;
+    _pendingGiveUp?.cancel();
+    _pendingGiveUp = Timer(restoreWait, () {
+      final double? pending = _pendingTarget;
+      _pendingTarget = null;
+      if (pending == null || !mounted) return;
+      final ScrollPosition? position = primaryPosition;
+      if (position != null && position.hasContentDimensions) {
+        position.jumpTo(math.min(pending, position.maxScrollExtent));
+      }
+    });
+    _tryRestore();
+  }
+
+  void _tryRestore() {
+    final double? target = _pendingTarget;
+    if (target == null || !mounted) return;
     final ScrollPosition? position = primaryPosition;
-    if (position != null && position.maxScrollExtent >= target) {
-      position.jumpTo(target);
+    if (position == null || !position.hasContentDimensions || position.maxScrollExtent < target) return;
+    _pendingTarget = null;
+    _pendingGiveUp?.cancel();
+    position.jumpTo(target);
+  }
+
+  /// The page changed size or scrolled: a pending position may fit now, and
+  /// a reader who scrolled first keeps their own.
+  void _pendingAfter(Notification notification) {
+    if (_pendingTarget == null) return;
+    if (notification is UserScrollNotification) {
+      _pendingTarget = null;
+      _pendingGiveUp?.cancel();
       return;
     }
-    if (frames <= 0) {
-      if (position != null) position.jumpTo(math.min(target, position.maxScrollExtent));
-      return;
-    }
-    WidgetsBinding.instance
-      ..addPostFrameCallback((_) => _restore(target, frames - 1))
-      ..scheduleFrame();
+    _afterFrame(_tryRestore);
   }
 
   /// The page's main scroll position as last found, read again when the page
@@ -294,6 +331,7 @@ class DVPageViewportState extends State<DVPageViewport> {
 
   @override
   void dispose() {
+    _pendingGiveUp?.cancel();
     _controller.dispose();
     _ticks.dispose();
     super.dispose();
@@ -305,6 +343,7 @@ class DVPageViewportState extends State<DVPageViewport> {
   /// two scrollbars; everything above the shell still hears it.
   bool _fromInside(Notification notification) {
     if (notification is ScrollNotification || notification is ScrollMetricsNotification) {
+      _pendingAfter(notification);
       _scheduleTrack();
       if (notification is ScrollEndNotification) _remember();
       _ticks.value++;
@@ -316,6 +355,7 @@ class DVPageViewportState extends State<DVPageViewport> {
 
   bool _fromShell(Notification notification) {
     if (notification is ScrollNotification || notification is ScrollMetricsNotification) {
+      _pendingAfter(notification);
       _scheduleTrack();
       if (notification is ScrollEndNotification) _remember();
       _ticks.value++;
