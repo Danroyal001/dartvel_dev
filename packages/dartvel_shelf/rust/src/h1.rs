@@ -225,7 +225,16 @@ async fn connection(mut stream: tokio::net::TcpStream, peer: std::net::SocketAdd
         };
         let fast = match head {
             Classified::Fast(fast) if served_here(&buf, &fast, &lean.context) => fast,
-            _ => return hand_to_hyper(stream, buf.freeze(), peer, lean).await,
+            _ => {
+                if asks_for_upgrade(&buf) {
+                    // A WebSocket streams frames both ways: the kernel
+                    // coalescing small writes is worth more there than the
+                    // latency no-delay saves a request and its answer, so an
+                    // upgraded connection keeps the socket as hyper had it.
+                    let _ = stream.set_nodelay(false);
+                }
+                return hand_to_hyper(stream, buf.freeze(), peer, lean).await;
+            }
         };
         let head_bytes = buf.split_to(fast.head_len).freeze();
         let keep_alive = serve_fast(&mut stream, &mut out, head_bytes, fast, &peer_text, &lean).await;
@@ -234,6 +243,19 @@ async fn connection(mut stream: tokio::net::TcpStream, peer: std::net::SocketAdd
             return;
         }
     }
+}
+
+/// Whether the request at the start of [buf] asks to upgrade the connection.
+fn asks_for_upgrade(buf: &[u8]) -> bool {
+    let mut slots = [httparse::EMPTY_HEADER; MAX_HEADERS];
+    let mut request = httparse::Request::new(&mut slots);
+    if request.parse(buf).is_err() {
+        return false;
+    }
+    request
+        .headers
+        .iter()
+        .any(|field| field.name.eq_ignore_ascii_case("upgrade"))
 }
 
 /// Whether a request classified fast is one this server answers here: its
@@ -750,6 +772,13 @@ mod tests {
         fallback(b"GET / HTTP/1.1\r\nTransfer-Encoding : chunked\r\n\r\n");
         // An obsolete line fold.
         fallback(b"GET / HTTP/1.1\r\nX-A: b\r\n c\r\n\r\n");
+    }
+
+    #[test]
+    fn an_upgrade_request_is_recognised_for_its_socket_setting() {
+        assert!(asks_for_upgrade(b"GET /ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n"));
+        assert!(!asks_for_upgrade(b"GET / HTTP/1.1\r\nHost: a\r\n\r\n"));
+        assert!(!asks_for_upgrade(b"POST / HTTP/1.1\r\nContent-Length: 2\r\n\r\nhi"));
     }
 
     #[test]
