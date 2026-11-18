@@ -1,5 +1,7 @@
 ## 3.47.6 — 2026-11-18
 
+- About a third less work per request (24k instead of 37k instructions per plaintext request). The native side writes a whole answer straight to the socket, keeps the response heads it has built per thread, re-arms one timer per connection for its timeouts, and frees a queued request's bytes without a message back from Dart. On the shared benchmark machine one isolate now serves more plaintext requests per second than Relic 2 (17,763 against 15,005); Relic is still ahead on JSON, headers, four isolates and WebSocket. Details in doc/shelf-parity.md.
+
 - A request with no body (most GETs) is marked so by the native side (`AW_BODY_NONE`) and gets no body stream, pull object or table entry in Dart; common method names are not allocated per request. About 5% fewer instructions per plaintext request.
 
 - A WebSocket burst reaches Dart whole on a loaded machine too: the native reader wakes the isolate when it would block or the queue is full rather than at a burst's first frame, a drain keeps taking while the reader is partway through a burst, and `sink.addStream` pauses only when the native queue is full.
