@@ -113,8 +113,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'open as normal pages. The loading bar stays at the top. '
           'When the app has drawn its first screen it takes over in '
           'place and the text fades out. It is off unless you turn it '
-          'on, because the text is a plain reading column, not your '
-          'layout, until the app arrives.',
+          'on, because until the app arrives the text is a plain reading '
+          'column instead of your layout.',
         ),
         DocsShell(<String>[
           '# pubspec.yaml',
