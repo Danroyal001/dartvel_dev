@@ -45,7 +45,16 @@ counted twice. Or set `pageViews: automatic` and let Google's tag count them.
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `page_view`
-  with `page_location` and `page_title`.
+  with `page_location`, `page_path` and `page_title`. The landing page's
+  view also carries the campaign the visitor arrived with
+  (`campaign_source`, `campaign_medium`, `campaign_name`,
+  `campaign_content`, `campaign_term`, `campaign_id`), read from its
+  address before the first route change takes it out; see `DV.Analytics.attribution`.
+- **The framework's standard events.** `DV.Analytics.track(DVPurchase(...))`
+  and the other `DVStandardEvent`s (`DVViewItem`, `DVAddToCart`,
+  `DVBeginCheckout`, `DVSignUp`, `DVLogin`, `DVGenerateLead`) are sent to
+  gtag as the recommended event of the same name the moment they are
+  tracked, under this module's consent category.
 - **Purchases**, when a store module such as `dartvel_woocommerce` is
   mounted: the store publishes a purchase when the payment is confirmed, and
   this module reports `purchase` from the backend with the buyer's client
@@ -118,6 +127,13 @@ under `dartvel.analytics.consent`.
   When consent is withdrawn the tag is told
   (`gtag('consent', 'update', {analytics_storage: 'denied'})`) and events
   stop.
+- **Consent Mode v2.** With a policy, the tag starts with `ad_storage`,
+  `ad_user_data`, `ad_personalization` and `analytics_storage` all
+  `denied` (`gtag('consent', 'default', ...)`, before `config`), then
+  `analytics_storage` granted, since the tag is loaded only once the
+  visitor granted the category. Advertising storage stays denied.
+- The visitor's choice is kept in the browser (IndexedDB), so the banner
+  asks once rather than on every page load.
 - **With no policy**, the application has not asked for consent to be
   required and the module sends from the first page. This is the default.
 
