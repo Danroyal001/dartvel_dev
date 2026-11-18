@@ -98,6 +98,14 @@ class DVMetrics {
   final Map<String, Map<String, _DVSeries>> _series =
       <String, Map<String, _DVSeries>>{};
 
+  int _generation = 0;
+
+  /// Raised by [reset]. A caller that keeps a counter or histogram from one
+  /// request to the next, rather than looking it up by name and labels each
+  /// time, looks it up again when this has changed: the one it kept is no
+  /// longer in the registry.
+  int get generation => _generation;
+
   DVCounter counter(
     String name, [
     Map<String, String> labels = const <String, String>{},
@@ -139,6 +147,7 @@ class DVMetrics {
 
   /// Forgets everything. For tests, which must not see each other's counts.
   void reset() {
+    _generation += 1;
     _kinds.clear();
     _help.clear();
     _series.clear();

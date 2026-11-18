@@ -98,6 +98,23 @@ class Router {
 
   static final Object _measuredOutside = Object();
 
+  // The zone a measured request runs in: the caller's, with the mark that
+  // tells a router inside it not to record the request again. Forked once
+  // for the zone requests come from -- every request of a server comes from
+  // the same one -- rather than once per request.
+  static Zone? _measuringParent;
+  static Zone? _measuring;
+
+  static Zone _measuringZone() {
+    final Zone current = Zone.current;
+    if (!identical(current, _measuringParent)) {
+      _measuringParent = current;
+      _measuring = current.fork(
+          zoneValues: <Object?, Object?>{_measuredOutside: true});
+    }
+    return _measuring!;
+  }
+
   /// [accessLogsPerSecond] unless the process says otherwise.
   static const int defaultAccessLogsPerSecond = 100;
 
@@ -127,8 +144,8 @@ class Router {
   /// counted as a 404. A router called inside [serve] records nothing itself.
   static Future<Response> measure(
       Request req, Future<Response> Function() serve) async {
-    final Future<Response> Function() inner = () => runZoned(serve,
-        zoneValues: <Object?, Object?>{_measuredOutside: true});
+    final Future<Response> Function() inner =
+        () => _measuringZone().run(serve);
     if (_unmeasured.contains(req.url.path) ||
         req.url.path.startsWith('/_dartvel/')) {
       return inner();
@@ -159,24 +176,9 @@ class Router {
     StackTrace? stackTrace,
   }) {
     final double seconds = clock.elapsedMicroseconds / 1000000;
-    DVObservability.metrics
-        .counter(
-          'http_requests_total',
-          // Method and status only. The path is what an id is in, and one
-          // series per id is how a metrics backend gets killed by the
-          // application it is watching -- the router cannot tell `42` from a
-          // route segment, so it must not put either in a label.
-          <String, String>{'method': req.method, 'status': '$status'},
-          'HTTP requests served, by method and response status.',
-        )
-        .increment();
-    DVObservability.metrics
-        .histogram(
-          'http_request_duration_seconds',
-          <String, String>{'method': req.method},
-          'How long serving a request took, in seconds.',
-        )
-        .observe(seconds);
+    final _RequestSeries series = _RequestSeries.of(req.method, status);
+    series.requests.increment();
+    series.duration.observe(seconds);
 
     // Decided before the record is built, so a request past the rate costs
     // nothing more than its metrics.
@@ -405,6 +407,50 @@ final class _AccessLogBudget {
       '$skipped requests not logged one by one (over '
       '${Router.accessLogsPerSecond} a second)',
       context: <String, Object?>{'notLogged': skipped},
+    );
+  }
+}
+
+/// The request counter and duration histogram for one method and status,
+/// kept from one request to the next.
+///
+/// Looking a series up by name and labels sorts and joins the labels into a
+/// key on every call, twice per request. The same few method and status
+/// pairs come back all the time, so each is looked up once per registry
+/// generation.
+final class _RequestSeries {
+  _RequestSeries(this.requests, this.duration);
+
+  final DVCounter requests;
+  final DVHistogram duration;
+
+  static final Map<String, Map<int, _RequestSeries>> _byMethod =
+      <String, Map<int, _RequestSeries>>{};
+  static int _generation = -1;
+
+  static _RequestSeries of(String method, int status) {
+    final DVMetrics metrics = DVObservability.metrics;
+    if (metrics.generation != _generation) {
+      _byMethod.clear();
+      _generation = metrics.generation;
+    }
+    final Map<int, _RequestSeries> byStatus =
+        _byMethod[method] ??= <int, _RequestSeries>{};
+    return byStatus[status] ??= _RequestSeries(
+      metrics.counter(
+        'http_requests_total',
+        // Method and status only. The path is what an id is in, and one
+        // series per id is how a metrics backend gets killed by the
+        // application it is watching -- the router cannot tell `42` from a
+        // route segment, so it must not put either in a label.
+        <String, String>{'method': method, 'status': '$status'},
+        'HTTP requests served, by method and response status.',
+      ),
+      metrics.histogram(
+        'http_request_duration_seconds',
+        <String, String>{'method': method},
+        'How long serving a request took, in seconds.',
+      ),
     );
   }
 }

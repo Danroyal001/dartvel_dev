@@ -51,7 +51,24 @@ dynamic _jsonDecode(String s) {
 }
 
 class Headers {
-  final Map<String, List<String>> _map = {};
+  Map<String, List<String>>? _decoded;
+  Map<String, List<String>> Function()? _decode;
+
+  // The headers, decoded the first time anything reads or changes them when
+  // they were built with [Headers.decodedOnRead].
+  Map<String, List<String>> get _map =>
+      _decoded ??= _decode?.call() ?? <String, List<String>>{};
+
+  /// Headers decoded by [decode] the first time anything reads or changes
+  /// them, rather than now.
+  ///
+  /// For a server building a request from the bytes the connection carried:
+  /// many handlers never read a header, and decoding a browser's twenty of
+  /// them was a cost every such request paid. [decode] is called at most
+  /// once, and must give every name in lowercase, as [Headers] keeps them.
+  Headers.decodedOnRead(Map<String, List<String>> Function() decode)
+      : _decode = decode;
+
   Headers([Map<String, dynamic>? init]) {
     if (init != null) {
       init.forEach((k, v) {
@@ -96,6 +113,19 @@ class Headers {
       };
 
   Map<String, List<String>> get multiValueMap => Map.unmodifiable(_map);
+
+  /// Calls [action] with each value of each header, names in lowercase, in
+  /// the order they were added.
+  ///
+  /// For writing headers out: [multiValueMap] copies the map, which is a
+  /// cost every response paid for nothing.
+  void forEachValue(void Function(String name, String value) action) {
+    _map.forEach((String name, List<String> values) {
+      for (final String value in values) {
+        action(name, value);
+      }
+    });
+  }
 }
 
 class Request {
@@ -202,6 +232,13 @@ class Response {
 class URLPattern {
   final RegExp _re;
   final List<String> _names;
+
+  /// The path itself, for a pattern with no parameter in it: every other
+  /// character is escaped before it is compiled, so such a pattern matches
+  /// that one path and nothing else, and is compared rather than run as a
+  /// regular expression on every request.
+  final String? _literal;
+
   URLPattern(String pattern) : this._internal(_normalize(pattern));
 
   URLPattern._internal(String normalized)
@@ -209,6 +246,7 @@ class URLPattern {
             .allMatches(normalized)
             .map((m) => m.group(1)!)
             .toList(),
+        _literal = normalized.contains(':') ? null : normalized,
         _re = _compile(normalized);
 
   static String _normalize(String pattern) {
@@ -240,6 +278,10 @@ class URLPattern {
   }
 
   ({Map<String, String> pathname})? exec(Uri url) {
+    final String? literal = _literal;
+    if (literal != null) {
+      return url.path == literal ? (pathname: <String, String>{}) : null;
+    }
     final match = _re.firstMatch(url.path);
     if (match == null) return null;
     final params = <String, String>{};
