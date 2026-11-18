@@ -104,11 +104,9 @@ differ are kept, and the test names the first differing byte of each.
   below). Matched: the header, the component index, the string, link,
   source and constant tables, references, the library and class indexes,
   string decoding (upstream's trusting WTF-8 decoder, re-encoded as its
-  writer does), allocation failures and deep nesting. Not matched yet:
-  - URIs: upstream runs `Uri.parse` on every source and import URI and
-    writes `"$uri"`, so a damaged URI is normalised (non-ASCII escaped,
-    case and dots changed) or throws a `FormatException` with the URI in
-    it. A port of `Uri.parse` (`sdk/lib/core/rust`) is in progress.
+  writer does), URIs (`Uri.parse` and `"$uri"`, through the port of
+  `sdk/lib/core/uri.dart` in `../../../sdk/lib/core/rust`), allocation
+  failures and deep nesting. Not matched yet:
   - Name binding: upstream's writer recomputes every canonical name from
     the tree and binds it (`Cannot bind ... to ..., target is already bound
     to ...`, `... is not bound to an AST node`), and its reader casts the
@@ -167,11 +165,20 @@ throw the same thing.
 | Base file | Damaged inputs | Differ, before | Differ, now |
 |---|---|---|---|
 | `tests/fixtures/empty.dill` (88 bytes) | 440 | 273 | 0 |
-| `tests/fixtures/hello-unlinked.dill` (616 bytes) | 3,080 | not run (the harness died: upstream ran out of memory inside the test's scope) | 843 |
+| `tests/fixtures/hello-unlinked.dill` (616 bytes) | 3,080 | not run (the harness died: upstream ran out of memory inside the test's scope) | 344 |
 
-Of the 843: about 500 are URIs (a damaged URI that upstream normalises or
-rejects), about 216 name binding, the rest Out of Memory near the modelled
-limit and node casts. `tests/deep_nesting.rs`: upstream writes a chain 4202
+Of the 344: 267 are name binding (`Cannot bind ...`), the rest index errors
+the port does not hit or hits elsewhere (bodies read in file order instead
+of lazily), Out of Memory near the modelled limit, and node casts. Steps:
+upstream's errors for header, index and tables, 860; library indexes, 843;
+`Uri.parse`, 354; library URIs, 344.
+
+After these changes the platform round trip's fastest run is 142.3 ms
+against 127.4 ms before them (20 alternating runs each, server load
+about 14): 12% slower, still 2.2x faster than upstream's 314.7 ms. Reading
+and writing timed alone did not move; the cost is in merging strings and
+constants by value and parsing every URI, which only damaged files need.
+To be won back. `tests/deep_nesting.rs`: upstream writes a chain 4202
 deep and throws `Stack Overflow` at 4203; so does the port (it aborted
 before).
 

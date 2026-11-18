@@ -1,0 +1,14 @@
+[package]
+name = "dart_core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of sdk/lib/core, file by file."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "uri_oracle"
+path = "tests/uri_oracle.rs"

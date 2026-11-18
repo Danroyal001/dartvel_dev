@@ -10,6 +10,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dart_core"
+version = "0.1.0"
+
+[[package]]
 name = "dart_style"
 version = "0.1.0"
 

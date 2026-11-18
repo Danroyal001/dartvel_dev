@@ -36,3 +36,6 @@ path = "tests/damage_oracle.rs"
 [[test]]
 name = "deep_nesting"
 path = "tests/deep_nesting.rs"
+
+[dependencies]
+dart_core = { path = "../../../sdk/lib/core/rust" }
