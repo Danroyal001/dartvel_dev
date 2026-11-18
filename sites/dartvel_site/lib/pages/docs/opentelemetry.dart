@@ -207,6 +207,13 @@ Widget _docsOpenTelemetryPage(BuildContext context) => const DocsArticle(
               'packages/dartvel_core/benchmark/otel_overhead.dart measures it. '
                   'Run it with `dart run benchmark/otel_overhead.dart` in that '
                   'package.',
+              'Measured on 18 Nov 2026 (Dart 3.13.4, 100,000 requests per '
+                  'mode, two runs on a shared server with a load average of 9 '
+                  'to 16, so read the differences, not the exact times): a '
+                  'request with telemetry off took 46 to 51 µs in process. '
+                  'Recording spans added about 30 µs, exporting traces about 80 '
+                  'to 100 µs, traces, metrics and logs together about 110 to '
+                  '125 µs, and the same sent as OTLP/JSON about 140 to 165 µs.',
             ]),
           ],
         ),
