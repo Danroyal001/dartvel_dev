@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../dartvel_flutter.dart';
+import '../display/browser_safe_area.dart' show DVBrowserSafeArea;
 import '../routing/first_frame_gate.dart' show dvWatchWebFirstFrame;
 
 /// The generated router and Flutter configuration an existing host keeps.
@@ -89,7 +90,9 @@ Future<void> dvRunApplication(
         WidgetsBinding.instance.addPostFrameCallback((_) {
           DV.lifecycle.setApp(.ready);
         });
-        runApp(DVDisplayScale(child: root()));
+        // The browser's safe-area insets, which Flutter's web engine does not
+        // report, before the display scale divides every inset by its factor.
+        runApp(DVBrowserSafeArea(child: DVDisplayScale(child: root())));
         WidgetsBinding.instance.scheduleFrame();
         completed.complete();
       } catch (error, stack) {
