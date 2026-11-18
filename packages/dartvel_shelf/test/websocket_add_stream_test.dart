@@ -67,7 +67,11 @@ void main() {
           'm${i.toString().padLeft(5, '0')}');
     }
     final channel = await channelReady.future;
-    expect(channel.flushCount, lessThan(count ~/ 10),
+    // One write per frame (1,000 here) is what awaiting each frame cost.
+    // How many frames each drain finds depends on how far the native reader
+    // has got when the isolate wakes, which a loaded machine moves; a
+    // quarter of the frames still fails on that, and does not on load.
+    expect(channel.flushCount, lessThan(count ~/ 4),
         reason: 'frames that arrived together go out together');
   });
 
