@@ -11,7 +11,11 @@
 use crate::ast::*;
 use crate::binary::tag::{ConstantTag, Tag, isValidSdkHash, numberOfFixedFields, sdkHashLength};
 
-/// `ParseError`.
+/// What upstream throws when it cannot read its input, as its `toString()`
+/// prints it: a `ParseError` from `fail` (`null:<offset>: <message> at `,
+/// the debug path being empty without asserts), a `RangeError` from an index
+/// out of range, a `StateError`, an `ArgumentError`, a thrown string, or
+/// the VM's `Out of Memory` and `Stack Overflow`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {
     pub message: String,
@@ -20,13 +24,40 @@ pub struct ParseError {
 
 impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} at byte {}", self.message, self.byteIndex)
+        f.write_str(&self.message)
     }
 }
 
 impl std::error::Error for ParseError {}
 
 pub type Result<T> = std::result::Result<T, ParseError>;
+
+/// The largest single allocation upstream's oracle makes before it throws
+/// `Out of Memory`: it runs with `--old_gen_heap_size=256`, and a list or
+/// typed list of more than about 248 MiB does not fit (measured by
+/// bisection, 247.6 to 249.5 MiB from run to run).
+pub const dartAllocationLimit: u64 = 248 << 20;
+
+/// `RangeError.range(value, start, end, name).toString()`.
+pub fn rangeErrorRange(name: &str, value: i64, start: i64, end: i64) -> String {
+    if start > end {
+        format!("RangeError ({name}): Invalid value: Valid value range is empty: {value}")
+    } else if start == end {
+        format!("RangeError ({name}): Invalid value: Only valid value is {start}: {value}")
+    } else {
+        format!("RangeError ({name}): Invalid value: Not in inclusive range {start}..{end}: {value}")
+    }
+}
+
+/// The VM's error for `list[index]` out of range.
+pub fn indexError(index: i64, length: usize) -> String {
+    rangeErrorRange("length", index, 0, length as i64 - 1)
+}
+
+/// `RangeError.range(value, minValue, null, name).toString()`.
+pub fn rangeErrorMin(name: &str, value: i64, min: i64) -> String {
+    format!("RangeError ({name}): Invalid value: Not greater than or equal to {min}: {value}")
+}
 
 /// `_ComponentIndex`.
 struct ComponentIndex {
@@ -40,6 +71,9 @@ struct ComponentIndex {
 }
 
 /// `BinaryBuilder`.
+///
+/// Offsets wrap as upstream's `int`s do, so an offset computed below zero
+/// reads as upstream's does (an index error with a negative index).
 pub struct BinaryBuilder<'a> {
     bytes: &'a [u8],
     byteOffset: usize,
@@ -51,13 +85,23 @@ pub struct BinaryBuilder<'a> {
     sourceUriTable: Vec<UriId>,
     /// `_constantTable`: constant by index.
     constantTable: Vec<ConstId>,
-    /// The string table of the component being read, by index, from the
-    /// second component of a concatenated file on (the first component's
-    /// strings are the pool's first ids, so it needs none).
+    /// `_stringTable`'s length, and its entries' ids in the pool when they
+    /// are not the pool's first ids (a second component of a concatenated
+    /// file, or a table with repeated strings, which upstream's strings, as
+    /// values, would share).
+    stringTableLength: usize,
     stringTable: Option<Vec<StrId>>,
     /// The constants read so far, by value, from the second component of a
     /// concatenated file on.
-    constantsByKey: Option<std::collections::HashMap<ConstantKey, ConstId>>,
+    constantsByHash: Option<std::collections::HashMap<u64, Vec<ConstId>, FxBuildHasher>>,
+    /// `_constantTable`'s length (its entries not read yet are upstream's
+    /// `dummyConstant`).
+    constantTableLength: usize,
+    /// Reading the second or a later component of a concatenated file.
+    laterComponent: bool,
+    /// `_disableLazyReading`: upstream turns lazy reading off for a
+    /// concatenated file, which changes how it reads source text.
+    disableLazyReading: bool,
     variableStack: Vec<VarId>,
     typeParameterStack: Vec<TypeParamId>,
     labelStack: Vec<LabelId>,
@@ -77,8 +121,12 @@ impl<'a> BinaryBuilder<'a> {
             linkTable: Vec::new(),
             sourceUriTable: Vec::new(),
             constantTable: Vec::new(),
+            stringTableLength: 0,
             stringTable: None,
-            constantsByKey: None,
+            constantsByHash: None,
+            constantTableLength: 0,
+            laterComponent: false,
+            disableLazyReading: false,
             variableStack: Vec::new(),
             typeParameterStack: Vec::new(),
             labelStack: Vec::new(),
@@ -96,30 +144,73 @@ impl<'a> BinaryBuilder<'a> {
         length.min(self.bytes.len().saturating_sub(self.byteOffset))
     }
 
-    /// Refuses a count of items that are each at least a byte long when it
-    /// is beyond the bytes left in the input.
-    fn boundedByInput(&self, count: u32, what: &str) -> Result<()> {
-        if count as usize > self.bytes.len().saturating_sub(self.byteOffset) {
-            return self.fail(format!("{what} {count} exceeds the input"));
+    /// Upstream allocating [bytes] at once: `Out of Memory` beyond
+    /// [dartAllocationLimit].
+    fn dartAllocate(&self, bytes: u64) -> Result<()> {
+        if bytes > dartAllocationLimit {
+            return self.thrown("Out of Memory");
         }
         Ok(())
     }
 
-    fn fail<T>(&self, message: impl Into<String>) -> Result<T> {
+    /// Upstream allocating a list of [length] elements (8 bytes each) at
+    /// once, as `List.filled` and `List.generate` do before any element is
+    /// read.
+    fn dartList(&self, length: u64) -> Result<()> {
+        self.dartAllocate(length.saturating_mul(8))
+    }
+
+    /// Upstream making [count] objects of about [objectBytes] each (and a
+    /// list slot for each) before reading any of them, as it does for type
+    /// parameters, switch cases and variable contexts: `Out of Memory`
+    /// when they do not fit. The object sizes are estimates, so near the
+    /// limit this is approximate (see README.md).
+    fn dartObjects(&self, count: u32, objectBytes: u64) -> Result<()> {
+        self.dartAllocate((count as u64).saturating_mul(8 + objectBytes))
+    }
+
+    /// `readOffset`.
+    #[inline]
+    fn readOffset(&mut self) -> Result<Offset> {
+        Ok(self.readUInt30()? as Offset - 1)
+    }
+
+    /// `throw fail(message)`: a `ParseError`.
+    fn fail<T>(&self, message: impl std::fmt::Display) -> Result<T> {
+        Err(ParseError {
+            message: format!("null:{}: {message} at ", self.byteOffset as i64),
+            byteIndex: self.byteOffset,
+        })
+    }
+
+    /// Anything else upstream throws, as its `toString()` prints it.
+    fn thrown<T>(&self, message: impl Into<String>) -> Result<T> {
         Err(ParseError {
             message: message.into(),
             byteIndex: self.byteOffset,
         })
     }
 
+    /// `throw new StateError(message)`.
+    fn stateError<T>(&self, message: &str) -> Result<T> {
+        self.thrown(format!("Bad state: {message}"))
+    }
+
+    /// `list[index]` on a list of [length] elements.
+    fn index<T: Copy>(&self, list: &[T], index: i64) -> Result<T> {
+        match usize::try_from(index).ok().and_then(|i| list.get(i)) {
+            Some(&value) => Ok(value),
+            None => self.thrown(indexError(index, list.len())),
+        }
+    }
+
     #[inline]
     fn readByte(&mut self) -> Result<u32> {
-        match self.bytes.get(self.byteOffset) {
-            Some(&b) => {
-                self.byteOffset += 1;
-                Ok(b as u32)
-            }
-            None => self.fail("unexpected end of input"),
+        let index = self.byteOffset;
+        self.byteOffset = index.wrapping_add(1);
+        match self.bytes.get(index) {
+            Some(&b) => Ok(b as u32),
+            None => self.thrown(indexError(index as i64, self.bytes.len())),
         }
     }
 
@@ -145,15 +236,28 @@ impl<'a> BinaryBuilder<'a> {
             | self.readByte()?)
     }
 
+    /// `readDouble`: eight bytes, read one at a time.
     fn readDouble(&mut self) -> Result<f64> {
-        let bytes = self.readBytes(8)?;
-        Ok(f64::from_le_bytes(bytes.try_into().unwrap()))
+        let mut bytes = [0u8; 8];
+        for byte in &mut bytes {
+            *byte = self.readByte()? as u8;
+        }
+        Ok(f64::from_le_bytes(bytes))
     }
 
+    /// `readBytes`: a new list of [length] bytes, `setRange` from the input.
     fn readBytes(&mut self, length: usize) -> Result<&'a [u8]> {
-        let end = self.byteOffset + length;
+        if length == 0 {
+            return Ok(&[]);
+        }
+        self.dartAllocate(length as u64)?;
+        let skipCount = self.byteOffset as i64;
+        if skipCount < 0 {
+            return self.thrown(rangeErrorMin("skipCount", skipCount, 0));
+        }
+        let end = self.byteOffset.saturating_add(length);
         if end > self.bytes.len() {
-            return self.fail("unexpected end of input");
+            return self.stateError("Too few elements");
         }
         let bytes = &self.bytes[self.byteOffset..end];
         self.byteOffset = end;
@@ -165,37 +269,129 @@ impl<'a> BinaryBuilder<'a> {
         self.readBytes(length)
     }
 
+    /// `readOrViewByteList`: a view of the input (upstream's default, with
+    /// lazy reading on).
+    fn readOrViewByteList(&mut self) -> Result<&'a [u8]> {
+        let length = self.readUInt30()? as usize;
+        if length == 0 {
+            return Ok(&[]);
+        }
+        // `buffer.asUint8List(offset, length)`.
+        let offset = self.byteOffset;
+        if offset > self.bytes.len() {
+            return self.thrown(format!("RangeError: Value not in range: {}", offset as i64));
+        }
+        if offset + length > self.bytes.len() {
+            return self.thrown(format!("RangeError: Value not in range: {length}"));
+        }
+        self.byteOffset = offset + length;
+        Ok(&self.bytes[offset..offset + length])
+    }
+
     /// `readString`: a string written inline (not a reference).
     fn readString(&mut self) -> Result<Box<[u8]>> {
-        Ok(self.readByteList()?.into())
+        let numBytes = self.readUInt30()? as i64;
+        self.readStringEntry(numBytes)
     }
 
-    /// `readOffset`.
-    #[inline]
-    fn readOffset(&mut self) -> Result<Offset> {
-        Ok(self.readUInt30()? as Offset - 1)
-    }
-
-    fn readStringReference(&mut self) -> Result<StrId> {
-        let index = self.readUInt30()?;
-        match &self.stringTable {
-            None if (index as usize) < self.component.strings.len() => Ok(index),
-            Some(table) if (index as usize) < table.len() => Ok(table[index as usize]),
-            _ => self.fail(format!("string index {index} out of range")),
+    /// `readStringEntry`: [numBytes] bytes of WTF-8, as upstream's string
+    /// would write them again: upstream decodes them trusting they are
+    /// valid, and its writer encodes the result, so for damaged bytes this
+    /// is not the bytes read.
+    fn readStringEntry(&mut self, numBytes: i64) -> Result<Box<[u8]>> {
+        let start = self.byteOffset as i64;
+        let end = start.wrapping_add(numBytes);
+        self.byteOffset = end as usize;
+        // In bounds (always, for an undamaged file): the same checks, on
+        // the whole slice at once.
+        if 0 <= start && start <= end && end as usize <= self.bytes.len() {
+            let slice = &self.bytes[start as usize..end as usize];
+            if slice.is_ascii() {
+                return Ok(slice.into());
+            }
+            return self.decodeWtf8(start, end);
         }
+        let mut i = start;
+        while i < end {
+            let byte = self.index(self.bytes, i)?;
+            if byte > 127 {
+                return self.decodeWtf8(start, end);
+            }
+            i += 1;
+        }
+        // `new String.fromCharCodes(_bytes, start, end)`.
+        if start < 0 {
+            return self.thrown(rangeErrorMin("start", start, 0));
+        }
+        if end < start {
+            return self.thrown(rangeErrorMin("end", end, start));
+        }
+        Ok(self.bytes[start as usize..end as usize].into())
+    }
+
+    /// `_decodeWtf8`, then the writer's `_writeWtf8` on the result.
+    fn decodeWtf8(&mut self, start: i64, end: i64) -> Result<Box<[u8]>> {
+        let length = (end - start) as usize;
+        self.dartAllocate(2 * length as u64)?;
+        let mut charCodes: Vec<u16> = Vec::with_capacity(length);
+        let mut i = start;
+        let push = |builder: &Self, charCodes: &mut Vec<u16>, value: i64| -> Result<()> {
+            if charCodes.len() >= length {
+                return builder.thrown(indexError(charCodes.len() as i64, length));
+            }
+            // A Uint16List keeps the low 16 bits.
+            charCodes.push(value as u16);
+            Ok(())
+        };
+        while i < end {
+            let byte = self.index(self.bytes, i)? as i64;
+            i += 1;
+            if byte < 0x80 {
+                push(self, &mut charCodes, byte)?;
+            } else if byte < 0xE0 {
+                let byte2 = self.index(self.bytes, i)? as i64;
+                i += 1;
+                push(self, &mut charCodes, (byte << 6) ^ byte2 ^ 0x3080)?;
+            } else if byte < 0xF0 {
+                let byte2 = self.index(self.bytes, i)? as i64;
+                let byte3 = self.index(self.bytes, i + 1)? as i64;
+                i += 2;
+                push(self, &mut charCodes, (byte << 12) ^ (byte2 << 6) ^ byte3 ^ 0xE2080)?;
+            } else {
+                let byte2 = self.index(self.bytes, i)? as i64;
+                let byte3 = self.index(self.bytes, i + 1)? as i64;
+                let byte4 = self.index(self.bytes, i + 2)? as i64;
+                i += 3;
+                let value = (byte << 18) ^ (byte2 << 12) ^ (byte3 << 6) ^ byte4 ^ 0x3C82080;
+                push(self, &mut charCodes, 0xD7C0 + (value >> 10))?;
+                push(self, &mut charCodes, 0xDC00 + (value & 0x3FF))?;
+            }
+        }
+        Ok(writeWtf8(&charCodes).into())
+    }
+
+    /// `_stringTable[readUInt30()]`.
+    fn readStringReference(&mut self) -> Result<StrId> {
+        let index = self.readUInt30()? as i64;
+        if index as usize >= self.stringTableLength {
+            return self.thrown(indexError(index, self.stringTableLength));
+        }
+        Ok(match &self.stringTable {
+            None => index as StrId,
+            Some(table) => table[index as usize],
+        })
     }
 
     fn readStringReferenceList(&mut self) -> Result<Vec<StrId>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         (0..length).map(|_| self.readStringReference()).collect()
     }
 
+    /// `_sourceUriTable[readUInt30()]`.
     fn readUriReference(&mut self) -> Result<UriId> {
-        let index = self.readUInt30()? as usize;
-        match self.sourceUriTable.get(index) {
-            Some(&uri) => Ok(uri),
-            None => self.fail(format!("URI index {index} out of range")),
-        }
+        let index = self.readUInt30()? as i64;
+        self.index(&self.sourceUriTable, index)
     }
 
     fn readAndCheckOptionTag(&mut self) -> Result<bool> {
@@ -213,24 +409,52 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readNullableCanonicalNameReference(&mut self) -> Result<Ref> {
         let index = self.readUInt30()?;
+        self.getNullableCanonicalNameReferenceFromInt(index)
+    }
+
+    /// `getNullableCanonicalNameReferenceFromInt`.
+    fn getNullableCanonicalNameReferenceFromInt(&self, index: u32) -> Result<Ref> {
         if index == 0 {
             return Ok(None);
         }
-        match self.linkTable.get(index as usize - 1) {
-            Some(&name) => Ok(Some(name)),
-            None => self.fail(format!("canonical name index {index} out of range")),
-        }
+        Ok(Some(self.index(&self.linkTable, index as i64 - 1)?))
     }
 
     fn readNonNullCanonicalNameReference(&mut self) -> Result<CnId> {
         match self.readNullableCanonicalNameReference()? {
             Some(name) => Ok(name),
-            None => self.fail("No canonical name found."),
+            None => self.stateError("No canonical name found."),
         }
     }
 
+    /// The `readNonNull...Reference`s that throw a string naming what they
+    /// expected (`readNonNullMemberReference`, `...ClassReference`,
+    /// `...LibraryReference`, `...ExtensionTypeDeclarationReference`).
+    fn readNonNullReference(&mut self, expected: &str) -> Result<CnId> {
+        match self.readNullableCanonicalNameReference()? {
+            Some(name) => Ok(name),
+            None => self.thrown(format!("Expected {expected} reference to be valid but was `null`.")),
+        }
+    }
+
+    fn readNonNullMemberReference(&mut self) -> Result<CnId> {
+        self.readNonNullReference("a member")
+    }
+
+    fn readNonNullClassReference(&mut self) -> Result<CnId> {
+        self.readNonNullReference("a class")
+    }
+
+    fn readNonNullLibraryReference(&mut self) -> Result<CnId> {
+        self.readNonNullReference("a library")
+    }
+
+    fn readNonNullExtensionTypeDeclarationReference(&mut self) -> Result<CnId> {
+        self.readNonNullReference("an extension type declaration")
+    }
+
     fn readNonNullInstanceMemberReference(&mut self) -> Result<InterfaceTarget> {
-        let target = self.readNonNullCanonicalNameReference()?;
+        let target = self.readNonNullMemberReference()?;
         let origin = self.readNullableCanonicalNameReference()?;
         Ok(InterfaceTarget { target, origin })
     }
@@ -239,12 +463,11 @@ impl<'a> BinaryBuilder<'a> {
         let text = self.readStringReference()?;
         let isPrivate = self.component.strings.get(text).first() == Some(&b'_');
         let library = if isPrivate {
-            match self.readNullableCanonicalNameReference()? {
-                Some(library) => Some(library),
-                None => {
-                    return self.fail("Expected a library reference to be valid but was `null`.");
-                }
+            let libraryReferenceIndex = self.readUInt30()?;
+            if libraryReferenceIndex == 0 {
+                return self.thrown("Expected a library reference to be valid but was `null`.");
             }
+            self.getNullableCanonicalNameReferenceFromInt(libraryReferenceIndex)?
         } else {
             None
         };
@@ -256,15 +479,14 @@ impl<'a> BinaryBuilder<'a> {
     /// `readComponent`: reads every component in the input (a file may hold
     /// several, concatenated) into one component.
     pub fn readComponent(mut self) -> Result<Component> {
-        if self.bytes.is_empty() {
-            return self.fail("Empty input given.");
-        }
+        self.verifyComponentInitialBytes(true)?;
         let componentFileSizes = self.indexComponents()?;
+        if componentFileSizes.len() > 1 {
+            self.disableLazyReading = true;
+        }
         let mut componentFileIndex = 0;
-        while self.byteOffset < self.bytes.len() {
-            let Some(&componentFileSize) = componentFileSizes.get(componentFileIndex) else {
-                return self.fail("component index out of range");
-            };
+        while (self.byteOffset as i64) < self.bytes.len() as i64 {
+            let componentFileSize = self.index(&componentFileSizes, componentFileIndex as i64)?;
             if componentFileIndex == 1 {
                 self.startSecondComponent();
             }
@@ -274,23 +496,29 @@ impl<'a> BinaryBuilder<'a> {
         Ok(self.component)
     }
 
+    /// `_checkEmptyInput`.
+    fn checkEmptyInput(&self) -> Result<()> {
+        if self.bytes.is_empty() {
+            return self.stateError("Empty input given.");
+        }
+        Ok(())
+    }
+
     /// `_indexComponents`: the sizes of the concatenated components, read
     /// backwards from the end of the input (each component ends with its
     /// size).
     fn indexComponents(&mut self) -> Result<Vec<usize>> {
+        self.checkEmptyInput()?;
         let savedByteOffset = self.byteOffset;
         let mut index = Vec::new();
-        let mut offset = self.bytes.len() as isize - 4;
+        let mut offset = self.bytes.len() as i64 - 4;
         while offset > 0 {
             self.byteOffset = offset as usize;
-            let size = self.readUint32()? as isize;
-            // Upstream refuses only sizes <= 0 here; a component holds at
-            // least its header and index, so a smaller one is refused too
-            // (upstream fails reading it).
-            if size < 16 {
-                return self.fail(format!("invalid size '{size}' reported"));
+            let size = self.readUint32()? as i64;
+            if size <= 0 {
+                return self.fail(format!("invalid size '{size}' reported at offset {}", self.byteOffset));
             }
-            let start = self.byteOffset as isize - size;
+            let start = self.byteOffset as i64 - size;
             if start < 0 {
                 return self.fail("indicated size does not match file size");
             }
@@ -306,58 +534,69 @@ impl<'a> BinaryBuilder<'a> {
     /// constants are merged by value, as upstream's are values: the strings
     /// of the first component are distinct, and so are its constants.
     fn startSecondComponent(&mut self) {
-        let mut byKey = std::collections::HashMap::with_capacity(self.component.constants.len());
-        for (id, constant) in self.component.constants.iter().enumerate() {
-            byKey.entry(constantKey(constant)).or_insert(id as ConstId);
-        }
-        self.constantsByKey = Some(byKey);
+        self.laterComponent = true;
     }
 
-    fn verifyComponentInitialBytes(&mut self) -> Result<()> {
+    /// `_verifyComponentInitialBytes`.
+    fn verifyComponentInitialBytes(&mut self, resetOffset: bool) -> Result<()> {
+        self.checkEmptyInput()?;
+        let offset = self.byteOffset;
         let magic = self.readUint32()?;
         if magic != Tag::ComponentFile {
-            return self.fail("This is not a binary dart file.");
+            return self.thrown("Invalid argument(s): Not a .dill file (wrong magic number).");
         }
-        let formatVersion = self.readUint32()?;
-        if formatVersion != Tag::BinaryFormatVersion {
-            return self.fail(format!(
-                "Unexpected Kernel Format Version {formatVersion} (expected {}).",
+        let version = self.readUint32()?;
+        if version != Tag::BinaryFormatVersion {
+            return self.thrown(format!(
+                "Unexpected Kernel Format Version {version} (expected {})",
                 Tag::BinaryFormatVersion
             ));
         }
+        // `_readAndVerifySdkHash`: `ascii.decode(readBytes(sdkHashLength))`.
         let sdkHash = self.readBytes(sdkHashLength)?;
+        if let Some(&byte) = sdkHash.iter().find(|&&b| b > 127) {
+            return self.thrown(format!("FormatException: Invalid value in input: {byte}"));
+        }
         if !isValidSdkHash(sdkHash) {
-            return self.fail("Invalid SDK hash.");
+            return self.thrown(format!(
+                "Unexpected Kernel SDK Version {} (expected {}).",
+                String::from_utf8_lossy(sdkHash),
+                crate::binary::tag::expectedSdkHash()
+            ));
+        }
+        if resetOffset {
+            self.byteOffset = offset;
         }
         Ok(())
     }
 
     fn readComponentIndex(&mut self, componentFileSize: usize) -> Result<ComponentIndex> {
         let savedByteIndex = self.byteOffset;
-        self.byteOffset = self.componentStartOffset + componentFileSize - 2 * 4;
+        self.byteOffset = self.componentStartOffset.wrapping_add(componentFileSize).wrapping_sub(2 * 4);
         let libraryCount = self.readUint32()? as usize;
+        self.dartList(libraryCount as u64 + 1)?;
         let componentFileSizeInBytes = self.readUint32()? as usize;
         if componentFileSizeInBytes != componentFileSize {
-            return self.fail("Malformed binary: the component index disagrees with the file size.");
+            return self.thrown(format!(
+                "Malformed binary: This component file's component index indicates that the file size should be \
+                 {componentFileSize} but other component indexes has indicated that the size should be \
+                 {componentFileSizeInBytes}."
+            ));
         }
-        let fixedFields = numberOfFixedFields(libraryCount) * 4;
-        if fixedFields > self.byteOffset {
-            return self.fail("Malformed binary: component index out of range");
-        }
-        self.byteOffset -= fixedFields;
+        self.byteOffset = self.byteOffset.wrapping_sub(numberOfFixedFields(libraryCount).wrapping_mul(4));
         let start = self.componentStartOffset;
-        let binaryOffsetForSourceTable = start + self.readUint32()? as usize;
-        let binaryOffsetForConstantTable = start + self.readUint32()? as usize;
+        let binaryOffsetForSourceTable = start.wrapping_add(self.readUint32()? as usize);
+        let binaryOffsetForConstantTable = start.wrapping_add(self.readUint32()? as usize);
         let _binaryOffsetForConstantTableIndex = self.readUint32()?;
-        let binaryOffsetForCanonicalNames = start + self.readUint32()? as usize;
+        let binaryOffsetForCanonicalNames = start.wrapping_add(self.readUint32()? as usize);
         let _binaryOffsetForMetadataPayloads = self.readUint32()?;
         let _binaryOffsetForMetadataMappings = self.readUint32()?;
-        let binaryOffsetForStringTable = start + self.readUint32()? as usize;
+        let binaryOffsetForStringTable = start.wrapping_add(self.readUint32()? as usize);
         let _binaryOffsetForStartOfComponentIndex = self.readUint32()?;
         let mainMethodReference = self.readUint32()?;
-        let mut libraryOffsets = Vec::with_capacity(self.cap(libraryCount + 1 as usize));
+        let mut libraryOffsets = Vec::with_capacity(self.cap(libraryCount + 1));
         for _ in 0..libraryCount + 1 {
-            libraryOffsets.push(start + self.readUint32()? as usize);
+            libraryOffsets.push(start.wrapping_add(self.readUint32()? as usize));
         }
         self.byteOffset = savedByteIndex;
         Ok(ComponentIndex {
@@ -373,7 +612,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readOneComponent(&mut self, componentFileSize: usize) -> Result<()> {
         self.componentStartOffset = self.byteOffset;
-        self.verifyComponentInitialBytes()?;
+        self.verifyComponentInitialBytes(false)?;
         // `component.problemsAsJson.addAll`: concatenated components add up.
         if let Some(problems) = self.readListOfStrings()? {
             self.component.problemsAsJson.get_or_insert_with(Vec::new).extend(problems);
@@ -397,9 +636,9 @@ impl<'a> BinaryBuilder<'a> {
             let library = self.readLibrary(index.libraryOffsets[i + 1])?;
             // A library read again (a concatenated file) is the same node,
             // read over: it keeps its place in the component.
-            let existing = match self.constantsByKey {
-                None => None,
-                Some(_) => self.component.libraries.iter().position(|l| l.reference == library.reference),
+            let existing = match self.laterComponent {
+                false => None,
+                true => self.component.libraries.iter().position(|l| l.reference == library.reference),
             };
             match existing {
                 Some(existing) => {
@@ -409,20 +648,14 @@ impl<'a> BinaryBuilder<'a> {
             }
         }
 
-        let mainMethod = if index.mainMethodReference == 0 {
-            None
-        } else {
-            match self.linkTable.get(index.mainMethodReference as usize - 1) {
-                Some(&name) => Some(name),
-                None => return self.fail("main method reference out of range"),
-            }
-        };
+        // `getNullableMemberReferenceFromInt`.
+        let mainMethod = self.getNullableCanonicalNameReferenceFromInt(index.mainMethodReference)?;
         // `setMainMethodAndMode(mainMethod, false)`: in a concatenated file
         // the first component with a main method keeps it.
         if self.component.mainMethod.is_none() {
             self.component.mainMethod = mainMethod;
         }
-        self.byteOffset = self.componentStartOffset + componentFileSize;
+        self.byteOffset = self.componentStartOffset.wrapping_add(componentFileSize);
         Ok(())
     }
 
@@ -431,6 +664,7 @@ impl<'a> BinaryBuilder<'a> {
         if length == 0 {
             return Ok(None);
         }
+        self.dartList(length as u64)?;
         let mut strings = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             strings.push(self.readString()?);
@@ -440,21 +674,25 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readStringTable(&mut self) -> Result<()> {
         let length = self.readUInt30()? as usize;
-        let mut endOffsets = Vec::with_capacity(self.cap(length as usize));
+        self.dartList(length as u64)?;
+        let mut endOffsets = Vec::with_capacity(self.cap(length));
         for _ in 0..length {
-            endOffsets.push(self.readUInt30()? as usize);
+            endOffsets.push(self.readUInt30()? as i64);
         }
-        let mut strings = Vec::with_capacity(self.cap(length as usize));
-        let mut startOffset = 0;
+        self.dartList(length as u64)?;
+        let mut strings: Vec<Box<[u8]>> = Vec::with_capacity(self.cap(length));
+        let mut startOffset = 0i64;
         for endOffset in endOffsets {
-            if endOffset < startOffset {
-                return self.fail("string table offsets out of order");
-            }
-            strings.push(self.readBytes(endOffset - startOffset)?.into());
+            strings.push(self.readStringEntry(endOffset - startOffset)?);
             startOffset = endOffset;
         }
-        if self.constantsByKey.is_none() {
+        self.stringTableLength = strings.len();
+        // Strings are values upstream: a table with a string twice (only a
+        // damaged one has that) is one string written once, and a later
+        // component's strings are merged with the earlier ones.
+        if !self.laterComponent && stringsAreDistinct(&strings) {
             self.component.strings = StringPool::from_table(strings);
+            self.stringTable = None;
         } else {
             let table = strings.iter().map(|s| self.component.strings.intern(s)).collect();
             self.stringTable = Some(table);
@@ -464,16 +702,22 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readLinkTable(&mut self) -> Result<()> {
         let length = self.readUInt30()? as usize;
-        self.linkTable = Vec::with_capacity(self.cap(length as usize));
-        for i in 0..length {
-            let biasedParentIndex = self.readUInt30()? as usize;
+        self.dartList(length as u64)?;
+        // Upstream fills the table with the root first, so a parent index
+        // not read yet is the root (the table here grows as it is read).
+        let root = crate::canonical_name::CanonicalNames::root;
+        self.linkTable = Vec::with_capacity(self.cap(length));
+        for _ in 0..length {
+            let biasedParentIndex = self.readUInt30()? as i64;
             let name = self.readStringReference()?;
             let parent = if biasedParentIndex == 0 {
-                crate::canonical_name::CanonicalNames::root
-            } else if biasedParentIndex - 1 < i {
-                self.linkTable[biasedParentIndex - 1]
+                root
+            } else if ((biasedParentIndex - 1) as usize) < self.linkTable.len() {
+                self.linkTable[(biasedParentIndex - 1) as usize]
+            } else if ((biasedParentIndex - 1) as usize) < length {
+                root
             } else {
-                return self.fail("canonical name parent comes after the name");
+                return self.thrown(indexError(biasedParentIndex - 1, length));
             };
             let child = self.component.names.getChild(parent, name);
             self.linkTable.push(child);
@@ -481,15 +725,26 @@ impl<'a> BinaryBuilder<'a> {
         Ok(())
     }
 
+
     fn readUriToSource(&mut self) -> Result<()> {
         let length = self.readUint32()? as usize;
+        self.dartList(length as u64)?;
         self.sourceUriTable = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let uriString = self.readString()?;
             let uri = self.component.uris.intern(&uriString);
             self.sourceUriTable.push(uri);
-            let source = self.readByteList()?.into();
+            // Upstream views the input unless lazy reading is off (a
+            // concatenated file).
+            let source = if self.disableLazyReading {
+                self.readByteList()?.into()
+            } else {
+                self.readOrViewByteList()?.into()
+            };
             let lineCount = self.readUInt30()? as usize;
+            if lineCount > 0 {
+                self.dartAllocate(4 * lineCount as u64)?;
+            }
             let mut lineStarts = Vec::with_capacity(self.cap(lineCount as usize));
             let mut previousLineStart = 0u32;
             for _ in 0..lineCount {
@@ -501,7 +756,7 @@ impl<'a> BinaryBuilder<'a> {
             let constructorCoverageCount = self.readUInt30()?;
             let mut coverage = Vec::with_capacity(self.cap(constructorCoverageCount as usize));
             for _ in 0..constructorCoverageCount {
-                let name = self.readNonNullCanonicalNameReference()?;
+                let name = self.readNonNullMemberReference()?;
                 if !coverage.contains(&name) {
                     coverage.push(name);
                 }
@@ -546,29 +801,47 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readConstantTable(&mut self) -> Result<()> {
         let length = self.readUInt30()? as usize;
+        self.dartList(length as u64)?;
+        self.constantTableLength = length;
         self.constantTable = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let constant = self.readConstantTableEntry()?;
-            let id = match &mut self.constantsByKey {
-                None => {
-                    self.component.constants.push(constant);
-                    (self.component.constants.len() - 1) as ConstId
-                }
-                Some(byKey) => *byKey.entry(constantKey(&constant)).or_insert_with(|| {
-                    self.component.constants.push(constant);
-                    (self.component.constants.len() - 1) as ConstId
-                }),
-            };
+            let id = self.internConstant(constant);
             self.constantTable.push(id);
         }
         Ok(())
     }
 
+    /// The id of [constant]: constants are values upstream, so equal ones
+    /// are one constant (only a damaged table, a forward reference or a
+    /// concatenated file has equal ones).
+    fn internConstant(&mut self, constant: Constant) -> ConstId {
+        let constants = &mut self.component.constants;
+        let byHash = self.constantsByHash.get_or_insert_with(|| {
+            let mut byHash: std::collections::HashMap<u64, Vec<ConstId>, FxBuildHasher> = Default::default();
+            for (id, constant) in constants.iter().enumerate() {
+                byHash.entry(constantHash(constant)).or_default().push(id as ConstId);
+            }
+            byHash
+        });
+        let bucket = byHash.entry(constantHash(&constant)).or_default();
+        if let Some(&id) = bucket.iter().find(|&&id| constantsEqual(&constants[id as usize], &constant)) {
+            return id;
+        }
+        constants.push(constant);
+        let id = (constants.len() - 1) as ConstId;
+        bucket.push(id);
+        id
+    }
+
     fn readConstantReference(&mut self) -> Result<ConstId> {
+        // Upstream fills the table with `dummyConstant` (a `NullConstant`)
+        // first: an index not read yet is that.
         let index = self.readUInt30()? as usize;
         match self.constantTable.get(index) {
             Some(&id) => Ok(id),
-            None => self.fail(format!("No constant found at index {index}.")),
+            None if index < self.constantTableLength => Ok(self.internConstant(Constant::Null)),
+            None => self.thrown(indexError(index as i64, self.constantTableLength)),
         }
     }
 
@@ -710,11 +983,9 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readScopeSizeAndAllocateContexts(&mut self) -> Result<u32> {
         let scopeSize = self.readUInt30()?;
-        // The scope's contexts are written later, two bytes or more each,
-        // so a size beyond the bytes left is damage. Upstream allocates them
-        // all first and runs out of memory; refusing here keeps the
-        // allocation bounded by the input.
-        self.boundedByInput(scopeSize, "scope size")?;
+        // Upstream makes all the contexts first (and runs out of memory for
+        // a damaged size).
+        self.dartObjects(scopeSize, 40)?;
         for _ in 0..scopeSize {
             let id = self.component.nextContext;
             self.component.nextContext += 1;
@@ -1620,10 +1891,8 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readAndPushParameters(&mut self, keepAnnotations: bool) -> Result<Vec<TypeParameter>> {
         let length = self.readUInt30()?;
-        // Each parameter is five bytes or more, read after the ids are
-        // pushed: a count beyond the bytes left is damage (upstream
-        // allocates them all first).
-        self.boundedByInput(length, "type parameter count")?;
+        // Upstream makes all the parameters before reading them.
+        self.dartObjects(length, 96)?;
         let first = self.component.nextTypeParam;
         self.component.nextTypeParam = match first.checked_add(length) {
             Some(next) => next,
@@ -2826,7 +3095,7 @@ impl<'a> BinaryBuilder<'a> {
     /// Ids for the [count] cases of a switch, made before the cases are read
     /// (two bytes or more each): a count beyond the bytes left is damage.
     fn newSwitchCaseIds(&mut self, count: u32) -> Result<Vec<SwitchCaseId>> {
-        self.boundedByInput(count, "switch case count")?;
+        self.dartObjects(count, 64)?;
         let first = self.component.nextSwitchCase;
         self.component.nextSwitchCase = match first.checked_add(count) {
             Some(next) => next,
@@ -3187,19 +3456,237 @@ pub fn loadComponentFromBytes(bytes: &[u8]) -> Result<Component> {
     BinaryBuilder::new(bytes).readComponent()
 }
 
-/// A constant's value, as upstream compares constants (`Constant.==`):
-/// structurally, a double by identity (its bits). Constants refer to other
-/// constants by id, and equal constants have one id, so comparing the
-/// fields compares the values.
-#[derive(PartialEq, Eq, Hash)]
-enum ConstantKey {
-    Double(u64),
-    Other(String),
+
+/// Whether no string in [strings] is there twice.
+fn stringsAreDistinct(strings: &[Box<[u8]>]) -> bool {
+    let mut seen: std::collections::HashSet<&[u8], FxBuildHasher> =
+        std::collections::HashSet::with_capacity_and_hasher(strings.len(), Default::default());
+    strings.iter().all(|s| seen.insert(&**s))
 }
 
-fn constantKey(constant: &Constant) -> ConstantKey {
+/// `_writeWtf8` (lib/binary/ast_to_binary.dart): how upstream's writer
+/// encodes a string's UTF-16 code units, lone surrogates included.
+pub fn writeWtf8(source: &[u16]) -> Vec<u8> {
+    let mut target = Vec::with_capacity(source.len());
+    let mut i = 0;
+    while i < source.len() {
+        let codeUnit = source[i] as u32;
+        i += 1;
+        if codeUnit < 128 {
+            target.push(codeUnit as u8);
+        } else if codeUnit < 0x800 {
+            target.push((0xC0 | (codeUnit >> 6)) as u8);
+            target.push((0x80 | (codeUnit & 0x3f)) as u8);
+        } else if (codeUnit & 0xFC00) == 0xD800 && i < source.len() && (source[i] as u32 & 0xFC00) == 0xDC00 {
+            let codeUnit2 = source[i] as u32;
+            i += 1;
+            let unicode = 0x10000 + ((codeUnit & 0x3FF) << 10) + (codeUnit2 & 0x3FF);
+            target.push((0xF0 | (unicode >> 18)) as u8);
+            target.push((0x80 | ((unicode >> 12) & 0x3F)) as u8);
+            target.push((0x80 | ((unicode >> 6) & 0x3F)) as u8);
+            target.push((0x80 | (unicode & 0x3F)) as u8);
+        } else {
+            target.push((0xE0 | (codeUnit >> 12)) as u8);
+            target.push((0x80 | ((codeUnit >> 6) & 0x3f)) as u8);
+            target.push((0x80 | (codeUnit & 0x3f)) as u8);
+        }
+    }
+    target
+}
+/// A fast hasher for the reader's own maps (FxHash's multiply-rotate),
+/// which hash small ids and byte strings from the input.
+#[derive(Default, Clone, Copy)]
+pub struct FxHasher {
+    hash: u64,
+}
+
+impl std::hash::Hasher for FxHasher {
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        let mut chunks = bytes.chunks_exact(8);
+        for chunk in &mut chunks {
+            self.write_u64(u64::from_le_bytes(chunk.try_into().unwrap()));
+        }
+        let mut tail = 0u64;
+        for (i, &b) in chunks.remainder().iter().enumerate() {
+            tail |= (b as u64) << (8 * i);
+        }
+        self.write_u64(tail ^ (bytes.len() as u64) << 56);
+    }
+
+    #[inline]
+    fn write_u64(&mut self, value: u64) {
+        self.hash = (self.hash.rotate_left(5) ^ value).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+
+    #[inline]
+    fn write_u32(&mut self, value: u32) {
+        self.write_u64(value as u64);
+    }
+
+    #[inline]
+    fn write_usize(&mut self, value: usize) {
+        self.write_u64(value as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.hash
+    }
+}
+
+pub type FxBuildHasher = std::hash::BuildHasherDefault<FxHasher>;
+
+/// A shallow hash of a constant: equal constants (`constantsEqual`) hash
+/// alike, and most unequal ones apart, cheaply (types count only by their
+/// kind and how many type arguments they have; map-like parts are hashed
+/// without regard to order, as upstream compares them).
+fn constantHash(constant: &Constant) -> u64 {
+    use std::hash::Hasher;
+    let mut h = FxHasher::default();
+    let shallowType = |h: &mut FxHasher, t: &DartType| {
+        match t {
+            DartType::Interface { classReference, typeArguments, nullability } => {
+                h.write_u32(*classReference);
+                h.write_usize(typeArguments.len());
+                h.write_u32(*nullability as u32);
+            }
+            other => h.write_u64(dartTypeKind(other)),
+        }
+    };
+    h.write_u64(constantKind(constant));
     match constant {
-        Constant::Double(value) => ConstantKey::Double(value.to_bits()),
-        other => ConstantKey::Other(format!("{other:?}")),
+        Constant::Null => {}
+        Constant::Bool(value) => h.write_u64(*value as u64),
+        Constant::Int(value) => h.write_u64(*value as u64),
+        Constant::Double(value) => h.write_u64(value.to_bits()),
+        Constant::String(value) => h.write_u32(*value),
+        Constant::Symbol { libraryReference, name } => {
+            h.write_u32(libraryReference.map_or(u32::MAX, |r| r));
+            h.write_u32(*name);
+        }
+        Constant::Map { keyType, valueType, entries } => {
+            shallowType(&mut h, keyType);
+            shallowType(&mut h, valueType);
+            for &(k, v) in entries {
+                h.write_u32(k);
+                h.write_u32(v);
+            }
+        }
+        Constant::List { typeArgument, entries } | Constant::Set { typeArgument, entries } => {
+            shallowType(&mut h, typeArgument);
+            for &e in entries {
+                h.write_u32(e);
+            }
+        }
+        Constant::Record { positional, named, .. } => {
+            for &p in positional {
+                h.write_u32(p);
+            }
+            let mut sum = 0u64;
+            for &(name, value) in named {
+                sum = sum.wrapping_add(((name as u64) << 32 | value as u64).wrapping_mul(0x9E3779B97F4A7C15));
+            }
+            h.write_u64(sum);
+        }
+        Constant::Instance { classReference, typeArguments, fieldValues } => {
+            h.write_u32(*classReference);
+            h.write_usize(typeArguments.len());
+            let mut sum = 0u64;
+            for &(field, value) in fieldValues {
+                sum = sum.wrapping_add(((field as u64) << 32 | value as u64).wrapping_mul(0x9E3779B97F4A7C15));
+            }
+            h.write_u64(sum);
+        }
+        Constant::Instantiation { tearOffConstant, types } => {
+            h.write_u32(*tearOffConstant);
+            h.write_usize(types.len());
+        }
+        Constant::StaticTearOff { targetReference }
+        | Constant::ConstructorTearOff { targetReference }
+        | Constant::RedirectingFactoryTearOff { targetReference } => h.write_u32(*targetReference),
+        Constant::TypeLiteral { r#type } => shallowType(&mut h, r#type),
+        Constant::Unevaluated { .. } => {}
+        Constant::TypedefTearOff { parameters, tearOffConstant, types } => {
+            h.write_usize(parameters.len());
+            h.write_u32(*tearOffConstant);
+            h.write_usize(types.len());
+        }
+    }
+    h.finish()
+}
+
+fn constantKind(constant: &Constant) -> u64 {
+    match constant {
+        Constant::Null => 0,
+        Constant::Bool(_) => 1,
+        Constant::Int(_) => 2,
+        Constant::Double(_) => 3,
+        Constant::String(_) => 4,
+        Constant::Symbol { .. } => 5,
+        Constant::Map { .. } => 6,
+        Constant::List { .. } => 7,
+        Constant::Set { .. } => 8,
+        Constant::Record { .. } => 9,
+        Constant::Instance { .. } => 10,
+        Constant::Instantiation { .. } => 11,
+        Constant::StaticTearOff { .. } => 12,
+        Constant::ConstructorTearOff { .. } => 13,
+        Constant::RedirectingFactoryTearOff { .. } => 14,
+        Constant::TypeLiteral { .. } => 15,
+        Constant::Unevaluated { .. } => 16,
+        Constant::TypedefTearOff { .. } => 17,
+    }
+}
+
+fn dartTypeKind(t: &DartType) -> u64 {
+    match t {
+        DartType::Never { .. } => 0,
+        DartType::Invalid => 1,
+        DartType::Dynamic => 2,
+        DartType::Void => 3,
+        DartType::Null => 4,
+        DartType::Interface { .. } => 5,
+        DartType::Function(_) => 6,
+        DartType::Record(_) => 7,
+        DartType::TypeParameter { .. } => 8,
+        DartType::Intersection { .. } => 9,
+        DartType::Extension { .. } => 10,
+        DartType::Typedef { .. } => 11,
+        DartType::FutureOr { .. } => 12,
+    }
+}
+
+/// Upstream's `Constant.==`: structural, a double by identity (its bits),
+/// record names and instance fields as maps (order does not matter), an
+/// unevaluated constant only equal to itself. Constants refer to other
+/// constants by id, and equal constants have one id, so comparing ids
+/// compares values. Types compare structurally; upstream also equates
+/// function types and typedef tear-offs whose type parameters differ only
+/// by name, which this does not (only a damaged table could tell).
+fn constantsEqual(a: &Constant, b: &Constant) -> bool {
+    fn sameMap(x: &[(u32, u32)], y: &[(u32, u32)]) -> bool {
+        // `mapEquals`: a later entry for a key overrides an earlier one.
+        let last = |m: &[(u32, u32)], key: u32| m.iter().rev().find(|e| e.0 == key).map(|e| e.1);
+        let keys = |m: &[(u32, u32)]| {
+            let mut k: Vec<u32> = m.iter().map(|e| e.0).collect();
+            k.sort_unstable();
+            k.dedup();
+            k
+        };
+        let kx = keys(x);
+        kx == keys(y) && kx.iter().all(|&k| last(x, k) == last(y, k))
+    }
+    match (a, b) {
+        (Constant::Double(x), Constant::Double(y)) => x.to_bits() == y.to_bits(),
+        (Constant::Unevaluated { .. }, Constant::Unevaluated { .. }) => false,
+        (
+            Constant::Record { positional: p1, named: n1, .. },
+            Constant::Record { positional: p2, named: n2, .. },
+        ) => p1 == p2 && sameMap(n1, n2),
+        (
+            Constant::Instance { classReference: c1, typeArguments: t1, fieldValues: f1 },
+            Constant::Instance { classReference: c2, typeArguments: t2, fieldValues: f2 },
+        ) => c1 == c2 && t1 == t2 && sameMap(f1, f2),
+        _ => a == b,
     }
 }
