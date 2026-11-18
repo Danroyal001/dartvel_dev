@@ -230,6 +230,115 @@ fn build_cors(cfg: &CorsOptions) -> CorsLayer {
 // a header.
 pub type DartReqHandler = extern "C" fn(u64, FfiStr, FfiStr, *const u8, usize, FfiBuf, FfiStr);
 
+/// Wakes a server's isolate to take the requests queued for it.
+pub type DartRequestWakeup = extern "C" fn();
+
+/// One request as `aw_take_requests` hands it over: the arguments the
+/// request handler takes, in one struct. The bytes stay where they are,
+/// retained as they are for the handler, until Dart acknowledges or answers.
+#[repr(C)]
+pub struct FfiRequest {
+    pub id: u64,
+    pub method: FfiStr,
+    pub target: FfiStr,
+    pub hdrs: *const u8,
+    pub hdrs_len: usize,
+    pub body: FfiBuf,
+    pub peer: FfiStr,
+}
+
+// SAFETY: the pointers name bytes retained in PENDING_REQUEST_PARTS, which
+// no thread frees until Dart has read them.
+unsafe impl Send for FfiRequest {}
+
+/// The requests waiting for one server's isolate, and whether it has been
+/// woken for them.
+///
+/// The request handler is a listener, so every request was one message to
+/// the isolate: posted, woken for and decoded one by one. Queued here, one
+/// wakeup takes every request that arrived meanwhile, which under load is
+/// many -- as WebSocket frames are taken.
+struct RequestQueue {
+    state: Mutex<RequestQueueState>,
+    wakeup: DartRequestWakeup,
+    /// Set for a server whose isolate drives its runtime: requests queued
+    /// while the isolate drives are taken by that same isolate after its
+    /// tick, and only a helper thread driving wakes it.
+    driven: Option<Arc<Driven>>,
+}
+
+struct RequestQueueState {
+    queued: std::collections::VecDeque<FfiRequest>,
+    woken: bool,
+}
+
+impl RequestQueue {
+    fn push(&self, request: FfiRequest) {
+        if let Some(driven) = &self.driven {
+            safe_lock(&self.state).queued.push_back(request);
+            if driven.lingering.load(Ordering::Relaxed) {
+                // Queued on the isolate's own thread, inside aw_linger.
+                driven.linger_arrived.notify_one();
+            } else if driven.helper_drives() {
+                driven.request_arrived.notify_one();
+            }
+            return;
+        }
+        let wake = {
+            let mut state = safe_lock(&self.state);
+            state.queued.push_back(request);
+            !std::mem::replace(&mut state.woken, true)
+        };
+        if wake {
+            (self.wakeup)();
+        }
+    }
+}
+
+static PENDING_REQUEST_WAKEUPS: OnceCell<Mutex<HashMap<std::thread::ThreadId, DartRequestWakeup>>> =
+    OnceCell::new();
+static SERVER_REQUEST_QUEUES: OnceCell<Mutex<HashMap<u64, Arc<RequestQueue>>>> = OnceCell::new();
+
+/// The wakeup for the next server this thread starts. A server started with
+/// one queues its requests for `aw_take_requests` rather than calling the
+/// request handler with each.
+#[no_mangle]
+pub extern "C" fn aw_register_request_wakeup_handler(cb: DartRequestWakeup) {
+    safe_lock(PENDING_REQUEST_WAKEUPS.get_or_init(Default::default))
+        .insert(std::thread::current().id(), cb);
+}
+
+/// Moves up to [max] of [server_id]'s queued requests into [out] and returns
+/// how many. Fewer than [max] means the queue is empty, and the next request
+/// wakes the isolate again.
+#[no_mangle]
+pub extern "C" fn aw_take_requests(server_id: u64, out: *mut FfiRequest, max: usize) -> usize {
+    if out.is_null() || max == 0 {
+        return 0;
+    }
+    let Some(queue) = SERVER_REQUEST_QUEUES
+        .get()
+        .and_then(|queues| safe_lock(queues).get(&server_id).cloned())
+    else {
+        return 0;
+    };
+    let mut state = safe_lock(&queue.state);
+    let mut taken = 0;
+    while taken < max {
+        let Some(request) = state.queued.pop_front() else { break };
+        // SAFETY: the caller passes room for max requests at out.
+        unsafe { out.add(taken).write(request) };
+        taken += 1;
+    }
+    if taken < max {
+        state.woken = false;
+    }
+    taken
+}
+
+#[derive(Clone)]
+struct ServerRequestQueue(Arc<RequestQueue>);
+
 /// The shape of the calls between this library and Dart.
 ///
 /// Raised whenever a callback's signature changes. A Dart side built for one
@@ -327,10 +436,20 @@ static PENDING_WS_WAKEUP_HANDLERS: OnceCell<
 static SERVER_WS_WAKEUP_HANDLERS: OnceCell<Mutex<HashMap<u64, DartWsWakeupHandler>>> =
     OnceCell::new();
 
-/// Rides along in the request extensions so a handler can tell which server
-/// took the request. Cheaper than threading state through every route.
-#[derive(Clone, Copy)]
-struct ServerId(u64);
+/// What a request needs to know about the server that accepted it: which
+/// server took it (so the proxy reaches that server's Dart handler), its
+/// timeout, body limits, files, request queue and default headers.
+#[derive(Clone)]
+struct ServerContext(Arc<ServerContextInner>);
+
+struct ServerContextInner {
+    id: u64,
+    timeout: std::time::Duration,
+    body_limits: BodyLimits,
+    static_paths: StaticPaths,
+    queue: Option<ServerRequestQueue>,
+    defaults: Option<DefaultHeaders>,
+}
 static DART_CANCEL_HANDLER: OnceCell<Mutex<Option<DartStreamCancelHandler>>> =
     OnceCell::new();
 
@@ -354,7 +473,7 @@ static SERVER_BODY_CHUNK_HANDLERS: OnceCell<Mutex<HashMap<u64, DartBodyChunkHand
 /// The bodies still being read, by request. A request is in here from the
 /// moment its Dart callback is called until its proxy future ends, which is
 /// also when it stops being pullable.
-static REQUEST_BODIES: OnceCell<Mutex<HashMap<u64, Arc<BodyState>>>> = OnceCell::new();
+static REQUEST_BODIES: OnceCell<Mutex<HashMap<u64, Arc<BodyState>, IdHash>>> = OnceCell::new();
 
 struct FfiRespOwned {
     status: u16,
@@ -362,7 +481,8 @@ struct FfiRespOwned {
     body: Vec<u8>,
     is_stream: u8,
 }
-static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, oneshot::Sender<FfiRespOwned>>>> =
+/// Each request's answer channel, and the driven server it came through.
+static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, (oneshot::Sender<FfiRespOwned>, Option<Arc<Driven>>), IdHash>>> =
     OnceCell::new();
 /// Capacity for the bounded response stream channel.
 const RESPONSE_STREAM_CAPACITY: usize = 64;
@@ -406,6 +526,45 @@ static SERVER_PORTS: OnceCell<Mutex<HashMap<u64, u16>>> = OnceCell::new();
 static CORS_CONFIG: OnceCell<Mutex<Option<Arc<CorsOptions>>>> = OnceCell::new();
 #[derive(Clone, Default)]
 struct StaticPaths { directory: Option<String>, spa: Option<String> }
+
+/// Headers every response from Dart carries unless it set the same header
+/// itself: serve()'s securityHeaders. Added here rather than in Dart so a
+/// response does not encode and send them across on every request.
+#[derive(Clone)]
+struct DefaultHeaders(Arc<axum::http::HeaderMap>);
+
+static PENDING_DEFAULT_HEADERS: OnceCell<Mutex<HashMap<std::thread::ThreadId, DefaultHeaders>>> = OnceCell::new();
+
+/// The default headers for the next server this thread starts, as NUL-
+/// separated name and value pairs. 1 when a name or value is not one HTTP
+/// allows, and nothing is kept.
+#[no_mangle]
+pub extern "C" fn aw_configure_default_headers(hdrs: *const u8, len: usize) -> i32 {
+    let flat: &[u8] = if hdrs.is_null() || len == 0 {
+        &[]
+    } else {
+        // SAFETY: the caller passes len readable bytes at hdrs.
+        unsafe { std::slice::from_raw_parts(hdrs, len) }
+    };
+    let mut map = axum::http::HeaderMap::new();
+    let mut fields = flat.split(|&c| c == 0);
+    while let Some(name) = fields.next() {
+        let value = fields.next().unwrap_or_default();
+        if name.is_empty() {
+            continue;
+        }
+        let (Ok(name), Ok(value)) = (
+            header::HeaderName::from_bytes(name),
+            axum::http::HeaderValue::from_bytes(value),
+        ) else {
+            return 1;
+        };
+        map.append(name, value);
+    }
+    safe_lock(PENDING_DEFAULT_HEADERS.get_or_init(Default::default))
+        .insert(std::thread::current().id(), DefaultHeaders(Arc::new(map)));
+    0
+}
 static PENDING_STATIC: OnceCell<Mutex<HashMap<std::thread::ThreadId, StaticPaths>>> = OnceCell::new();
 static COMPRESSION_ENABLED: OnceCell<Mutex<bool>> = OnceCell::new();
 
@@ -431,9 +590,6 @@ static PENDING_REQUEST_TIMEOUTS: OnceCell<
     Mutex<HashMap<std::thread::ThreadId, std::time::Duration>>,
 > = OnceCell::new();
 
-/// Rides in the request extensions beside [ServerId].
-#[derive(Clone, Copy)]
-struct RequestTimeout(std::time::Duration);
 
 /// Bytes a request body may be when the server configured no limit: 1 MiB.
 ///
@@ -652,10 +808,10 @@ struct RequestParts {
     _peer: Vec<u8>,
 }
 
-static PENDING_REQUEST_PARTS: OnceCell<Mutex<HashMap<u64, RequestParts>>> = OnceCell::new();
+static PENDING_REQUEST_PARTS: OnceCell<Mutex<HashMap<u64, RequestParts, IdHash>>> = OnceCell::new();
 
 fn retain_request_parts(req_id: u64, parts: RequestParts) {
-    let map = PENDING_REQUEST_PARTS.get_or_init(|| Mutex::new(HashMap::new()));
+    let map = PENDING_REQUEST_PARTS.get_or_init(Default::default);
     safe_lock(map).insert(req_id, parts);
 }
 
@@ -673,6 +829,15 @@ const AW_START_BIND_FAILED: i32 = -3;
 
 // Flags for aw_start
 pub const AW_FLAG_H2C: u32 = 0x01;
+/// Listen with SO_REUSEPORT, so servers in several isolates that all ask for
+/// it share one address and the kernel spreads connections over them, as
+/// dart:io does for `HttpServer.bind(shared: true)`.
+pub const AW_FLAG_SHARED: u32 = 0x02;
+/// The isolate drives the server's runtime itself, on its own thread, while
+/// it has requests to take (aw_drive), and a helper thread drives it while
+/// the isolate is idle (aw_park). A request then reaches Dart, and its answer
+/// reaches the socket, with no thread hand-off at all under load.
+pub const AW_FLAG_DRIVEN: u32 = 0x04;
 
 fn stream_ack(req_id: u64, server_id: Option<u64>) {
     let cb = server_id
@@ -780,7 +945,7 @@ pub extern "C" fn aw_register_handler(cb: DartReqHandler) {
     let pending = PENDING_REQUEST_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
     safe_lock(pending).insert(std::thread::current().id(), cb);
     let _ = SERVER_THREADS.set(Mutex::new(HashMap::new()));
-    let _ = PENDING_RESPONSES.set(Mutex::new(HashMap::new()));
+    let _ = PENDING_RESPONSES.set(Mutex::new(HashMap::default()));
     let _ = NEXT_ID.set(AtomicU64::new(1));
     let _ = SERVER_HANDLES.set(Mutex::new(HashMap::new()));
     let _ = SERVER_PORTS.set(Mutex::new(HashMap::new()));
@@ -1110,7 +1275,7 @@ fn request_body(req_id: u64) -> Option<Arc<BodyState>> {
 }
 
 fn register_request_body(req_id: u64, state: Arc<BodyState>) {
-    let map = REQUEST_BODIES.get_or_init(|| Mutex::new(HashMap::new()));
+    let map = REQUEST_BODIES.get_or_init(Default::default);
     safe_lock(map).insert(req_id, state);
 }
 
@@ -1490,7 +1655,7 @@ fn bound_header_read(
 }
 
 #[no_mangle]
-pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
+pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
     if host.ptr.is_null() {
         return -1;
     }
@@ -1525,6 +1690,8 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
     let body_limits = take_pending_body_limits();
     let static_paths = safe_lock(PENDING_STATIC.get_or_init(Default::default))
         .remove(&std::thread::current().id()).unwrap_or_default();
+    let default_headers = safe_lock(PENDING_DEFAULT_HEADERS.get_or_init(Default::default))
+        .remove(&std::thread::current().id());
     // This thread's TLS configuration, or none: plain HTTP.
     let tls_config = PENDING_TLS
         .get()
@@ -1555,7 +1722,7 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
             Err(_) => return AW_START_BAD_ADDRESS,
         },
     };
-    let listener = match std::net::TcpListener::bind(parsed_addr) {
+    let listener = match bind_listener(parsed_addr, flags & AW_FLAG_SHARED != 0) {
         Ok(listener) => listener,
         Err(_) => return AW_START_BIND_FAILED,
     };
@@ -1607,6 +1774,47 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
         let handlers = SERVER_STREAM_ACK_HANDLERS.get_or_init(|| Mutex::new(HashMap::new()));
         safe_lock(handlers).insert(server_id, handler);
     }
+    let request_wakeup = PENDING_REQUEST_WAKEUPS
+        .get()
+        .and_then(|pending| safe_lock(pending).remove(&this_thread));
+    // Driven only when the requests are queued: the isolate takes them after
+    // each tick, and the helper has a wakeup to hand the runtime back with.
+    let driven: Option<Arc<Driven>> = match request_wakeup {
+        Some(wakeup) if flags & AW_FLAG_DRIVEN != 0 => {
+            match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                Ok(rt) => {
+                    let driven = Arc::new(Driven {
+                        rt,
+                        owner: Mutex::new(DriveOwner { helper: true, stopping: false }),
+                        turn: std::sync::Condvar::new(),
+                        request_arrived: tokio::sync::Notify::new(),
+                        wakeup,
+                        deferred: Mutex::new(Vec::new()),
+                        lingering: AtomicBool::new(false),
+                        linger_arrived: tokio::sync::Notify::new(),
+                    });
+                    safe_lock(SERVER_DRIVEN.get_or_init(Default::default))
+                        .insert(server_id, driven.clone());
+                    Some(driven)
+                }
+                Err(_) => None,
+            }
+        }
+        _ => None,
+    };
+    let request_queue = request_wakeup.map(|wakeup| {
+            let queue = Arc::new(RequestQueue {
+                state: Mutex::new(RequestQueueState {
+                    queued: std::collections::VecDeque::new(),
+                    woken: false,
+                }),
+                wakeup,
+                driven: driven.clone(),
+            });
+            safe_lock(SERVER_REQUEST_QUEUES.get_or_init(Default::default))
+                .insert(server_id, queue.clone());
+            ServerRequestQueue(queue)
+        });
     let ws_wakeup_handler = PENDING_WS_WAKEUP_HANDLERS
         .get()
         .and_then(|pending| safe_lock(pending).remove(&this_thread))
@@ -1618,87 +1826,106 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, _flags: u32) -> i32 {
 
     let handle_clone = handle.clone();
 
-    let server_thread = std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build Tokio runtime");
+    let serve = async move {
+        let mut app = Router::new()
+            .route("/health", get(health_handler))
+            .route("/healthz", get(healthz_handler))
+            .route("/healths", get(healths_handler))
+            .fallback(catch_all_handler);
 
-        rt.block_on(async move {
-            let mut app = Router::new()
-                .route("/health", get(health_handler))
-                .route("/healthz", get(healthz_handler))
-                .route("/healths", get(healths_handler))
-                .fallback(catch_all_handler);
+        if compression_enabled {
+            app = app.layer(tower_http::compression::CompressionLayer::new());
+        }
 
-            if compression_enabled {
-                app = app.layer(tower_http::compression::CompressionLayer::new());
-            }
+        if let Some(cfg) = cors_config {
+            app = app.layer(build_cors(&cfg));
+        }
 
-            if let Some(cfg) = cors_config {
-                app = app.layer(build_cors(&cfg));
-            }
+        // Tags every request with the server that accepted it, so the
+        // proxy can reach this server's Dart handler rather than whichever
+        // was registered most recently.
+        // One extension for all of it: each extension is a boxed clone in
+        // every request's extension map, and these were six, two of them
+        // cloning strings, on every request.
+        app = app.layer(axum::Extension(ServerContext(Arc::new(ServerContextInner {
+            id: server_id,
+            timeout: request_timeout,
+            body_limits,
+            static_paths,
+            queue: request_queue,
+            defaults: default_headers,
+        }))));
+        // Outermost: a panic anywhere in answering a request is a 500
+        // rather than a connection dropped with no answer at all.
+        app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
 
-            // Tags every request with the server that accepted it, so the
-            // proxy can reach this server's Dart handler rather than whichever
-            // was registered most recently.
-            app = app.layer(axum::Extension(ServerId(server_id)));
-            app = app.layer(axum::Extension(RequestTimeout(request_timeout)));
-            app = app.layer(axum::Extension(body_limits));
-            app = app.layer(axum::Extension(static_paths));
-            // Outermost: a panic anywhere in answering a request is a 500
-            // rather than a connection dropped with no answer at all.
-            app = app.layer(tower_http::catch_panic::CatchPanicLayer::new());
+        // Already bound above, so nothing here can fail for want of a
+        // port. A serve error now means the loop ended, which is what
+        // shutdown looks like too — it is not grounds for a panic in a
+        // thread nobody is watching.
+        // With connect info, so each request carries the socket address it
+        // was accepted from and dart_proxy can hand it to Dart.
+        let result = if let Some(tls_config) = tls_config {
+            let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config);
+            let mut server = axum_server::from_tcp_rustls(listener, rustls_config);
+            bound_header_read(server.http_builder(), request_timeout);
+            server
+                .handle(handle_clone)
+                .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+                .await
+        } else {
+            let mut server = axum_server::from_tcp(listener);
+            bound_header_read(server.http_builder(), request_timeout);
+            server
+                .handle(handle_clone)
+                .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+                .await
+        };
+        if let Err(error) = result {
+            eprintln!("dartvel: server {server_id} stopped: {error}");
+        }
 
-            // Already bound above, so nothing here can fail for want of a
-            // port. A serve error now means the loop ended, which is what
-            // shutdown looks like too — it is not grounds for a panic in a
-            // thread nobody is watching.
-            // With connect info, so each request carries the socket address it
-            // was accepted from and dart_proxy can hand it to Dart.
-            let result = if let Some(tls_config) = tls_config {
-                let rustls_config = axum_server::tls_rustls::RustlsConfig::from_config(tls_config);
-                let mut server = axum_server::from_tcp_rustls(listener, rustls_config);
-                bound_header_read(server.http_builder(), request_timeout);
-                server
-                    .handle(handle_clone)
-                    .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-                    .await
-            } else {
-                let mut server = axum_server::from_tcp(listener);
-                bound_header_read(server.http_builder(), request_timeout);
-                server
-                    .handle(handle_clone)
-                    .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-                    .await
-            };
-            if let Err(error) = result {
-                eprintln!("dartvel: server {server_id} stopped: {error}");
-            }
-
-            if let Some(handles) = SERVER_HANDLES.get() {
-                safe_lock(handles).remove(&server_id);
-            }
-            if let Some(ports) = SERVER_PORTS.get() {
-                safe_lock(ports).remove(&server_id);
-            }
-            if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
-                safe_lock(handlers).remove(&server_id);
-            }
-            if let Some(handlers) = SERVER_CANCEL_HANDLERS.get() {
-                safe_lock(handlers).remove(&server_id);
-            }
-            if let Some(handlers) = SERVER_BODY_CHUNK_HANDLERS.get() {
-                safe_lock(handlers).remove(&server_id);
-            }
-            if let Some(handlers) = SERVER_STREAM_ACK_HANDLERS.get() {
-                safe_lock(handlers).remove(&server_id);
-            }
-            if let Some(handlers) = SERVER_WS_WAKEUP_HANDLERS.get() {
-                safe_lock(handlers).remove(&server_id);
-            }
-        });
-    });
+        if let Some(handles) = SERVER_HANDLES.get() {
+            safe_lock(handles).remove(&server_id);
+        }
+        if let Some(ports) = SERVER_PORTS.get() {
+            safe_lock(ports).remove(&server_id);
+        }
+        if let Some(handlers) = SERVER_REQUEST_HANDLERS.get() {
+            safe_lock(handlers).remove(&server_id);
+        }
+        if let Some(handlers) = SERVER_CANCEL_HANDLERS.get() {
+            safe_lock(handlers).remove(&server_id);
+        }
+        if let Some(handlers) = SERVER_BODY_CHUNK_HANDLERS.get() {
+            safe_lock(handlers).remove(&server_id);
+        }
+        if let Some(handlers) = SERVER_STREAM_ACK_HANDLERS.get() {
+            safe_lock(handlers).remove(&server_id);
+        }
+        if let Some(handlers) = SERVER_WS_WAKEUP_HANDLERS.get() {
+            safe_lock(handlers).remove(&server_id);
+        }
+        if let Some(queues) = SERVER_REQUEST_QUEUES.get() {
+            safe_lock(queues).remove(&server_id);
+        }
+        if let Some(driven) = SERVER_DRIVEN.get() {
+            safe_lock(driven).remove(&server_id);
+        }
+    };
+    let server_thread = match driven {
+        Some(driven) => {
+            let task = driven.rt.spawn(serve);
+            std::thread::spawn(move || driven.run_helper(task))
+        }
+        None => std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to build Tokio runtime");
+            rt.block_on(serve);
+        }),
+    };
 
     if let Some(threads) = SERVER_THREADS.get() {
         safe_lock(threads).insert(server_id, server_thread);
@@ -1721,6 +1948,14 @@ pub extern "C" fn aw_server_port(server_id: u64) -> u16 {
 
 #[no_mangle]
 pub extern "C" fn aw_stop(server_id: u64) -> i32 {
+    // A driven server is driven by its helper from here on, which is what
+    // runs the graceful shutdown the join below waits for.
+    let driven = SERVER_DRIVEN
+        .get()
+        .and_then(|servers| safe_lock(servers).get(&server_id).cloned());
+    if let Some(driven) = &driven {
+        driven.stop();
+    }
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).retain(|_, bridge| bridge.server != Some(server_id));
     if let Some(handles) = SERVER_HANDLES.get() {
         let mut map = safe_lock(handles);
@@ -1753,7 +1988,7 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
         None => return 1,
     };
     let mut map = safe_lock(map_mutex);
-    if let Some(tx) = map.remove(&req_id) {
+    if let Some((tx, driven)) = map.remove(&req_id) {
         // SAFETY: FfiResp guarantees valid pointers and lengths, data is copied immediately
         let owned = unsafe {
             if resp.hdrs.is_null() && resp.hdrs_len > 0 {
@@ -1783,7 +2018,19 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
             safe_lock(senders).insert(req_id, chunk_tx);
             safe_lock(receivers).insert(req_id, chunk_rx);
         }
-        let _ = tx.send(owned);
+        drop(map);
+        match driven {
+            // The isolate drives this server and will turn its runtime next:
+            // the answer is handed over then, from inside the runtime, so
+            // waking the task that writes it is a queue push rather than a
+            // write to the runtime's wakeup descriptor and an event for it.
+            Some(driven) if !driven.helper_drives() => {
+                safe_lock(&driven.deferred).push((tx, owned));
+            }
+            _ => {
+                let _ = tx.send(owned);
+            }
+        }
         // No handler is left to read this request's body, so the rest of it
         // is read only to reach its end and free the connection.
         mark_body_answered(req_id);
@@ -1859,7 +2106,12 @@ fn canonical_peer(addr: std::net::SocketAddr) -> std::net::SocketAddr {
 }
 
 fn headers_flat(req: &Request<Body>) -> Vec<u8> {
-    let mut out = Vec::new();
+    let size: usize = req
+        .headers()
+        .iter()
+        .map(|(k, v)| k.as_str().len() + v.len() + 2)
+        .sum();
+    let mut out = Vec::with_capacity(size);
     for (k, v) in req.headers().iter() {
         out.extend_from_slice(k.as_str().as_bytes());
         out.push(0);
@@ -1878,25 +2130,32 @@ async fn dart_proxy_with_fallback(
     fallback: Option<fn() -> Response<Body>>,
 ) -> Response<Body> {
     // Read while the request is still whole; the body is taken further down.
-    let server_id = req.extensions().get::<ServerId>().map(|ServerId(id)| *id);
+    let context = req.extensions().get::<ServerContext>().cloned();
+    let server_id = context.as_ref().map(|ServerContext(c)| c.id);
+    let default_headers = context.as_ref().and_then(|ServerContext(c)| c.defaults.clone());
+    let request_queue = context.as_ref().and_then(|ServerContext(c)| c.queue.clone());
     // One deadline for the body and for Dart: a request is bounded as a
     // whole, not per phase, so a client cannot spend the timeout twice.
-    let request_timeout = req
-        .extensions()
-        .get::<RequestTimeout>()
-        .map(|RequestTimeout(timeout)| *timeout)
-        .unwrap_or(DEFAULT_REQUEST_TIMEOUT);
+    let request_timeout = context
+        .as_ref()
+        .map_or(DEFAULT_REQUEST_TIMEOUT, |ServerContext(c)| c.timeout);
     let deadline = tokio::time::Instant::now() + request_timeout;
     // Decided before a byte of the body is read. A body is read as far as it
     // is asked for rather than held whole, but nothing past the limit is
     // ever kept, so one client still cannot name a body as large as it
     // liked -- or a chunked body that never ended -- and have it held.
-    let body_limit = req
-        .extensions()
-        .get::<BodyLimits>()
-        .map_or(DEFAULT_MAX_BODY_BYTES, |limits| {
-            limits.for_request(req.method().as_str(), req.uri().path())
-        });
+    // A request that carries no body -- a GET, most of all -- has nothing to
+    // limit, stream or read. Dart is handed it with no body registered, and
+    // a pull from it ends at once: an empty body, without the route match,
+    // the reader and its registration on every such request.
+    let bodiless = axum::body::HttpBody::is_end_stream(req.body());
+    let body_limit = if bodiless {
+        u64::MAX
+    } else {
+        context.as_ref().map_or(DEFAULT_MAX_BODY_BYTES, |ServerContext(c)| {
+            c.body_limits.for_request(req.method().as_str(), req.uri().path())
+        })
+    };
     // A body announced too large is refused without reading any of it.
     if declared_too_large(req.headers(), body_limit) {
         return too_large_response(body_limit);
@@ -1913,7 +2172,14 @@ async fn dart_proxy_with_fallback(
     let upgrade = WebSocketUpgrade::from_request_parts(&mut parts, &()).await.ok();
     let req = Request::from_parts(parts, body);
     let method = req.method().as_str().as_bytes().to_vec();
-    let target = req.uri().to_string().into_bytes();
+    // The request line's path and query as they came, without formatting
+    // the whole URI again; an absolute-form target is formatted as before.
+    let target = match req.uri().path_and_query() {
+        Some(path_and_query) if req.uri().scheme().is_none() => {
+            path_and_query.as_str().as_bytes().to_vec()
+        }
+        _ => req.uri().to_string().into_bytes(),
+    };
     let flattened_headers = headers_flat(&req);
     let peer = peer_text(&req).into_bytes();
 
@@ -1923,7 +2189,9 @@ async fn dart_proxy_with_fallback(
     // reads, and the two halves check for each other on purpose: a mismatched
     // pair holds a body rather than losing it.
     let mut streamed: Option<(Arc<BodyState>, axum::body::BodyDataStream)> = None;
-    let bytes = match body_chunk_handler(server_id) {
+    let bytes = if bodiless {
+        Bytes::new()
+    } else { match body_chunk_handler(server_id) {
         Some(cb) => {
             let state = Arc::new(BodyState::new(cb, server_id));
             let data = req.into_body().into_data_stream();
@@ -1971,7 +2239,7 @@ async fn dart_proxy_with_fallback(
             }
             body_buf.freeze()
         }
-    };
+    } };
     // Forgets the body when this future is dropped, which is what a server
     // stopping mid-request does: nothing waits for that to end on its own.
     let _registration = BodyRegistration(req_id);
@@ -1995,7 +2263,8 @@ async fn dart_proxy_with_fallback(
 
     let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
     if let Some(mutex) = PENDING_RESPONSES.get() {
-        safe_lock(mutex).insert(req_id, response_tx);
+        let driven = request_queue.as_ref().and_then(|ServerRequestQueue(queue)| queue.driven.clone());
+        safe_lock(mutex).insert(req_id, (response_tx, driven));
     } else {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -2005,14 +2274,15 @@ async fn dart_proxy_with_fallback(
 
     // This server's handler first. The global is the fallback, for any path
     // that reaches here without having gone through a server.
-    let request_handler = server_id
+    // Not looked up for a server whose requests are queued.
+    let request_handler = if request_queue.is_some() { None } else { server_id
         .and_then(|id| {
             SERVER_REQUEST_HANDLERS
                 .get()
                 .and_then(|handlers| safe_lock(handlers).get(&id).copied())
         })
-        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot)));
-    let Some(cb) = request_handler else {
+        .or_else(|| DART_REQUEST_HANDLER.get().and_then(|slot| *safe_lock(slot))) };
+    if request_handler.is_none() && request_queue.is_none() {
         if let Some(mutex) = PENDING_RESPONSES.get() {
             safe_lock(mutex).remove(&req_id);
         }
@@ -2032,15 +2302,27 @@ async fn dart_proxy_with_fallback(
             _peer: peer,
         },
     );
-    (cb)(
-        req_id,
-        method_ffi,
-        target_ffi,
-        headers_ptr,
-        headers_len,
-        body_ffi,
-        peer_ffi,
-    );
+    match (&request_queue, request_handler) {
+        (Some(ServerRequestQueue(queue)), _) => queue.push(FfiRequest {
+            id: req_id,
+            method: method_ffi,
+            target: target_ffi,
+            hdrs: headers_ptr,
+            hdrs_len: headers_len,
+            body: body_ffi,
+            peer: peer_ffi,
+        }),
+        (None, Some(cb)) => (cb)(
+            req_id,
+            method_ffi,
+            target_ffi,
+            headers_ptr,
+            headers_len,
+            body_ffi,
+            peer_ffi,
+        ),
+        (None, None) => unreachable!("refused above"),
+    }
 
     // The body and the answer are waited for together, under the one
     // deadline a request has. A refusal is the body saying the request may
@@ -2107,7 +2389,7 @@ async fn dart_proxy_with_fallback(
                 aw_ws_dispose(req_id);
                 return plain_response(StatusCode::BAD_REQUEST);
             }
-            response_from_dart(resp, req_id, server_id, fallback)
+            response_from_dart(resp, req_id, server_id, fallback, default_headers.as_ref())
         },
         Ok(Err(_)) => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
         Err(_) => {
@@ -2180,6 +2462,7 @@ fn response_from_dart(
     req_id: u64,
     server_id: Option<u64>,
     fallback: Option<fn() -> Response<Body>>,
+    defaults: Option<&DefaultHeaders>,
 ) -> Response<Body> {
     let refuse = |why: &str| {
         eprintln!("dartvel: a handler's response {why}; answered 500");
@@ -2205,6 +2488,13 @@ fn response_from_dart(
             return refuse("has a header value HTTP does not allow");
         };
         headers.append(name, value);
+    }
+    if let Some(DefaultHeaders(defaults)) = defaults {
+        for (name, value) in defaults.iter() {
+            if !headers.contains_key(name) {
+                headers.insert(name.clone(), value.clone());
+            }
+        }
     }
 
     if status_code == StatusCode::NOT_FOUND {
@@ -2277,28 +2567,31 @@ fn default_healths_response() -> Response<Body> {
 async fn catch_all_handler(
     req: Request<Body>,
 ) -> impl IntoResponse {
+    let context = req.extensions().get::<ServerContext>().cloned();
+    let paths = context.as_ref().map(|ServerContext(c)| &c.static_paths);
+    // A server with no files of its own goes straight to Dart.
+    if !paths.is_some_and(|p| p.directory.is_some() || p.spa.is_some()) {
+        return dart_proxy(req).await;
+    }
     let path = req.uri().path().to_string();
-    
+
     // 1. Static dir check
-    let paths = req.extensions().get::<StaticPaths>().cloned().unwrap_or_default();
-    let static_dir = paths.directory;
-    if let Some(dir) = static_dir {
+    if let Some(dir) = paths.and_then(|p| p.directory.as_deref()) {
         if path.starts_with("/static/") {
             let relative_path = &path["/static".len()..];
-            if let Some(file_path) = get_static_file(&dir, relative_path) {
+            if let Some(file_path) = get_static_file(dir, relative_path) {
                 return serve_file_response(file_path, req).await;
             }
         }
     }
 
     // 2. SPA root check
-    let spa_root = paths.spa;
-    if let Some(dir) = spa_root {
-        if let Some(file_path) = get_static_file(&dir, &path) {
+    if let Some(dir) = paths.and_then(|p| p.spa.as_deref()) {
+        if let Some(file_path) = get_static_file(dir, &path) {
             return serve_file_response(file_path, req).await;
         }
         if req.method() == Method::GET {
-            if let Some(index_path) = get_static_file(&dir, "/index.html") {
+            if let Some(index_path) = get_static_file(dir, "/index.html") {
                 return serve_file_response(index_path, req).await;
             }
         }
@@ -2308,21 +2601,33 @@ async fn catch_all_handler(
     dart_proxy(req).await
 }
 
-fn get_static_file(dir: &str, path: &str) -> Option<std::path::PathBuf> {
+/// The file [path] names under [dir], with its metadata, when it is a file
+/// inside [dir] after every symlink is resolved.
+///
+/// The metadata comes from the same stat that decided it is a file, so the
+/// response's validator does not need a second one on the blocking pool.
+fn get_static_file(dir: &str, path: &str) -> Option<(std::path::PathBuf, std::fs::Metadata)> {
     let root = std::fs::canonicalize(dir).ok()?;
     let path = root.join(path.trim_start_matches('/'));
     let resolved = std::fs::canonicalize(path).ok()?;
-    if resolved.starts_with(&root) && resolved.is_file() { Some(resolved) } else { None }
+    if !resolved.starts_with(&root) {
+        return None;
+    }
+    let meta = std::fs::metadata(&resolved).ok()?;
+    if meta.is_file() { Some((resolved, meta)) } else { None }
 }
 
-async fn serve_file_response(path: std::path::PathBuf, mut req: Request<Body>) -> Response<Body> {
+async fn serve_file_response(
+    (path, meta): (std::path::PathBuf, std::fs::Metadata),
+    mut req: Request<Body>,
+) -> Response<Body> {
     use tower::ServiceExt;
     use tower_http::services::ServeFile;
     // A weak validator: metadata identifies a version, not byte equality.
-    let etag = tokio::fs::metadata(&path).await.ok().and_then(|meta| {
+    let etag = (|| {
         let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
         Some(format!("W/\"{:x}-{:x}\"", meta.len(), modified.as_nanos()))
-    });
+    })();
     let retrieval = req.method() == Method::GET || req.method() == Method::HEAD;
     if retrieval {
         if let Some(condition) = req.headers().get(header::IF_NONE_MATCH) {
@@ -2391,20 +2696,89 @@ mod request_tests {
 
     #[test]
     fn a_header_value_http_does_not_allow_is_a_500_not_a_panic() {
-        let response = response_from_dart(answered(200, b"x-a\0line\r\nsplit\0"), 9001, None, None);
+        let response = response_from_dart(answered(200, b"x-a\0line\r\nsplit\0"), 9001, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn a_header_name_http_does_not_allow_is_a_500() {
-        let response = response_from_dart(answered(200, b"bad name\0v\0"), 9002, None, None);
+        let response = response_from_dart(answered(200, b"bad name\0v\0"), 9002, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[test]
     fn a_status_that_is_not_one_is_a_500_not_a_200() {
-        let response = response_from_dart(answered(42, b""), 9003, None, None);
+        let response = response_from_dart(answered(42, b""), 9003, None, None, None);
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn default_headers_fill_in_only_what_the_response_did_not_set() {
+        let mut map = axum::http::HeaderMap::new();
+        map.insert("x-content-type-options", "nosniff".parse().unwrap());
+        map.insert("x-frame-options", "SAMEORIGIN".parse().unwrap());
+        let defaults = DefaultHeaders(Arc::new(map));
+        let response = response_from_dart(
+            answered(200, b"x-frame-options\0DENY\0"),
+            9005,
+            None,
+            None,
+            Some(&defaults),
+        );
+        assert_eq!(response.headers()["x-frame-options"], "DENY");
+        assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+    }
+
+    static WAKEUPS: AtomicU64 = AtomicU64::new(0);
+    extern "C" fn count_wakeup() {
+        WAKEUPS.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn queued(id: u64) -> FfiRequest {
+        let empty = || FfiStr { ptr: std::ptr::null(), len: 0 };
+        FfiRequest {
+            id,
+            method: empty(),
+            target: empty(),
+            hdrs: std::ptr::null(),
+            hdrs_len: 0,
+            body: FfiBuf { ptr: std::ptr::null(), len: 0 },
+            peer: empty(),
+        }
+    }
+
+    #[test]
+    fn one_wakeup_takes_every_request_queued_until_the_queue_is_empty() {
+        let queue = Arc::new(RequestQueue {
+            state: Mutex::new(RequestQueueState {
+                queued: std::collections::VecDeque::new(),
+                woken: false,
+            }),
+            wakeup: count_wakeup,
+            driven: None,
+        });
+        let server_id = 990_001;
+        safe_lock(SERVER_REQUEST_QUEUES.get_or_init(Default::default))
+            .insert(server_id, queue.clone());
+        let before = WAKEUPS.load(Ordering::SeqCst);
+        for id in 1..=5 {
+            queue.push(queued(id));
+        }
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1, "one wakeup for five requests");
+
+        let mut out: Vec<FfiRequest> = (0..3).map(|_| queued(0)).collect();
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
+        assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [1, 2, 3]);
+        // A full batch: still woken, so a new request does not wake again.
+        queue.push(queued(6));
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1);
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
+        assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [4, 5, 6]);
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 0);
+        // Emptied: the next request wakes the isolate again.
+        queue.push(queued(7));
+        assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 2);
+        safe_lock(SERVER_REQUEST_QUEUES.get().unwrap()).remove(&server_id);
     }
 
     #[test]
@@ -2412,6 +2786,7 @@ mod request_tests {
         let response = response_from_dart(
             answered(201, b"x-a\0one\0x-a\0two\0content-type\0text/plain\0"),
             9004,
+            None,
             None,
             None,
         );
@@ -3409,4 +3784,287 @@ mod ws_bridge_tests {
         assert_eq!(CALLS.load(Ordering::SeqCst), 1);
         *safe_lock(slot) = previous;
     }
+}
+
+/// The listening socket for [addr], with a backlog of 1024 rather than the
+/// standard library's, so a burst of new connections is queued rather than
+/// dropped into SYN retries; and with SO_REUSEPORT when [shared], on the
+/// platforms that have it.
+fn bind_listener(addr: std::net::SocketAddr, shared: bool) -> std::io::Result<std::net::TcpListener> {
+    #[cfg(unix)]
+    {
+        use std::os::fd::FromRawFd;
+        let domain = if addr.is_ipv4() { libc::AF_INET } else { libc::AF_INET6 };
+        // SAFETY: plain socket calls on a descriptor this function owns until
+        // it is handed to TcpListener, which closes it.
+        unsafe {
+            let fd = libc::socket(domain, libc::SOCK_STREAM, 0);
+            if fd < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            // Not inherited by a process this one starts.
+            libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC);
+            let listener = std::net::TcpListener::from_raw_fd(fd);
+            let on: libc::c_int = 1;
+            let set = |name| {
+                libc::setsockopt(
+                    fd,
+                    libc::SOL_SOCKET,
+                    name,
+                    &on as *const libc::c_int as *const libc::c_void,
+                    std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+                )
+            };
+            // What std sets too: a restarted server can bind a port whose old
+            // connections are still in TIME_WAIT.
+            if set(libc::SO_REUSEADDR) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if shared && set(libc::SO_REUSEPORT) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let (storage, len) = sockaddr_of(&addr);
+            if libc::bind(fd, &storage as *const libc::sockaddr_storage as *const libc::sockaddr, len) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::listen(fd, 1024) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(listener)
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        // No SO_REUSEPORT: a second shared bind fails as an unshared one does.
+        let _ = shared;
+        std::net::TcpListener::bind(addr)
+    }
+}
+
+#[cfg(unix)]
+fn sockaddr_of(addr: &std::net::SocketAddr) -> (libc::sockaddr_storage, libc::socklen_t) {
+    // SAFETY: an all-zero sockaddr_storage is valid, and each arm writes the
+    // family-specific struct that fits inside it.
+    unsafe {
+        let mut storage: libc::sockaddr_storage = std::mem::zeroed();
+        match addr {
+            std::net::SocketAddr::V4(v4) => {
+                let sin = &mut storage as *mut libc::sockaddr_storage as *mut libc::sockaddr_in;
+                (*sin).sin_family = libc::AF_INET as libc::sa_family_t;
+                #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+                { (*sin).sin_len = std::mem::size_of::<libc::sockaddr_in>() as u8; }
+                (*sin).sin_port = v4.port().to_be();
+                (*sin).sin_addr = libc::in_addr { s_addr: u32::from_ne_bytes(v4.ip().octets()) };
+                (storage, std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t)
+            }
+            std::net::SocketAddr::V6(v6) => {
+                let sin6 = &mut storage as *mut libc::sockaddr_storage as *mut libc::sockaddr_in6;
+                (*sin6).sin6_family = libc::AF_INET6 as libc::sa_family_t;
+                #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
+                { (*sin6).sin6_len = std::mem::size_of::<libc::sockaddr_in6>() as u8; }
+                (*sin6).sin6_port = v6.port().to_be();
+                (*sin6).sin6_flowinfo = v6.flowinfo();
+                (*sin6).sin6_scope_id = v6.scope_id();
+                (*sin6).sin6_addr = libc::in6_addr { s6_addr: v6.ip().octets() };
+                (storage, std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t)
+            }
+        }
+    }
+}
+
+
+static SERVER_DRIVEN: OnceCell<Mutex<HashMap<u64, Arc<Driven>>>> = OnceCell::new();
+
+/// A server's connections on a current-thread runtime that whichever of two
+/// threads owns it drives: the isolate while it has requests to take, a
+/// helper thread of the server's while the isolate is idle.
+///
+/// Every request used to cross threads twice. A Tokio worker read it and
+/// posted it to the isolate, which woke; the isolate answered, and the
+/// answer woke a worker to write it. Under load the wakeups and the workers
+/// looking for each other's work cost more than the request. Driven by the
+/// isolate, the read, the handler and the write run on one thread, one after
+/// the other, and a busy server stays on it. Only an idle isolate hands the
+/// runtime to the helper, which waits in the kernel for the next request
+/// and gives the runtime back with one wakeup.
+struct Driven {
+    rt: tokio::runtime::Runtime,
+    owner: Mutex<DriveOwner>,
+    turn: std::sync::Condvar,
+    /// A request was queued while the helper drove.
+    request_arrived: tokio::sync::Notify,
+    wakeup: DartRequestWakeup,
+    /// Answers given while the isolate owned the runtime, handed to their
+    /// requests at its next turn (or when it parks or stops).
+    deferred: Mutex<Vec<(oneshot::Sender<FfiRespOwned>, FfiRespOwned)>>,
+    /// Set while the isolate waits in aw_linger, so a request queued then
+    /// ends the wait.
+    lingering: AtomicBool,
+    linger_arrived: tokio::sync::Notify,
+}
+
+struct DriveOwner {
+    /// The helper drives; otherwise the isolate does.
+    helper: bool,
+    stopping: bool,
+}
+
+impl Driven {
+    fn helper_drives(&self) -> bool {
+        safe_lock(&self.owner).helper
+    }
+
+    fn deliver_deferred(&self) {
+        let answers = std::mem::take(&mut *safe_lock(&self.deferred));
+        for (tx, owned) in answers {
+            let _ = tx.send(owned);
+        }
+    }
+
+    /// The helper thread: drives the runtime whenever the isolate has parked
+    /// it, until a request arrives, then hands it back; once stopped, until
+    /// the server has shut down.
+    fn run_helper(self: Arc<Self>, server: tokio::task::JoinHandle<()>) {
+        loop {
+            {
+                let mut owner = safe_lock(&self.owner);
+                while !owner.helper && !owner.stopping {
+                    owner = self.turn.wait(owner).unwrap_or_else(|e| e.into_inner());
+                }
+                if owner.stopping {
+                    break;
+                }
+            }
+            self.rt.block_on(self.request_arrived.notified());
+            {
+                let mut owner = safe_lock(&self.owner);
+                if owner.stopping {
+                    break;
+                }
+                // Only now: the runtime is free for the isolate once this
+                // thread has left block_on.
+                owner.helper = false;
+            }
+            (self.wakeup)();
+        }
+        let _ = self.rt.block_on(server);
+    }
+
+    fn stop(&self) {
+        {
+            let mut owner = safe_lock(&self.owner);
+            owner.stopping = true;
+            owner.helper = true;
+        }
+        self.deliver_deferred();
+        self.turn.notify_all();
+        self.request_arrived.notify_one();
+    }
+}
+
+fn driven_server(server_id: u64) -> Option<Arc<Driven>> {
+    SERVER_DRIVEN
+        .get()
+        .and_then(|servers| safe_lock(servers).get(&server_id).cloned())
+}
+
+/// One turn of [server_id]'s runtime on the calling thread, which must be
+/// the isolate that started it: what is ready runs, the sockets are polled
+/// without waiting, and what that made ready runs. Requests it read are
+/// queued for aw_take_requests.
+///
+/// 0 after a turn; 1 when the helper drives (or the server is stopping) and
+/// nothing was run; -1 for a server that is not driven.
+#[no_mangle]
+pub extern "C" fn aw_drive(server_id: u64) -> i32 {
+    let Some(driven) = driven_server(server_id) else { return -1 };
+    {
+        let owner = safe_lock(&driven.owner);
+        if owner.helper || owner.stopping {
+            return 1;
+        }
+    }
+    driven.rt.block_on(async {
+        driven.deliver_deferred();
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+    });
+    0
+}
+
+/// Gives [server_id]'s runtime to its helper thread, for an isolate with
+/// nothing left to take: the helper waits for the next request and wakes the
+/// isolate for it. 0, or -1 for a server that is not driven.
+#[no_mangle]
+pub extern "C" fn aw_park(server_id: u64) -> i32 {
+    let Some(driven) = driven_server(server_id) else { return -1 };
+    {
+        let mut owner = safe_lock(&driven.owner);
+        if owner.helper {
+            return 0;
+        }
+        owner.helper = true;
+    }
+    // Answers given since the last turn go now, before the helper drives.
+    driven.deliver_deferred();
+    driven.turn.notify_one();
+    0
+}
+
+/// Hashes the request and server ids the tables here are keyed by: numbers
+/// this library hands out one after another, never a client's, so they need
+/// no defence against chosen collisions and SipHash's cost bought nothing on
+/// several lookups per request.
+#[derive(Default, Clone, Copy)]
+struct IdHasher(u64);
+
+impl std::hash::Hasher for IdHasher {
+    fn finish(&self) -> u64 {
+        // Spread the sequential ids over the table's buckets.
+        self.0.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0 << 8) | u64::from(byte);
+        }
+    }
+    fn write_u64(&mut self, id: u64) {
+        self.0 = id;
+    }
+}
+
+type IdHash = std::hash::BuildHasherDefault<IdHasher>;
+
+/// Turns [server_id]'s runtime on the calling thread, which must be the
+/// isolate that drives it, until a request is queued or [micros] have passed.
+///
+/// For an isolate whose last turn found nothing: the next request on a busy
+/// server is usually that close, and waiting for it in the kernel here costs
+/// less than parking -- handing the runtime to the helper, which wakes this
+/// isolate with a message when it comes. The isolate's event loop is held for
+/// at most [micros], which is how late a timer can be while it waits.
+///
+/// 0 a request was queued; 2 none came; 1 the helper drives or the server is
+/// stopping; -1 a server that is not driven.
+#[no_mangle]
+pub extern "C" fn aw_linger(server_id: u64, micros: u32) -> i32 {
+    let Some(driven) = driven_server(server_id) else { return -1 };
+    {
+        let owner = safe_lock(&driven.owner);
+        if owner.helper || owner.stopping {
+            return 1;
+        }
+    }
+    driven.lingering.store(true, Ordering::Relaxed);
+    let arrived = driven.rt.block_on(async {
+        driven.deliver_deferred();
+        tokio::time::timeout(
+            std::time::Duration::from_micros(u64::from(micros)),
+            driven.linger_arrived.notified(),
+        )
+        .await
+        .is_ok()
+    });
+    driven.lingering.store(false, Ordering::Relaxed);
+    if arrived { 0 } else { 2 }
 }

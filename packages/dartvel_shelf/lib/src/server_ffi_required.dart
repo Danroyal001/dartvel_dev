@@ -66,6 +66,7 @@ Future<ServerHandle> serve(
   int port = 8080,
   TlsConfig? tls,
   bool h2c = false,
+  bool shared = false,
   CorsOptions? cors,
   String? staticDir,
   String? spaRoot,

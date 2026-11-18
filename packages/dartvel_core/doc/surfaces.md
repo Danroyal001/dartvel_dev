@@ -496,7 +496,11 @@ boundary.
 `DV.log` keeps a bounded in-process buffer (`recentLogs`). The generated
 backend's web process also writes every line to stdout as JSON lines, at the
 level `DARTVEL_LOG_LEVEL` sets (`info` by default), which every container
-runtime and hosted platform already collects. That is the only sink installed
+runtime and hosted platform already collects. A router writes an access
+line per request up to `Router.accessLogsPerSecond` (100 by default,
+`DARTVEL_ACCESS_LOGS_PER_SECOND`) and sums up the rest of each second in one
+line; answers of 500 and above are always written, and the request metrics
+count every request. That is the only sink installed
 anywhere: a worker or cron process keeps its lines in the buffer and writes
 them nowhere, and the Flutter client prints to the debug console and nothing
 more. Both are gaps in the framework, not something an application wires up.

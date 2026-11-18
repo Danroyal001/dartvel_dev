@@ -130,5 +130,9 @@ String rustSourceRevision(Directory crate) {
     feed(normalised.takeBytes());
     feed(const <int>[0]);
   }
-  return hash.toUnsigned(64).toRadixString(16).padLeft(16, '0');
+  // In two halves: a VM int is signed, so toUnsigned(64) leaves a hash
+  // with its top bit set negative, and it printed with a minus sign where
+  // Rust's {:016x} prints sixteen digits.
+  String half(int value) => value.toRadixString(16).padLeft(8, '0');
+  return half((hash >> 32) & 0xffffffff) + half(hash & 0xffffffff);
 }

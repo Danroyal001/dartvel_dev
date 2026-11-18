@@ -21,6 +21,21 @@
 #define AW_FLAG_H2C 1
 
 /**
+ * Listen with SO_REUSEPORT, so servers in several isolates that all ask for
+ * it share one address and the kernel spreads connections over them, as
+ * dart:io does for `HttpServer.bind(shared: true)`.
+ */
+#define AW_FLAG_SHARED 2
+
+/**
+ * The isolate drives the server's runtime itself, on its own thread, while
+ * it has requests to take (aw_drive), and a helper thread drives it while
+ * the isolate is idle (aw_park). A request then reaches Dart, and its answer
+ * reaches the socket, with no thread hand-off at all under load.
+ */
+#define AW_FLAG_DRIVEN 4
+
+/**
  * A chunk of the request body [req_id] is here.
  */
 #define AW_BODY_CHUNK 0
@@ -82,6 +97,11 @@
  */
 #define AW_CODEC_CORRUPT -4
 
+/**
+ * Wakes a server's isolate to take the requests queued for it.
+ */
+typedef void (*DartRequestWakeup)(void);
+
 typedef struct FfiStr {
   const uint8_t *ptr;
   size_t len;
@@ -91,6 +111,21 @@ typedef struct FfiBuf {
   const uint8_t *ptr;
   size_t len;
 } FfiBuf;
+
+/**
+ * One request as `aw_take_requests` hands it over: the arguments the
+ * request handler takes, in one struct. The bytes stay where they are,
+ * retained as they are for the handler, until Dart acknowledges or answers.
+ */
+typedef struct FfiRequest {
+  uint64_t id;
+  struct FfiStr method;
+  struct FfiStr target;
+  const uint8_t *hdrs;
+  size_t hdrs_len;
+  struct FfiBuf body;
+  struct FfiStr peer;
+} FfiRequest;
 
 typedef void (*DartReqHandler)(uint64_t,
                                struct FfiStr,
@@ -130,9 +165,30 @@ typedef struct FfiWsFrame {
 
 typedef void *DartHandle;
 
+/**
+ * The wakeup for the next server this thread starts. A server started with
+ * one queues its requests for `aw_take_requests` rather than calling the
+ * request handler with each.
+ */
+void aw_register_request_wakeup_handler(DartRequestWakeup cb);
+
+/**
+ * Moves up to [max] of [server_id]'s queued requests into [out] and returns
+ * how many. Fewer than [max] means the queue is empty, and the next request
+ * wakes the isolate again.
+ */
+size_t aw_take_requests(uint64_t server_id, struct FfiRequest *out, size_t max);
+
 uint32_t aw_abi_version(void);
 
 const char *aw_source_revision(void);
+
+/**
+ * The default headers for the next server this thread starts, as NUL-
+ * separated name and value pairs. 1 when a name or value is not one HTTP
+ * allows, and nothing is kept.
+ */
+int32_t aw_configure_default_headers(const uint8_t *hdrs, size_t len);
 
 void aw_register_handler(DartReqHandler cb);
 
@@ -216,7 +272,7 @@ int32_t aw_configure_max_body_bytes(uint64_t bytes);
  */
 int32_t aw_configure_route_body_limit(struct FfiStr method, struct FfiStr pattern, uint64_t bytes);
 
-int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t _flags);
+int32_t aw_start(struct FfiStr host, uint16_t port, uint32_t flags);
 
 /**
  * The port [server_id] is listening on, or 0 if it is unknown.
@@ -277,6 +333,39 @@ struct FfiWsFrame aw_ws_receive(uint64_t id);
 void aw_ws_free(struct FfiBuf data);
 
 void aw_ws_dispose(uint64_t id);
+
+/**
+ * One turn of [server_id]'s runtime on the calling thread, which must be
+ * the isolate that started it: what is ready runs, the sockets are polled
+ * without waiting, and what that made ready runs. Requests it read are
+ * queued for aw_take_requests.
+ *
+ * 0 after a turn; 1 when the helper drives (or the server is stopping) and
+ * nothing was run; -1 for a server that is not driven.
+ */
+int32_t aw_drive(uint64_t server_id);
+
+/**
+ * Gives [server_id]'s runtime to its helper thread, for an isolate with
+ * nothing left to take: the helper waits for the next request and wakes the
+ * isolate for it. 0, or -1 for a server that is not driven.
+ */
+int32_t aw_park(uint64_t server_id);
+
+/**
+ * Turns [server_id]'s runtime on the calling thread, which must be the
+ * isolate that drives it, until a request is queued or [micros] have passed.
+ *
+ * For an isolate whose last turn found nothing: the next request on a busy
+ * server is usually that close, and waiting for it in the kernel here costs
+ * less than parking -- handing the runtime to the helper, which wakes this
+ * isolate with a message when it comes. The isolate's event loop is held for
+ * at most [micros], which is how late a timer can be while it waits.
+ *
+ * 0 a request was queued; 2 none came; 1 the helper drives or the server is
+ * stopping; -1 a server that is not driven.
+ */
+int32_t aw_linger(uint64_t server_id, uint32_t micros);
 
 /**
  * Compresses `input_len` bytes at `input` with `codec` at `level` into the

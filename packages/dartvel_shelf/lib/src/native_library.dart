@@ -169,7 +169,11 @@ ffi.DynamicLibrary _openRange(({String path, int offset, int length}) at) {
   }
 
   if (Platform.isLinux) {
-    final int? fd = _memfd();
+    final String name =
+        '${at.length}-${at.offset}-${_fnv(at.path.codeUnits)}';
+    final String? shared = _finishedMemfd(name);
+    if (shared != null) return ffi.DynamicLibrary.open(shared);
+    final int? fd = _memfd(name);
     if (fd != null) {
       final String path = '/proc/self/fd/$fd';
       try {
@@ -179,6 +183,7 @@ ffi.DynamicLibrary _openRange(({String path, int offset, int length}) at) {
         } finally {
           out.closeSync();
         }
+        _seal(fd);
         return ffi.DynamicLibrary.open(path);
       } on Object {
         // A kernel that refuses executable memfds: the file below.
@@ -196,18 +201,106 @@ ffi.DynamicLibrary _openRange(({String path, int offset, int length}) at) {
   return ffi.DynamicLibrary.open(file.path);
 }
 
-/// An anonymous in-memory file, or null where there is none.
-int? _memfd() {
+// One in-memory copy of the library per process.
+//
+// Each isolate that serves opens the library, and every isolate has its own
+// Dart statics, so each made its own in-memory file: a server on four
+// isolates loaded the library four times, with four times its memory and its
+// start-up cost. A library opened from a path is loaded once per process,
+// because the dynamic loader knows the file. So each copy is named after what
+// it holds, and sealed against writes once it is whole; an isolate that finds
+// a sealed copy of the same library among this process's open files opens
+// that one, and the loader hands back the library already loaded. Two
+// isolates that start at the same instant may still make one each, which is
+// what every isolate did before.
+
+const int _mfdCloexec = 1;
+const int _mfdAllowSealing = 2;
+const int _fAddSeals = 1033;
+const int _fGetSeals = 1034;
+const int _fSealSeal = 1;
+const int _fSealShrink = 2;
+const int _fSealGrow = 4;
+const int _fSealWrite = 8;
+
+/// The prefix every in-memory copy is named with.
+const String _memfdPrefix = 'dartvel_shelf:';
+
+/// A short hash of [units], for naming a copy after its contents.
+String _fnv(List<int> units) {
+  int hash = 0x811c9dc5;
+  for (final int unit in units) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+  }
+  return hash.toRadixString(16);
+}
+
+/// [bytes] identified by their length and a sample of them: hashing all of a
+/// library on every isolate's start would cost what this saves.
+String _bytesName(List<int> bytes) {
+  final List<int> sample = <int>[
+    for (int i = 0; i < bytes.length; i += 4093) bytes[i],
+  ];
+  return '${bytes.length}-b-${_fnv(sample)}';
+}
+
+int Function(int, int, int)? _fcntlFunction;
+
+int _fcntl(int fd, int command, int argument) {
+  final int Function(int, int, int) fcntl = _fcntlFunction ??=
+      ffi.DynamicLibrary.process().lookupFunction<
+          ffi.Int32 Function(ffi.Int32, ffi.Int32, ffi.VarArgs<(ffi.Int32,)>),
+          int Function(int, int, int)>('fcntl');
+  return fcntl(fd, command, argument);
+}
+
+/// Seals the copy at [fd] against every change, which is also what tells
+/// another isolate it is whole.
+void _seal(int fd) {
+  _fcntl(fd, _fAddSeals,
+      _fSealShrink | _fSealGrow | _fSealWrite | _fSealSeal);
+}
+
+/// The path of a whole copy named [name] this process already holds, or null.
+String? _finishedMemfd(String name) {
+  final String wanted = '/memfd:$_memfdPrefix$name';
+  try {
+    for (final FileSystemEntity entry
+        in Directory('/proc/self/fd').listSync(followLinks: false)) {
+      if (entry is! Link) continue;
+      final String target;
+      try {
+        target = entry.targetSync();
+      } on FileSystemException {
+        continue;
+      }
+      // The kernel shows a memfd as `/memfd:<name> (deleted)`.
+      if (target != wanted && target != '$wanted (deleted)') continue;
+      final int? fd = int.tryParse(p.basename(entry.path));
+      if (fd == null) continue;
+      final int seals = _fcntl(fd, _fGetSeals, 0);
+      if (seals >= 0 && seals & _fSealWrite != 0) return entry.path;
+    }
+  } on Object {
+    // No /proc, or no fcntl: a copy of this isolate's own.
+  }
+  return null;
+}
+
+/// An anonymous in-memory file named after [name], or null where there is
+/// none.
+int? _memfd(String name) {
   try {
     final int Function(ffi.Pointer<pkgffi.Utf8>, int) memfdCreate =
         ffi.DynamicLibrary.process().lookupFunction<
             ffi.Int32 Function(ffi.Pointer<pkgffi.Utf8>, ffi.Uint32),
             int Function(ffi.Pointer<pkgffi.Utf8>, int)>('memfd_create');
-    final ffi.Pointer<pkgffi.Utf8> name =
-        'dartvel_shelf'.toNativeUtf8(allocator: pkgffi.calloc);
+    final ffi.Pointer<pkgffi.Utf8> native =
+        '$_memfdPrefix$name'.toNativeUtf8(allocator: pkgffi.calloc);
     // MFD_CLOEXEC: a child process this server starts does not inherit it.
-    final int fd = memfdCreate(name, 1);
-    pkgffi.calloc.free(name);
+    // Sealing allowed, so a whole copy can say it is whole.
+    final int fd = memfdCreate(native, _mfdCloexec | _mfdAllowSealing);
+    pkgffi.calloc.free(native);
     return fd < 0 ? null : fd;
   } on Object {
     return null;
@@ -216,21 +309,17 @@ int? _memfd() {
 
 ffi.DynamicLibrary? _openMemfd(List<int> bytes) {
   try {
-    final int Function(ffi.Pointer<pkgffi.Utf8>, int) memfdCreate =
-        ffi.DynamicLibrary.process().lookupFunction<
-            ffi.Int32 Function(ffi.Pointer<pkgffi.Utf8>, ffi.Uint32),
-            int Function(ffi.Pointer<pkgffi.Utf8>, int)>('memfd_create');
-    final ffi.Pointer<pkgffi.Utf8> name =
-        'dartvel_shelf'.toNativeUtf8(allocator: pkgffi.calloc);
-    // MFD_CLOEXEC: a child process this server starts does not inherit it.
-    final int fd = memfdCreate(name, 1);
-    pkgffi.calloc.free(name);
-    if (fd < 0) return null;
+    final String name = _bytesName(bytes);
+    final String? shared = _finishedMemfd(name);
+    if (shared != null) return ffi.DynamicLibrary.open(shared);
+    final int? fd = _memfd(name);
+    if (fd == null) return null;
     final String path = '/proc/self/fd/$fd';
     File(path).writeAsBytesSync(
       bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
       flush: true,
     );
+    _seal(fd);
     return ffi.DynamicLibrary.open(path);
   } on Object {
     return null;

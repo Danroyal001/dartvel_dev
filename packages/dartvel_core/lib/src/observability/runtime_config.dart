@@ -8,6 +8,7 @@
 library dartvel.observability.runtime_config;
 
 import 'observability.dart';
+import '../http/router.dart' show Router;
 
 /// Whether this process should answer `GET /_dartvel/logs` and
 /// `GET /_dartvel/traces`.
@@ -43,4 +44,9 @@ void dvConfigureRuntimeLogging(
   DVObservability.diagnosticsEndpoints = dvDiagnosticsEnabled(environment);
   final String token = (environment['DARTVEL_METRICS_TOKEN'] ?? '').trim();
   DVObservability.metricsToken = token.isEmpty ? null : token;
+  // Access lines one per request up to this many a second; see
+  // Router.accessLogsPerSecond.
+  Router.accessLogsPerSecond = int.tryParse(
+          (environment['DARTVEL_ACCESS_LOGS_PER_SECOND'] ?? '').trim()) ??
+      Router.defaultAccessLogsPerSecond;
 }
