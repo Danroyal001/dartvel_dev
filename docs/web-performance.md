@@ -256,6 +256,74 @@ the renderer 2 s at 4x slowdown; headless Chrome draws without a GPU, which
 overstates the renderer's share). The next step is a symbolised profile of
 what the app does before its first frame.
 
+## SSR-first: the page's own document instead of the splash (opt-in, November 2026)
+
+`dartvel.web.ssrFirst: true` (off by default, see NEW_SPEC.md, *SSR-first*)
+shows each page's server-rendered document, the block crawlers, find and
+print already read, as the page from the first paint. Flutter takes over at
+its first frame. Nothing about loading the app changes, so the first frame
+comes when it did. What changes is what a visitor has until then: a page
+they can read and tap after one round trip and a few kilobytes, instead of
+the logo for 30 to 95 seconds.
+
+Measured on sigmadev.digital the same way as the section above: headless
+Chrome as a 390 px phone, 4x slower CPU, a fresh profile, DevTools Fast 3G
+(562 ms, 1.44 Mbit/s) and Slow 3G (2 s, 400 kbit/s), over HTTP/2. Three runs
+each, alternating A and B, and paused while any web build ran on the host
+(load 10-19 throughout). **A** is the live release (Dartvel 132c51d5a). **B**
+is the same binary behind a proxy that rewrites each page into what the
+SSR-first build writes: the head style and handover script (byte-identical
+to `dvSsrFirstHead`'s output for the site's colours), the document first in
+the body, no logo preload, and a lazy logo. The change is HTML only, so the
+app's code is the same in A and B. Both go through the same proxy, which
+recompresses every page. *Readable* is the first paint with page text on
+screen and on top. *Clickable* is a real link that hit-tests at its own
+position. For A, both are the first frame. *Bytes* is everything downloaded
+by then. The tool is `saas-metrics.tools.sigmadev.digital`, a Pro tool.
+
+| Fast 3G | FCP | LCP | Readable | Clickable | First frame | Bytes until readable | CLS |
+|---|---|---|---|---|---|---|---|
+| Home, A | 0.8-1.9 s | 1.8-4.7 s | 31.2-32.6 s | 31.2-32.6 s | 31.2-32.6 s | 2,911 KB | 0.002 |
+| Home, B | 1.0-1.3 s | 1.0-1.3 s | **1.0-1.3 s** | **1.0-1.3 s** | 29.4-33.4 s | **8 KB** | 0.000 |
+| Pricing, A | 0.9-1.1 s | 1.9-2.1 s | 32.1-36.3 s | 32.1-36.3 s | 32.1-36.3 s | 2,906 KB | 0.002 |
+| Pricing, B | 1.1-1.3 s | 1.1-1.3 s | **1.1-1.3 s** | **1.1-1.3 s** | 32.6-35.7 s | **16 KB** | 0.000 |
+| Tool, A | 0.8 s | 1.7-1.9 s | 32.1-34.9 s | 32.1-34.9 s | 32.1-34.9 s | 3,912 KB | 0.002 |
+| Tool, B | 1.0-2.2 s | 1.0-2.2 s | **1.0-2.2 s** | **1.0-2.2 s** | 30.5-33.9 s | **6-35 KB** | 0.000 |
+
+| Slow 3G | FCP | LCP | Readable | Clickable | First frame | Bytes until readable | CLS |
+|---|---|---|---|---|---|---|---|
+| Home, A | 2.3-2.5 s | 6.0-6.3 s | 78.3-80.1 s | 78.3-80.1 s | 78.3-80.1 s | 2,911 KB | 0.002 |
+| Home, B | 2.7-2.8 s | 2.7-2.8 s | **2.7-2.8 s** | **2.7-2.8 s** | 76.4-78.9 s | **8 KB** | 0.000 |
+| Pricing, A | 2.5-2.7 s | 6.1-7.0 s | 81.3-84.0 s | 81.3-84.0 s | 81.3-84.0 s | 2,906 KB | 0.002 |
+| Pricing, B | 2.6-3.3 s | 2.6-3.3 s | **2.6-3.3 s** | **2.6-3.3 s** | 79.6-82.6 s | **16 KB** | 0.000 |
+| Tool, A | 2.3-2.4 s | 5.7 s | 93.7-95.2 s | 93.7-95.2 s | 93.7-95.2 s | 3,913 KB | 0.002 |
+| Tool, B | 2.3-3.0 s | 2.3-3.0 s | **2.3-3.0 s** | **2.3-3.0 s** | 92.2-93.6 s | **6 KB** | 0.000 |
+
+Total bytes per page are within 15 KB of each other (B skips the splash
+logo). In A, FCP and LCP are the splash and its logo. In B they are the
+document, so FCP is 0.1-0.4 s later (the page is about 0.6 KB larger and
+paints text, not a colour) and LCP is earlier.
+
+What a visitor sees at the handover, checked in Chrome at 390 px, light and dark:
+
+- The document is a reading column in the system font: the site's
+  light/dark page colours, the navigation links as a row, then headings,
+  text and links. At the first frame it fades out over 200 ms onto the
+  app's own layout, fonts and imagery. Nothing moves (CLS 0.000), but the
+  page changes look at that moment. This is the cost of the option, and
+  why it is off by default.
+- A reader who has scrolled the document keeps their place. The section at
+  the top of their screen is handed to the find runtime, which scrolls the
+  app to it. The app first draws at its top, then scrolls there, about
+  0.3 s after the fade.
+- A link tapped before the app loads is a normal navigation to that page,
+  served the same way.
+- Focus inside the document moves to the app. A selection in progress
+  holds the handover until it ends (at most 10 s).
+
+Scripts: `measure.mjs` (with readable, clickable and CLS added),
+`ssrproxy.mjs`, `matrix.sh`, `table.mjs`.
+
 ## Still to do
 
 Ranked by what they would save:
