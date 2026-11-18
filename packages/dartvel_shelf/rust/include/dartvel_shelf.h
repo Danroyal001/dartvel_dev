@@ -330,6 +330,25 @@ int32_t aw_ws_send(uint64_t id, int32_t kind, struct FfiBuf data);
  */
 struct FfiWsFrame aw_ws_receive(uint64_t id);
 
+/**
+ * Moves up to [max] of [id]'s waiting frames into the caller's memory: the
+ * kind of frame `i` into `kinds[i]`, its length into `lens[i]`, and the
+ * payloads back to back into `buf` (at most `cap` bytes). One call and no
+ * allocation for a burst of frames, where aw_ws_receive is a call, an
+ * allocation and an aw_ws_free for each.
+ *
+ * Returns how many frames were written; 0 when none is waiting (a wakeup
+ * follows the next); -1 when the channel is gone; -2 when the next frame
+ * alone is larger than `cap` -- aw_ws_receive takes it, and order is kept.
+ * A frame that does not fit after others waits for the next call.
+ */
+ptrdiff_t aw_ws_receive_batch(uint64_t id,
+                              int32_t *kinds,
+                              size_t *lens,
+                              size_t max,
+                              uint8_t *buf,
+                              size_t cap);
+
 void aw_ws_free(struct FfiBuf data);
 
 void aw_ws_dispose(uint64_t id);

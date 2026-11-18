@@ -3474,6 +3474,9 @@ struct WsBridge {
     max: usize,
     shared: Arc<WsShared>,
     incoming: Mutex<mpsc::Receiver<Message>>,
+    /// A frame taken from [incoming] that did not fit the caller's batch
+    /// buffer: the next receive hands it over first, so order is kept.
+    held: Mutex<Option<(i32, Vec<u8>)>>,
 }
 impl Drop for WsBridge {
     // Disposed by Dart or by its server stopping: the task ends with it.
@@ -3531,6 +3534,7 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
     let (in_tx, in_rx) = mpsc::channel(64);
     safe_lock(WS_BRIDGES.get_or_init(Default::default)).insert(id, WsBridge {
         server: None, max, shared: shared.clone(), incoming: Mutex::new(in_rx),
+        held: Mutex::new(None),
     });
     safe_lock(WS_PENDING.get_or_init(Default::default)).insert(id, WsPending {
         id, server: None, max, protocol, incoming: in_tx, shared,
@@ -3647,6 +3651,22 @@ pub extern "C" fn aw_ws_receive(id: u64) -> FfiWsFrame {
     let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
     let empty = |kind| FfiWsFrame { kind, data: FfiBuf { ptr: std::ptr::null(), len: 0 } };
     let Some(bridge) = bridges.get(&id) else { return empty(-1); };
+    let (kind, bytes) = match ws_take(bridge) {
+        Ok(Some(frame)) => frame,
+        Ok(None) => return empty(0),
+        Err(()) => return empty(-1),
+    };
+    let boxed = bytes.into_boxed_slice();
+    let len = boxed.len();
+    FfiWsFrame { kind, data: FfiBuf { ptr: Box::into_raw(boxed) as *const u8, len } }
+}
+
+/// The next frame for [bridge] as its kind and payload: the held one first,
+/// then the queue. None when nothing is waiting; Err when the queue is gone.
+fn ws_take(bridge: &WsBridge) -> Result<Option<(i32, Vec<u8>)>, ()> {
+    if let Some(frame) = safe_lock(&bridge.held).take() {
+        return Ok(Some(frame));
+    }
     let mut incoming = safe_lock(&bridge.incoming);
     let mut result = incoming.try_recv();
     if matches!(result, Err(mpsc::error::TryRecvError::Empty)) {
@@ -3657,10 +3677,10 @@ pub extern "C" fn aw_ws_receive(id: u64) -> FfiWsFrame {
     }
     let message = match result {
         Ok(message) => message,
-        Err(mpsc::error::TryRecvError::Empty) => return empty(0),
-        Err(_) => return empty(-1),
+        Err(mpsc::error::TryRecvError::Empty) => return Ok(None),
+        Err(_) => return Err(()),
     };
-    let (kind, bytes) = match message {
+    Ok(Some(match message {
         Message::Text(text) => (1, text.into_bytes()),
         Message::Binary(bytes) => (2, bytes),
         Message::Ping(bytes) => (9, bytes),
@@ -3669,10 +3689,65 @@ pub extern "C" fn aw_ws_receive(id: u64) -> FfiWsFrame {
             let mut bytes = f.code.to_be_bytes().to_vec();
             bytes.extend_from_slice(f.reason.as_bytes()); bytes
         }).unwrap_or_default()),
-    };
-    let boxed = bytes.into_boxed_slice();
-    let len = boxed.len();
-    FfiWsFrame { kind, data: FfiBuf { ptr: Box::into_raw(boxed) as *const u8, len } }
+    }))
+}
+
+/// Moves up to [max] of [id]'s waiting frames into the caller's memory: the
+/// kind of frame `i` into `kinds[i]`, its length into `lens[i]`, and the
+/// payloads back to back into `buf` (at most `cap` bytes). One call and no
+/// allocation for a burst of frames, where aw_ws_receive is a call, an
+/// allocation and an aw_ws_free for each.
+///
+/// Returns how many frames were written; 0 when none is waiting (a wakeup
+/// follows the next); -1 when the channel is gone; -2 when the next frame
+/// alone is larger than `cap` -- aw_ws_receive takes it, and order is kept.
+/// A frame that does not fit after others waits for the next call.
+#[no_mangle]
+pub extern "C" fn aw_ws_receive_batch(
+    id: u64,
+    kinds: *mut i32,
+    lens: *mut usize,
+    max: usize,
+    buf: *mut u8,
+    cap: usize,
+) -> isize {
+    if kinds.is_null() || lens.is_null() || (buf.is_null() && cap > 0) {
+        return -1;
+    }
+    let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
+    let Some(bridge) = bridges.get(&id) else { return -1 };
+    let mut written = 0usize;
+    let mut used = 0usize;
+    while written < max {
+        let (kind, bytes) = match ws_take(bridge) {
+            Ok(Some(frame)) => frame,
+            Ok(None) => break,
+            Err(()) => {
+                if written == 0 {
+                    return -1;
+                }
+                break;
+            }
+        };
+        if bytes.len() > cap - used {
+            let alone_too_large = written == 0 && bytes.len() > cap;
+            *safe_lock(&bridge.held) = Some((kind, bytes));
+            if alone_too_large {
+                return -2;
+            }
+            break;
+        }
+        // SAFETY: the caller passes room for `max` kinds and lengths and
+        // `cap` bytes at `buf`; `written < max` and `used + len <= cap`.
+        unsafe {
+            *kinds.add(written) = kind;
+            *lens.add(written) = bytes.len();
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf.add(used), bytes.len());
+        }
+        used += bytes.len();
+        written += 1;
+    }
+    written as isize
 }
 
 #[no_mangle]
@@ -3767,6 +3842,51 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
 #[cfg(test)]
 mod ws_bridge_tests {
     use super::*;
+
+    fn queue_incoming(id: u64, messages: Vec<Message>) {
+        let pending = safe_lock(WS_PENDING.get_or_init(Default::default));
+        let sender = pending.get(&id).expect("prepared").incoming.clone();
+        drop(pending);
+        for message in messages {
+            sender.try_send(message).expect("room");
+        }
+    }
+
+    #[test]
+    fn frames_are_received_in_batches_in_order_and_a_large_one_alone() {
+        let id = 9_100_010;
+        assert_eq!(aw_ws_prepare(id, 1 << 20, FfiStr { ptr: std::ptr::null(), len: 0 }), 0);
+        queue_incoming(id, vec![
+            Message::Text("one".into()),
+            Message::Binary(vec![1, 2, 3, 4]),
+            Message::Ping(vec![9]),
+            Message::Text("x".repeat(40)),
+            Message::Text("after".into()),
+        ]);
+        let mut kinds = [0i32; 8];
+        let mut lens = [0usize; 8];
+        let mut buf = [0u8; 32];
+        // The fourth frame (40 bytes) does not fit after the first three.
+        let taken = aw_ws_receive_batch(id, kinds.as_mut_ptr(), lens.as_mut_ptr(), 8, buf.as_mut_ptr(), buf.len());
+        assert_eq!(taken, 3);
+        assert_eq!(&kinds[..3], &[1, 2, 9]);
+        assert_eq!(&lens[..3], &[3, 4, 1]);
+        assert_eq!(&buf[..8], b"one\x01\x02\x03\x04\x09");
+        // Alone it is still larger than the buffer: the caller takes it with
+        // aw_ws_receive, and order is kept.
+        let taken = aw_ws_receive_batch(id, kinds.as_mut_ptr(), lens.as_mut_ptr(), 8, buf.as_mut_ptr(), buf.len());
+        assert_eq!(taken, -2);
+        let single = aw_ws_receive(id);
+        assert_eq!(single.kind, 1);
+        assert_eq!(single.data.len, 40);
+        aw_ws_free(single.data);
+        let taken = aw_ws_receive_batch(id, kinds.as_mut_ptr(), lens.as_mut_ptr(), 8, buf.as_mut_ptr(), buf.len());
+        assert_eq!(taken, 1);
+        assert_eq!(&buf[..5], b"after");
+        assert_eq!(aw_ws_receive_batch(id, kinds.as_mut_ptr(), lens.as_mut_ptr(), 8, buf.as_mut_ptr(), buf.len()), 0);
+        aw_ws_dispose(id);
+        assert_eq!(aw_ws_receive_batch(id, kinds.as_mut_ptr(), lens.as_mut_ptr(), 8, buf.as_mut_ptr(), buf.len()), -1);
+    }
 
     fn buf(bytes: &[u8]) -> FfiBuf { FfiBuf { ptr: bytes.as_ptr(), len: bytes.len() } }
 

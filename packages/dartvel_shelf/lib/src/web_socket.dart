@@ -194,8 +194,116 @@ class NativeWebSocketChannel(
     _sink._pumpOutgoing();
   }
 
+  /// Whether the loaded library has aw_ws_receive_batch; serve() sets it.
+  static bool receivesInBatches = false;
+
+  // One receive buffer for every channel of this isolate: a drain runs to
+  // its end before another starts, so they never share it at once. Per
+  // channel it would be 64 KiB for each open WebSocket.
+  static const int _batchFrames = 64;
+  static const int _batchBytes = 64 * 1024;
+  static final ffi.Pointer<ffi.Int32> _batchKinds = malloc<ffi.Int32>(_batchFrames);
+  static final ffi.Pointer<ffi.Size> _batchLengths = malloc<ffi.Size>(_batchFrames);
+  static final ffi.Pointer<ffi.Uint8> _batchBuffer = malloc<ffi.Uint8>(_batchBytes);
+
   void _drain() {
     if (_closed) return;
+    if (receivesInBatches) {
+      _drainBatches();
+      return;
+    }
+    _drainOneByOne();
+  }
+
+  /// Frames taken many to a call (aw_ws_receive_batch), each handed on as
+  /// [_drainOneByOne] hands it.
+  void _drainBatches() {
+    while (!_closed) {
+      if ((!_listening || _paused) && _api.aw_ws_closed(id) == 0) return;
+      final int taken = _api.aw_ws_receive_batch(
+          id, _batchKinds, _batchLengths, _batchFrames, _batchBuffer, _batchBytes);
+      if (taken == -2) {
+        // The next frame alone is larger than the buffer.
+        if (!_receiveOne()) return;
+        continue;
+      }
+      if (taken < 0) {
+        closeCode ??= 1006;
+        dispose();
+        return;
+      }
+      if (taken == 0) {
+        if (_api.aw_ws_closed(id) != 0) {
+          closeCode ??= 1006;
+          dispose();
+        }
+        return;
+      }
+      var at = 0;
+      for (var i = 0; i < taken && !_closed; i++) {
+        final int length = _batchLengths[i];
+        final Uint8List view = (_batchBuffer + at).asTypedList(length);
+        at += length;
+        if (!_deliver(_batchKinds[i], view)) return;
+      }
+      if (taken < _batchFrames) {
+        // Fewer than asked for: the queue may be empty; the next call says.
+        continue;
+      }
+    }
+  }
+
+  /// One frame by aw_ws_receive; false when the drain should stop.
+  bool _receiveOne() {
+    final frame = _api.aw_ws_receive(id);
+    if (frame.kind == 0) {
+      if (_api.aw_ws_closed(id) != 0) {
+        closeCode ??= 1006;
+        dispose();
+      }
+      return false;
+    }
+    if (frame.kind < 0) {
+      closeCode ??= 1006;
+      dispose();
+      return false;
+    }
+    final bool more = _deliver(frame.kind, frame.data.ptr.asTypedList(frame.data.len));
+    _api.aw_ws_free(frame.data);
+    return more;
+  }
+
+  /// Hands on one frame whose payload is [view], native memory valid only
+  /// for this call (copied or decoded before it returns); false after a
+  /// close frame.
+  bool _deliver(int kind, Uint8List view) {
+    switch (kind) {
+      case 1:
+        _controller.add(utf8.decode(view));
+      case 2:
+        _controller.add(Uint8List.fromList(view));
+      case 9:
+        if (_sendDirect(10, Uint8List.fromList(view)) < 0) {
+          dispose();
+          return false;
+        }
+      case 10:
+        _awaitingPong = false;
+      case 8:
+        final bytes = Uint8List.fromList(view);
+        if (bytes.length >= 2) {
+          closeCode = (bytes[0] << 8) | bytes[1];
+          closeReason = utf8.decode(bytes.sublist(2));
+        } else {
+          closeCode = 1005;
+        }
+        dispose();
+        return false;
+    }
+    return true;
+  }
+
+  void _drainOneByOne() {
     while (!_closed) {
       // Once the native task ends, drain its bounded tail even if nobody ever
       // listened. This lets sink.done release the server's channel reference.

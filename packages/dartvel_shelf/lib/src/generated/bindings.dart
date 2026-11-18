@@ -447,6 +447,52 @@ class DartvelShelfBindings {
   late final _aw_ws_receive = _aw_ws_receivePtr
       .asFunction<FfiWsFrame Function(int)>();
 
+  /// Moves up to [max] of [id]'s waiting frames into the caller's memory: the
+  /// kind of frame `i` into `kinds[i]`, its length into `lens[i]`, and the
+  /// payloads back to back into `buf` (at most `cap` bytes). One call and no
+  /// allocation for a burst of frames, where aw_ws_receive is a call, an
+  /// allocation and an aw_ws_free for each.
+  ///
+  /// Returns how many frames were written; 0 when none is waiting (a wakeup
+  /// follows the next); -1 when the channel is gone; -2 when the next frame
+  /// alone is larger than `cap` -- aw_ws_receive takes it, and order is kept.
+  /// A frame that does not fit after others waits for the next call.
+  int aw_ws_receive_batch(
+    int id,
+    ffi.Pointer<ffi.Int32> kinds,
+    ffi.Pointer<ffi.Size> lens,
+    int max,
+    ffi.Pointer<ffi.Uint8> buf,
+    int cap,
+  ) {
+    return _aw_ws_receive_batch(id, kinds, lens, max, buf, cap);
+  }
+
+  late final _aw_ws_receive_batchPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ptrdiff_t Function(
+            ffi.Uint64,
+            ffi.Pointer<ffi.Int32>,
+            ffi.Pointer<ffi.Size>,
+            ffi.Size,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+          )
+        >
+      >('aw_ws_receive_batch');
+  late final _aw_ws_receive_batch = _aw_ws_receive_batchPtr
+      .asFunction<
+        int Function(
+          int,
+          ffi.Pointer<ffi.Int32>,
+          ffi.Pointer<ffi.Size>,
+          int,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
   void aw_ws_free(FfiBuf data) {
     return _aw_ws_free(data);
   }
@@ -493,15 +539,19 @@ class DartvelShelfBindings {
   late final _aw_park = _aw_parkPtr.asFunction<int Function(int)>();
 
   /// Turns [server_id]'s runtime on the calling thread, which must be the
-  /// isolate that drives it, until a request is queued or [micros] have passed.
+  /// isolate that drives it, until something arrives for the isolate (a
+  /// request queued, a WebSocket frame waiting) or [micros] have passed.
   ///
-  /// For an isolate whose last turn found nothing: the next request on a busy
-  /// server is usually that close, and waiting for it in the kernel here costs
-  /// less than parking -- handing the runtime to the helper, which wakes this
-  /// isolate with a message when it comes. The isolate's event loop is held for
-  /// at most [micros], which is how late a timer can be while it waits.
+  /// For an isolate whose last turn found nothing: the next request or frame
+  /// on a busy connection is usually that close, and reading it here, on the
+  /// isolate's thread, costs less than parking -- handing the runtime to the
+  /// helper, which then wakes this isolate from another thread for every
+  /// piece. The wait blocks in the kernel (no CPU) and ends the moment
+  /// something arrives; it then keeps turning while each turn brings in more,
+  /// so a burst is handled in one pass. The event loop is held for at most
+  /// [micros], rounded up to Tokio's millisecond.
   ///
-  /// 0 a request was queued; 2 none came; 1 the helper drives or the server is
+  /// 0 something arrived; 2 nothing did; 1 the helper drives or the server is
   /// stopping; -1 a server that is not driven.
   int aw_linger(int server_id, int micros) {
     return _aw_linger(server_id, micros);
