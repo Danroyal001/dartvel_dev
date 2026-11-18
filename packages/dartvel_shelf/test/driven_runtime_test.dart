@@ -58,14 +58,14 @@ void main() {
   });
 
   test('a slow handler does not hold up fast ones', () async {
-    final slow = get('/slow/400');
+    final slow = get('/slow/2000');
     final clock = Stopwatch()..start();
     for (var i = 0; i < 50; i++) {
       expect(await get('/fast'), 'fast');
     }
-    expect(clock.elapsedMilliseconds, lessThan(400),
+    expect(clock.elapsedMilliseconds, lessThan(1500),
         reason: 'fifty fast requests finish while one slow one is waited on');
-    expect(await slow, 'slow 400');
+    expect(await slow, 'slow 2000');
   });
 
   test('a server stops cleanly with an answer still pending', () async {

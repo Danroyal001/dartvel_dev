@@ -132,88 +132,133 @@ closed loop; `many` is 1,024 connections; `headers` is plaintext with Relic's
 engine's own static handler. WebSocket, upload (50 MiB) and download use the
 Dart clients in `compare.dart` in a process of their own. CPU per request is
 the server process's user + system time divided by the requests it answered;
-RSS is the server's own peak (VmHWM). Three trials of every row, run in one
-`~/heavy.sh` slot on 18 Nov 2026 04:02-04:25 CEST; the table is the median.
+RSS is the server's own peak (VmHWM). Three trials of every row in one
+`~/heavy.sh` slot, 18 Nov 2026 04:54-05:16 CEST; the table is the median.
 `dartvel_before` is `origin/main` at dfbee33eb with its committed library;
 `dartvel` and `dartvel4` (four isolates, `serve(shared: true)`) are this
-branch. Relic's servers are `benchmark/relic/bin/serve.dart`.
+branch with the rebuilt library. Relic's servers are
+`benchmark/relic/bin/serve.dart`. An earlier full run of the same program
+(04:02-04:25, before the idle-turn change) agrees on every conclusion below
+unless a row says otherwise.
 
 **The machine is a shared, busy production server** (8 vCPU, 24 GB, swap
-full): the one-minute load average was 5.6-20.7 during these rows (median
-13.2), so every number is far below what an idle machine gives, and trials
-of one cell differ by up to 2x (plaintext, `relic_native`: 23,936, 11,640 and
-26,674 req/s; `dartvel`: 13,254, 8,208 and 15,042). Compare engines within a
-row, not with Relic's published figures. `startup_ms` is the spread of three
-single samples (48-164 ms for `dartvel`) and says nothing either way.
+full). The one-minute load average was 9.1-68.6 during these rows (median
+18.1), so every number is far below what an idle machine gives, and trials
+of one cell differ by up to 2x. Compare engines within a row, never with
+Relic's published figures. `startup_ms`, upload and download moved by more
+between the two runs than between engines and say nothing either way.
 
 | scenario | metric | shelf | relic_io | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
 |---|---|---|---|---|---|---|---|---|
-| plaintext | rps | 4242 | 4030 | 23936 | 45669 | 4847 | 13254 | 17391 |
-| plaintext | p50_ms | 11.2 | 11.2 | 1.77 | 0.56 | 10.5 | 3.43 | 1.32 |
-| plaintext | p99_ms | 60.7 | 83.9 | 16.3 | 14.6 | 56.4 | 28.4 | 43.4 |
-| plaintext | cpu_us_per_req | 320 | 296 | 49.6 | 52.4 | 492 | 90.4 | 119 |
-| plaintext | peak_rss_mib | 21.3 | 21.0 | 16.9 | 27.0 | 61.7 | 31.0 | 34.9 |
-| json | rps | 3210 | 3646 | 11610 | 32606 | 3605 | 10787 | 18866 |
-| json | p50_ms | 14.1 | 12.1 | 1.91 | 0.69 | 12.6 | 3.95 | 1.41 |
-| json | p99_ms | 87.3 | 104 | 73.0 | 22.3 | 82.1 | 40.6 | 34.6 |
-| json | cpu_us_per_req | 342 | 312 | 68.4 | 88.0 | 627 | 107 | 123 |
-| json | peak_rss_mib | 20.7 | 20.8 | 17.3 | 27.0 | 60.9 | 31.8 | 34.9 |
-| headers | rps | 2942 | 3342 | 19790 | 28039 | 3276 | 11192 | 13937 |
-| headers | p50_ms | 17.1 | 15.6 | 1.92 | 0.68 | 13.3 | 4.11 | 1.52 |
-| headers | p99_ms | 85.9 | 65.9 | 24.1 | 24.4 | 99.4 | 35.4 | 47.9 |
-| headers | cpu_us_per_req | 486 | 386 | 58.2 | 78.0 | 608 | 106 | 161 |
-| headers | peak_rss_mib | 45.5 | 46.7 | 16.8 | 26.8 | 64.2 | 31.6 | 35.7 |
-| static | rps | 1586 | 1777 | 1904 | 3184 | 1289 | 1475 | 1588 |
-| static | p50_ms | 31.9 | 29.1 | 28.3 | 16.0 | 46.0 | 44.7 | 43.2 |
-| static | p99_ms | 192 | 136 | 115 | 77.3 | 152 | 103 | 167 |
-| static | cpu_us_per_req | 1018 | 979 | 786 | 820 | 1002 | 642 | 889 |
-| static | peak_rss_mib | 51.8 | 53.6 | 31.6 | 37.8 | 29.5 | 23.7 | 25.5 |
-| many | rps | 2830 | 5098 | 18041 | 40298 | 3889 | 9949 | 26349 |
-| many | p50_ms | 41.0 | 49.1 | 8.13 | 14.0 | 208 | 88.9 | 30.2 |
-| many | p99_ms | 2213 | 1187 | 501 | 151 | 714 | 276 | 148 |
-| many | cpu_us_per_req | 520 | 324 | 71.9 | 66.0 | 532 | 110 | 105 |
-| many | peak_rss_mib | 47.6 | 47.2 | 37.4 | 47.2 | 92.3 | 83.8 | 96.6 |
+| plaintext | rps | 3551 | 3906 | 20394 | 30017 | 1499 | 11796 | 17487 |
+| plaintext | p50_ms | 12.6 | 11.6 | 2.01 | 0.90 | 26.5 | 3.22 | 1.53 |
+| plaintext | p99_ms | 100 | 135 | 20.1 | 22.0 | 232 | 36.5 | 41.3 |
+| plaintext | cpu_us_per_req | 251 | 349 | 42.8 | 55.2 | 423 | 81.9 | 115 |
+| plaintext | peak_rss_mib | 19.5 | 21.0 | 16.9 | 27.0 | 61.4 | 30.7 | 34.9 |
+| json | rps | 3819 | 3746 | 14449 | 37952 | 2625 | 14112 | 17838 |
+| json | p50_ms | 13.0 | 11.6 | 1.95 | 0.65 | 15.7 | 3.54 | 1.50 |
+| json | p99_ms | 100 | 102 | 49.6 | 15.7 | 127 | 21.9 | 34.0 |
+| json | cpu_us_per_req | 385 | 323 | 51.1 | 56.0 | 468 | 81.8 | 119 |
+| json | peak_rss_mib | 20.8 | 20.8 | 17.0 | 26.4 | 63.5 | 30.9 | 34.5 |
+| headers | rps | 2511 | 2443 | 14974 | 29873 | 2564 | 8036 | 13033 |
+| headers | p50_ms | 17.4 | 17.7 | 2.01 | 0.89 | 21.0 | 5.06 | 2.08 |
+| headers | p99_ms | 116 | 141 | 38.6 | 22.2 | 120 | 67.8 | 56.6 |
+| headers | cpu_us_per_req | 493 | 388 | 62.5 | 59.4 | 505 | 105 | 118 |
+| headers | peak_rss_mib | 21.6 | 22.6 | 16.8 | 26.6 | 65.4 | 31.2 | 35.2 |
+| static | rps | 1279 | 1288 | 1071 | 1752 | 1287 | 1550 | 1790 |
+| static | p50_ms | 38.1 | 40.0 | 45.4 | 25.8 | 45.4 | 44.5 | 42.8 |
+| static | p99_ms | 227 | 207 | 249 | 177 | 148 | 101 | 132 |
+| static | cpu_us_per_req | 894 | 935 | 621 | 648 | 994 | 539 | 691 |
+| static | peak_rss_mib | 51.4 | 53.0 | 32.1 | 36.8 | 29.8 | 23.4 | 25.1 |
+| many | rps | 3409 | 3688 | 17254 | 41449 | 4060 | 11179 | 21572 |
+| many | p50_ms | 56.4 | 43.2 | 8.92 | 14.8 | 181 | 82.1 | 31.2 |
+| many | p99_ms | 1479 | 2154 | 468 | 136 | 1170 | 209 | 241 |
+| many | cpu_us_per_req | 334 | 337 | 58.1 | 52.1 | 478 | 113 | 101 |
+| many | peak_rss_mib | 46.8 | 47.7 | 37.0 | 46.9 | 94.5 | 83.6 | 92.2 |
 | many | non_200 | - | - | - | - | - | - | - |
-| startup | startup_ms | 56.2 | 51.6 | 42.9 | 41.8 | 73.7 | 103 | 88.7 |
-| startup | peak_rss_mib | 9.02 | 9.99 | 12.5 | 16.2 | 21.6 | 18.8 | 19.4 |
-| websocket | messages_per_second | 801 | 568 | 948 | 1107 | 913 | 934 | 851 |
-| websocket | p50_us | 678 | 968 | 447 | 336 | 605 | 405 | 513 |
-| websocket | p99_us | 9389 | 13998 | 8925 | 10701 | 6386 | 8224 | 15019 |
-| websocket | peak_rss_mib | 12.2 | 13.1 | 14.9 | 17.7 | 24.4 | 22.2 | 22.2 |
-| websocket_pipelined | messages_per_second | 28648 | 33390 | 172179 | 184445 | 62636 | 75101 | 69599 |
-| websocket_pipelined | peak_rss_mib | 82.7 | 79.3 | 15.8 | 25.5 | 25.3 | 28.4 | 28.8 |
-| upload | mib_per_second | 104 | 128 | 197 | 199 | 105 | 86.0 | 102 |
-| upload | peak_rss_mib | 42.3 | 48.4 | 15.4 | 24.3 | 49.0 | 47.3 | 48.8 |
-| download | mib_per_second | 120 | 144 | 125 | 142 | 129 | 135 | 128 |
-| download | peak_rss_mib | 11.5 | 12.5 | 13.1 | 16.6 | 24.2 | 21.7 | 22.4 |
+| startup | startup_ms | 72.8 | 54.8 | 75.1 | 60.5 | 102 | 73.7 | 63.7 |
+| startup | peak_rss_mib | 8.91 | 9.84 | 12.4 | 16.1 | 21.4 | 18.8 | 19.4 |
+| websocket | messages_per_second | 592 | 572 | 1220 | 1254 | 1043 | 722 | 1081 |
+| websocket | p50_us | 557 | 807 | 263 | 362 | 331 | 486 | 343 |
+| websocket | p99_us | 13929 | 16853 | 6395 | 8182 | 9278 | 11148 | 8028 |
+| websocket | peak_rss_mib | 11.8 | 13.0 | 14.9 | 17.9 | 24.6 | 21.7 | 22.0 |
+| websocket_pipelined | messages_per_second | 26103 | 28411 | 141992 | 176815 | 48469 | 64520 | 52895 |
+| websocket_pipelined | peak_rss_mib | 85.3 | 78.9 | 15.6 | 19.0 | 24.8 | 27.8 | 23.6 |
+| upload | mib_per_second | 133 | 146 | 133 | 146 | 155 | 161 | 135 |
+| upload | peak_rss_mib | 45.2 | 50.4 | 15.5 | 24.6 | 48.9 | 47.1 | 49.0 |
+| download | mib_per_second | 153 | 95.9 | 77.5 | 104 | 46.5 | 59.7 | 104 |
+| download | peak_rss_mib | 12.0 | 12.4 | 13.4 | 16.6 | 24.1 | 21.7 | 22.5 |
 
-load1 during rows: median 13.195, min 5.6, max 20.68; rows 210
-
-
-Raw rows: `benchmark/compare.dart` prints them as JSON lines; this run's are
-kept with the PR.
+load1 during rows: median 18.12, min 9.06, max 68.64; rows 210
 
 ### What the numbers say
 
-- **Against `origin/main`** dartvel_shelf answers 2.6x to 3.4x as many requests
-  per second on one isolate (plaintext 4,847 to 13,254; JSON 3,605 to 10,787;
-  browser headers 3,276 to 11,192; 1,024 connections 3,889 to 9,949), uses
-  4.8x to 5.9x less CPU per request (492 to 90 us for plaintext), and half
-  the memory (62 to 31 MiB). Four isolates reach 17,391 (plaintext),
-  18,866 (JSON) and 26,349 req/s (1,024 connections).
+- **Against `origin/main`** dartvel_shelf on one isolate uses a fifth to a
+  quarter of the CPU per request (plaintext 423 to 82 us, JSON 468 to 82, browser
+  headers 505 to 105, 1,024 connections 478 to 113) and half the memory (61
+  to 31 MiB), and answers 2.8x to 5.4x as many requests per second (JSON
+  2,625 to 14,112; 1,024 connections 4,060 to 11,179; browser headers 2,564
+  to 8,036). Plaintext shows 7.9x, inflated by a load spike during
+  `dartvel_before`'s rows; the earlier run measured 2.7x. Four isolates reach
+  17,487 (plaintext), 17,838 (JSON) and 21,572 req/s (1,024 connections).
 - **Against Relic 2, Relic still wins most rows.** `relic_native` on one
-  isolate answered 1.8x as many plaintext requests as `dartvel` (23,936 vs
-  13,254) for about half the CPU per request (50 vs 90 us), and
-  `relic_native4` 2.6x as many as `dartvel4`. Relic also wins JSON, browser
-  headers, 1,024 connections, pipelined WebSocket (172,179 vs 75,101 msgs/s),
-  upload, start-up and memory (17 vs 31 MiB). dartvel_shelf is ahead of
-  shelf and of Relic on dart:io in plaintext, JSON, browser headers, 1,024
-  connections and both WebSocket rows, and behind them on static files
-  (requests per second), upload, start-up and memory.
-- **Where dartvel_shelf is ahead of `relic_native`:** the static file costs
-  less CPU (642 vs 786 us per request) with a lower p99 (103 vs 115 ms) and
-  less memory, but fewer requests per second (1,475 vs 1,904), so this is not
-  a win overall; WebSocket ping-pong and download are within the noise.
+  isolate answered 1.7x as many plaintext requests as `dartvel` (20,394 vs
+  11,796) for about half the CPU per request (43 vs 82 us); 1.9x as many with
+  browser headers and 1.5x as many at 1,024 connections. JSON was even in
+  this run (14,449 vs 14,112) and 1.1x for Relic in the earlier one.
+  `relic_native4` answered 1.7x to 2.3x as many as `dartvel4`. Relic also
+  wins pipelined WebSocket (141,992 vs 64,520 msgs/s), WebSocket ping-pong
+  latency, start-up memory and resident memory (17 vs 31 MiB).
+- **Where dartvel_shelf is ahead of `relic_native` in both runs:** a static
+  file costs less CPU (539 vs 621 us per request; 642 vs 786 before) with a
+  lower p99 (101 vs 249 ms; 103 vs 115) and less memory (23 vs 32 MiB).
+  Requests per second for the static file were ahead in this run (1,550 vs
+  1,071) and behind in the earlier one (1,475 vs 1,904), so that is not a
+  win. dartvel_shelf is ahead of shelf and Relic on dart:io in plaintext,
+  JSON, browser headers, 1,024 connections and pipelined WebSocket in both
+  runs, and uses more memory than both except for static files and
+  pipelined WebSocket.
+
+### With Relic's own load method
+
+Relic's `packages/benchmark/bin/http_load.dart` (cloned at its 2.0.0 docs
+commit 49921d7, published `relic_native` 2.0.0 binaries), 64 connections,
+5 s runs: a closed-loop run finds the saturation rate, then open-loop runs at
+50% and 100% of it. Relic's targets are served from inside the
+`http_load.dart` process under `dart run`, as that tool does; dartvel_shelf's
+were this branch's compiled server given as URL targets, so the two sides
+are not compiled the same way and this table cannot settle anything Relic's
+own published one does not. Same machine, 05:16-05:28 CEST.
+Rows at 100% of saturation:
+
+| target | workload | load | offered rps | rps | p50 | p99 | p99.9 | errors |
+|---|---|---|---|---|---|---|---|---|
+| native | plaintext | 100% | 19277 | 14110 | 3.06 | 35.61 | 66.69 | - |
+| native | json | 100% | 16656 | 5563 | 4.32 | 140.15 | 264.55 | - |
+| native | headers | 100% | 10797 | 9198 | 3.97 | 37.95 | 94.79 | - |
+| native | browser | 100% | 4155 | 4147 | 5.43 | 117.45 | 232.88 | - |
+| native4 | plaintext | 100% | 12187 | 12115 | 2.57 | 39.35 | 91.91 | - |
+| native4 | json | 100% | 23531 | 13512 | 2.82 | 39.13 | 188.55 | - |
+| native4 | headers | 100% | 19459 | 17022 | 2.77 | 18.95 | 75.20 | - |
+| native4 | browser | 100% | 17114 | 11084 | 3.79 | 33.55 | 223.87 | - |
+| dartvel_before | plaintext | 100% | 4542 | 2249 | 23.58 | 107.44 | 134.63 | - |
+| dartvel_before | json | 100% | 1582 | 1366 | 28.87 | 191.97 | 213.13 | - |
+| dartvel_before | headers | 100% | 1559 | 1531 | 23.12 | 218.24 | 253.71 | - |
+| dartvel_before | browser | 100% | 1951 | 1949 | 9.07 | 77.02 | 120.39 | - |
+| dartvel | plaintext | 100% | 11290 | 7095 | 6.74 | 56.43 | 123.82 | - |
+| dartvel | json | 100% | 9650 | 7217 | 6.28 | 59.13 | 101.60 | - |
+| dartvel | headers | 100% | 9185 | 7651 | 5.99 | 51.11 | 103.89 | - |
+| dartvel | browser | 100% | 7048 | 7002 | 7.08 | 32.14 | 190.16 | - |
+| dartvel4 | plaintext | 100% | 21989 | 11777 | 2.78 | 51.55 | 167.61 | - |
+| dartvel4 | json | 100% | 17535 | 6254 | 4.70 | 88.40 | 282.91 | - |
+| dartvel4 | headers | 100% | 7726 | 5560 | 7.60 | 69.28 | 143.78 | - |
+| dartvel4 | browser | 100% | 4522 | 4427 | 6.19 | 83.35 | 242.25 | - |
+
+`relic_native` was ahead on plaintext and headers; `dartvel` answered more
+JSON and browser-workload requests; `relic_native4` answered more than
+`dartvel4` on every workload. With Relic compiled differently from
+dartvel_shelf here, read it as consistent with the table above rather than
+as a result of its own.
 
 ### Where the remaining time goes
 
@@ -236,7 +281,11 @@ in Zig), which this change does not attempt.
   and by a helper thread of the server's while it is idle. A request is read,
   handled and answered on one thread with no hand-off; before, every request
   woke the isolate from a Tokio worker and every answer woke a worker back.
-  An idle turn waits up to 250 us for the next request before parking.
+  An isolate with nothing to take comes back for eight more turns (each a
+  message to itself, so its timers and other I/O run between them) before
+  it parks. `aw_linger`, which waits in the kernel instead, is in the C ABI
+  and not used: it held the event loop, so a client in the same isolate
+  could not send the request being waited for.
   Answers given between turns are handed over at the next turn, inside the
   runtime, so waking their task costs no system call.
 - Requests are taken in batches from a native queue (one wakeup for many).
