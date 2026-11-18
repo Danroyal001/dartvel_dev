@@ -181,6 +181,8 @@ pub struct BinaryPrinter<'c> {
     members: HashMap<CnId, MemberInfo>,
     /// Which entries of [Bindings::classes] upstream has loaded.
     loadedClasses: Vec<bool>,
+    /// `"${library.importUri}"` by the library's canonical name.
+    importUris: HashMap<CnId, Vec<u8>>,
     /// `includeSources`, `includeSourceBytes`, `includeOffsets`.
     pub includeSources: bool,
     pub includeSourceBytes: bool,
@@ -254,7 +256,8 @@ impl<'c> BinaryPrinter<'c> {
             canonicalNameIndex: vec![-1; component.names.len()],
             knownCanonicalNameNonRootTops: vec![false; component.names.len()],
             members: HashMap::new(),
-            loadedClasses: component.bindings.classes.iter().map(|c| c.loaded).collect(),
+            loadedClasses: component.bindings.classes.iter().map(|c| c.loaded || c.loadedLater).collect(),
+            importUris: HashMap::new(),
             includeSources: true,
             includeSourceBytes: true,
             includeOffsets: true,
@@ -760,11 +763,14 @@ impl<'c> BinaryPrinter<'c> {
             None => return error(nullCheckError),
         };
         let node = self.asNode(library, NamedNodeKind::Library, "Library", "A library was expected")?;
-        let uri = match self.importUriOf(node.cn) {
-            Ok(uri) => uri,
-            Err(thrown) => return error(thrown),
-        };
-        self.bindPath(parent, &[qualifier, &uri, text], read)
+        if !self.importUris.contains_key(&node.cn) {
+            match self.importUriOf(node.cn) {
+                Ok(uri) => self.importUris.insert(node.cn, uri),
+                Err(thrown) => return error(thrown),
+            };
+        }
+        let uri = &self.importUris[&node.cn];
+        self.bindPath(parent, &[qualifier, uri, text], read)
     }
 
     /// `base.getChild(segments[0]).getChild(...)....bindTo(read)`: fine
@@ -1208,7 +1214,9 @@ impl<'c> BinaryPrinter<'c> {
                 fieldValues,
             } => {
                 self.writeByte(ConstantTag::InstanceConstant);
-                self.writeNonNullReference(*classReference)?;
+                // `writeClassReference(constant.classNode)`: `asClass`.
+                let class = self.asNode(*classReference, NamedNodeKind::Class, "Class", "A class was expected")?;
+                self.writeNonNullReference(class.cn)?;
                 self.writeDartTypeList(typeArguments)?;
                 self.writeUInt30(fieldValues.len() as u32);
                 for &(field, value) in fieldValues {
@@ -1415,7 +1423,9 @@ impl<'c> BinaryPrinter<'c> {
             self.writeOffset(dependency.fileOffset);
             self.writeByte(dependency.flags as u32);
             self.writeAnnotationList(&dependency.annotations)?;
-            self.writeNonNullReference(dependency.targetLibrary)?;
+            // `node.targetLibrary.reference`: `asLibrary`.
+            let target = self.asNode(dependency.targetLibrary, NamedNodeKind::Library, "Library", "A library was expected")?;
+            self.writeNonNullReference(target.cn)?;
             self.writeStringReference(dependency.name);
             self.writeUInt30(dependency.combinators.len() as u32);
             for combinator in &dependency.combinators {

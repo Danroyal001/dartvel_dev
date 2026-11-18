@@ -188,6 +188,9 @@ pub struct LazyClass {
     /// Whether upstream has loaded them (while reading, through
     /// `Reference.node`).
     pub loaded: bool,
+    /// Whether upstream's writer loads them through `Reference.node`
+    /// while it reads a lazily read part before it reaches the class.
+    pub loadedLater: bool,
 }
 
 /// Upstream's `Reference`s as far as its errors need them: which canonical

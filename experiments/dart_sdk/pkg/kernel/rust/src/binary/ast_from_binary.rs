@@ -148,6 +148,10 @@ pub struct BinaryBuilder<'a> {
     currentLibraryDependencyCount: Option<usize>,
     /// The error [Self::deferError] kept last.
     lastDeferred: Option<Box<str>>,
+    /// Inside a part upstream reads lazily: how many of [Bindings::classes]
+    /// its writer has loaded by the time it reads that part (those before
+    /// it). None outside one.
+    lazyHorizon: Option<u32>,
     /// The ids of the structural parameters made (first, count).
     structuralRanges: Vec<(TypeParamId, u32)>,
     /// `_cachedSimpleInterfaceTypes`: by link table index, which
@@ -190,6 +194,7 @@ impl<'a> BinaryBuilder<'a> {
             currentRegion: noRegion,
             currentLibraryDependencyCount: None,
             lastDeferred: None,
+            lazyHorizon: None,
             structuralRanges: Vec::new(),
             simpleInterfaceTypes: Vec::new(),
             variableKinds: Vec::new(),
@@ -417,7 +422,15 @@ impl<'a> BinaryBuilder<'a> {
         if region == self.currentRegion {
             return true;
         }
-        self.component.bindings.classes.get(region as usize).is_some_and(|c| c.loaded)
+        let Some(class) = self.component.bindings.classes.get(region as usize) else {
+            return false;
+        };
+        match self.lazyHorizon {
+            None => class.loaded,
+            // Upstream reads this part when its writer reaches it, after it
+            // has loaded the classes before it.
+            Some(horizon) => region < horizon || class.loaded || class.loadedLater,
+        }
     }
 
     /// `Class.ensureLoaded` while reading: upstream reads the members then
@@ -426,7 +439,11 @@ impl<'a> BinaryBuilder<'a> {
     #[cold]
     #[inline(never)]
     fn loadRegion(&mut self, region: u32) -> Result<()> {
-        self.component.bindings.classes[region as usize].loaded = true;
+        let class = &mut self.component.bindings.classes[region as usize];
+        match self.lazyHorizon {
+            None => class.loaded = true,
+            Some(_) => class.loadedLater = true,
+        }
         let class = &self.component.bindings.classes[region as usize];
         if let Some(error) = &class.error {
             return self.thrown(error.to_string());
@@ -1624,14 +1641,17 @@ impl<'a> BinaryBuilder<'a> {
                 endOffset: *procedureOffsets.last().unwrap(),
                 error: None,
                 loaded: false,
+                loadedLater: false,
             });
             let saved = self.saveStacks();
             let (savedMark, savedRegion) = (self.referenceMark, self.currentRegion);
             self.referenceMark = 2;
             self.currentRegion = region;
+            let savedHorizon = self.lazyHorizon.replace(region);
             let result = self.readClassPartialContent(&procedureOffsets, parent);
             self.referenceMark = savedMark;
             self.currentRegion = savedRegion;
+            self.lazyHorizon = savedHorizon;
             match result {
                 Ok((fields, constructors, procedures)) => (fields, constructors, procedures, region),
                 Err(error) => {
@@ -2155,6 +2175,14 @@ impl<'a> BinaryBuilder<'a> {
             let saved = self.saveStacks();
             let savedMark = self.referenceMark;
             self.referenceMark = 2;
+            // Upstream's writer reaches a class member's body after loading
+            // its class, and a library procedure's after all the classes
+            // read so far.
+            let horizon = match self.currentRegion {
+                region if region != noRegion => region + 1,
+                _ => self.component.bindings.classes.len() as u32,
+            };
+            let savedHorizon = self.lazyHorizon.replace(horizon);
             let result = (|| -> Result<_> {
                 let body = self.readStatementOption()?.map(Box::new);
                 let scope = self.readOptionalScope(scopeSize)?;
@@ -2162,6 +2190,7 @@ impl<'a> BinaryBuilder<'a> {
                 Ok((body, scope, capturedContexts))
             })();
             self.referenceMark = savedMark;
+            self.lazyHorizon = savedHorizon;
             match result {
                 Ok((body, scope, capturedContexts)) => (body, scope, capturedContexts, LazyBody::Lazy),
                 Err(error) => {
@@ -2552,7 +2581,10 @@ impl<'a> BinaryBuilder<'a> {
         for i in 0..length {
             let flags = self.readByte()? as u8;
             let annotations = self.readAnnotationList()?;
-            let variance = self.readByte()? as u8;
+            let variance = self.readByte()?;
+            // `Variance.fromEncoding` (`values[encoding]`) unless it is the
+            // legacy-covariant marker (4).
+            let variance = if variance == 4 { 4 } else { self.enumValue(variance, 4)? };
             let name = self.readStringReference()?;
             let bound = self.readDartType()?;
             let defaultType = self.readDartType()?;
@@ -3215,9 +3247,16 @@ impl<'a> BinaryBuilder<'a> {
             Tag::BigIntLiteral => {
                 let fileOffset = self.readOffset()?;
                 let text = self.readStringReference()?;
+                // `int.parse(readStringReference())`.
                 let value = match parseDartInt(self.component.strings.get(text)) {
                     Some(value) => value,
-                    None => return self.fail("BigIntLiteral is not an int"),
+                    None => {
+                        let units = dart_core::uri::decodeWtf8(self.component.strings.get(text)).unwrap_or_default();
+                        match dartIntParse(&units) {
+                            Ok(value) => value,
+                            Err(thrown) => return self.thrown(thrown),
+                        }
+                    }
                 };
                 Expression::IntLiteral { fileOffset, value }
             }
@@ -4769,4 +4808,199 @@ pub fn constantRuntimeType(c: &Constant) -> &'static str {
         Constant::Unevaluated { .. } => "UnevaluatedConstant",
         Constant::TypedefTearOff { .. } => "TypedefTearOffConstant",
     }
+}
+
+/// The VM's `int.parse(source)` (sdk/lib/_internal/vm_shared/lib/
+/// integers_patch.dart, 64-bit): the value, or what it throws (a
+/// `FormatException`, as its `toString()` prints it).
+pub fn dartIntParse(source: &[u16]) -> std::result::Result<i64, String> {
+    fn isWhitespace(c: u16) -> bool {
+        if c <= 32 {
+            return c == 32 || (9..=13).contains(&c);
+        }
+        if c < 0x85 {
+            return false;
+        }
+        if c == 0x85 || c == 0xA0 {
+            return true;
+        }
+        if c <= 0x200A {
+            c == 0x1680 || 0x2000 <= c
+        } else {
+            matches!(c, 0x2028 | 0x2029 | 0x202F | 0x205F | 0x3000 | 0xFEFF)
+        }
+    }
+    // `_handleFormatError`: `FormatException(message, source, index)`.
+    let formatError = |index: Option<usize>, radix: Option<u32>, message: Option<&str>| -> String {
+        let message = match message {
+            Some(m) => m.to_string(),
+            None => match radix {
+                None => "Invalid number".to_string(),
+                Some(r) => format!("Invalid radix-{r} number"),
+            },
+        };
+        formatExceptionToString(&message, source, index)
+    };
+    if source.is_empty() {
+        return Err(formatError(Some(0), None, None));
+    }
+    let end = match source.iter().rposition(|&c| !isWhitespace(c)) {
+        Some(last) => last + 1,
+        None => return Err(formatError(Some(source.len()), None, None)),
+    };
+    let mut start = source.iter().position(|&c| !isWhitespace(c)).unwrap();
+    let mut first = source[start];
+    let mut sign: i64 = 1;
+    if first == 0x2b || first == 0x2d {
+        sign = 0x2c - first as i64;
+        start += 1;
+        if start == end {
+            return Err(formatError(Some(end), None, None));
+        }
+        first = source[start];
+    }
+    let mut radix = 10;
+    let mut allowU64 = false;
+    if first == 0x30 {
+        start += 1;
+        if start == end {
+            return Ok(0);
+        }
+        first = source[start];
+        if (first | 0x20) == 0x78 {
+            start += 1;
+            if start == end {
+                return Err(formatError(Some(start), None, None));
+            }
+            radix = 16;
+            allowU64 = sign > 0;
+        }
+    }
+    // `_parseRadix`.
+    while start < end && source[start] == 0x30 {
+        start += 1;
+    }
+    let length = end - start;
+    if length == 0 {
+        return Ok(0);
+    }
+    let (blockSize, multiplier, positiveLimit, negativeLimit, positiveSmiLimit, negativeSmiLimit): (usize, i64, i64, i64, i64, i64) =
+        if radix == 10 {
+            (18, 1_000_000_000_000_000_000, 0x9, -0x9, 0x31993af1d7bffff, 0x31993af1d7c0000)
+        } else {
+            (15, 1_152_921_504_606_846_976, 0x7, -0x8, 0xfffffffffffffff, 0x0)
+        };
+    let parseBlock = |from: usize, to: usize| -> Option<i64> {
+        let mut result: i64 = 0;
+        for &c in &source[from..to] {
+            let mut digit = (c ^ 0x30) as i64;
+            if radix == 16 && digit > 9 {
+                digit = ((c | 0x20) as i64) - (0x61 - 10);
+                if digit < 10 || digit >= 16 {
+                    return None;
+                }
+            } else if digit >= radix as i64 {
+                return None;
+            }
+            result = result.wrapping_mul(radix as i64).wrapping_add(digit);
+        }
+        Some(result)
+    };
+    if length <= blockSize {
+        return match parseBlock(start, end) {
+            Some(smi) => Ok(sign * smi),
+            None => Err(formatError(Some(start), Some(radix), None)),
+        };
+    }
+    let mut result: i64 = 0;
+    let smallBlockSize = length % blockSize;
+    if smallBlockSize > 0 {
+        let blockEnd = start + smallBlockSize;
+        match parseBlock(start, blockEnd) {
+            Some(smi) => result = sign * smi,
+            None => return Err(formatError(Some(start), Some(radix), None)),
+        }
+        start = blockEnd;
+    }
+    let mut blockEnd = start + blockSize;
+    loop {
+        let Some(smi) = parseBlock(start, blockEnd) else {
+            return Err(formatError(Some(start), Some(radix), None));
+        };
+        if result >= positiveLimit {
+            if result > positiveLimit || smi > positiveSmiLimit {
+                if allowU64 && blockEnd == end && result <= 0xF {
+                    return Ok(result.wrapping_mul(multiplier).wrapping_add(smi));
+                }
+                return Err(formatError(None, Some(radix), Some("Positive input exceeds the limit of integer")));
+            }
+        } else if result <= negativeLimit && (result < negativeLimit || smi > negativeSmiLimit) {
+            return Err(formatError(None, Some(radix), Some("Negative input exceeds the limit of integer")));
+        }
+        result = result.wrapping_mul(multiplier).wrapping_add(sign * smi);
+        start = blockEnd;
+        blockEnd = start + blockSize;
+        if blockEnd > end {
+            return Ok(result);
+        }
+    }
+}
+
+/// `FormatException(message, source, offset).toString()` for a string
+/// source.
+pub fn formatExceptionToString(message: &str, source: &[u16], offset: Option<usize>) -> String {
+    let text = |units: &[u16]| String::from_utf16_lossy(units);
+    let mut report = "FormatException".to_string();
+    if !message.is_empty() {
+        report = format!("{report}: {message}");
+    }
+    let offset = offset.filter(|&o| o <= source.len());
+    let Some(offset) = offset else {
+        let shown = if source.len() > 78 {
+            format!("{}...", text(&source[..75]))
+        } else {
+            text(source)
+        };
+        return format!("{report}\n{shown}");
+    };
+    let mut lineNum = 1;
+    let mut lineStart = 0;
+    let mut previousCharWasCR = false;
+    for (i, &c) in source[..offset].iter().enumerate() {
+        if c == 0x0a {
+            if lineStart != i || !previousCharWasCR {
+                lineNum += 1;
+            }
+            lineStart = i + 1;
+            previousCharWasCR = false;
+        } else if c == 0x0d {
+            lineNum += 1;
+            lineStart = i + 1;
+            previousCharWasCR = true;
+        }
+    }
+    if lineNum > 1 {
+        report += &format!(" (at line {lineNum}, character {})\n", offset - lineStart + 1);
+    } else {
+        report += &format!(" (at character {})\n", offset + 1);
+    }
+    let lineEnd = source[offset..].iter().position(|&c| c == 0x0a || c == 0x0d).map_or(source.len(), |p| offset + p);
+    let (mut start, mut end) = (lineStart, lineEnd);
+    let (mut prefix, mut postfix) = ("", "");
+    if lineEnd - lineStart > 78 {
+        if offset - lineStart < 75 {
+            end = start + 75;
+            postfix = "...";
+        } else if end - offset < 75 {
+            start = end - 75;
+            prefix = "...";
+        } else {
+            start = offset - 36;
+            end = offset + 36;
+            prefix = "...";
+            postfix = "...";
+        }
+    }
+    let markOffset = offset - start + prefix.len();
+    format!("{report}{prefix}{}{postfix}\n{}^\n", text(&source[start..end]), " ".repeat(markOffset))
 }
