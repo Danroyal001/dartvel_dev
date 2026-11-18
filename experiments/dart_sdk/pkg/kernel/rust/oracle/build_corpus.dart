@@ -18,6 +18,7 @@ const List<String> sdkPackages = [
   'meta',
   'build_integration',
   'vm_service',
+  'expect',
 ];
 
 const List<String> pubPackages = [
@@ -107,7 +108,8 @@ Future<void> main(List<String> arguments) async {
         if (genKernel == null) ...[
           '--packages=${packageConfig.path}',
           '$sdk/pkg/vm/bin/gen_kernel.dart',
-        ],
+        ] else
+          '--packages=${packageConfig.path}',
         '--platform=$platform',
         if (aot) '--aot',
         '--output=$output',
