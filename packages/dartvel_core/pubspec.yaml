@@ -52,12 +52,16 @@ dependencies:
   # for anything that depends on this package, not only when testing it.
   hooks: ^2.0.0
   code_assets: ^2.0.0
+  # Studio's Platforms screen writes dartvel.platforms into pubspec.yaml on a
+  # development server, and into the repository's copy on a deployed one,
+  # keeping every other line and comment of the file as it was.
+  yaml: ^3.1.2
+  yaml_edit: ^2.2.4
 
 dev_dependencies:
   test: ^1.28.0
   build_runner: ^2.4.0
   drift_dev: ^2.14.0
-  yaml: ^3.1.2
 
 # AWS's own SigV4 documentation test vectors, not a credential. The pair
 # AKIDEXAMPLE / wJalrXUtnFEMI...EXAMPLEKEY is what AWS publishes for verifying

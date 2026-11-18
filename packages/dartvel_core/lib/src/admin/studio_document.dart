@@ -31,6 +31,8 @@ import 'dart:convert';
 
 import 'studio_api.dart' show DVStudioFieldSpec, DVStudioModelSpec;
 import 'studio_site.dart' show DVStudioPageKind, DVStudioSitePage;
+import 'studio_platforms.dart' show dvStudioSlotHelp, dvStudioSlotLabel;
+import '../web/document_slots.dart' show DVDocumentSlot;
 import '../web/asset_source.dart';
 import '../web/document_fields.dart';
 
@@ -150,6 +152,13 @@ const List<DVStudioScreenSpec> dvStudioScreens = <DVStudioScreenSpec>[
     id: 'cache',
     label: 'Cache',
     summary: 'What this application keeps in its cache, and for how long.',
+  ),
+  DVStudioScreenSpec(
+    id: 'platforms',
+    label: 'Platforms',
+    summary:
+        'Settings that belong to one platform, such as the HTML every web '
+        'page carries in its head and at the edges of its body.',
   ),
   DVStudioScreenSpec(
     id: 'repository',
@@ -298,6 +307,7 @@ class DVStudioProjectData {
     this.jobs = const <String>[],
     this.queues = const <String>[],
     this.modules = const <String>[],
+    this.platforms = const <String, Object?>{},
   });
 
   /// The routes a build compiled, as the graph writes them.
@@ -324,6 +334,11 @@ class DVStudioProjectData {
 
   /// The modules it mounts.
   final List<String> modules;
+
+  /// `dartvel.platforms` as the build wrote it into the graph: the settings
+  /// per platform, where they are written (`source`), and the text of each
+  /// snippet file (`files`).
+  final Map<String, Object?> platforms;
 
   /// The project data the build's [root] graph describes, read fresh so a
   /// build that ran while the server was up is what the documents say.
@@ -364,6 +379,9 @@ class DVStudioProjectData {
         for (final Map<String, Object?> module in maps('modules'))
           '${module['name'] ?? module['id'] ?? ''}',
       ].where((String name) => name.isNotEmpty).toList(),
+      platforms: decoded['platforms'] is Map
+          ? (decoded['platforms']! as Map).cast<String, Object?>()
+          : const <String, Object?>{},
     );
   }
 }
@@ -603,6 +621,19 @@ DVStudioDocument _screenDocument(
             ),
         ],
       );
+    case 'platforms':
+      table(
+        'Platforms',
+        <DVStudioColumn>[name, const DVStudioColumn('Settings')],
+        <DVStudioRow>[
+          DVStudioRow(
+            label: 'Web',
+            href: '$mount/platforms/web',
+            head: true,
+            detail: _snippetSummary(data.platforms),
+          ),
+        ],
+      );
     default:
       // A screen holding what the running application decided rather than
       // what the build wrote: the components, the shortcut keys, the cache,
@@ -775,6 +806,49 @@ DVStudioDocument? _objectDocument(
         html: html.toString(),
         text: <String>[name, 'A module this application mounts.'],
       );
+    case 'platforms':
+      if (name != 'web') return null;
+      const String about =
+          'HTML every page of this application carries, as it is written: '
+          'in the head, right after the body opens, and right before it closes.';
+      html
+        ..writeln('<h1>Web</h1>')
+        ..writeln('<p>${_escape.convert(about)}</p>');
+      final List<String> text = <String>['Web', about];
+      final Object? web = data.platforms['web'];
+      final Object? document = web is Map ? web['document'] : null;
+      for (final DVDocumentSlot slot in DVDocumentSlot.values) {
+        final String label = dvStudioSlotLabel(slot);
+        final String help = dvStudioSlotHelp(slot);
+        html
+          ..writeln('<h2>${_escape.convert(label)}</h2>')
+          ..writeln('<p>${_escape.convert(help)}</p>');
+        text
+          ..add(label)
+          ..add(help);
+        final Object? entries = document is Map ? document[slot.key] : null;
+        if (entries is! List || entries.isEmpty) {
+          html.writeln('<p>Nothing here yet.</p>');
+          text.add('Nothing here yet.');
+          continue;
+        }
+        html.writeln('<ol>');
+        for (final Object? entry in entries) {
+          if (entry is! Map) continue;
+          if (entry['file'] != null) {
+            final String line = 'From the file ${entry['file']}';
+            html.writeln('<li>${_escape.convert(line)}</li>');
+            text.add(line);
+          } else {
+            // As text: a snippet is shown in Studio, never run inside it.
+            final String code = '${entry['html'] ?? ''}';
+            html.writeln('<li><pre><code>${_escape.convert(code)}</code></pre></li>');
+            text.add(code);
+          }
+        }
+        html.writeln('</ol>');
+      }
+      return DVStudioDocument(heading: 'Web', html: html.toString(), text: text);
     default:
       return null;
   }
@@ -839,3 +913,20 @@ String _fieldNotes(DVStudioFieldSpec field) => <String>[
   if (field.unique) 'unique',
   if (field.relation != null) 'relates to ${field.relation}',
 ].join(', ');
+
+/// How many snippets the web settings in [platforms] hold, in words.
+String _snippetSummary(Map<String, Object?> platforms) {
+  final Object? web = platforms['web'];
+  final Object? document = web is Map ? web['document'] : null;
+  int count = 0;
+  if (document is Map) {
+    for (final Object? slot in document.values) {
+      if (slot is List) count += slot.length;
+    }
+  }
+  return switch (count) {
+    0 => 'No HTML added',
+    1 => '1 piece of HTML on every page',
+    _ => '$count pieces of HTML on every page',
+  };
+}

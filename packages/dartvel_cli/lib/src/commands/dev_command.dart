@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
+import 'package:dartvel_core/config.dart' show dvWithPlatforms;
 import 'package:dartvel_core/dartvel.dart'
     show DVAdminMount, DVPreviewAppLink, DVStudioDevGrant;
 import 'package:watcher/watcher.dart';
@@ -1051,7 +1052,9 @@ Object? _dartvelSection(String root) {
   if (!pubspec.existsSync()) return null;
   try {
     final Object? document = loadYaml(pubspec.readAsStringSync());
-    return document is Map ? document['dartvel'] : null;
+    final Object? section = document is Map ? document['dartvel'] : null;
+    // Platform settings at either home, platforms.<name> or <name>.
+    return section is Map ? dvWithPlatforms(section.cast<Object?, Object?>()) : section;
   } on Object {
     return null;
   }

@@ -994,7 +994,8 @@ class _DVStudioListRowState extends State<DVStudioListRow> {
   }
 }
 
-/// A single-line text input in Studio's style.
+/// A text input in Studio's style: one line, or [lines] lines for text that
+/// wraps, such as HTML, with [code] drawing it in a monospace face.
 ///
 /// Its own controller and focus node, created once. The inspector used to
 /// build a fresh `TextEditingController` on every rebuild, which throws away
@@ -1019,6 +1020,13 @@ class DVStudioTextInput extends StatefulWidget {
   /// it again.
   final bool obscureText;
 
+  /// How many lines tall the field is; more than one makes it a multi-line
+  /// field that grows with what is typed.
+  final int lines;
+
+  /// Draws the text in a monospace face, for code and markup.
+  final bool code;
+
   const DVStudioTextInput({
     super.key,
     this.value = '',
@@ -1030,6 +1038,8 @@ class DVStudioTextInput extends StatefulWidget {
     this.semanticLabel,
     this.suffix,
     this.obscureText = false,
+    this.lines = 1,
+    this.code = false,
   });
 
   @override
@@ -1080,8 +1090,11 @@ class _DVStudioTextInputState extends State<DVStudioTextInput>
     return GestureDetector(
       onTap: _focus.requestFocus,
       child: Container(
-        height: 32,
-        padding: const .symmetric(horizontal: 10),
+        height: widget.lines > 1 ? null : 32,
+        constraints: widget.lines > 1 ? BoxConstraints(minHeight: widget.lines * 18.0 + 14) : null,
+        padding: widget.lines > 1
+            ? const .symmetric(horizontal: 10, vertical: 7)
+            : const .symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: DVStudioStyle.surface,
           border: Border.all(
@@ -1103,7 +1116,7 @@ class _DVStudioTextInputState extends State<DVStudioTextInput>
             ],
             Expanded(
               child: Stack(
-                alignment: .centerLeft,
+                alignment: widget.lines > 1 ? Alignment.topLeft : Alignment.centerLeft,
                 children: <Widget>[
                   if (_text.text.isEmpty && widget.placeholder != null)
                     IgnorePointer(
@@ -1121,8 +1134,14 @@ class _DVStudioTextInputState extends State<DVStudioTextInput>
                       controller: _text,
                       focusNode: _focus,
                       obscureText: widget.obscureText && !revealed,
-                      style: const TextStyle(
-                          fontSize: 13, color: DVStudioStyle.ink, height: 1.2),
+                      maxLines: widget.lines > 1 ? null : 1,
+                      minLines: widget.lines > 1 ? widget.lines : null,
+                      keyboardType: widget.lines > 1 ? TextInputType.multiline : null,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: DVStudioStyle.ink,
+                          height: widget.lines > 1 ? 1.35 : 1.2,
+                          fontFamily: widget.code ? 'monospace' : null),
                       cursorColor: DVStudioStyle.accent,
                       backgroundCursorColor: const Color(0xFFCCCCCC),
                       onChanged: widget.onChanged,

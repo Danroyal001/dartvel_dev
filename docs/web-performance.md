@@ -205,6 +205,57 @@ For 221 routes (sigmadev.digital) the read at the sample's rate, six
 windows and one boot each, would be about two minutes; its pages are
 heavier than the sample's, so that is an estimate, not a measurement.
 
+## Slow phone networks, first visit (after 3.47.4, November 2026)
+
+Measured on sigmadev.digital (live release vs the same commit rebuilt), in
+headless Chrome 155 as a 390 px phone with a 4x slower CPU, an empty cache in
+a fresh profile, DevTools' Fast 3G (562 ms, 1.44 Mbit/s) and Slow 3G (2 s,
+400 kbit/s) applied to the page and to its service worker, over HTTP/2
+through the site's nginx. "First frame" is Dartvel's `dartvel-first-frame`.
+The host was running other builds (load 15-35), so wall times move by about
+5 s between runs; main-thread CPU time (trace `tdur`) does not, and is given
+beside them. Scripts: `measure.mjs`, `trace.mjs`, `cputime.mjs`, `crit.mjs`.
+
+| | Before (live on 3.47.0) | After (3.47.4 + this change) |
+|---|---|---|
+| Splash painted (FCP), Fast 3G | 0.8-1.4 s | 0.8-1.3 s |
+| Bytes before the first frame | 3.76-3.98 MB | 2.74 MB |
+| main.dart.wasm downloaded, Fast 3G | 20.0 s | 14.6-15.5 s |
+| Route modules in, Fast 3G | 37-38 s (three waves) | 17.4-19.4 s (at once) |
+| Main-thread CPU to first frame | 12.4-12.8 s | 8.5-9.8 s |
+| First frame, Fast 3G | 38.5-41.0 s | 33.2-38.7 s |
+| First frame, Slow 3G | 107.6-110.5 s | 80.1-94.6 s |
+
+Where the time went, and what changed:
+
+- **The app downloaded twice** (3.47.3): the splash preloaded
+  `main.dart.wasm` without the loader's `?v=<build>`. 1 MB of the 1.2 MB saved.
+- **Route modules in waves**: a page's deferred `main.dart_module<N>.wasm`
+  files were asked for only after main.dart.wasm had run, one round trip per
+  wave (0.6 s each on Fast 3G, 2 s on Slow 3G). The build now reads
+  dart2wasm's deferred map and each page names its route's modules; a small
+  script preloads them the moment main.dart.wasm and the renderer have
+  downloaded, only in a browser that runs the wasm app.
+- **Links prefetched behind the splash**: the first frame is held while the
+  route loads, but frames still build, so a link's post-frame preload fetched
+  and compiled other pages (/contact, /pricing-plans-and-services and 28
+  modules) before the page showed. Links now wait for the first frame:
+  about 1 s of main-thread CPU off the path.
+- **The service worker registered 30 s after load** even with the app still
+  loading, and its install (boot files, 25 pages and their parts) shared a
+  slow line with it. It now waits for the first frame only.
+
+Tried and dropped: preloading the fonts and the two manifests. Started with
+the page, they shared the line with main.dart.wasm and delayed it by 10 s on
+Slow 3G; started once the app and renderer were in, they began after the
+engine had asked for FontManifest.json itself, which then came down twice.
+
+What is left is CPU: with the network idle from about 20 s on Fast 3G, the
+first frame waits on starting the app (Dart about 5 s, compiling wasm 3.5 s,
+the renderer 2 s at 4x slowdown; headless Chrome draws without a GPU, which
+overstates the renderer's share). The next step is a symbolised profile of
+what the app does before its first frame.
+
 ## Still to do
 
 Ranked by what they would save:

@@ -929,6 +929,7 @@ export 'src/studio/studio_host.dart';
 export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_repository_section.dart';
+export 'src/studio/studio_platforms_section.dart';
 export 'src/studio/studio_routes.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_server.dart';

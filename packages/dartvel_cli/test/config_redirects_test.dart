@@ -85,16 +85,32 @@ void main() {
       expect(response.headers['location'], '/new?ref=mail');
     });
 
-    test('a target with its own query keeps it and nothing is appended', () async {
+    test('a target with its own query keeps it and adds the request''s', () async {
       final Response response = await ask('/search?q=x');
       expect(response.statusCode, 302);
-      expect(response.headers['location'], '/find?from=search');
+      expect(response.headers['location'], '/find?from=search&q=x');
+    });
+
+    test('the request''s tracking parameters win over the target''s defaults', () async {
+      // An ad links to a short link whose target tags a WhatsApp catalogue
+      // tap: the ad's own utm_* and fbclid must reach the page.
+      final Response response = await ask('/search?from=ad&fbclid=abc');
+      expect(response.statusCode, 302);
+      expect(response.headers['location'], '/find?from=ad&fbclid=abc');
     });
 
     test('the location is the shared core rule production answers with', () {
       expect(dvRedirectLocation('/new', 'ref=mail'), '/new?ref=mail');
       expect(dvRedirectLocation('/new', ''), '/new');
-      expect(dvRedirectLocation('/find?from=search', 'q=x'), '/find?from=search');
+      expect(dvRedirectLocation('/find?from=search', 'q=x'), '/find?from=search&q=x');
+      expect(
+        dvRedirectLocation(
+          '/p?utm_source=whatsapp&utm_medium=catalog&utm_campaign=store',
+          'utm_source=fb&utm_medium=paid&fbclid=Iw%2B1&utm_campaign=120',
+        ),
+        '/p?utm_source=fb&utm_medium=paid&utm_campaign=120&fbclid=Iw%2B1',
+      );
+      expect(dvRedirectLocation('https://a.example/p?x=1#top', 'y=2'), 'https://a.example/p?x=1&y=2#top');
     });
   });
 }

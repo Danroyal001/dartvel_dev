@@ -23,6 +23,7 @@ class _GitHub {
       'README.md': 'The roastery\n',
       'studio/pages/about.json': '{\n  "route": "/about"\n}\n',
       'studio/pages/old.json': '{\n  "route": "/old"\n}\n',
+      'pubspec.yaml': 'name: roastery\n# The site.\ndartvel:\n  seo:\n    siteName: Roastery\n',
     },
   };
   final Map<String, String> refs = <String, String>{'main': 'c0'};
@@ -228,6 +229,38 @@ void main() {
         body: <String, Object?>{'mode': 'push', 'message': 'From Studio'});
     expect(status, 200);
     expect(github.refs['main'], isNot('c0'));
+    final (_, Map<String, Object?> after, _) = await call(api(), 'GET', 'repository');
+    expect(after['changes'], isEmpty);
+  });
+
+  test('a Platforms change waits here and goes to the repository as a pubspec.yaml change, '
+      'with every other line kept', () async {
+    await call(api(), 'PUT', 'repository',
+        body: <String, Object?>{'repository': 'roastery/site', 'base': 'main'});
+    final (_, Map<String, Object?> before, _) = await call(api(), 'GET', 'repository');
+    expect(
+        <Object?>[for (final Object? c in before['changes']! as List<Object?>) (c! as Map)['path']],
+        isNot(contains('pubspec.yaml')));
+    final (int saved, _, _) = await call(api(), 'PUT', 'platforms/web/document', body: <String, Object?>{
+      'document': <String, Object?>{
+        'head': <Object?>[
+          <String, Object?>{'html': '<meta name="theme-color" content="#000">'},
+        ],
+      },
+    });
+    expect(saved, 200);
+    final (_, Map<String, Object?> body, _) = await call(api(), 'GET', 'repository');
+    final Map<String, Object?> change = <Map<String, Object?>>[
+      for (final Object? c in body['changes']! as List<Object?>) (c! as Map).cast<String, Object?>(),
+    ].singleWhere((Map<String, Object?> c) => c['path'] == 'pubspec.yaml');
+    expect(change['kind'], 'changed');
+    expect(change['diff'], contains('+  platforms:'));
+    final (int status, _, _) = await call(api(), 'POST', 'repository/sync',
+        body: <String, Object?>{'mode': 'push'});
+    expect(status, 200);
+    final String pubspec = github.commits[github.refs['main']]!['pubspec.yaml']!;
+    expect(pubspec, contains('# The site.'));
+    expect(pubspec, contains('theme-color'));
     final (_, Map<String, Object?> after, _) = await call(api(), 'GET', 'repository');
     expect(after['changes'], isEmpty);
   });
