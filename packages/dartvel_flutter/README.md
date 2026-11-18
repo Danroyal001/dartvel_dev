@@ -365,6 +365,15 @@ A layout keeps a header fixed by overriding `header` (and `footer`): the
 framework scrolls the page and footer beneath it. The page scrollbar is left
 out on phones, tablets and touch browsers and kept on desktop.
 
+Every page keeps its content inside the safe area with nothing added: clear
+of the status bar, a notch, the navigation or gesture bar and, on the web, the
+browser's `env(safe-area-inset-*)`. The background still paints edge to edge.
+Inside a page `MediaQuery.sizeOf` is the page's safe box with no padding left,
+so a layout sized from the screen (a letter index, a full-height hero) fits;
+the whole window is `DV.Platform.screen.size`. A page needs no `SafeArea` of
+its own. `@DVPage(safeArea: false)` opts one page out for full-bleed content
+(a camera view, a map), which then reads the real insets from `MediaQuery`.
+
 Every page can be reached by keyboard, a TV remote's D-pad and switch control
 with nothing added: the page shell carries keyboard scrolling, D-pad focus
 and switch scanning, and they stay inert until used. The reader's own choices
