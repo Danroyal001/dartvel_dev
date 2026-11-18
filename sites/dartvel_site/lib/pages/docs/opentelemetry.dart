@@ -144,8 +144,8 @@ Widget _docsOpenTelemetryPage(BuildContext context) => const DocsArticle(
             ]),
             Bullets(<String>[
               'Dartvel sends OTLP over HTTP, protobuf or JSON, so the endpoint '
-                  'is the collector\'s HTTP port, 4318 by default, not its gRPC '
-                  'port 4317.',
+                  'is the collector\'s HTTP port, 4318 by default. Its gRPC port, '
+                  '4317, does not take it.',
               'Jaeger takes OTLP directly on 4318 too, for traces.',
             ]),
           ],
@@ -209,7 +209,7 @@ Widget _docsOpenTelemetryPage(BuildContext context) => const DocsArticle(
                   'package.',
               'Measured on 18 Nov 2026 (Dart 3.13.4, 100,000 requests per '
                   'mode, two runs on a shared server with a load average of 9 '
-                  'to 16, so read the differences, not the exact times): a '
+                  'to 16, so the differences matter more than the exact times): a '
                   'request with telemetry off took 46 to 51 µs in process. '
                   'Recording spans added about 30 µs, exporting traces about 80 '
                   'to 100 µs, traces, metrics and logs together about 110 to '
