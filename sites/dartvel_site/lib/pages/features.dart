@@ -373,8 +373,8 @@ const List<(String, String, String)> partial = <(String, String, String)>[
   (
     'Distributed Tracing',
     'OpenTelemetry, W3C Trace Context',
-    'Present: traces, metrics and logs to any OTLP collector from one '
-        'pubspec section or OTEL_EXPORTER_OTLP_ENDPOINT, with request, '
+    'Present: traces, metrics and logs to any OTLP collector, set in the '
+        'pubspec or by OTEL_EXPORTER_OTLP_ENDPOINT. It records request, '
         'database, outbound, job and render spans. Absent: gRPC export and '
         'job-to-request trace links.',
 
