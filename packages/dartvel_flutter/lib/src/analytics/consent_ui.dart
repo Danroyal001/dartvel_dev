@@ -284,7 +284,7 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
               if (_notSaved)
                 KeyedSubtree(
                   key: const ValueKey<String>('dv-consent-not-saved'),
-                  child: DVText('Your choice could not be saved, so nothing '
+                  child: const DVText('Your choice could not be saved, so nothing '
                           'was turned on. Please try again.')
                       .modifier(const DVModifier().color(scheme.error)),
                 ),
@@ -325,7 +325,7 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
               .paddingSymmetric(horizontal: 16, vertical: 12)
               .maxWidth(560),
         ),
-        DVModifier()
+        const DVModifier()
             .backgroundColor(scheme.surface)
             .radius(const BorderRadius.vertical(top: Radius.circular(16)))
             .border(Border(top: BorderSide(color: scheme.outlineVariant)))
