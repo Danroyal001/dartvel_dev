@@ -20,6 +20,7 @@
 //                    (default 24).
 //   URI_RANDOM       number of random inputs (default 60000).
 //   URI_WORK         scratch directory (default: target/uri_oracle).
+#![allow(non_snake_case)]
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};

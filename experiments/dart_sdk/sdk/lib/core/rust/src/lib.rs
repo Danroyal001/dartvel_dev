@@ -9,5 +9,6 @@
 #![allow(non_snake_case, non_upper_case_globals)]
 #![allow(clippy::too_many_arguments)]
 
+pub mod errors;
 pub mod exceptions;
 pub mod uri;
