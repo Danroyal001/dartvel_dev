@@ -49,6 +49,10 @@ class FakeBrowser implements MetaPixelBrowser {
   String? cookie(String name) => cookies[name];
 
   @override
+  void setCookie(String name, String value, {required Duration maxAge}) =>
+      cookies[name] = value;
+
+  @override
   String? queryParameter(String name) => null;
 }
 

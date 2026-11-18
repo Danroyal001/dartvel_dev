@@ -66,8 +66,12 @@ void startMetaPixel(DVModule module) {
       MetaPixelRuntime.purchaseTopic, runtime.purchaseConfirmed);
   if (runtime.environment == DVModuleEnvironment.backend) return;
 
+  // The landing address, before a route change takes its click id out; a
+  // no-op once the analytics runtime has read it.
+  DVAttribution.captureLanding();
   dvModuleRegistry.subscribe(
       MetaPixelRuntime.contextTopic, runtime.contributeContext);
+  dvModuleRegistry.subscribe(DVStandardEvent.topic, runtime.standardEvent);
   DVPageViews.addListener((DVPageView view) => runtime.pageShown(view));
   dvMetaPixelOnConsent(() => runtime.consentChanged());
 }

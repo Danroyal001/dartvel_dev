@@ -23,6 +23,9 @@ final class _NoBrowser implements MetaPixelBrowser {
   String? cookie(String name) => null;
 
   @override
+  void setCookie(String name, String value, {required Duration maxAge}) {}
+
+  @override
   String? queryParameter(String name) => null;
 
   @override
