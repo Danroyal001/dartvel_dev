@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Plain HTTP/1.1 `GET` requests without a body are read and answered by the library's own HTTP/1 path (`rust/src/h1.rs`, no unsafe code) rather than by hyper and axum. Every other request -- a body, an upgrade or WebSocket, HTTP/1.0, `Connection: close`, `Expect`, the built-in health routes, static files, TLS, CORS -- hands its connection, with the bytes already read, to hyper, which serves the rest of that connection as before. Answers held whole in memory are written in one go from the bytes Dart gave. Property tests cover the head classifier and the answer writer, including request-smuggling heads (conflicting `Content-Length`, any `Transfer-Encoding`, line folds), which always go to hyper.
+- A library embedded as a whole file is opened from that file rather than copied into memory first; the peer address is parsed only when a handler reads it (`Request(peerAddressOf: ...)` in dartvel_core).
+
 - `serve(shared: true)`: servers in several isolates of one process listen on one port (SO_REUSEPORT on Linux and macOS), as `HttpServer.bind(shared: true)` does, so handlers use more than one core. Listening sockets take a backlog of 1024.
 - Requests reach the isolate in batches: the native side queues them and wakes the isolate once for all that arrived meanwhile, instead of one listener message per request.
 - A body already in memory (`Response.text`, `.json`, `.bytes`) is sent as one copy without listening to a stream, through one reusable native buffer per server; the handler starts in the callback's own turn of the event loop rather than a timer later; `securityHeaders` are given to the native side once and added to each response there.

@@ -424,7 +424,10 @@ otherwise. See [example/https_demo.dart](example/https_demo.dart).
 
 ## How a request is served
 
-The Rust side (hyper, Tokio) parses HTTP and Dart runs the handlers. While an
+The Rust side parses HTTP and Dart runs the handlers. A plain HTTP/1.1
+`GET` with no body is read and answered by the library's own HTTP/1 code;
+every other kind of request (a body, a WebSocket upgrade, HTTP/1.0, TLS,
+CORS) moves its connection to hyper, which serves the rest of it. While an
 isolate has requests to take, it runs the server's connections itself between
 its own work: a request is read, handed to the handler and its answer written
 on that one thread, without waking another. An isolate with nothing to take

@@ -1032,10 +1032,11 @@ Request _readRequest({
   // The accepted socket's address, from the native side and never from a
   // header. Empty, or anything that does not parse, is no peer at all
   // rather than a guess.
-  final DVPeerAddress? peerAddress = peer.len == 0
+  // Copied now (the native side frees it once the request is acknowledged)
+  // and parsed only if a handler asks: most never do.
+  final String? peerText = peer.len == 0
       ? null
-      : DVPeerAddress.tryParse(String.fromCharCodes(
-          peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len)));
+      : String.fromCharCodes(peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len));
   final methodStr = String.fromCharCodes(
       method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
   final targetStr = String.fromCharCodes(
@@ -1056,7 +1057,8 @@ Request _readRequest({
     url: _requestUrl(targetStr, authority: authority, port: port),
     headers: Headers.decodedOnRead(() => decodeHeaders(headerBytes)),
     bodyStream: bodySource,
-    peerAddress: peerAddress,
+    peerAddressOf:
+        peerText == null ? null : () => DVPeerAddress.tryParse(peerText),
   );
 }
 
