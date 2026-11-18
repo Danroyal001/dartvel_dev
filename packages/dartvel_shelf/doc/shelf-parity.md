@@ -114,6 +114,139 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
+## Against Relic 2 with the lean HTTP/1 path (18 November 2026, later)
+
+The server below reads plain HTTP/1.1 itself (`rust/src/h1.rs`): a `GET`
+with no body over HTTP/1.1 is parsed with httparse, handed to the isolate's
+request queue from the bytes it arrived in, and answered from the bytes Dart
+gave, in one write. Every other request moves its connection, with the bytes
+already read, to hyper and axum as before, so the 400s, bodies, upgrades,
+HTTP/1.0, TLS and CORS behave exactly as they did. All 313 dartvel_shelf
+tests pass unchanged.
+
+Safety evidence: `h1.rs` is `#![forbid(unsafe_code)]`. Its 23 unit and
+property tests cover the classifier (any bytes never panic, and a request
+served here has exactly one reading: no `Transfer-Encoding`, at most one
+`Content-Length: 0`, no `Upgrade`/`Expect`; conflicting lengths,
+`Transfer-Encoding` in any spelling, obsolete line folds, heads past 64 KiB
+and over 64 fields go to hyper) and the answer writer (no answer Dart gives
+can add a header line; what hyper refuses is refused). All 22 that existed when it ran pass under Miri (the upgrade-recognition
+test added after it has not been run there), and the whole Rust
+suite (70 tests) passes under AddressSanitizer. A head still incomplete when
+the header timeout ends closes the connection, as hyper's did.
+
+Measured as in the section after this one (`compare.dart`, compiled servers,
+oha 1.17.0, 64 connections, three trials each, medians), 18 Nov 2026
+07:40-07:58 CEST, load average 8.0-24.9 (median 16.6). The WebSocket,
+static and download rows are a second three-trial run at 08:3x (load
+6.0-14.1) after one fix (an upgraded connection keeps Nagle; the first run
+had turned it off and halved pipelined WebSocket). `dartvel_before` is
+`origin/main` at e109ec558 (#269 and #270 merged); the server opens its
+library from the file it is in, which a library given as a whole file now
+does.
+
+| scenario | metric | shelf | relic_io | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
+|---|---|---|---|---|---|---|---|---|
+| plaintext | rps | 2724 | 4163 | 21307 | 35621 | 10350 | 16513 | 19348 |
+| plaintext | p50_ms | 13.4 | 10.5 | 1.64 | 0.56 | 3.63 | 2.27 | 1.02 |
+| plaintext | p99_ms | 130 | 92.0 | 23.9 | 17.4 | 45.6 | 29.3 | 35.1 |
+| plaintext | cpu_us_per_req | 340 | 290 | 45.8 | 63.9 | 102 | 61.8 | 107 |
+| plaintext | peak_rss_mib | 20.2 | 20.7 | 17.2 | 27.0 | 31.0 | 23.2 | 25.6 |
+| json | rps | 2532 | 2552 | 15059 | 16350 | 8770 | 11138 | 23391 |
+| json | p50_ms | 13.3 | 12.0 | 1.73 | 0.73 | 3.85 | 2.71 | 0.95 |
+| json | p99_ms | 190 | 178 | 44.6 | 62.0 | 65.4 | 53.5 | 30.2 |
+| json | cpu_us_per_req | 493 | 343 | 56.1 | 86.1 | 116 | 68.3 | 93.9 |
+| json | peak_rss_mib | 20.2 | 20.8 | 17.0 | 27.0 | 31.3 | 22.9 | 26.0 |
+| headers | rps | 2022 | 2496 | 17037 | 30820 | 9250 | 9663 | 16440 |
+| headers | p50_ms | 20.0 | 15.4 | 1.98 | 0.62 | 4.13 | 2.99 | 1.21 |
+| headers | p99_ms | 148 | 179 | 34.2 | 25.9 | 47.2 | 49.8 | 45.7 |
+| headers | cpu_us_per_req | 428 | 409 | 48.1 | 68.1 | 113 | 81.3 | 119 |
+| headers | peak_rss_mib | 21.3 | 23.3 | 17.0 | 27.1 | 31.6 | 23.0 | 26.0 |
+| many | rps | 2970 | 4815 | 15814 | 32155 | 10252 | 14589 | 33585 |
+| many | p50_ms | 51.1 | 42.4 | 10.5 | 16.1 | 83.1 | 53.4 | 18.3 |
+| many | p99_ms | 2211 | 1654 | 483 | 199 | 269 | 317 | 191 |
+| many | cpu_us_per_req | 424 | 324 | 60.3 | 59.5 | 109 | 76.0 | 72.9 |
+| many | peak_rss_mib | 48.8 | 48.8 | 37.0 | 47.3 | 83.0 | 63.2 | 67.6 |
+| many | non_200 | - | - | - | - | - | - | - |
+| startup | startup_ms | 26.0 | 30.7 | 33.5 | 40.4 | 48.6 | 35.9 | 28.9 |
+| startup | peak_rss_mib | 8.97 | 9.93 | 12.4 | 16.1 | 18.8 | 12.1 | 12.6 |
+| upload | mib_per_second | 154 | 133 | 212 | 621 | 224 | 223 | 238 |
+| upload | peak_rss_mib | 53.8 | 52.5 | 16.0 | 24.5 | 48.9 | 48.2 | 47.3 |
+| websocket | messages_per_second | 1009 | 738 | 1803 | 1147 | 1021 | 1047 | 1130 |
+| websocket | p50_us | 550 | 519 | 296 | 396 | 457 | 498 | 477 |
+| websocket | p99_us | 6472 | 9446 | 5112 | 8106 | 7147 | 8407 | 6477 |
+| websocket | peak_rss_mib | 12.6 | 13.0 | 15.0 | 17.9 | 21.5 | 15.5 | 15.9 |
+| websocket_pipelined | messages_per_second | 34280 | 35752 | 202920 | 220015 | 77123 | 100676 | 101883 |
+| websocket_pipelined | peak_rss_mib | 78.0 | 77.2 | 15.5 | 25.5 | 28.2 | 22.5 | 22.6 |
+| static | rps | 1963 | 1897 | 1883 | 3365 | 1350 | 4774 | 10913 |
+| static | p50_ms | 27.5 | 27.8 | 28.5 | 15.1 | 45.5 | 11.4 | 3.37 |
+| static | p99_ms | 113 | 98.3 | 115 | 96.7 | 133 | 64.4 | 44.0 |
+| static | cpu_us_per_req | 918 | 914 | 765 | 851 | 771 | 452 | 465 |
+| static | peak_rss_mib | 52.8 | 52.2 | 31.8 | 36.5 | 23.2 | 19.9 | 20.6 |
+| download | mib_per_second | 353 | 289 | 378 | 315 | 355 | 270 | 336 |
+| download | peak_rss_mib | 12.4 | 12.5 | 13.4 | 16.7 | 21.8 | 15.5 | 16.0 |
+
+load1 during rows: median 12.82, min 5.98, max 24.91; rows 210
+
+What the numbers say:
+
+- **Ahead of `relic_native`:** static files on one isolate (4,774 vs 1,883
+  req/s, p50 11 vs 29 ms, p99 64 vs 115 ms, 452 vs 765 us of CPU, 20 vs 32
+  MiB) and on four (10,913 vs 3,365). `dartvel4` was level with
+  `relic_native4` at 1,024 connections (33,585 vs 32,155) and ahead on JSON
+  (23,391 vs 16,350; Relic's four isolates answered fewer JSON than plaintext
+  requests in this run, so treat that one with care).
+- **Behind `relic_native`:** plaintext (16,513 vs 21,307 on one isolate,
+  19,348 vs 35,621 on four), browser headers (9,663 vs 17,037), JSON on one
+  isolate, 1,024 connections on one isolate (14,589 vs 15,814), pipelined
+  WebSocket (about half: 100,676 vs 202,920), WebSocket ping-pong, download,
+  and resident memory (23 vs 17 MiB for plaintext). Start-up is a single
+  sample per trial and moved more between trials than between engines.
+- **Against main:** plaintext 10,350 to 16,513 req/s and 102 to 62 us of CPU
+  per request; memory 31 to 23 MiB; static files 1,350 to 4,774 req/s (a
+  latency bug went with it: the hyper path left Nagle on, and a streamed
+  answer waited about 40 ms for a delayed ACK); pipelined WebSocket 77,123
+  to 100,676 msgs/s.
+
+With Relic's own `http_load.dart` (Relic's servers inside that tool under
+`dart run`, ours compiled, as URL targets; 50% and 100% of saturation,
+07:58-08:04), rows at 100%:
+
+| target | workload | load | offered rps | rps | p50 | p99 | p99.9 | errors |
+|---|---|---|---|---|---|---|---|---|
+| native | plaintext | 100% | 16473 | 15072 | 2.71 | 28.29 | 78.22 | - |
+| native | json | 100% | 15126 | 7410 | 3.68 | 96.97 | 229.80 | - |
+| native | headers | 100% | 13806 | 11497 | 3.05 | 46.78 | 158.16 | - |
+| native | browser | 100% | 11428 | 11082 | 3.69 | 32.79 | 77.12 | - |
+| native4 | plaintext | 100% | 32525 | 26729 | 1.23 | 18.06 | 56.46 | - |
+| native4 | json | 100% | 36264 | 6596 | 1.91 | 173.06 | 436.50 | - |
+| native4 | headers | 100% | 17795 | 13550 | 2.46 | 42.64 | 97.58 | - |
+| native4 | browser | 100% | 14658 | 8892 | 3.09 | 58.38 | 594.59 | - |
+| dartvel_before | plaintext | 100% | 11799 | 10282 | 3.74 | 38.08 | 83.47 | - |
+| dartvel_before | json | 100% | 7435 | 7102 | 4.45 | 56.16 | 106.28 | - |
+| dartvel_before | headers | 100% | 4369 | 3773 | 8.51 | 126.82 | 244.18 | - |
+| dartvel_before | browser | 100% | 1847 | 1846 | 8.84 | 99.85 | 108.26 | - |
+| dartvel | plaintext | 100% | 5081 | 4709 | 5.03 | 185.15 | 603.99 | - |
+| dartvel | json | 100% | 9737 | 8552 | 3.70 | 78.48 | 187.13 | - |
+| dartvel | headers | 100% | 6000 | 3217 | 6.86 | 194.28 | 498.82 | - |
+| dartvel | browser | 100% | 5263 | 4676 | 6.64 | 131.89 | 418.32 | - |
+| dartvel4 | plaintext | 100% | 8810 | 8146 | 3.89 | 62.94 | 166.57 | - |
+| dartvel4 | json | 100% | 16828 | 12550 | 2.77 | 35.56 | 89.81 | - |
+| dartvel4 | headers | 100% | 14576 | 10185 | 3.00 | 62.54 | 162.99 | - |
+| dartvel4 | browser | 100% | 16002 | 5479 | 5.61 | 115.29 | 275.65 | - |
+
+Relic was ahead on most rows there too, and `dartvel` on one isolate measured
+below `dartvel_before` on plaintext and headers, the opposite of the table
+above, in a window with a p99 of 185 ms; that run is too noisy to read more
+into.
+
+Where the rest goes (perf, this branch, one isolate, plaintext): the kernel's
+TCP path and netfilter are now half the process's CPU, Dart (JIT for symbols)
+a quarter, the native library 16% and libc 5%. The remaining gap to Relic is
+the Dart side of a request (request and response objects, the router's
+measuring, the sampled access log) and the per-request wakeups of the
+isolate's own turns, not HTTP parsing.
+
 ## Against Relic 2 (18 November 2026)
 
 Serverpod's Relic 2 (pub `relic` 2.0.0) publishes these numbers from its own
