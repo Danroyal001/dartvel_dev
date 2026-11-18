@@ -884,10 +884,18 @@
       "evidence": [
         "packages/dartvel_core/lib/src/observability/tracing.dart",
         "packages/dartvel_core/lib/src/observability/tracing_middleware.dart",
+        "packages/dartvel_core/lib/src/observability/otlp.dart",
+        "packages/dartvel_core/lib/src/observability/open_telemetry.dart",
+        "packages/dartvel_core/lib/src/observability/open_telemetry_config.dart",
+        "packages/dartvel_core/lib/src/observability/database_telemetry.dart",
         "packages/dartvel_core/test/tracing_test.dart",
-        "packages/dartvel_core/test/tracing_middleware_test.dart"
+        "packages/dartvel_core/test/tracing_middleware_test.dart",
+        "packages/dartvel_core/test/otlp_exporter_test.dart",
+        "packages/dartvel_core/test/otel_instrumentation_test.dart",
+        "packages/dartvel_core/test/open_telemetry_config_test.dart",
+        "packages/dartvel_cli/test/open_telemetry_backend_test.dart"
       ],
-      "absent": "Nothing reaches a collector: the exporter interface exists with in-memory, ring-buffer and fanout implementations, and there is no OTLP exporter, so spans leave the process only through /_dartvel/traces when diagnostics endpoints are on. The only span most requests have is the request itself -- dvTraced is the sole place that starts one, so there are no spans for database queries, outbound HTTP, queue publish and consume, transactions or AI calls. Trace context does not travel in the job envelope, so nothing links a job back to the request that enqueued it. There are no client spans and no ingest for them. Span attribute limits and the maximum span duration are unimplemented. dartvel traces reads nothing but the local buffer. The DV-TRACE codes are registered meanings and nothing emits one yet. What is real: W3C traceparent parsing and serialization, spans with attributes, errors and status, a sampler that decides from the trace id so every service in a trace agrees without coordinating, the HTTP middleware that joins or starts a trace and returns the traceparent on the response, and the trace id on every log line."
+      "absent": "OTLP export is built: traces, metrics and logs over OTLP/HTTP, protobuf or JSON, hand-encoded in dartvel_core so it runs on every target including the web, from dartvel.openTelemetry or the standard OTEL_* variables, with no code in every generated web, worker and cron process and DV.ObservabilityAndLogging.useOpenTelemetry in code on any target. Export batches on bounded queues that drop newest with a count (dartvel_otel_dropped_total, DV-TRACE-002) and retry 429, 502, 503, 504 and unanswered sends with growing backoff before dropping (DV-TRACE-003); an unreadable OTEL_* variable is ignored with DV-TRACE-011. Spans follow the OpenTelemetry semantic conventions: a server span per request in the router named by its route template, off until something reads spans; a client span per SQL statement with literals stripped and no bound values, and per DV.Http call; producer and consumer spans for jobs; a span per scheduled run; a render span per server-rendered page; Studio requests named by screen or action. Verified against an OpenTelemetry Collector and Jaeger in docker on a dartvel create web-server app. Absent: gRPC export. Trace context does not travel in the job envelope, so a job starts its own trace and nothing links it back to the request that enqueued it (DV-TRACE-005). Client spans are not routed through the deployment's own backend and there is no ingest for them (DV-TRACE-008), so a client exports only when its code calls useOpenTelemetry. Code written against another Dart OpenTelemetry API does not create Dartvel spans in the same process. No spans for transactions; AI calls have only the existing AI feature span. The maximum span duration (DV-TRACE-009) is unimplemented; the attribute limit drops and counts but does not emit DV-TRACE-010, and a sensitive attribute is redacted without emitting DV-TRACE-004. No garbage collection or database pool metrics. dartvel traces reads nothing but the local buffer."
     },
     {
       "section": "Crash Reporting and Release Health",

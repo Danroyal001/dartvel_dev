@@ -51,18 +51,34 @@ void serverHealth() {
 Future<void> serverTracing() async {
   // docs:start monitoring-server-trace
   // The request already has a span, joined to the traceparent it arrived
-  // with. This is for the work inside it worth seeing on its own.
-  final DVSpan span =
-      DV.ObservabilityAndLogging.tracer.startSpan('reprice-basket');
-  span.setAttribute('basket.id', 'b-9');
-  try {
+  // with. This is a step inside it worth seeing on its own: a child of the
+  // request's span, ended when the work returns or throws, with any query
+  // or outbound call made inside it nested under it.
+  await DV.ObservabilityAndLogging.tracer.trace('reprice-basket',
+      (DVSpan span) async {
+    span.setAttribute('basket.id', 'b-9');
+    span.setAttribute('basket.items', 3); // an int stays an int
     await Future<void>.delayed(const Duration(milliseconds: 5));
-  } finally {
-    // In a finally: a thrown error would otherwise leave the span open, and
-    // the trace then shows a request that never ended.
-    span.end();
-  }
+  });
   // docs:end
 }
+
+void openTelemetryInCode() {
+  // docs:start otel-code
+  // The same switch the pubspec section is, for a project that configures
+  // export in code -- in an @DVBoot function, say. The OTEL_* variables on
+  // the deployment are still applied over it.
+  DV.ObservabilityAndLogging.useOpenTelemetry(const DVOpenTelemetryConfig(
+    enabled: true,
+    endpoint: 'https://otlp.example.com',
+    secretHeaders: <String, String>{'authorization': 'OTLP_AUTH_HEADER'},
+    serviceName: 'shop-api',
+    resourceAttributes: <String, String>{'team': 'checkout'},
+    sampler: DVOtelSampler.parentBasedTraceIdRatio,
+    ratio: 0.1,
+  ));
+  // docs:end
+}
+
 
 Future<bool> gatewayReachable() async => true;

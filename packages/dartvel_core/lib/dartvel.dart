@@ -2916,13 +2916,32 @@ class DVQueues {
     int maxAttempts = 3,
     Duration backoff = const Duration(seconds: 30),
   }) {
-    return _adapter.enqueue<TPayload>(
-      _queue(queue),
-      payload,
-      priority: priority,
-      maxAttempts: maxAttempts,
-      backoff: backoff,
-      tenant: _dispatchTenant(),
+    final String qualified = _queue(queue);
+    Future<DVJobEnvelope<TPayload>> enqueue() => _adapter.enqueue<TPayload>(
+          qualified,
+          payload,
+          priority: priority,
+          maxAttempts: maxAttempts,
+          backoff: backoff,
+          tenant: _dispatchTenant(),
+        );
+    // A producer span by the messaging semantic conventions, inside a trace
+    // only: the request that dispatched the job shows that it did.
+    final DVSpan? parent =
+        DVObservability.requestTracing ? dvCurrentSpan : null;
+    if (parent == null) return enqueue();
+    return DVObservability.tracer.trace(
+      'publish $qualified',
+      (DVSpan _) => enqueue(),
+      parent: parent,
+      kind: DVSpanKind.producer,
+      attributes: <String, Object>{
+        'messaging.system': 'dartvel',
+        'messaging.operation.type': 'send',
+        'messaging.operation.name': 'publish',
+        'messaging.destination.name': qualified,
+        'dartvel.job.payload': '$TPayload',
+      },
     );
   }
 
@@ -2961,10 +2980,36 @@ class DVQueues {
         // process-wide would reach whatever else runs in the isolate. A job
         // with none runs as the default tenant rather than as the worker's,
         // or the previous job's, or the scope work() was called from.
-        await const DVTenants().withTenant(
-          envelope.tenant ?? DVTenants.defaultTenant,
-          () => handler.invoke(envelope.payload),
-        );
+        //
+        // As a consumer span of its own trace when anything reads spans, so
+        // the handler's queries, calls and log lines hang off the job. A
+        // trace of its own rather than the dispatching request's: a job runs
+        // seconds or hours later, and a request span lasting four hours draws
+        // nothing useful.
+        Future<void> run() => const DVTenants().withTenant(
+              envelope.tenant ?? DVTenants.defaultTenant,
+              () => handler.invoke(envelope.payload),
+            );
+        if (DVObservability.requestTracing) {
+          await runZoned(() => DVObservability.tracer.trace(
+            'process $qualified',
+            (DVSpan _) => run(),
+            kind: DVSpanKind.consumer,
+            attributes: <String, Object>{
+              'messaging.system': 'dartvel',
+              'messaging.operation.type': 'process',
+              'messaging.operation.name': 'process',
+              'messaging.destination.name': qualified,
+              'messaging.message.id': envelope.id,
+              'dartvel.job.payload': '${envelope.payloadType}',
+              'dartvel.job.attempt': envelope.attempts + 1,
+            },
+          ), zoneValues: <Object, Object?>{dvSpanZoneKey: null});
+
+        } else {
+          await run();
+        }
+
         await _adapter.complete(envelope.id);
         completed++;
       } catch (error, stackTrace) {
