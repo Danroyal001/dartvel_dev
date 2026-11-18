@@ -5,7 +5,7 @@
 # pkg/_fe_analyzer_shared/rust/README.md.
 [workspace]
 resolver = "2"
-members = ["pkg/_fe_analyzer_shared/rust", "pkg/analyzer/rust", "pkg/kernel/rust", "third_party/pkg/dart_style/rust"]
+members = ["pkg/_fe_analyzer_shared/rust", "sdk/lib/core/rust", "pkg/analyzer/rust", "pkg/kernel/rust", "third_party/pkg/dart_style/rust"]
 
 [profile.release]
 debug = false
