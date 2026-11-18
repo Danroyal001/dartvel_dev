@@ -151,6 +151,24 @@ class Router {
       return inner();
     }
 
+    // Neither spans nor semantic metrics are read: the common case, measured
+    // without the closures, label map and telemetry scope those need.
+    if (!DVObservability.requestTracing && !DVObservability.semanticMetrics) {
+      final Stopwatch clock = Stopwatch()..start();
+      try {
+        final Response response = await inner();
+        clock.stop();
+        _record(req, response.status, clock, response.headers.get('traceparent'));
+        return response;
+      } on Object catch (error, stack) {
+        clock.stop();
+        // The server layer turns this into a 500 inside a bare `catch (_)`,
+        // so if it is not recorded here the exception is gone.
+        _record(req, 500, clock, null, error: error, stackTrace: stack);
+        rethrow;
+      }
+    }
+
     // The request's server span, when anything is reading spans. Checked as a
     // field read, so a process nobody traces pays nothing else here.
     final DVSpan? span = DVObservability.requestTracing
