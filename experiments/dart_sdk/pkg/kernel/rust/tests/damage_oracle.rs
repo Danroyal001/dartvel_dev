@@ -10,9 +10,11 @@
 // Environment:
 //   DART          the Dart executable (default: `dart` on PATH).
 //   DAMAGE_INPUTS base files, separated by `:` (default: the fixtures and
-//                 the corpus's hello.dill). A file of up to 4 KiB is damaged
-//                 at every offset; a larger one at DAMAGE_SAMPLES offsets
-//                 (default 300), the same ones on every run.
+//                 the corpus's hello-aot.dill). A file of up to 4 KiB is
+//                 damaged at every offset; a larger one at its first and last
+//                 256 bytes and DAMAGE_SAMPLES more offsets (default 60;
+//                 upstream takes about 0.4 s per mutation of hello-aot.dill),
+//                 the same ones on every run.
 //   KERNEL_WORK   scratch directory (default: target/kernel_oracle/damage).
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -88,7 +90,6 @@ fn run(command: &mut Command) -> String {
 }
 
 #[test]
-#[ignore = "not 1:1 yet: 344 of 3,080 damaged variants of the program fixture differ (name binding; README.md, Damaged input); run with --ignored"]
 fn damaged_input_does_what_upstream_does() {
     let work = under_root(&std::env::var("KERNEL_WORK").unwrap_or_else(|_| "target/kernel_oracle/damage".into()));
     fs::create_dir_all(&work).unwrap();
@@ -105,10 +106,11 @@ fn damaged_input_does_what_upstream_does() {
         Err(_) => vec![
             crate_dir.join("tests/fixtures/empty.dill"),
             crate_dir.join("tests/fixtures/hello-unlinked.dill"),
-            under_root("target/kernel_oracle/corpus/hello.dill"),
+            crate_dir.join("tests/fixtures/json_roundtrip-unlinked.dill"),
+            under_root("target/kernel_oracle/corpus/hello-aot.dill"),
         ],
     };
-    let samples: usize = std::env::var("DAMAGE_SAMPLES").ok().and_then(|s| s.parse().ok()).unwrap_or(300);
+    let samples: usize = std::env::var("DAMAGE_SAMPLES").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
     let dart = std::env::var("DART").unwrap_or_else(|_| "dart".into());
     let mut report = Vec::new();
     let mut total = 0;
