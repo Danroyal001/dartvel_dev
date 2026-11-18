@@ -1,0 +1,431 @@
+// Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+// Do not call exit() directly. Use VmInteropHandler.exit() instead.
+import 'dart:async';
+import 'dart:io' as io hide exit;
+import 'dart:isolate';
+
+import 'package:args/args.dart';
+import 'package:args/command_runner.dart';
+import 'package:cli_util/cli_logging.dart';
+import 'package:dart_style/src/cli/format_command.dart';
+import 'package:meta/meta.dart';
+import 'package:pub/pub.dart';
+import 'package:unified_analytics/unified_analytics.dart';
+
+import 'src/commands/analyze.dart';
+import 'src/commands/build.dart';
+import 'src/commands/compilation_server.dart';
+import 'src/commands/compile.dart';
+import 'src/commands/create.dart';
+import 'src/commands/dart_mcp_server.dart';
+import 'src/commands/debug_adapter.dart';
+import 'src/commands/development_service.dart';
+import 'src/commands/devtools.dart';
+import 'src/commands/doc.dart';
+import 'src/commands/fix.dart';
+import 'src/commands/info.dart';
+import 'src/commands/install.dart';
+import 'src/commands/installed.dart';
+import 'src/commands/language_server.dart';
+import 'src/commands/migrate.dart';
+import 'src/commands/run.dart';
+import 'src/commands/test.dart';
+import 'src/commands/tooling_daemon.dart';
+import 'src/commands/uninstall.dart';
+import 'src/core.dart';
+import 'src/experiments.dart';
+import 'src/progress.dart';
+import 'src/sdk.dart';
+import 'src/unified_analytics.dart';
+import 'src/utils.dart';
+import 'src/vm_interop_handler.dart';
+
+/// This is typically called from bin/, but given the length of the method and
+/// analytics logic, it has been moved here.
+Future<void> runDartdev(List<String> args, SendPort? port) async {
+  int? exitCode = 1;
+  try {
+    VmInteropHandler.initialize(port);
+    // Set the DART_ROOT environment variable to the SDK path.
+    await VmInteropHandler.setEnvironmentVariable('DART_ROOT', sdk.sdkPath);
+    // Call the runner to execute the command; see DartdevRunner.
+    final runner = DartdevRunner(args, vmArgs: io.Platform.executableArguments);
+    exitCode = await runner.run(args);
+  } on UsageException catch (e) {
+    // TODO(sigurdm): It is unclear when a UsageException gets to here, and
+    // when it is in DartdevRunner.runCommand.
+    log.stderr('$e');
+    exitCode = DartdevRunner.usageExitCode;
+  } catch (e, st) {
+    // Unexpected error encountered.
+    log.stderr('An unexpected error was encountered by the Dart CLI.');
+    log.stderr(
+      'Please file an issue at '
+      'https://github.com/dart-lang/sdk/issues/new with the following '
+      'details:\n',
+    );
+    log.stderr("Invocation: 'dart ${args.join(' ')}'");
+    log.stderr("Exception: '$e'");
+    log.stderr('Stack Trace:');
+    log.stderr(st.toString());
+    exitCode = 255;
+  } finally {
+    VmInteropHandler.exit(exitCode);
+  }
+}
+
+const _commandsWithPubspecTelemetry = {
+  'analyze',
+  'build',
+  'compile',
+  'create',
+  'doc',
+  'fix',
+  'pub',
+  'run',
+  'test',
+};
+
+class DartdevRunner extends CommandRunner<int> {
+  static const String dartdevDescription =
+      'A command-line utility for Dart development';
+
+  @override
+  final ArgParser argParser;
+
+  final bool verbose;
+
+  final List<String> vmEnabledExperiments;
+
+  Analytics? _unifiedAnalytics;
+  final bool _isAnalyticsTest;
+
+  /// Overrides `io.stdout.hasTerminal`, for testing.
+  final bool? _stdoutHasTerminal;
+
+  /// Overrides `io.Platform.environment` when reading the inherited
+  /// `DASH__SUPPRESS_ANALYTICS` and `DASH__TOOL` values, when detecting
+  /// whether this is a bot, and when detecting the AI agent executing the
+  /// tool, for testing.
+  final Map<String, String>? _environment;
+
+  DartdevRunner(
+    List<String> args, {
+    Analytics? analyticsOverride,
+    this._isAnalyticsTest = false,
+    List<String> vmArgs = const [],
+    @visibleForTesting this._stdoutHasTerminal,
+    @visibleForTesting this._environment,
+  }) : verbose = args.contains('-v') || args.contains('--verbose'),
+       argParser = globalDartdevOptionsParser(
+         verbose: args.contains('-v') || args.contains('--verbose'),
+       ),
+       vmEnabledExperiments = parseVmEnabledExperiments(vmArgs),
+       _unifiedAnalytics = analyticsOverride,
+       super('dart', '$dartdevDescription.') {
+    // The list of commands should be kept in sync with
+    // `DartDevIsolate::ShouldParseCommand` in `runtime/bin/dartdev_isolate.cc`.
+    addCommand(AnalyzeCommand(verbose: verbose));
+    addCommand(CompilationServerCommand(verbose: verbose));
+    final nativeAssetsExperimentEnabled = nativeAssetsEnabled(
+      vmEnabledExperiments,
+    );
+    final dataAssetsExperimentEnabled = dataAssetsEnabled(vmEnabledExperiments);
+    if (nativeAssetsExperimentEnabled) {
+      final recordUseExperimentEnabled = recordUseEnabled(vmEnabledExperiments);
+      addCommand(
+        BuildCommand(
+          verbose: verbose,
+          recordUseEnabled: recordUseExperimentEnabled,
+          dataAssetsExperimentEnabled: dataAssetsExperimentEnabled,
+        ),
+      );
+    }
+    addCommand(
+      CompileCommand(
+        verbose: verbose,
+        nativeAssetsExperimentEnabled: nativeAssetsExperimentEnabled,
+      ),
+    );
+    addCommand(CreateCommand(verbose: verbose));
+    addCommand(DebugAdapterCommand(verbose: verbose));
+    addCommand(DevelopmentServiceCommand(verbose: verbose));
+    addCommand(DevToolsCommand(verbose: verbose));
+    addCommand(DocCommand(verbose: verbose));
+    addCommand(FixCommand(verbose: verbose));
+    addCommand(
+      FormatCommand(
+        verbose: verbose,
+        category: CommandCategory.sourceCode.name,
+      ),
+    );
+    addCommand(InfoCommand(verbose: verbose));
+    addCommand(LanguageServerCommand(verbose: verbose));
+    addCommand(DartMCPServerCommand(verbose: verbose));
+    addCommand(MigrateCommand(verbose: verbose));
+    addCommand(
+      pubCommand(
+        isVerbose: () => verbose,
+        category: CommandCategory.project.name,
+        progressGracePeriod: progressGracePeriod,
+      ),
+    );
+    addCommand(
+      RunCommand(
+        verbose: verbose,
+        nativeAssetsExperimentEnabled: nativeAssetsExperimentEnabled,
+        dataAssetsExperimentEnabled: dataAssetsExperimentEnabled,
+        vmArgs: vmArgs,
+      ),
+    );
+    addCommand(
+      TestCommand(
+        nativeAssetsExperimentEnabled: nativeAssetsExperimentEnabled,
+        dataAssetsExperimentEnabled: dataAssetsExperimentEnabled,
+      ),
+    );
+    addCommand(ToolingDaemonCommand(verbose: verbose));
+    if (nativeAssetsExperimentEnabled) {
+      addCommand(InstallCommand(verbose: verbose));
+      addCommand(InstalledCommand(verbose: verbose));
+      addCommand(UninstallCommand(verbose: verbose));
+    }
+  }
+
+  @visibleForTesting
+  Analytics get unifiedAnalytics => _unifiedAnalytics!;
+
+  @override
+  String get invocation =>
+      'dart ${verbose ? '[vm-options] ' : ''}<command|dart-file> [arguments]';
+
+  @override
+  String get usageFooter =>
+      'See https://dart.dev/tools/dart-tool for detailed documentation.';
+
+  /// The exit code returned for command-line usage errors (`EX_USAGE`).
+  static const int usageExitCode = 64;
+
+  @override
+  Future<int> runCommand(ArgResults topLevelResults) async {
+    final stopwatch = Stopwatch()..start();
+
+    final environment = _environment ?? io.Platform.environment;
+
+    // The name of the AI coding agent executing the tool, if any.
+    final agentName = AiAgent.detectAgentName(environment);
+
+    // We don't want to run analytics when we're running in a CI environment
+    // unless we're explicitly testing analytics for dartdev, or the tool is
+    // being run by an AI agent.
+    final implicitlySuppressAnalytics =
+        isBot(environment: environment) &&
+        !_isAnalyticsTest &&
+        agentName == null;
+    final suppressAnalytics =
+        !topLevelResults.flag('analytics') ||
+        topLevelResults.flag('suppress-analytics') ||
+        areAnalyticsSuppressedIn(
+          environment,
+          defaultValue: implicitlySuppressAnalytics,
+        );
+
+    if (topLevelResults.wasParsed('analytics')) {
+      log.stderr(
+        '`--[no-]analytics` is deprecated.  Use `--suppress-analytics` '
+        'to disable analytics for one run instead.',
+      );
+    }
+    final enableAnalytics = topLevelResults.flag('enable-analytics');
+    final disableAnalytics = topLevelResults.flag('disable-analytics');
+
+    if (!implicitlySuppressAnalytics &&
+        suppressAnalytics &&
+        (enableAnalytics || disableAnalytics)) {
+      // This isn't an error if we're implicitly disabling analytics because
+      // we're running in a CI environment.
+      log.stderr(
+        '`--suppress-analytics` cannot be used with either'
+        ' `--enable-analytics` or `--disable-analytics`.',
+      );
+      return 254;
+    }
+
+    // The Analytics instance used to report information back to Google
+    // Analytics; see lib/src/unified_analytics.dart.
+    //
+    // This must be created before analytics environment variables are
+    // propagated to sub-tools, since the propagated value depends on whether
+    // the consent message is shown on this run.
+    _unifiedAnalytics ??= createUnifiedAnalytics(
+      disableAnalytics: suppressAnalytics,
+      agent: agentName,
+    );
+
+    // If we have not printed the analytics notification to stdout, the user is
+    // on a terminal, and analytics aren't suppressed because we're on a bot,
+    // then the disclosure is printed below.
+    //
+    // NOTE: `shouldShowMessage` must be read here, before
+    // `clientShowedMessage()` is called below, since that call clears it.
+    final showConsentMessage = shouldPrintConsentMessage(
+      consentPending: unifiedAnalytics.shouldShowMessage,
+      hasTerminal: _stdoutHasTerminal ?? io.stdout.hasTerminal,
+      botSuppressed: implicitlySuppressAnalytics,
+    );
+
+    // Propagate analytics environment variables to sub-tools.
+    //
+    // On the run where the consent message is shown, sub-tools are suppressed
+    // too; see `shouldSuppressSubtools`.
+
+    // Since VmInteropHandler.setEnvironmentVariable is non-overwriting by design
+    // in C++, we unset the variable first to ensure the explicitly resolved
+    // value takes precedence.
+    await VmInteropHandler.setEnvironmentVariable(
+      DashEnvVar.suppressAnalytics.name,
+      null,
+    );
+
+    await VmInteropHandler.setEnvironmentVariable(
+      DashEnvVar.suppressAnalytics.name,
+      shouldSuppressSubtools(
+        suppressAnalytics: suppressAnalytics,
+        showsConsentMessage: showConsentMessage,
+      ).toString(),
+    );
+    final envTool = environment[DashEnvVar.tool.name];
+    if (envTool == null) {
+      await VmInteropHandler.setEnvironmentVariable(
+        DashEnvVar.tool.name,
+        DashTool.dartTool.label,
+      );
+    }
+
+    if (showConsentMessage) {
+      log.stdout(unifiedAnalytics.getConsentMessage);
+      unifiedAnalytics.clientShowedMessage();
+    }
+
+    // When `--disable-analytics` or `--enable-analytics` are called we perform
+    // the respective intention and print any notices to standard out and exit.
+    if (disableAnalytics) {
+      // Disable sending data via the unified analytics package.
+      await unifiedAnalytics.setTelemetry(false);
+      try {
+        await unifiedAnalytics.close().timeout(
+          const Duration(milliseconds: 250),
+        );
+      } on TimeoutException catch (_) {}
+
+      // Alert the user that analytics has been disabled.
+      log.stdout(analyticsDisabledNoticeMessage);
+      return 0;
+    } else if (enableAnalytics) {
+      // Enable sending data via the unified analytics package.
+      await unifiedAnalytics.setTelemetry(true);
+      try {
+        await unifiedAnalytics.close().timeout(
+          const Duration(milliseconds: 250),
+        );
+      } on TimeoutException catch (_) {}
+
+      // Alert the user again that data will be collected.
+      if (!showConsentMessage) {
+        log.stdout(unifiedAnalytics.getConsentMessage);
+      }
+      return 0;
+    }
+
+    return await withDartdevLogger(
+      () async {
+        late final List<String> experimentErrors = validateExperiments(
+          vmEnabledExperiments,
+        );
+        if (experimentErrors.isNotEmpty) {
+          experimentErrors.forEach(log.stderr);
+          return 254;
+        }
+
+        if (topLevelResults.command == null &&
+            topLevelResults.arguments.isNotEmpty) {
+          final firstArg = topLevelResults.arguments.first;
+          // If we make it this far, it means the VM couldn't find the file on disk.
+          if (firstArg.endsWith('.dart')) {
+            log.stderr(
+              "Error when reading '$firstArg': No such file or directory.",
+            );
+            // This is the exit code used by the frontend.
+            return 254;
+          }
+        }
+
+        var command = topLevelResults.command;
+        final commandNames = [];
+        while (command != null) {
+          commandNames.add(command.name);
+          if (command.command == null) break;
+          command = command.command;
+        }
+
+        // The exit code for the dartdev process; null indicates that it has not been
+        // set yet. The value is set in the catch and finally blocks below.
+        int? exitCode;
+
+        // Any caught non-UsageExceptions when running the sub command.
+        try {
+          exitCode = await super.runCommand(topLevelResults);
+          if (unifiedAnalytics.telemetryEnabled) {
+            // Send the event to analytics
+            final path = commandNames.join('/');
+            final experiments = topLevelResults.enabledExperiments
+              ..sort((a, b) => a.compareTo(b));
+
+            final rootCommand = commandNames.firstOrNull;
+            final shouldCollectPubspec = _commandsWithPubspecTelemetry.contains(
+              rootCommand,
+            );
+            final pubspecTelemetry = shouldCollectPubspec
+                ? collectPubspecTelemetry()
+                : null;
+            unifiedAnalytics.send(
+              Event.dartCliCommandExecuted(
+                name: path,
+                enabledExperiments: experiments.join(','),
+                pubspecHasFlutterSdk: pubspecTelemetry?.hasFlutterSdk,
+                pubspecDependencies: pubspecTelemetry?.publicDependencies,
+                pubspecEnvironmentSdk: pubspecTelemetry?.environmentSdk,
+              ),
+            );
+          }
+        } on UsageException catch (e) {
+          log.stderr('$e');
+          exitCode = usageExitCode;
+        } catch (e, st) {
+          // Set the exception and stack trace only for non-UsageException cases:
+          log.stderr('$e');
+          log.stderr('$st');
+          exitCode = 1;
+        } finally {
+          stopwatch.stop();
+
+          // Set the exitCode, if it wasn't set in the catch block above.
+          exitCode ??= 0;
+          try {
+            await unifiedAnalytics.close().timeout(
+              const Duration(milliseconds: 250),
+            );
+          } on TimeoutException catch (_) {}
+        }
+
+        return exitCode;
+      },
+      delegate: topLevelResults.flag('diagnostics')
+          ? Logger.verbose(ansi: ansi)
+          : null,
+    );
+  }
+}

@@ -1,0 +1,170 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'dart:async';
+
+import '../base/common.dart';
+import '../base/file_system.dart';
+import '../base/logger.dart';
+import '../dart/analysis.dart';
+import 'analyze_base.dart';
+
+class AnalyzeOnce extends AnalyzeBase {
+  AnalyzeOnce(
+    super.argResults,
+    List<Directory> repoPackages, {
+    required super.suppressAnalytics,
+    required super.toolContext,
+    this.workingDirectory,
+  }) : super(repoPackages: repoPackages);
+
+  /// The working directory for testing analysis using dartanalyzer.
+  final Directory? workingDirectory;
+
+  @override
+  Future<void> analyze() async {
+    final String currentDirectory = (workingDirectory ?? fileSystem.currentDirectory).path;
+    final Set<String> items = findDirectories(argResults, fileSystem);
+
+    if (isFlutterRepo) {
+      // check for conflicting dependencies
+      final dependencies = PackageDependencyTracker();
+      dependencies.checkForConflictingDependencies(repoPackages, fileSystem: fileSystem);
+      items.add(flutterRoot);
+      if (argResults.wasParsed('current-package') && (argResults['current-package'] as bool)) {
+        items.add(currentDirectory);
+      }
+    } else {
+      if ((argResults['current-package'] as bool) && items.isEmpty) {
+        items.add(currentDirectory);
+      }
+    }
+
+    if (items.isEmpty) {
+      throwToolExit('Nothing to analyze.', exitCode: 0);
+    }
+
+    final errorsByFile = <String, List<AnalysisError>>{};
+
+    final server = AnalysisServer(
+      sdkPath,
+      items.toList(),
+      suppressAnalytics: suppressAnalytics,
+      toolContext: toolContext,
+      protocolTrafficLog: protocolTrafficLog,
+      usePlugins: usePlugins,
+      withFineDependencies: false,
+    );
+
+    Stopwatch? timer;
+    Status? progress;
+    try {
+      void handleAnalysisErrors(FileAnalysisErrors fileErrors) {
+        errorsByFile[fileErrors.file] = fileErrors.errors;
+      }
+
+      server.onErrors.listen(handleAnalysisErrors);
+
+      await server.start();
+
+      // Capture if the server exits unexpectedly.
+      final exitErrorCompleter = Completer<void>();
+      unawaited(
+        server.onExit.then<void>((int? exitCode) {
+          exitErrorCompleter.completeError(
+            // Include the last 20 lines of server output in exception message
+            _AnalysisServerExitException(
+              'analysis server exited with code $exitCode and output:\n${server.getLogs(20)}',
+              exitCode,
+            ),
+          );
+        }),
+      );
+
+      // collect results
+      timer = Stopwatch()..start();
+      final String message = items.length > 1
+          ? '${items.length} ${items.length == 1 ? 'item' : 'items'}'
+          : fileSystem.path.basename(items.first);
+      progress = argResults['preamble'] == true
+          ? logger.startProgress('Analyzing $message...')
+          : null;
+
+      // Wait for analysis to complete, or the server to exit and produce
+      // an error.
+      try {
+        await Future.any([server.waitForAnalysis(), exitErrorCompleter.future]);
+      } on _AnalysisServerExitException catch (error) {
+        throwToolExit(error.message, exitCode: error.exitCode);
+      }
+    } finally {
+      await server.dispose();
+      progress?.cancel();
+      timer?.stop();
+    }
+
+    final List<AnalysisError> errors = errorsByFile.values
+        .expand((List<AnalysisError> fileErrors) => fileErrors)
+        .toList();
+
+    // emit benchmarks
+    if (isBenchmarking) {
+      writeBenchmark(timer, errors.length);
+    }
+
+    // --write
+    dumpErrors(errors.map<String>((AnalysisError error) => error.toLegacyString()));
+
+    // report errors
+    if (errors.isNotEmpty && (argResults['preamble'] as bool)) {
+      logger.printStatus('');
+    }
+    errors.sort();
+    for (final error in errors) {
+      logger.printStatus(error.toString(), hangingIndent: 7);
+    }
+
+    final int errorCount = errors.length;
+    final String seconds = (timer.elapsedMilliseconds / 1000.0).toStringAsFixed(1);
+    final String errorsMessage = AnalyzeBase.generateErrorsMessage(
+      issueCount: errorCount,
+      seconds: seconds,
+    );
+
+    if (errorCount > 0) {
+      logger.printStatus('');
+      throwToolExit(errorsMessage, exitCode: _isFatal(errors) ? 1 : 0);
+    }
+
+    if (argResults['congratulate'] as bool) {
+      logger.printStatus(errorsMessage);
+    }
+
+    if (server.didServerErrorOccur) {
+      throwToolExit('Server error(s) occurred. (ran in ${seconds}s)');
+    }
+  }
+
+  bool _isFatal(List<AnalysisError> errors) {
+    for (final error in errors) {
+      final AnalysisSeverity severityLevel = error.writtenError.severityLevel;
+      if (severityLevel == AnalysisSeverity.error) {
+        return true;
+      }
+      if (severityLevel == AnalysisSeverity.warning && argResults['fatal-warnings'] as bool) {
+        return true;
+      }
+      if (severityLevel == AnalysisSeverity.info && argResults['fatal-infos'] as bool) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+class _AnalysisServerExitException implements Exception {
+  _AnalysisServerExitException(this.message, this.exitCode);
+  final String message;
+  final int? exitCode;
+}

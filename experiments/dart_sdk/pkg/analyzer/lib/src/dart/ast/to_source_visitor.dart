@@ -1,0 +1,1982 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:meta/meta.dart';
+
+/// A visitor used to write a source representation of a visited AST node (and
+/// all of it's children) to a sink.
+class ToSourceVisitor implements AstVisitor2<void> {
+  /// The sink to which the source is to be written.
+  @protected
+  final StringSink sink;
+
+  /// Initialize a newly created visitor to write source code representing the
+  /// visited nodes to the given [sink].
+  new(this.sink);
+
+  @override
+  void visitAdjacentStrings(AdjacentStrings node) {
+    _visitNodeList(node.strings, separator: ' ');
+  }
+
+  @override
+  void visitAnnotation(Annotation node) {
+    sink.write('@');
+    _visitNode(node.expression);
+  }
+
+  @override
+  @experimental
+  void visitAnonymousBlockBody(AnonymousBlockBody node) {
+    _visitNode(node.block);
+  }
+
+  @override
+  @experimental
+  void visitAnonymousExpressionBody(AnonymousExpressionBody node) {
+    sink.write(node.functionDefinition.lexeme);
+    sink.write(' ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  @experimental
+  void visitAnonymousMethodInvocation(AnonymousMethodInvocation node) {
+    _visitNode(node.target2);
+    _visitToken(node.operator);
+    _visitNode(node.parameters);
+    if (node.parameters != null) {
+      sink.write(' ');
+    }
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    sink.write('(');
+    _visitNodeList(node.arguments2, separator: ', ');
+    sink.write(')');
+  }
+
+  @override
+  void visitAsExpression(AsExpression node) {
+    _visitNode(node.expression2);
+    sink.write(' as ');
+    _visitNode(node.type);
+  }
+
+  @override
+  void visitAssertInitializer(AssertInitializer node) {
+    sink.write('assert (');
+    _visitNode(node.condition2);
+    if (node.message2 != null) {
+      sink.write(', ');
+      _visitNode(node.message2);
+    }
+    sink.write(')');
+  }
+
+  @override
+  void visitAssertStatement(AssertStatement node) {
+    sink.write('assert (');
+    _visitNode(node.condition2);
+    if (node.message2 != null) {
+      sink.write(', ');
+      _visitNode(node.message2);
+    }
+    sink.write(');');
+  }
+
+  @override
+  void visitAssignedVariablePattern(AssignedVariablePattern node) {
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitAwaitExpression(AwaitExpression node) {
+    sink.write('await ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitBinaryOperatorInvocation(BinaryOperatorInvocation node) {
+    _writeOperand(node, node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _writeOperand(node, node.rightOperand);
+  }
+
+  @override
+  void visitBlock(Block node) {
+    sink.write('{');
+    _visitNodeList(node.statements2, separator: ' ');
+    sink.write('}');
+  }
+
+  @override
+  void visitBlockEnumDeclarationBody(BlockEnumDeclarationBody node) {
+    sink.write(' {');
+    _visitNodeList(node.constants, separator: ', ');
+    _visitToken(node.membersSeparator);
+    _visitNodeList(node.members, prefix: ' ', separator: ' ');
+    sink.write('}');
+  }
+
+  @override
+  void visitBlockFunctionBody(BlockFunctionBody node) {
+    var keyword = node.keyword;
+    if (keyword != null) {
+      sink.write(keyword.lexeme);
+      if (node.star != null) {
+        sink.write('*');
+      }
+      sink.write(' ');
+    }
+    _visitNode(node.block);
+  }
+
+  @override
+  void visitBlockInstanceDeclarationBody(BlockInstanceDeclarationBody node) {
+    sink.write(' {');
+    _visitNodeList(node.members, separator: ' ');
+    sink.write('}');
+  }
+
+  @override
+  void visitBooleanLiteral(BooleanLiteral node) {
+    sink.write(node.literal.lexeme);
+  }
+
+  @override
+  void visitBreakStatement(BreakStatement node) {
+    sink.write('break');
+    _visitNode(node.label, prefix: ' ');
+    sink.write(';');
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    _visitNode(node.receiver);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitCascadeExpression(CascadeExpression node) {
+    _visitNode(node.target2);
+    _visitNodeList(node.sections);
+  }
+
+  @override
+  void visitCascadeIndexAssignmentTarget(CascadeIndexAssignmentTarget node) {
+    _visitToken(node.leftBracket);
+    _visitNode(node.index);
+    _visitToken(node.rightBracket);
+  }
+
+  @override
+  void visitCascadeIndexExpression(CascadeIndexExpression node) {
+    _visitToken(node.leftBracket);
+    _visitNode(node.index);
+    _visitToken(node.rightBracket);
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitCascadePropertyAssignmentTarget(
+    CascadePropertyAssignmentTarget node,
+  ) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitCascadePropertyExtraction(CascadePropertyExtraction node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitCascadeSection(CascadeSection node) {
+    if (!identical(node.body.beginToken, node.operator)) {
+      _visitToken(node.operator);
+    }
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitCaseClause(CaseClause node) {
+    sink.write('case ');
+    _visitNode(node.guardedPattern);
+  }
+
+  @override
+  void visitCastPattern(CastPattern node) {
+    _visitNode(node.pattern);
+    sink.write(' as ');
+    _visitNode(node.type);
+  }
+
+  @override
+  void visitCatchClause(CatchClause node) {
+    _visitNode(node.exceptionType, prefix: 'on ');
+    if (node.catchKeyword != null) {
+      if (node.exceptionType != null) {
+        sink.write(' ');
+      }
+      sink.write('catch (');
+      _visitNode(node.exceptionParameter);
+      _visitNode(node.stackTraceParameter, prefix: ', ');
+      sink.write(') ');
+    } else {
+      sink.write(' ');
+    }
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitCatchClauseParameter(CatchClauseParameter node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitClassDeclaration2(covariant ClassDeclaration2Impl node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.abstractKeyword, suffix: ' ');
+    _visitToken(node.sealedKeyword, suffix: ' ');
+    _visitToken(node.baseKeyword, suffix: ' ');
+    _visitToken(node.interfaceKeyword, suffix: ' ');
+    _visitToken(node.finalKeyword, suffix: ' ');
+    _visitToken(node.mixinKeyword, suffix: ' ');
+    sink.write('class ');
+    _visitNode(node.namePart);
+    _visitNode(node.extendsClause, prefix: ' ');
+    _visitNode(node.withClause, prefix: ' ');
+    _visitNode(node.implementsClause, prefix: ' ');
+    _visitNode(node.nativeClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitClassTypeAlias2(covariant ClassTypeAlias2Impl node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.abstractKeyword, suffix: ' ');
+    _visitToken(node.sealedKeyword, suffix: ' ');
+    _visitToken(node.baseKeyword, suffix: ' ');
+    _visitToken(node.interfaceKeyword, suffix: ' ');
+    _visitToken(node.finalKeyword, suffix: ' ');
+    _visitToken(node.mixinKeyword, suffix: ' ');
+    sink.write('class ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    sink.write(' = ');
+    _visitNode(node.superclass);
+    _visitNode(node.withClause, prefix: ' ');
+    _visitNode(node.implementsClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitCombinatorName(CombinatorName node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitComment(Comment node) {}
+
+  @override
+  void visitCommentReference(CommentReference node) {
+    for (var component in node.components) {
+      component.accept2(this);
+    }
+  }
+
+  @override
+  void visitCommentReferenceComponent(CommentReferenceComponent node) {
+    _visitToken(node.period);
+    _visitToken(node.operatorKeyword, suffix: ' ');
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitCompilationUnit(CompilationUnit node) {
+    var scriptTag = node.scriptTag;
+    NodeList<Directive> directives = node.directives;
+    _visitNode(scriptTag);
+    String prefix = scriptTag == null ? '' : ' ';
+    _visitNodeList(directives, prefix: prefix, separator: ' ');
+    prefix = scriptTag == null && directives.isEmpty ? '' : ' ';
+    _visitNodeList(node.declarations2, prefix: prefix, separator: ' ');
+  }
+
+  @override
+  void visitCompoundAssignment(CompoundAssignment node) {
+    _visitNode(node.target);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.value);
+  }
+
+  @override
+  void visitConditionalExpression(ConditionalExpression node) {
+    _visitNode(node.condition2);
+    sink.write(' ? ');
+    _visitNode(node.thenExpression2);
+    sink.write(' : ');
+    _visitNode(node.elseExpression2);
+  }
+
+  @override
+  void visitConfiguration(Configuration node) {
+    sink.write('if (');
+    _visitNode(node.name);
+    _visitNode(node.value, prefix: ' == ');
+    sink.write(') ');
+    _visitNode(node.uri);
+  }
+
+  @override
+  void visitConstantPattern(ConstantPattern node) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitConstructorDeclaration2(ConstructorDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitToken(node.factoryKeyword, suffix: ' ');
+    _visitToken(node.newKeyword, suffix: ' ');
+    if (node.typeName != null) {
+      _visitToken(node.typeName);
+      _visitToken(node.name, prefix: '.');
+    } else {
+      _visitToken(node.name);
+    }
+    _visitNode(node.formalParameters);
+    _visitNodeList(node.initializers, prefix: ' : ', separator: ', ');
+    _visitNode(node.factoryRedirectionTarget, prefix: ' = ');
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitConstructorFieldInitializer(ConstructorFieldInitializer node) {
+    _visitToken(node.thisKeyword, suffix: '.');
+    _visitToken(node.fieldName2);
+    sink.write(' = ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitConstructorInvocation(ConstructorInvocation node) {
+    _visitToken(node.keyword, suffix: ' ');
+    _visitNode(node.constructorReference);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  @experimental
+  void visitConstructorReference2(ConstructorReference2 node) {
+    _visitNode(node.typeReference);
+    _visitNode(node.selector);
+  }
+
+  @override
+  void visitConstructorSelector(ConstructorSelector node) {
+    _visitToken(node.period);
+    _visitToken(node.name2);
+  }
+
+  @override
+  @experimental
+  void visitConstructorTearOff(ConstructorTearOff node) {
+    _visitNode(node.typeReference);
+    _visitNode(node.selector);
+  }
+
+  @override
+  @experimental
+  void visitConstructorTypeReference(ConstructorTypeReference node) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+  }
+
+  @override
+  void visitContinueStatement(ContinueStatement node) {
+    sink.write('continue');
+    _visitNode(node.label, prefix: ' ');
+    sink.write(';');
+  }
+
+  @override
+  void visitDeclaredIdentifier(DeclaredIdentifier node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.keyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitDeclaredVariablePattern(DeclaredVariablePattern node) {
+    _visitToken(node.keyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  @experimental
+  void visitDelimitedFormalParameters(DelimitedFormalParameters node) {
+    sink.write(node.leftDelimiter.lexeme);
+    _visitNodeList(node.formalParameters, separator: ', ');
+    sink.write(node.rightDelimiter.lexeme);
+  }
+
+  @override
+  void visitDirectAssignment(DirectAssignment node) {
+    _visitNode(node.target);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.value);
+  }
+
+  @override
+  void visitDoStatement(DoStatement node) {
+    sink.write('do ');
+    _visitNode(node.body2);
+    sink.write(' while (');
+    _visitNode(node.condition2);
+    sink.write(');');
+  }
+
+  @override
+  void visitDotShorthandConstructorInvocation2(
+    DotShorthandConstructorInvocation2 node,
+  ) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitToken(node.period);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    _visitToken(node.period);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitDotShorthandNameExpression(DotShorthandNameExpression node) {
+    _visitToken(node.period);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitDottedName(DottedName node) {
+    for (var token in node.tokens) {
+      sink.write(token.lexeme);
+    }
+  }
+
+  @override
+  void visitDoubleLiteral(DoubleLiteral node) {
+    sink.write(node.literal.lexeme);
+  }
+
+  @override
+  void visitEmptyFunctionBody(EmptyFunctionBody node) {
+    sink.write(';');
+  }
+
+  @override
+  void visitEmptyStatement(EmptyStatement node) {
+    sink.write(';');
+  }
+
+  @override
+  void visitEnumConstantArguments(EnumConstantArguments node) {
+    _visitNode(node.typeArguments);
+    _visitNode(node.constructorSelector);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitEnumConstantDeclaration2(EnumConstantDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.arguments);
+  }
+
+  @override
+  void visitEnumDeclaration2(EnumDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    sink.write('enum ');
+    _visitNode(node.namePart);
+    _visitNode(node.withClause, prefix: ' ');
+    _visitNode(node.implementsClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitExportDirective(ExportDirective node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write('export ');
+    _visitNode(node.uri);
+    _visitNodeList(node.configurations, prefix: ' ', separator: ' ');
+    _visitNodeList(node.combinators, prefix: ' ', separator: ' ');
+    sink.write(';');
+  }
+
+  @override
+  void visitExpressionFunctionBody(ExpressionFunctionBody node) {
+    var keyword = node.keyword;
+    if (keyword != null) {
+      sink.write(keyword.lexeme);
+      if (node.star != null) {
+        sink.write('*');
+      }
+      sink.write(' ');
+    }
+    sink.write('${node.functionDefinition.lexeme} ');
+    _visitNode(node.expression2);
+    if (node.semicolon != null) {
+      sink.write(';');
+    }
+  }
+
+  @override
+  void visitExpressionStatement(ExpressionStatement node) {
+    _visitNode(node.expression2);
+    sink.write(';');
+  }
+
+  @override
+  void visitExtendsClause(ExtendsClause node) {
+    sink.write('extends ');
+    _visitNode(node.superclass);
+  }
+
+  @override
+  void visitExtensionDeclaration2(ExtensionDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.extensionKeyword, suffix: ' ');
+    _visitToken(node.typeKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.onClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitExtensionOnClause(ExtensionOnClause node) {
+    sink.write('on ');
+    _visitNode(node.extendedType);
+  }
+
+  @override
+  void visitExtensionOverride2(ExtensionOverride2 node) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitExtensionTypeDeclaration2(ExtensionTypeDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.extensionKeyword, suffix: ' ');
+    _visitToken(node.typeKeyword, suffix: ' ');
+    _visitNode(node.namePart);
+    _visitNode(node.implementsClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitField2(Field2 node) {
+    _visitToken(node.name);
+    _visitNode(node.initializer, prefix: ' = ');
+  }
+
+  @override
+  void visitFieldFormalParameter(FieldFormalParameter node) {
+    _visitFormalParameterHeader(node);
+    sink.write('this.');
+    _visitToken(node.name);
+    _visitNode(node.functionTypedSuffix);
+    _visitNode(node.defaultClause);
+  }
+
+  @override
+  void visitFieldsDeclaration(FieldsDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.staticKeyword, suffix: ' ');
+    _visitToken(node.abstractKeyword, suffix: ' ');
+    _visitToken(node.covariantKeyword, suffix: ' ');
+    _visitToken(node.lateKeyword, suffix: ' ');
+    _visitToken(node.constFinalOrVarKeyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    _visitNodeList(node.fields, separator: ', ');
+    sink.write(';');
+  }
+
+  @override
+  void visitForEachPartsWithDeclaration(ForEachPartsWithDeclaration node) {
+    _visitNode(node.loopVariable);
+    sink.write(' in ');
+    _visitNode(node.iterable2);
+  }
+
+  @override
+  void visitForEachPartsWithIdentifier(ForEachPartsWithIdentifier node) {
+    _visitNode(node.target);
+    sink.write(' in ');
+    _visitNode(node.iterable2);
+  }
+
+  @override
+  void visitForEachPartsWithPattern(ForEachPartsWithPattern node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.keyword, suffix: ' ');
+    _visitNode(node.pattern);
+    sink.write(' in ');
+    _visitNode(node.iterable2);
+  }
+
+  @override
+  void visitForElement(ForElement node) {
+    _visitToken(node.awaitKeyword, suffix: ' ');
+    sink.write('for (');
+    _visitNode(node.forLoopParts);
+    sink.write(') ');
+    _visitNode(node.body2);
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {
+    if (node.separator.lexeme != ':') {
+      sink.write(' ');
+    }
+    sink.write(node.separator.lexeme);
+    _visitNode(node.value2, prefix: ' ');
+  }
+
+  @override
+  void visitFormalParameterList(FormalParameterList node) {
+    sink.write('(');
+    _visitNodeList(node.requiredPositionalFormalParameters, separator: ', ');
+    if (node.delimitedFormalParameters case var delimitedFormalParameters?) {
+      if (node.requiredPositionalFormalParameters.isNotEmpty) {
+        sink.write(', ');
+      }
+      delimitedFormalParameters.accept2(this);
+    }
+    sink.write(')');
+  }
+
+  @override
+  void visitForPartsWithDeclarations(ForPartsWithDeclarations node) {
+    _visitNode(node.variables2);
+    sink.write(';');
+    _visitNode(node.condition2, prefix: ' ');
+    sink.write(';');
+    _visitNodeList(node.updaters2, prefix: ' ', separator: ', ');
+  }
+
+  @override
+  void visitForPartsWithExpression(ForPartsWithExpression node) {
+    _visitNode(node.initialization2);
+    sink.write(';');
+    _visitNode(node.condition2, prefix: ' ');
+    sink.write(';');
+    _visitNodeList(node.updaters2, prefix: ' ', separator: ', ');
+  }
+
+  @override
+  void visitForPartsWithPattern(ForPartsWithPattern node) {
+    _visitNode(node.variables);
+    sink.write('; ');
+    _visitNode(node.condition2);
+    sink.write('; ');
+    _visitNodeList(node.updaters2, separator: ', ');
+  }
+
+  @override
+  void visitForStatement(ForStatement node) {
+    if (node.awaitKeyword != null) {
+      sink.write('await ');
+    }
+    sink.write('for (');
+    _visitNode(node.forLoopParts);
+    sink.write(') ');
+    _visitNode(node.body2);
+  }
+
+  @override
+  void visitFunctionExpression(FunctionExpression node) {
+    _visitNode(node.typeParameters);
+    _visitNode(node.parameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitFunctionInstantiation(FunctionInstantiation node) {
+    _visitNode(node.operand);
+    _visitNode(node.typeArguments);
+  }
+
+  @override
+  void visitFunctionTypeAlias2(FunctionTypeAlias2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    sink.write('typedef ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.parameters);
+    sink.write(';');
+  }
+
+  @override
+  void visitFunctionTypedFormalParameterSuffix(
+    FunctionTypedFormalParameterSuffix node,
+  ) {
+    _visitNode(node.typeParameters);
+    _visitNode(node.formalParameters);
+    if (node.question != null) {
+      sink.write('?');
+    }
+  }
+
+  @override
+  void visitGenericFunctionType(GenericFunctionType node) {
+    _visitNode(node.returnType);
+    sink.write(' Function');
+    _visitNode(node.typeParameters);
+    _visitNode(node.parameters);
+    if (node.question != null) {
+      sink.write('?');
+    }
+  }
+
+  @override
+  void visitGenericTypeAlias2(GenericTypeAlias2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    sink.write('typedef ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    sink.write(' = ');
+    _visitNode(node.type);
+    sink.write(';');
+  }
+
+  @override
+  void visitGetterDeclaration(GetterDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.staticKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.getKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitGuardedPattern(GuardedPattern node) {
+    _visitNode(node.pattern);
+    _visitNode(node.whenClause, prefix: ' ');
+  }
+
+  @override
+  void visitHideCombinator(HideCombinator node) {
+    sink.write('hide ');
+    _visitNodeList(node.names, separator: ', ');
+  }
+
+  @override
+  void visitIfElement(IfElement node) {
+    sink.write('if (');
+    _visitNode(node.expression2);
+    _visitNode(node.caseClause, prefix: ' ');
+    sink.write(') ');
+    _visitNode(node.thenElement2);
+    _visitNode(node.elseElement2, prefix: ' else ');
+  }
+
+  @override
+  void visitIfNull(IfNull node) {
+    _writeOperand(node, node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _writeOperand(node, node.rightOperand);
+  }
+
+  @override
+  void visitIfNullAssignment(IfNullAssignment node) {
+    _visitNode(node.target);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.value);
+  }
+
+  @override
+  void visitIfStatement(IfStatement node) {
+    sink.write('if (');
+    _visitNode(node.expression2);
+    _visitNode(node.caseClause, prefix: ' ');
+    sink.write(') ');
+    _visitNode(node.thenStatement2);
+    _visitNode(node.elseStatement2, prefix: ' else ');
+  }
+
+  @override
+  void visitImplementsClause(ImplementsClause node) {
+    sink.write('implements ');
+    _visitNodeList(node.interfaces, separator: ', ');
+  }
+
+  @override
+  void visitImplicitCallTearOff(ImplicitCallTearOff node) {
+    node.operand.accept2(this);
+  }
+
+  @override
+  void visitImplicitFunctionInstantiation(ImplicitFunctionInstantiation node) {
+    _visitNode(node.operand);
+  }
+
+  @override
+  void visitImportDirective(ImportDirective node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write('import ');
+    _visitNode(node.uri);
+    _visitNodeList(node.configurations, prefix: ' ', separator: ' ');
+    if (node.deferredKeyword != null) {
+      sink.write(' deferred');
+    }
+    _visitToken(node.prefixName, prefix: ' as ');
+    _visitNodeList(node.combinators, prefix: ' ', separator: ' ');
+    sink.write(';');
+  }
+
+  @override
+  void visitImportPrefixedAssignmentTarget(
+    ImportPrefixedAssignmentTarget node,
+  ) {
+    _visitNode(node.importPrefix);
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitImportPrefixedNameExpression(ImportPrefixedNameExpression node) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitImportPrefixReference(ImportPrefixReference node) {
+    sink.write(node.name.lexeme);
+    sink.write('.');
+  }
+
+  @override
+  void visitIncrementOrDecrementExpression(
+    IncrementOrDecrementExpression node,
+  ) {
+    switch (node.position) {
+      case IncrementOrDecrementPosition.prefix:
+        sink.write(node.operator.lexeme);
+        _visitNode(node.target);
+      case IncrementOrDecrementPosition.postfix:
+        _visitNode(node.target);
+        sink.write(node.operator.lexeme);
+    }
+  }
+
+  @override
+  void visitIntegerLiteral(IntegerLiteral node) {
+    sink.write(node.literal.lexeme);
+  }
+
+  @override
+  void visitInterpolationExpression(InterpolationExpression node) {
+    if (node.rightBracket != null) {
+      sink.write('\${');
+      _visitNode(node.expression2);
+      sink.write('}');
+    } else {
+      sink.write('\$');
+      _visitNode(node.expression2);
+    }
+  }
+
+  @override
+  void visitInterpolationString(InterpolationString node) {
+    sink.write(node.contents.lexeme);
+  }
+
+  @override
+  void visitInvalidExpressionAssignmentTarget(
+    InvalidExpressionAssignmentTarget node,
+  ) {
+    _visitNode(node.expression);
+  }
+
+  @override
+  void visitInvalidExtensionOverrideAssignmentTarget(
+    InvalidExtensionOverrideAssignmentTarget node,
+  ) {
+    node.extensionOverride.accept2(this);
+  }
+
+  @override
+  void visitInvalidExtensionOverrideExpression(
+    InvalidExtensionOverrideExpression node,
+  ) {
+    node.extensionOverride.accept2(this);
+  }
+
+  @override
+  void visitInvalidSuperAssignmentTarget(InvalidSuperAssignmentTarget node) {
+    node.superReference.accept2(this);
+  }
+
+  @override
+  void visitInvalidSuperExpression(InvalidSuperExpression node) {
+    node.superReference.accept2(this);
+  }
+
+  @override
+  void visitIsExpression(IsExpression node) {
+    _visitNode(node.expression2);
+    if (node.notOperator == null) {
+      sink.write(' is ');
+    } else {
+      sink.write(' is! ');
+    }
+    _visitNode(node.type);
+  }
+
+  @override
+  void visitLabel(Label node) {
+    _visitToken(node.name);
+    sink.write(':');
+  }
+
+  @override
+  void visitLabeledStatement(LabeledStatement node) {
+    _visitNodeList(node.labels, separator: ' ', suffix: ' ');
+    _visitNode(node.statement2);
+  }
+
+  @override
+  void visitLabelReference(LabelReference node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitLibraryDirective(LibraryDirective node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write('library ');
+    _visitNode(node.name);
+    sink.write(';');
+  }
+
+  @override
+  void visitListLiteral(ListLiteral node) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitNode(node.typeArguments);
+    sink.write('[');
+    _visitNodeList(node.elements2, separator: ', ');
+    sink.write(']');
+  }
+
+  @override
+  void visitListPattern(ListPattern node) {
+    _visitNode(node.typeArguments);
+    sink.write('[');
+    _visitNodeList(node.elements, separator: ', ');
+    sink.write(']');
+  }
+
+  @override
+  void visitLocalFunctionDeclaration(LocalFunctionDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitLocalVariable(LocalVariable node) {
+    _visitToken(node.name);
+    _visitNode(node.initializer, prefix: ' = ');
+  }
+
+  @override
+  void visitLocalVariablesDeclaration(LocalVariablesDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.lateKeyword, suffix: ' ');
+    _visitToken(node.constFinalOrVarKeyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    _visitNodeList(node.variables, separator: ', ');
+  }
+
+  @override
+  void visitLocalVariablesDeclarationStatement(
+    LocalVariablesDeclarationStatement node,
+  ) {
+    _visitNode(node.declaration);
+    sink.write(';');
+  }
+
+  @override
+  void visitLogicalAnd(LogicalAnd node) {
+    _writeOperand(node, node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _writeOperand(node, node.rightOperand);
+  }
+
+  @override
+  void visitLogicalAndPattern(LogicalAndPattern node) {
+    _visitNode(node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.rightOperand);
+  }
+
+  @override
+  void visitLogicalNot(LogicalNot node) {
+    sink.write(node.operator.lexeme);
+    _writeOperand(node, node.operand);
+  }
+
+  @override
+  void visitLogicalOr(LogicalOr node) {
+    _writeOperand(node, node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _writeOperand(node, node.rightOperand);
+  }
+
+  @override
+  void visitLogicalOrPattern(LogicalOrPattern node) {
+    _visitNode(node.leftOperand);
+    sink.write(' ');
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.rightOperand);
+  }
+
+  @override
+  void visitMapLiteralEntry(MapLiteralEntry node) {
+    _visitToken(node.keyQuestion);
+    _visitNode(node.key2);
+    sink.write(' : ');
+    _visitToken(node.valueQuestion);
+    _visitNode(node.value2);
+  }
+
+  @override
+  void visitMapPattern(MapPattern node) {
+    _visitNode(node.typeArguments);
+    sink.write('{');
+    _visitNodeList(node.elements, separator: ', ');
+    sink.write('}');
+  }
+
+  @override
+  void visitMapPatternEntry(MapPatternEntry node) {
+    _visitNode(node.key2);
+    sink.write(': ');
+    _visitNode(node.value);
+  }
+
+  @override
+  void visitMethodDeclaration2(MethodDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.staticKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitMixinDeclaration2(MixinDeclaration2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.baseKeyword, suffix: ' ');
+    sink.write('mixin ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.onClause, prefix: ' ');
+    _visitNode(node.implementsClause, prefix: ' ');
+    _visitNode(node.body);
+  }
+
+  @override
+  void visitMixinOnClause(MixinOnClause node) {
+    sink.write('on ');
+    _visitNodeList(node.superclassConstraints, separator: ', ');
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    _visitToken(node.name);
+    _visitToken(node.colon);
+    _visitNode(node.argumentExpression2, prefix: ' ');
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    if (node.question != null) {
+      sink.write('?');
+    }
+  }
+
+  @override
+  void visitNameWithTypeParameters(NameWithTypeParameters node) {
+    _visitToken(node.typeName);
+    _visitNode(node.typeParameters);
+  }
+
+  @override
+  void visitNativeClause(NativeClause node) {
+    sink.write('native ');
+    _visitNode(node.name);
+  }
+
+  @override
+  void visitNativeFunctionBody(NativeFunctionBody node) {
+    sink.write('native ');
+    _visitNode(node.stringLiteral);
+    sink.write(';');
+  }
+
+  @override
+  void visitNullAssertionExpression(NullAssertionExpression node) {
+    _writeOperand(node, node.operand);
+    sink.write(node.operator.lexeme);
+  }
+
+  @override
+  void visitNullAssertPattern(NullAssertPattern node) {
+    _visitNode(node.pattern);
+    sink.write(node.operator.lexeme);
+  }
+
+  @override
+  void visitNullAwareElement(NullAwareElement node) {
+    sink.write(node.question.lexeme);
+    _visitNode(node.value2);
+  }
+
+  @override
+  void visitNullCheckPattern(NullCheckPattern node) {
+    _visitNode(node.pattern);
+    sink.write(node.operator.lexeme);
+  }
+
+  @override
+  void visitNullLiteral(NullLiteral node) {
+    sink.write('null');
+  }
+
+  @override
+  void visitObjectPattern(ObjectPattern node) {
+    _visitNode(node.type);
+    sink.write('(');
+    _visitNodeList(node.fields, separator: ', ');
+    sink.write(')');
+  }
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.operatorKeyword, suffix: ' ');
+    _visitToken(node.operator);
+    _visitNode(node.recoveryTypeParameters);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitParenthesizedExpression(ParenthesizedExpression node) {
+    sink.write('(');
+    _visitNode(node.expression2);
+    sink.write(')');
+  }
+
+  @override
+  void visitParenthesizedPattern(ParenthesizedPattern node) {
+    sink.write('(');
+    _visitNode(node.pattern);
+    sink.write(')');
+  }
+
+  @override
+  void visitParsedCascadeName(ParsedCascadeName node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitParsedDotShorthandExpression(ParsedDotShorthandExpression node) {
+    node.expression.accept2(this);
+  }
+
+  @override
+  void visitParsedDotShorthandName(ParsedDotShorthandName node) {
+    _visitToken(node.period);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitParsedNameAccess(ParsedNameAccess node) {
+    _visitParsedExpression(node);
+  }
+
+  @override
+  void visitParsedNameAccessAssignmentTarget(
+    ParsedNameAccessAssignmentTarget node,
+  ) {
+    _visitNode(node.operand);
+    _visitToken(node.operator);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitParsedTypeArguments(ParsedTypeArguments node) {
+    _visitParsedExpression(node);
+  }
+
+  @override
+  void visitParsedUnqualifiedName(ParsedUnqualifiedName node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitParsedValueArguments(ParsedValueArguments node) {
+    _visitParsedExpression(node);
+  }
+
+  @override
+  void visitPartDirective(PartDirective node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write('part ');
+    _visitNode(node.uri);
+    sink.write(';');
+  }
+
+  @override
+  void visitPartOfDirective(PartOfDirective node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write('part of ');
+    _visitNode(node.libraryName);
+    _visitNode(node.uri);
+    sink.write(';');
+  }
+
+  @override
+  void visitPatternAssignment(PatternAssignment node) {
+    _visitNode(node.pattern);
+    sink.write(' = ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitPatternField(PatternField node) {
+    _visitNode(node.name, suffix: ' ');
+    _visitNode(node.pattern);
+  }
+
+  @override
+  void visitPatternFieldName(PatternFieldName node) {
+    _visitToken(node.name);
+    sink.write(':');
+  }
+
+  @override
+  void visitPatternVariableDeclaration(PatternVariableDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    sink.write(node.keyword.lexeme);
+    sink.write(' ');
+    _visitNode(node.pattern);
+    sink.write(' = ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitPatternVariableDeclarationStatement(
+    PatternVariableDeclarationStatement node,
+  ) {
+    _visitNode(node.declaration);
+    sink.write(';');
+  }
+
+  @override
+  void visitPrimaryConstructorBody2(PrimaryConstructorBody2 node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.thisKeyword);
+    if (node.initializers.isNotEmpty) {
+      _visitToken(node.colon, prefix: ' ', suffix: ' ');
+      _visitNodeList(node.initializers, separator: ', ');
+    }
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitPrimaryConstructorDeclaration(PrimaryConstructorDeclaration node) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitToken(node.typeName);
+    _visitNode(node.typeParameters);
+    _visitNode(node.constructorName);
+    _visitNode(node.formalParameters);
+  }
+
+  @override
+  void visitPrimaryConstructorName(PrimaryConstructorName node) {
+    _visitToken(node.period);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitReceiverIndexAssignmentTarget(ReceiverIndexAssignmentTarget node) {
+    _visitNode(node.receiver);
+    _visitToken(node.question);
+    _visitToken(node.leftBracket);
+    _visitNode(node.index);
+    _visitToken(node.rightBracket);
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    _visitNode(node.receiver);
+    _visitToken(node.question);
+    _visitToken(node.leftBracket);
+    _visitNode(node.index);
+    _visitToken(node.rightBracket);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    _visitNode(node.receiver);
+    _visitToken(node.operator);
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitReceiverPropertyAssignmentTarget(
+    ReceiverPropertyAssignmentTarget node,
+  ) {
+    _visitNode(node.receiver);
+    sink.write(node.operator.lexeme);
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitReceiverPropertyExtraction(ReceiverPropertyExtraction node) {
+    _visitNode(node.receiver);
+    sink.write(node.operator.lexeme);
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitRecordLiteral(RecordLiteral node) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitToken(node.leftParenthesis);
+    _visitNodeList(node.fields2, separator: ', ');
+    _visitToken(node.rightParenthesis);
+  }
+
+  @override
+  void visitRecordLiteralNamedField(RecordLiteralNamedField node) {
+    _visitToken(node.name);
+    _visitToken(node.colon);
+    _visitNode(node.fieldExpression2, prefix: ' ');
+  }
+
+  @override
+  void visitRecordPattern(RecordPattern node) {
+    var fields = node.fields;
+    sink.write('(');
+    _visitNodeList(fields, separator: ', ');
+    if (fields.length == 1) {
+      sink.write(',');
+    }
+    sink.write(')');
+  }
+
+  @override
+  void visitRecordTypeAnnotation(RecordTypeAnnotation node) {
+    var positionalFields = node.positionalFields;
+    var namedFields = node.namedFields;
+
+    sink.write('(');
+    if (positionalFields.isNotEmpty) {
+      _visitNodeList(positionalFields, separator: ', ');
+      if (namedFields != null) {
+        sink.write(', ');
+      }
+    }
+    _visitNode(namedFields);
+    sink.write(')');
+    if (node.question != null) {
+      sink.write('?');
+    }
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedField(
+    RecordTypeAnnotationNamedField node,
+  ) {
+    _visitNode(node.type);
+    sink.write(' ');
+    sink.write(node.name);
+  }
+
+  @override
+  void visitRecordTypeAnnotationNamedFields(
+    RecordTypeAnnotationNamedFields node,
+  ) {
+    sink.write('{');
+    _visitNodeList(node.fields, separator: ', ');
+    sink.write('}');
+  }
+
+  @override
+  void visitRecordTypeAnnotationPositionalField(
+    RecordTypeAnnotationPositionalField node,
+  ) {
+    _visitNode(node.type);
+    if (node.name != null) {
+      sink.write(' ');
+      sink.write(node.name);
+    }
+  }
+
+  @override
+  void visitRedirectingConstructorInvocation(
+    RedirectingConstructorInvocation node,
+  ) {
+    sink.write('this');
+    _visitNode(node.constructorSelector);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitRegularFormalParameter(RegularFormalParameter node) {
+    _visitFormalParameterHeader(node);
+    _visitToken(node.name);
+    _visitNode(node.functionTypedSuffix);
+    _visitNode(node.defaultClause);
+  }
+
+  @override
+  void visitRelationalPattern(RelationalPattern node) {
+    sink.write(node.operator.lexeme);
+    sink.write(' ');
+    _visitNode(node.operand2);
+  }
+
+  @override
+  void visitRestPatternElement(RestPatternElement node) {
+    sink.write(node.operator.lexeme);
+    _visitNode(node.pattern);
+  }
+
+  @override
+  void visitRethrowExpression(RethrowExpression node) {
+    sink.write('rethrow');
+  }
+
+  @override
+  void visitReturnStatement(ReturnStatement node) {
+    var expression = node.expression2;
+    if (expression == null) {
+      sink.write('return;');
+    } else {
+      sink.write('return ');
+      expression.accept2(this);
+      sink.write(';');
+    }
+  }
+
+  @override
+  void visitScriptTag(ScriptTag node) {
+    sink.write(node.scriptTag.lexeme);
+  }
+
+  @override
+  void visitSemicolonEnumDeclarationBody(SemicolonEnumDeclarationBody node) {
+    sink.write(';');
+  }
+
+  @override
+  void visitSemicolonInstanceDeclarationBody(
+    SemicolonInstanceDeclarationBody node,
+  ) {
+    sink.write(';');
+  }
+
+  @override
+  void visitSetOrMapLiteral(SetOrMapLiteral node) {
+    _visitToken(node.constKeyword, suffix: ' ');
+    _visitNode(node.typeArguments);
+    sink.write('{');
+    _visitNodeList(node.elements2, separator: ', ');
+    sink.write('}');
+  }
+
+  @override
+  void visitSetterDeclaration(SetterDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.staticKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.setKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitShowCombinator(ShowCombinator node) {
+    sink.write('show ');
+    _visitNodeList(node.names, separator: ', ');
+  }
+
+  @override
+  void visitSimpleStringLiteral(SimpleStringLiteral node) {
+    sink.write(node.literal.lexeme);
+  }
+
+  @override
+  void visitSpreadElement(SpreadElement node) {
+    sink.write(node.spreadOperator.lexeme);
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitStaticQualifier(StaticQualifier node) {
+    _visitNode(node.importPrefix);
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitStringInterpolation(StringInterpolation node) {
+    _visitNodeList(node.elements);
+  }
+
+  @override
+  void visitSuperConstructorInvocation(SuperConstructorInvocation node) {
+    sink.write('super');
+    _visitNode(node.constructorSelector);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitSuperFormalParameter(SuperFormalParameter node) {
+    _visitFormalParameterHeader(node);
+    sink.write('super.');
+    _visitToken(node.name);
+    _visitNode(node.functionTypedSuffix);
+    _visitNode(node.defaultClause);
+  }
+
+  @override
+  void visitSuperReference(SuperReference node) => sink.write('super');
+
+  @override
+  void visitSwitchCase(SwitchCase node) {
+    _visitNodeList(node.labels, separator: ' ', suffix: ' ');
+    sink.write('case ');
+    _visitNode(node.expression2);
+    sink.write(': ');
+    _visitNodeList(node.statements2, separator: ' ');
+  }
+
+  @override
+  void visitSwitchDefault(SwitchDefault node) {
+    _visitNodeList(node.labels, separator: ' ', suffix: ' ');
+    sink.write('default: ');
+    _visitNodeList(node.statements2, separator: ' ');
+  }
+
+  @override
+  void visitSwitchExpression(SwitchExpression node) {
+    sink.write('switch (');
+    _visitNode(node.expression2);
+    sink.write(') {');
+    _visitNodeList(node.cases, separator: ', ');
+    sink.write('}');
+  }
+
+  @override
+  void visitSwitchExpressionCase(SwitchExpressionCase node) {
+    _visitNode(node.guardedPattern);
+    sink.write(' => ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitSwitchPatternCase(SwitchPatternCase node) {
+    _visitNodeList(node.labels, separator: ' ', suffix: ' ');
+    sink.write('case ');
+    _visitNode(node.guardedPattern);
+    sink.write(': ');
+    _visitNodeList(node.statements2, separator: ' ');
+  }
+
+  @override
+  void visitSwitchStatement(SwitchStatement node) {
+    sink.write('switch (');
+    _visitNode(node.expression2);
+    sink.write(') {');
+    _visitNodeList(node.members, separator: ' ');
+    sink.write('}');
+  }
+
+  @override
+  void visitSymbolLiteral(SymbolLiteral node) {
+    sink.write('#');
+    List<Token> components = node.components;
+    for (int i = 0; i < components.length; i++) {
+      if (i > 0) {
+        sink.write('.');
+      }
+      sink.write(components[i].lexeme);
+    }
+  }
+
+  @override
+  void visitThisExpression(ThisExpression node) {
+    sink.write('this');
+  }
+
+  @override
+  void visitThrowExpression(ThrowExpression node) {
+    sink.write('throw ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitTopLevelFunctionDeclaration(TopLevelFunctionDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.typeParameters);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitTopLevelGetterDeclaration(TopLevelGetterDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.getKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitTopLevelSetterDeclaration(TopLevelSetterDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitNode(node.returnType, suffix: ' ');
+    _visitToken(node.setKeyword, suffix: ' ');
+    _visitToken(node.name);
+    _visitNode(node.formalParameters);
+    _visitFunctionBody(node.body);
+  }
+
+  @override
+  void visitTopLevelVariable2(TopLevelVariable2 node) {
+    _visitToken(node.name);
+    _visitNode(node.initializer, prefix: ' = ');
+  }
+
+  @override
+  void visitTopLevelVariablesDeclaration(TopLevelVariablesDeclaration node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.augmentKeyword, suffix: ' ');
+    _visitToken(node.externalKeyword, suffix: ' ');
+    _visitToken(node.abstractKeyword, suffix: ' ');
+    _visitToken(node.lateKeyword, suffix: ' ');
+    _visitToken(node.constFinalOrVarKeyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    _visitNodeList(node.variables, separator: ', ');
+    sink.write(';');
+  }
+
+  @override
+  void visitTryStatement(TryStatement node) {
+    sink.write('try ');
+    _visitNode(node.body);
+    _visitNodeList(node.catchClauses, prefix: ' ', separator: ' ');
+    _visitNode(node.finallyBlock, prefix: ' finally ');
+  }
+
+  @override
+  void visitTypeArgumentList(TypeArgumentList node) {
+    sink.write('<');
+    _visitNodeList(node.arguments, separator: ', ');
+    sink.write('>');
+  }
+
+  @override
+  void visitTypeLiteral(TypeLiteral node) {
+    _visitNode(node.type);
+  }
+
+  // TODO(kallentu): Declare `TypeParameter` once variance is added to the
+  // interface.
+  @override
+  void visitTypeParameter(covariant TypeParameterImpl node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    var varianceKeyword = node.varianceKeyword;
+    if (varianceKeyword != null) {
+      sink.write('${varianceKeyword.lexeme} ');
+    }
+    _visitToken(node.name);
+    _visitNode(node.bound, prefix: ' extends ');
+  }
+
+  @override
+  void visitTypeParameterList(TypeParameterList node) {
+    sink.write('<');
+    _visitNodeList(node.typeParameters, separator: ', ');
+    sink.write('>');
+  }
+
+  @override
+  void visitUnaryOperatorInvocation(UnaryOperatorInvocation node) {
+    sink.write(node.operator.lexeme);
+    _writeOperand(node, node.operand);
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    _visitToken(node.name);
+    _visitNode(node.typeArguments);
+    _visitNode(node.argumentList);
+  }
+
+  @override
+  void visitUnqualifiedNameAssignmentTarget(
+    UnqualifiedNameAssignmentTarget node,
+  ) {
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    _visitToken(node.name);
+  }
+
+  @override
+  void visitWhenClause(WhenClause node) {
+    sink.write('when ');
+    _visitNode(node.expression2);
+  }
+
+  @override
+  void visitWhileStatement(WhileStatement node) {
+    sink.write('while (');
+    _visitNode(node.condition2);
+    sink.write(') ');
+    _visitNode(node.body2);
+  }
+
+  @override
+  void visitWildcardPattern(WildcardPattern node) {
+    _visitToken(node.keyword, suffix: ' ');
+    _visitNode(node.type, suffix: ' ');
+    sink.write(node.name.lexeme);
+  }
+
+  @override
+  void visitWithClause(WithClause node) {
+    sink.write('with ');
+    _visitNodeList(node.mixinTypes, separator: ', ');
+  }
+
+  @override
+  void visitYieldStatement(YieldStatement node) {
+    if (node.star != null) {
+      sink.write('yield* ');
+    } else {
+      sink.write('yield ');
+    }
+    _visitNode(node.expression2);
+    sink.write(';');
+  }
+
+  /// Visit the prefix shared by all formal parameter kinds.
+  void _visitFormalParameterHeader(FormalParameter node) {
+    _visitNodeList(node.metadata, separator: ' ', suffix: ' ');
+    _visitToken(node.requiredKeyword, suffix: ' ');
+    _visitToken(node.covariantKeyword, suffix: ' ');
+    _visitToken(node.constFinalOrVarKeyword, suffix: ' ');
+    _visitNode(node.type);
+    if (node.type != null &&
+        (node.name != null || node.functionTypedSuffix != null)) {
+      sink.write(' ');
+    }
+  }
+
+  /// Visit the given function [body], printing a prefix before if the body
+  /// is not empty.
+  void _visitFunctionBody(FunctionBody body) {
+    if (body is! EmptyFunctionBody) {
+      sink.write(' ');
+    }
+    _visitNode(body);
+  }
+
+  /// Print the given [node], printing the [prefix] before the node,
+  /// and [suffix] after the node, if it is non-`null`.
+  void _visitNode(AstNode? node, {String prefix = '', String suffix = ''}) {
+    if (node != null) {
+      sink.write(prefix);
+      node.accept2(this);
+      sink.write(suffix);
+    }
+  }
+
+  /// Print a list of [nodes], separated by the given [separator]; if the list
+  /// is not empty print [prefix] before the first node, and [suffix] after
+  /// the last node.
+  void _visitNodeList(
+    List<AstNode> nodes, {
+    String prefix = '',
+    String separator = '',
+    String suffix = '',
+  }) {
+    var length = nodes.length;
+    if (length > 0) {
+      sink.write(prefix);
+      for (int i = 0; i < length; i++) {
+        if (i > 0) {
+          sink.write(separator);
+        }
+        nodes[i].accept2(this);
+      }
+      sink.write(suffix);
+    }
+  }
+
+  void _visitParsedExpression(ParsedExpression root) {
+    InstanceReceiver node = root;
+    while (node is ParsedExpression &&
+        node is! ParsedCascadeName &&
+        node is! ParsedUnqualifiedName &&
+        node is! ParsedDotShorthandName) {
+      node = switch (node) {
+        ParsedNameAccess(:var operand) => operand,
+        ParsedTypeArguments(:var operand) => operand,
+        ParsedValueArguments(:var operand) => operand,
+        _ => throw StateError(
+          'Unexpected parsed expression: ${node.runtimeType}',
+        ),
+      };
+    }
+    _visitNode(node);
+    while (!identical(node, root)) {
+      node = node.parent2 as ParsedExpression;
+      switch (node) {
+        case ParsedNameAccess(:var operator, :var name):
+          _visitToken(operator);
+          _visitToken(name);
+        case ParsedTypeArguments(:var typeArguments):
+          _visitNode(typeArguments);
+        case ParsedValueArguments(:var argumentList):
+          _visitNode(argumentList);
+        case ParsedCascadeName():
+        case ParsedUnqualifiedName():
+        case ParsedDotShorthandName():
+          throw StateError('A parsed name cannot contain an operand.');
+      }
+    }
+  }
+
+  /// Print the given [token].
+  void _visitToken(Token? token, {String prefix = '', String suffix = ''}) {
+    if (token != null) {
+      sink.write(prefix);
+      sink.write(token.lexeme);
+      sink.write(suffix);
+    }
+  }
+
+  void _writeOperand(Expression node, InstanceReceiver operand) {
+    bool needsParenthesis =
+        operand is Expression && operand.precedence < node.precedence;
+    if (needsParenthesis) {
+      sink.write('(');
+    }
+    operand.accept2(this);
+    if (needsParenthesis) {
+      sink.write(')');
+    }
+  }
+}

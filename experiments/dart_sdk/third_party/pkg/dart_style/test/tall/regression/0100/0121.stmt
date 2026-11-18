@@ -1,0 +1,22 @@
+>>> (indent 6)
+      if (!firstArgument.isString) {
+        DartType type = defaultValue.getType(compiler.coreTypes);
+        compiler.reportFatalError(
+            send.arguments.head,
+            MessageKind.NOT_ASSIGNABLE,
+            {
+          'fromType': type,
+          'toType': compiler.stringClass.rawType
+        });
+        return null;
+      }
+<<< 3.7
+      if (!firstArgument.isString) {
+        DartType type = defaultValue.getType(compiler.coreTypes);
+        compiler.reportFatalError(
+          send.arguments.head,
+          MessageKind.NOT_ASSIGNABLE,
+          {'fromType': type, 'toType': compiler.stringClass.rawType},
+        );
+        return null;
+      }

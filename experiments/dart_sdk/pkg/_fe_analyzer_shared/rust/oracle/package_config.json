@@ -1,0 +1,17 @@
+{
+  "configVersion": 2,
+  "packages": [
+    {
+      "name": "_fe_analyzer_shared",
+      "rootUri": "../../",
+      "packageUri": "lib/",
+      "languageVersion": "3.13"
+    },
+    {
+      "name": "meta",
+      "rootUri": "../../../meta/",
+      "packageUri": "lib/",
+      "languageVersion": "3.5"
+    }
+  ]
+}

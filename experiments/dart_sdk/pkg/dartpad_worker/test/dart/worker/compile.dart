@@ -1,0 +1,81 @@
+// Copyright (c) 2026, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import '../../worker_harness.dart';
+
+void main() {
+  testDartWorkspace('sandbox.runMain() hello world', (ws) async {
+    await ws.writeFileFromText(
+      'bin/main.dart',
+      "void main() => print('Hello World');",
+    );
+
+    final iframe = FakeSandboxedIframe();
+    final sandbox = await ws.connectSandboxedIframe(iframe.port);
+
+    final result = await sandbox.run('bin/main.dart', mode: 'console');
+    check(result.log).isEmpty;
+
+    await iframe.checkEvent(
+      .it()..isA<LoadModulesEvent>(
+        .it()
+          ..anyModuleContains('Hello World')
+          ..anyModuleContains('main'),
+      ),
+    );
+    await iframe.checkEvent(
+      .it()..isA<RunEvent>(.it()..mode.equals('console')),
+    );
+    await iframe.close();
+  });
+
+  testDartWorkspace('sandbox.runMain() missing semicolon', (ws) async {
+    await ws.writeFileFromText(
+      'bin/main.dart',
+      "void main() => print('Hello World')",
+    );
+
+    final iframe = FakeSandboxedIframe();
+    final sandbox = await ws.connectSandboxedIframe(iframe.port);
+
+    await check(
+      sandbox.run('bin/main.dart', mode: 'console'),
+    ).throws<CompilationFailedException>(
+      .it()..has((e) => e.message, 'message').contains("Expected ';'"),
+    );
+
+    await iframe.close();
+  });
+
+  testDartWorkspace('sandbox.runMain() with imports', (ws) async {
+    await ws.writeFileFromText('lib/sayhello.dart', '''
+      void sayHello() => print('Hello World');
+    ''');
+
+    await ws.writeFileFromText('bin/main.dart', '''
+      import 'dart:async';
+      import 'package:myapp/sayhello.dart';
+
+      void main() {
+        sayHello();
+      }
+    ''');
+
+    final iframe = FakeSandboxedIframe();
+    final sandbox = await ws.connectSandboxedIframe(iframe.port);
+
+    final result = await sandbox.run('bin/main.dart', mode: 'console');
+    check(result.log).isEmpty;
+
+    await iframe.checkEvent(
+      .it()..isA<LoadModulesEvent>(
+        .it()
+          ..anyModuleContains('Hello World')
+          ..anyModuleContains('main'),
+      ),
+    );
+    await iframe.checkEvent(.it()..isA<RunEvent>());
+    await iframe.close();
+  });
+}

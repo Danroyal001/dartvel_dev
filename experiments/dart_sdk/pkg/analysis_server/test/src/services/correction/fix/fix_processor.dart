@@ -1,0 +1,746 @@
+// Copyright (c) 2018, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analysis_server/src/services/correction/bulk_fix_processor.dart';
+import 'package:analysis_server/src/services/correction/fix_internal.dart';
+import 'package:analysis_server_plugin/edit/dart/dart_fix_kind_priority.dart';
+import 'package:analysis_server_plugin/edit/fix/dart_fix_context.dart';
+import 'package:analysis_server_plugin/edit/fix/fix.dart';
+import 'package:analysis_server_plugin/src/correction/change_workspace.dart';
+import 'package:analysis_server_plugin/src/correction/dart_change_workspace.dart';
+import 'package:analysis_server_plugin/src/correction/fix_in_file_processor.dart';
+import 'package:analysis_server_plugin/src/correction/fix_processor.dart';
+import 'package:analyzer/diagnostic/diagnostic.dart';
+import 'package:analyzer/error/error.dart';
+import 'package:analyzer/file_system/file_system.dart';
+import 'package:analyzer/src/dart/analysis/byte_store.dart';
+import 'package:analyzer/src/test_utilities/test_code_format.dart';
+import 'package:analyzer/src/util/sdk.dart';
+import 'package:analyzer_plugin/protocol/protocol_common.dart'
+    hide AnalysisError;
+import 'package:analyzer_testing/src/single_unit.dart';
+import 'package:analyzer_testing/src/test_instrumentation_service.dart';
+import 'package:linter/src/rules.dart';
+import 'package:test/test.dart';
+
+export 'package:linter/src/lint_names.dart';
+
+typedef DiagnosticFilter = bool Function(Diagnostic diagnostic);
+
+/// A base class defining support for writing bulk fix processor tests.
+///
+/// Tests using this base class validate that if there is more than one place to
+/// apply a fix, then the code is valid after applying as many fixes as possible
+/// in a single pass.
+abstract class BulkFixProcessorTest extends SingleUnitTest {
+  final ByteStore _byteStore = MemoryByteStore();
+
+  /// The source change associated with the fix that was found, or `null` if
+  /// neither [assertHasFix] nor [assertHasFixAllFix] has been invoked.
+  late SourceChange change;
+
+  /// The result of applying the [change] to the file content, or `null` if
+  /// neither [assertHasFix] nor [assertHasFixAllFix] has been invoked.
+  late String resultCode;
+
+  /// The processor used to compute bulk fixes.
+  late BulkFixProcessor processor;
+
+  /// The name of the lint code being tested.
+  String? get lintCode => null;
+
+  @override
+  Folder get sdkRoot => newFolder(getSdkPath());
+
+  /// The workspace in which fixes contributor operates.
+  Future<DartChangeWorkspace> get workspace async {
+    return DartChangeWorkspace([await session]);
+  }
+
+  /// Computes fixes for the pubspecs in the given contexts.
+  Future<void> assertFixPubspec(
+    String original,
+    String expected, {
+    File? file,
+  }) async {
+    var analysisContext = contextFor2(file ?? testFile);
+    var processor = BulkFixProcessor(
+      TestInstrumentationService(),
+      await workspace,
+      byteStore: _byteStore,
+    );
+    var fixes = (await processor.fixPubspec([analysisContext])).edits;
+    var edits = [for (var fix in fixes) ...fix.edits];
+    var result = SourceEdit.applySequence(normalizeSource(original), edits);
+    expect(result, normalizeSource(expected));
+  }
+
+  Future<void> assertFormat(String expectedCode) async {
+    var analysisContext = contextFor2(testFile);
+    processor = BulkFixProcessor(
+      TestInstrumentationService(),
+      await workspace,
+      byteStore: _byteStore,
+    );
+    await processor.formatCode([analysisContext]);
+    var change = processor.builder.sourceChange;
+    var fileEdits = change.edits;
+    expect(fileEdits, hasLength(1));
+    resultCode = SourceEdit.applySequence(testCode, change.edits[0].edits);
+    expect(resultCode, normalizeSource(expectedCode));
+  }
+
+  Future<void> assertHasFix(
+    String expected, {
+    List<String>? codes,
+    bool isParse = false,
+  }) async {
+    change = await _computeSourceChange(codes: codes, isParse: isParse);
+
+    // apply to "file"
+    var fileEdits = change.edits;
+    expect(fileEdits, hasLength(1));
+
+    var fileContent = testCode;
+    resultCode = SourceEdit.applySequence(fileContent, change.edits[0].edits);
+    expect(resultCode, normalizeSource(expected));
+  }
+
+  Future<void> assertNoFix() async {
+    change = await _computeSourceChange();
+    var fileEdits = change.edits;
+    expect(fileEdits, isEmpty);
+  }
+
+  Future<void> assertOrganize(String expectedCode) async {
+    var analysisContext = contextFor2(testFile);
+    processor = BulkFixProcessor(
+      TestInstrumentationService(),
+      await workspace,
+      byteStore: _byteStore,
+    );
+    await processor.organizeDirectives([analysisContext]);
+    var change = processor.builder.sourceChange;
+    var fileEdits = change.edits;
+    expect(fileEdits, hasLength(1));
+    resultCode = SourceEdit.applySequence(testCode, change.edits[0].edits);
+    expect(resultCode, normalizeSource(expectedCode));
+  }
+
+  /// Computes fixes for the specified [testUnit].
+  Future<BulkFixProcessor> computeFixes({
+    List<String>? codes,
+    bool isParse = false,
+  }) async {
+    var analysisContext = contextFor2(testFile);
+    var processor = BulkFixProcessor(
+      TestInstrumentationService(),
+      await workspace,
+      codes: codes,
+      byteStore: _byteStore,
+    );
+    if (isParse) {
+      await processor.fixErrorsUsingParsedResult([analysisContext]);
+    } else {
+      await processor.fixErrors([analysisContext]);
+    }
+    return processor;
+  }
+
+  /// Computes whether there are bulk fixes for the context containing
+  /// [testFile].
+  Future<bool> computeHasFixes() async {
+    var analysisContext = contextFor2(testFile);
+    processor = BulkFixProcessor(
+      TestInstrumentationService(),
+      await workspace,
+      byteStore: _byteStore,
+    );
+    return processor.hasFixes([analysisContext]);
+  }
+
+  @override
+  void setUp() {
+    registerLintRules();
+    registerBuiltInFixGenerators();
+    super.setUp();
+    verifyNoTestUnitErrors = false;
+    _createAnalysisOptionsFile();
+  }
+
+  /// Returns the source change for computed fixes in the specified [testUnit].
+  Future<SourceChange> _computeSourceChange({
+    List<String>? codes,
+    bool isParse = false,
+  }) async {
+    processor = await computeFixes(codes: codes, isParse: isParse);
+    return processor.builder.sourceChange;
+  }
+
+  /// Create the analysis options file needed in order to correctly analyze the
+  /// test file.
+  void _createAnalysisOptionsFile() {
+    var code = lintCode;
+    if (code == null) {
+      createAnalysisOptionsFile(experimentalFeatures: experimentalFeatures);
+    } else {
+      createAnalysisOptionsFile(
+        experimentalFeatures: experimentalFeatures,
+        lints: [code],
+      );
+    }
+  }
+}
+
+/// A base class defining support for writing fix-in-file processor tests.
+abstract class FixInFileProcessorTest extends SingleUnitTest {
+  /// The lint codes being tested.
+  ///
+  /// The list can be empty if the fix isn't associatd with any lints.
+  List<String> get lintCodes => [];
+
+  /// The workspace in which fixes contributor operates.
+  Future<ChangeWorkspace> get workspace async {
+    return DartChangeWorkspace([await session]);
+  }
+
+  void assertProduces(Fix fix, String expected) {
+    var fileEdits = fix.change.edits;
+    expect(fileEdits, hasLength(1));
+
+    expected = normalizeSource(expected);
+
+    var fileContent = testCode;
+    var resultCode = SourceEdit.applySequence(fileContent, fileEdits[0].edits);
+    expect(resultCode, expected);
+  }
+
+  Future<List<Fix>> getFixesForAllErrors(Set<String>? alreadyCalculated) async {
+    var diagnostics = testAnalysisResult.diagnostics;
+    expect(diagnostics, isNotEmpty);
+    List<Fix> fixes = [];
+    for (var diagnostic in diagnostics) {
+      fixes.addAll(
+        await _computeFixes(diagnostic, alreadyCalculated: alreadyCalculated),
+      );
+    }
+    return fixes;
+  }
+
+  Future<List<Fix>> getFixesForFirst(DiagnosticFilter test) async {
+    var diagnostics = testAnalysisResult.diagnostics.where(test);
+    expect(diagnostics, isNotEmpty);
+    String? diagnosticCode;
+    for (var diagnostic in diagnostics) {
+      diagnosticCode ??= diagnostic.diagnosticCode.lowerCaseName;
+      if (diagnosticCode != diagnostic.diagnosticCode.lowerCaseName) {
+        fail('Expected only errors of one type but found: $diagnostics');
+      }
+    }
+
+    var fixes = await _computeFixes(diagnostics.first);
+    return fixes;
+  }
+
+  Future<List<Fix>> getFixesForFirstError() async {
+    var diagnostics = testAnalysisResult.diagnostics;
+    expect(diagnostics, isNotEmpty);
+    String? diagnosticCode;
+    for (var diagnostic in diagnostics) {
+      diagnosticCode ??= diagnostic.diagnosticCode.lowerCaseName;
+      if (diagnosticCode != diagnostic.diagnosticCode.lowerCaseName) {
+        fail('Expected only errors of one type but found: $diagnostics');
+      }
+    }
+
+    var fixes = await _computeFixes(diagnostics.first);
+    return fixes;
+  }
+
+  @override
+  void setUp() {
+    registerLintRules();
+    registerBuiltInFixGenerators();
+    super.setUp();
+    verifyNoTestUnitErrors = false;
+    var lintCodes = this.lintCodes;
+    if (lintCodes.isNotEmpty) {
+      createAnalysisOptionsFile(lints: lintCodes);
+    }
+  }
+
+  /// Computes fixes for the given [diagnostic] in [testUnit].
+  Future<List<Fix>> _computeFixes(
+    Diagnostic diagnostic, {
+    Set<String>? alreadyCalculated,
+  }) async {
+    var libraryResult = testLibraryResult;
+    if (libraryResult == null) {
+      return const [];
+    }
+    var context = DartFixContext(
+      instrumentationService: TestInstrumentationService(),
+      workspace: await workspace,
+      libraryResult: libraryResult,
+      unitResult: testAnalysisResult,
+      error: diagnostic,
+    );
+
+    return await FixInFileProcessor(
+      context,
+      alreadyCalculated: alreadyCalculated,
+    ).compute();
+  }
+}
+
+abstract class FixPriorityTest extends FixProcessorForBuiltInDiagnosticTest {
+  /// Priority tests compare the relative priority of fixes of several kinds,
+  /// so there is no single [kind] under test.
+  @override
+  FixKind get kind =>
+      throw UnsupportedError('FixPriorityTest does not use kind.');
+
+  Future<void> assertFixPriorityOrder(
+    List<FixKind> fixKinds, {
+    DiagnosticFilter? filter,
+  }) async {
+    var diagnostic = await _findDiagnosticToFix(filter: filter);
+    var computedFixes = await _computeFixes(diagnostic);
+    var kinds = computedFixes.map((fix) => fix.kind).toList();
+    kinds.sort((a, b) => b.priority.compareTo(a.priority));
+    expect(kinds, containsAllInOrder(fixKinds));
+  }
+}
+
+/// A base class defining support for writing fix processor tests for built-in
+/// diagnostics (first-party errors, warnings, and lint rules).
+abstract class FixProcessorForBuiltInDiagnosticTest extends SingleUnitTest {
+  /// The source change associated with the fix that was found.
+  late SourceChange change;
+
+  late TestCode parsedExpectedCode;
+
+  /// The result of applying the [change] to the file content.
+  late String _resultCode;
+
+  /// The kind of fixes being tested by this test class.
+  FixKind get kind;
+
+  /// The workspace in which fixes contributor operates.
+  Future<ChangeWorkspace> get workspace async {
+    return DartChangeWorkspace([await session]);
+  }
+
+  /// Asserts that the resolved compilation unit has a fix which produces
+  /// [expectedContent] output.
+  ///
+  /// [expectedContent] will have newlines normalized and be parsed with
+  /// [TestCode.parse], with the resulting code stored in [parsedExpectedCode].
+  Future<void> assertHasFix(
+    String expectedContent, {
+    DiagnosticFilter? filter,
+    String? target,
+    int? expectedNumberOfFixesForKind,
+    Pattern? fixMessageContains,
+    bool allowFixAllFixes = false,
+  }) async {
+    await assertHasFixForTarget(
+      expectedContent,
+      target: target ?? testFilePath,
+      filter: filter,
+      expectedNumberOfFixesForKind: expectedNumberOfFixesForKind,
+      fixMessagePattern: fixMessageContains,
+      allowFixAllFixes: allowFixAllFixes,
+    );
+  }
+
+  Future<void> assertHasFixAllFix(
+    DiagnosticCode diagnosticCode,
+    String expected, {
+    String? target,
+  }) async {
+    expected = normalizeSource(expected);
+    var diagnostic = await _findDiagnosticToFixOfType(diagnosticCode);
+    var fix = await _assertHasFixAllFix(diagnostic);
+    change = fix.change;
+
+    // apply to "file"
+    var fileEdits = change.edits;
+    expect(fileEdits, hasLength(1));
+
+    var fileContent = testCode;
+    if (target != null) {
+      expect(fileEdits.first.file, convertPath(target));
+      fileContent = getFile(target).readAsStringSync();
+    }
+
+    _resultCode = SourceEdit.applySequence(fileContent, change.edits[0].edits);
+    expect(_resultCode, expected);
+  }
+
+  /// Computes an error from [filter], and verifies that
+  /// [expectedNumberOfFixesForKind] fixes of the appropriate kind are found,
+  /// and that they have messages which contain [fixMessagesContains].
+  Future<void> assertHasFixesWithoutApplying({
+    DiagnosticFilter? filter,
+    required int expectedNumberOfFixesForKind,
+    required List<Pattern> fixMessagesContains,
+  }) async {
+    var diagnostic = await _findDiagnosticToFix(filter: filter);
+    await _assertHasFixes(
+      diagnostic,
+      expectedNumberOfFixesForKind: expectedNumberOfFixesForKind,
+      fixMessagesContains: fixMessagesContains,
+    );
+  }
+
+  /// Asserts that the resolved compilation unit has a fix which produces
+  /// [expected] output.
+  ///
+  /// [expected] will have newlines normalized and be parsed with
+  /// [TestCode.parse], with the resulting code stored in [parsedExpectedCode].
+  Future<void> assertHasFixForTarget(
+    String expected, {
+    required String target,
+    DiagnosticFilter? filter,
+    int? expectedNumberOfFixesForKind,
+    Pattern? fixMessagePattern,
+    bool allowFixAllFixes = false,
+  }) async {
+    parsedExpectedCode = TestCode.parseNormalized(expected);
+    var diagnostic = await _findDiagnosticToFix(filter: filter);
+    var fix = await _assertHasFix(
+      diagnostic,
+      expectedNumberOfFixesForKind: expectedNumberOfFixesForKind,
+      fixMessagePattern: fixMessagePattern,
+      allowFixAllFixes: allowFixAllFixes,
+    );
+    change = fix.change;
+
+    // Apply to file.
+    var fileEdits = change.edits;
+    var targetEdits = fileEdits
+        .where((edit) => edit.file == convertPath(target))
+        .singleOrNull;
+    expect(
+      targetEdits,
+      isNotNull,
+      reason: 'Expected a single fileEdit for ${convertPath(target)}',
+    );
+    var fileContent = getFile(target).readAsStringSync();
+
+    _resultCode = SourceEdit.applySequence(fileContent, targetEdits!.edits);
+    expect(_resultCode, parsedExpectedCode.code);
+  }
+
+  Future<void> assertHasFixWithoutApplying({DiagnosticFilter? filter}) async {
+    var diagnostic = await _findDiagnosticToFix(filter: filter);
+    var fix = await _assertHasFix(diagnostic);
+    change = fix.change;
+  }
+
+  void assertLinkedGroup(
+    LinkedEditGroup group,
+    List<String> expectedStrings, [
+    List<LinkedEditSuggestion>? expectedSuggestions,
+  ]) {
+    var expectedPositions = _findResultPositions(expectedStrings);
+    expect(group.positions, unorderedEquals(expectedPositions));
+    if (expectedSuggestions != null) {
+      expect(group.suggestions, unorderedEquals(expectedSuggestions));
+    }
+  }
+
+  /// Compute fixes for all of the diagnostics in the test file to effectively
+  /// assert that no exceptions will be thrown by doing so.
+  Future<void> assertNoExceptions() async {
+    for (var diagnostic in testAnalysisResult.diagnostics) {
+      await _computeFixes(diagnostic);
+    }
+  }
+
+  /// Compute fixes and ensure that there is no fix of the [kind] being tested by
+  /// this class.
+  Future<void> assertNoFix({DiagnosticFilter? filter}) async {
+    var diagnostic = await _findDiagnosticToFix(filter: filter);
+    await _assertNoFix(diagnostic);
+  }
+
+  Future<void> assertNoFixAllFix(DiagnosticCode diagnosticCode) async {
+    var diagnostic = await _findDiagnosticToFixOfType(diagnosticCode);
+    await _assertNoFixAllFix(diagnostic);
+  }
+
+  List<LinkedEditSuggestion> expectedSuggestions(
+    LinkedEditSuggestionKind kind,
+    List<String> values,
+  ) {
+    return values.map((value) {
+      return LinkedEditSuggestion(value, kind);
+    }).toList();
+  }
+
+  @override
+  void setUp() {
+    registerLintRules();
+    registerBuiltInFixGenerators();
+    super.setUp();
+    verifyNoTestUnitErrors = false;
+  }
+
+  /// Computes fixes, verifies that there is a fix for the given [diagnostic] of
+  /// the appropriate kind, and returns the fix.
+  ///
+  /// If a [fixMessagePattern] is passed, then the kind as well as the fix
+  /// message must match to be returned.
+  ///
+  /// If [expectedNumberOfFixesForKind] is non-null, then the number of fixes
+  /// for [kind] is verified to be [expectedNumberOfFixesForKind].
+  Future<Fix> _assertHasFix(
+    Diagnostic diagnostic, {
+    int? expectedNumberOfFixesForKind,
+    Pattern? fixMessagePattern,
+    bool allowFixAllFixes = false,
+  }) async {
+    // Compute the fixes for this AnalysisError
+    var fixes = await _computeFixes(diagnostic);
+
+    if (expectedNumberOfFixesForKind != null) {
+      fixes = _assertNumberOfFixesForKind(fixes, expectedNumberOfFixesForKind);
+    }
+
+    // If a matchFixMessage was provided,
+    if (fixMessagePattern != null) {
+      for (var fix in fixes) {
+        if (fix.change.message.contains(fixMessagePattern)) {
+          return fix;
+        }
+      }
+      if (fixes.isEmpty) {
+        fail(
+          'Expected to find fix $kind containing $fixMessagePattern'
+          ' but there were no fixes.',
+        );
+      } else {
+        fail(
+          'Expected to find fix $kind containing $fixMessagePattern'
+          ' in\n${fixes.join('\n')}',
+        );
+      }
+    }
+
+    // Assert that none of the fixes are a fix-all fix.
+    Fix? foundFix;
+    for (var fix in fixes) {
+      if (!allowFixAllFixes && fix.isFixAllFix()) {
+        fail(
+          'A fix-all fix was found for the error: $diagnostic '
+          'in the computed set of fixes:\n${fixes.join('\n')}',
+        );
+      } else if (fix.kind == kind) {
+        foundFix ??= fix;
+      }
+    }
+    if (foundFix == null) {
+      fail('Expected to find fix $kind in\n${fixes.join('\n')}');
+    }
+    return foundFix;
+  }
+
+  /// Computes fixes and verifies that there is a fix for the given [diagnostic]
+  /// of the appropriate kind.
+  Future<Fix> _assertHasFixAllFix(Diagnostic diagnostic) async {
+    if (!kind.canBeAppliedTogether()) {
+      fail(
+        'Expected to find and return fix-all FixKind for $kind, '
+        'but kind.canBeAppliedTogether is ${kind.canBeAppliedTogether}',
+      );
+    }
+
+    // Compute the fixes for the error.
+    var fixes = await _computeFixes(diagnostic);
+
+    // Assert that there exists such a fix in the list.
+    Fix? foundFix;
+    for (var fix in fixes) {
+      if (fix.kind == kind && fix.isFixAllFix()) {
+        foundFix = fix;
+        break;
+      }
+    }
+    if (foundFix == null) {
+      fail(
+        'No fix-all fix was found for the error: $diagnostic '
+        'in the computed set of fixes:\n${fixes.join('\n')}',
+      );
+    }
+    return foundFix;
+  }
+
+  /// Computes fixes and verifies that there are [expectedNumberOfFixesForKind]
+  /// fixes for the given [diagnostic] of the appropriate kind, and that the
+  /// messages of the fixes which contain [fixMessagesContains].
+  Future<void> _assertHasFixes(
+    Diagnostic diagnostic, {
+    required int expectedNumberOfFixesForKind,
+    required List<Pattern> fixMessagesContains,
+  }) async {
+    // Compute the fixes for this Diagnostic.
+    var fixes = await _computeFixes(diagnostic);
+    var fixesForKind = _assertNumberOfFixesForKind(
+      fixes,
+      expectedNumberOfFixesForKind,
+    );
+    expect(
+      fixesForKind.length,
+      fixMessagesContains.length,
+      reason:
+          'Expected ${fixMessagesContains.length} fixes, '
+          'but found ${fixesForKind.length}:\n${fixesForKind.join('\n')}',
+    );
+    for (var (index, fix) in fixesForKind.indexed) {
+      expect(
+        fix.change.message,
+        contains(fixMessagesContains[index]),
+        reason:
+            'Expected fix at index $index to contain '
+            '"${fixMessagesContains[index]}", '
+            'but the message was "${fix.change.message}"',
+      );
+    }
+  }
+
+  Future<void> _assertNoFix(Diagnostic diagnostic) async {
+    var fixes = await _computeFixes(diagnostic);
+    for (var fix in fixes) {
+      if (fix.kind == kind) {
+        fail('Unexpected fix $kind in\n${fixes.join('\n')}');
+      }
+    }
+  }
+
+  Future<void> _assertNoFixAllFix(Diagnostic diagnostic) async {
+    if (!kind.canBeAppliedTogether()) {
+      fail(
+        'Expected to find and return fix-all FixKind for $kind, '
+        'but kind.canBeAppliedTogether is ${kind.canBeAppliedTogether}',
+      );
+    }
+    var fixes = await _computeFixes(diagnostic);
+    for (var fix in fixes) {
+      if (fix.kind == kind && fix.isFixAllFix()) {
+        fail('Unexpected fix $kind in\n${fixes.join('\n')}');
+      }
+    }
+  }
+
+  List<Fix> _assertNumberOfFixesForKind(
+    List<Fix> fixes,
+    int expectedNumberOfFixesForKind,
+  ) {
+    var fixesForKind = fixes.where((fix) => fix.kind == kind).toList();
+    if (fixesForKind.length != expectedNumberOfFixesForKind) {
+      fail(
+        'Expected $expectedNumberOfFixesForKind fixes of kind $kind,'
+        ' but found $fixesForKind.length:\n${fixes.join('\n')}',
+      );
+    }
+    return fixesForKind;
+  }
+
+  /// Computes fixes for the given [diagnostic] in [testUnit].
+  Future<List<Fix>> _computeFixes(Diagnostic diagnostic) async {
+    var libraryResult = testLibraryResult;
+    if (libraryResult == null) {
+      return const [];
+    }
+    var context = DartFixContext(
+      instrumentationService: TestInstrumentationService(),
+      workspace: await workspace,
+      libraryResult: libraryResult,
+      unitResult: testAnalysisResult,
+      error: diagnostic,
+    );
+    return await computeFixes(context);
+  }
+
+  /// Finds the diagnostic that is to be fixed by computing the diagnostics in
+  /// the file, using the [filter] to filter out diagnostics that should be
+  /// ignored, and expecting that there is a single remaining diagnostic. The
+  /// diagnostic filter should return `true` if the diagnostic should not be
+  /// ignored.
+  Future<Diagnostic> _findDiagnosticToFix({DiagnosticFilter? filter}) async {
+    var diagnostics = testAnalysisResult.diagnostics;
+    if (filter != null) {
+      if (diagnostics.length == 1) {
+        fail('Unnecessary error filter');
+      }
+      diagnostics = diagnostics.where(filter).toList();
+    }
+    if (diagnostics.isEmpty) {
+      fail('Expected one diagnostic, found: none');
+    } else if (diagnostics.length > 1) {
+      var buffer = StringBuffer();
+      buffer.writeln('Expected one diagnostic, found:');
+      for (var diagnostic in diagnostics) {
+        buffer.writeln('  $diagnostic [${diagnostic.diagnosticCode}]');
+      }
+      fail(buffer.toString());
+    }
+    return diagnostics[0];
+  }
+
+  Future<Diagnostic> _findDiagnosticToFixOfType(DiagnosticCode code) async {
+    var diagnostics = testAnalysisResult.diagnostics;
+    for (var diagnostic in diagnostics) {
+      if (diagnostic.diagnosticCode == code) {
+        return diagnostic;
+      }
+    }
+    fail('Expected to find a diagnostic with the code: $code');
+  }
+
+  List<Position> _findResultPositions(List<String> searchStrings) {
+    return [
+      for (var search in searchStrings)
+        Position(testFile.path, _resultCode.indexOf(search)),
+    ];
+  }
+}
+
+/// A base class defining support for writing fix processor tests that are
+/// specific to fixes associated with built-in lint rules that use the
+/// specified [FixKind].
+abstract class FixProcessorForBuiltInLintRuleTest
+    extends FixProcessorForBuiltInDiagnosticTest {
+  /// The lint code being tested.
+  String get lintCode;
+
+  /// A filter that filters by [name], for use in [assertHasFix].
+  DiagnosticFilter lintNameFilter(String name) {
+    return (e) {
+      return e.diagnosticCode is LintCode &&
+          e.diagnosticCode.lowerCaseName == name;
+    };
+  }
+
+  @override
+  void setUp() {
+    super.setUp();
+    createAnalysisOptionsFile(
+      experimentalFeatures: experimentalFeatures,
+      lints: [lintCode],
+    );
+  }
+}
+
+// TODO(pq): temporary
+extension FixExtension on Fix {
+  bool isFixAllFix() => kind.canBeAppliedTogether();
+}
+
+extension FixKindExtension on FixKind {
+  // TODO(pq): temporary
+  bool canBeAppliedTogether() => priority == DartFixKindPriority.inFile;
+}

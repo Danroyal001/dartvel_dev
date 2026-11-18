@@ -1,0 +1,84 @@
+// Copyright (c) 2021, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/resolver/lexical_lookup.dart';
+import 'package:analyzer/src/dart/resolver/type_analyzer.dart';
+
+/// Class containing static methods for resolving identifiers as implicit
+/// property gets/sets on the type of `this`.
+class ThisLookup {
+  /// Do not construct
+  new _() {
+    assert(false, 'Do not construct instances of LexicalLookup');
+  }
+
+  /// Attempts to resolve [name] as a getter on an implicit `this` receiver.
+  static LexicalLookupResult? lookupGetter2(
+    TypeAnalyzer typeAnalyzer, {
+    required AstNode node,
+    required String name,
+  }) {
+    var thisType = typeAnalyzer.thisType;
+    if (thisType == null) {
+      return null;
+    }
+
+    var propertyResult = typeAnalyzer.typePropertyResolver.resolve(
+      receiver: null,
+      receiverType: thisType,
+      name: name,
+      hasRead: true,
+      hasWrite: false,
+      propertyErrorEntity: node,
+      nameErrorEntity: node,
+    );
+
+    var callFunctionType = propertyResult.callFunctionType;
+    if (callFunctionType != null) {
+      return LexicalLookupResult(callFunctionType: callFunctionType);
+    }
+
+    var recordField = propertyResult.recordField;
+    if (recordField != null) {
+      return LexicalLookupResult(recordField: recordField);
+    }
+
+    var getterElement = propertyResult.getter2;
+    if (getterElement != null) {
+      return LexicalLookupResult(requested: getterElement);
+    } else {
+      return LexicalLookupResult(recovery: propertyResult.setter2);
+    }
+  }
+
+  /// Attempts to resolve [name] as a setter on an implicit `this` receiver.
+  static LexicalLookupResult? lookupSetter2(
+    TypeAnalyzer typeAnalyzer, {
+    required AstNode node,
+    required String name,
+  }) {
+    var thisType = typeAnalyzer.thisType;
+    if (thisType == null) {
+      return null;
+    }
+
+    var propertyResult = typeAnalyzer.typePropertyResolver.resolve(
+      receiver: null,
+      receiverType: thisType,
+      name: name,
+      hasRead: false,
+      hasWrite: true,
+      propertyErrorEntity: node,
+      nameErrorEntity: node,
+    );
+
+    var setterElement = propertyResult.setter2;
+    if (setterElement != null) {
+      return LexicalLookupResult(requested: setterElement);
+    } else {
+      return LexicalLookupResult(recovery: propertyResult.getter2);
+    }
+  }
+}

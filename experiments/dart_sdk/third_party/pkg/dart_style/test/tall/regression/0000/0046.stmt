@@ -1,0 +1,12 @@
+>>>
+foo() {
+  if (true)
+    // comment!
+    return 0;
+}
+<<< 3.7
+foo() {
+  if (true)
+    // comment!
+    return 0;
+}

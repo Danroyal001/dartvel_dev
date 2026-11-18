@@ -1,0 +1,20 @@
+>>>
+stuff = [
+  element,
+
+  element,
+];
+<<< 3.7
+stuff = [element, element];
+>>>
+stuff = [
+  extremelyGratuitouslyLongElementThatDoesNotFit,
+
+  extremelyGratuitouslyLongElementThatDoesNotFit,
+];
+<<< 3.7
+stuff = [
+  extremelyGratuitouslyLongElementThatDoesNotFit,
+
+  extremelyGratuitouslyLongElementThatDoesNotFit,
+];

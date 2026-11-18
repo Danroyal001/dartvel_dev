@@ -1,0 +1,578 @@
+// Copyright (c) 2018, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/analysis/session.dart';
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/diagnostic/diagnostic.dart';
+import 'package:analyzer/file_system/file_system.dart';
+import 'package:analyzer/source/line_info.dart';
+import 'package:analyzer/src/dart/analysis/file_state.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/type_provider.dart';
+import 'package:analyzer/src/dart/element/type_system.dart';
+import 'package:analyzer/src/generated/engine.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+
+/// This returns the offset used for finding the corresponding AST node.
+///
+/// - If the fragment is named, the [Fragment.nameOffset] is used.
+/// - If the fragment is a a [ConstructorFragment] for an unnamed constructor,
+///   one of [ConstructorFragment.typeNameOffset],
+///   [ConstructorFragment.newKeywordOffset] or
+///   [ConstructorFragment.factoryKeywordOffset] is used.
+/// - If the fragment is an unnamed [ExtensionFragment], the
+/// [ExtensionFragment.offset] is used.
+int? _getFragmentNameOffset(Fragment fragment) {
+  var nameOffset = fragment.nameOffset;
+  if (nameOffset == null) {
+    if (fragment is ConstructorFragment) {
+      nameOffset =
+          fragment.typeNameOffset ??
+          fragment.newKeywordOffset ??
+          fragment.factoryKeywordOffset;
+    } else if (fragment is ExtensionFragment) {
+      nameOffset = fragment.offset;
+    }
+  }
+  return nameOffset;
+}
+
+/// Returns the V1 view of [declaration], a declaration in the V2 AST view.
+AstNode _toV1Declaration(AstNode declaration) {
+  if (declaration is TopLevelDeclarationImpl) {
+    // ignore: analyzer_v1_ast_use
+    return V1Projection.toV1CompilationUnitMember(declaration);
+  }
+  if (declaration is FunctionDeclarationV1OriginImpl) {
+    // ignore: analyzer_v1_ast_use
+    return declaration.v1Projection;
+  }
+  if (declaration is VariableDeclarationV1OriginImpl) {
+    // ignore: analyzer_v1_ast_use
+    return declaration.v1Projection;
+  }
+  if (declaration is MethodDeclarationV1OriginImpl) {
+    // ignore: analyzer_v1_ast_use
+    return declaration.v1Projection;
+  }
+  if (declaration is ConstructorDeclaration2Impl) {
+    // ignore: analyzer_v1_ast_use
+    return declaration.v1Projection;
+  }
+  if (declaration is EnumConstantDeclaration2Impl) {
+    // ignore: analyzer_v1_ast_use
+    return declaration.v1Projection;
+  }
+  return declaration;
+}
+
+abstract class AnalysisResultImpl implements AnalysisResult {
+  @override
+  final AnalysisSession session;
+
+  new({required this.session});
+}
+
+/// A visitor which locates the [AstNode] which declares an [Element].
+///
+/// The returned node may be something like a [PrimaryConstructorDeclaration]
+/// which declares a primary constructor but not a subclass of [Declaration].
+class DeclarationByElementLocator extends UnifyingAstVisitor2<void> {
+  // TODO(srawlins): This visitor could be further optimized by special casing each static
+  // type of [element]. For example, for library-level elements (classes etc),
+  // we can iterate over the compilation unit's declarations.
+
+  final Fragment fragment;
+  final int _nameOffset;
+  AstNode? result;
+
+  new(this.fragment, this._nameOffset);
+
+  @override
+  void visitNode(AstNode node) {
+    if (result != null) return;
+
+    if (node.endToken.end < _nameOffset || node.offset > _nameOffset) {
+      return;
+    }
+
+    if (fragment is InterfaceFragment) {
+      if (node is ClassDeclaration2) {
+        if (_hasOffset(node.namePart.typeName)) {
+          result = node;
+        }
+      } else if (node is ClassTypeAlias2) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      } else if (node is EnumDeclaration2) {
+        if (_hasOffset(node.namePart.typeName)) {
+          result = node;
+        }
+      } else if (node is MixinDeclaration2) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      } else if (node is ExtensionTypeDeclaration2) {
+        if (_hasOffset(node.namePart.typeName)) {
+          result = node;
+        }
+      }
+    } else if (fragment is ConstructorFragment) {
+      var token = switch (node) {
+        ConstructorDeclaration2() =>
+          node.name ?? node.typeName ?? node.newKeyword ?? node.factoryKeyword,
+        PrimaryConstructorDeclaration() =>
+          node.constructorName?.name ?? node.typeName,
+        _ => null,
+      };
+      if (_hasOffset(token)) {
+        result = node;
+      }
+    } else if (fragment is ExtensionFragment) {
+      if (node is ExtensionDeclaration2) {
+        if (_hasOffset(node.name ?? node.extensionKeyword)) {
+          result = node;
+        }
+      }
+    } else if (fragment is FieldFragment) {
+      if (node is EnumConstantDeclaration2) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      } else if (node is Field2) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      }
+    } else if (fragment is TopLevelFunctionFragment) {
+      if (node is TopLevelFunctionDeclaration && _hasOffset(node.name)) {
+        result = node;
+      }
+    } else if (fragment is LocalFunctionFragment) {
+      if (node is LocalFunctionDeclaration && _hasOffset(node.name)) {
+        result = node;
+      }
+    } else if (fragment is LocalVariableFragment) {
+      if (node is LocalVariable && _hasOffset(node.name)) {
+        result = node;
+      }
+    } else if (fragment is MethodFragment) {
+      if (node is MethodDeclarationV1OriginImpl && _hasOffset(node.nameToken)) {
+        result = node;
+      }
+    } else if (fragment is FormalParameterFragment) {
+      if (node is FormalParameter && _hasOffset(node.name)) {
+        result = node;
+      }
+    } else if (fragment is PropertyAccessorFragment) {
+      if (node is TopLevelGetterDeclarationImpl) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      } else if (node is TopLevelSetterDeclarationImpl) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      } else if (node is MethodDeclarationV1OriginImpl) {
+        if (_hasOffset(node.nameToken)) {
+          result = node;
+        }
+      }
+    } else if (fragment is TopLevelVariableFragment) {
+      if (node is TopLevelVariable2 && _hasOffset(node.name)) {
+        result = node;
+      }
+    } else if (fragment is TypeAliasFragment) {
+      if (node is GenericTypeAlias2) {
+        if (_hasOffset(node.name)) {
+          result = node;
+        }
+      }
+    }
+
+    if (result == null) {
+      node.visitChildren2(this);
+    }
+  }
+
+  bool _hasOffset(Token? token) {
+    return token?.offset == _nameOffset;
+  }
+}
+
+class ElementDeclarationResultImpl implements FragmentDeclarationResult {
+  @override
+  final Fragment fragment;
+
+  @override
+  final AstNode node;
+
+  @override
+  final ParsedUnitResult? parsedUnit;
+
+  @override
+  final ResolvedUnitResult? resolvedUnit;
+
+  new(this.fragment, this.node, this.parsedUnit, this.resolvedUnit);
+}
+
+class ErrorsResultImpl implements ErrorsResult {
+  @override
+  final List<Diagnostic> diagnostics;
+
+  @override
+  final bool isLibrary;
+
+  @override
+  final bool isPart;
+
+  @override
+  final LineInfo lineInfo;
+
+  @override
+  final AnalysisSession session;
+
+  @override
+  final Uri uri;
+
+  @override
+  File file;
+
+  @override
+  final String content;
+
+  @override
+  final AnalysisOptions analysisOptions;
+
+  new({
+    required this.session,
+    required this.file,
+    required this.content,
+    required this.uri,
+    required this.lineInfo,
+    required this.isLibrary,
+    required this.isPart,
+    required this.diagnostics,
+    required this.analysisOptions,
+  });
+
+  @override
+  List<Diagnostic> get errors => diagnostics;
+
+  @override
+  String get path => file.path;
+}
+
+class FileResultImpl extends AnalysisResultImpl implements FileResult {
+  final FileState fileState;
+
+  @override
+  final String content;
+
+  @override
+  final LineInfo lineInfo;
+
+  @override
+  final bool isLibrary;
+
+  @override
+  final bool isPart;
+
+  new({required super.session, required this.fileState})
+    : content = fileState.content,
+      lineInfo = fileState.lineInfo,
+      isLibrary = fileState.kind is LibraryFileKind,
+      isPart = fileState.kind is PartFileKind;
+
+  @override
+  AnalysisOptions get analysisOptions => fileState.analysisOptions;
+
+  @override
+  File get file => fileState.resource;
+
+  @override
+  String get path => fileState.path;
+
+  @override
+  Uri get uri => fileState.uri;
+}
+
+class LibraryElementResultImpl implements LibraryElementResult {
+  @override
+  final LibraryElementImpl element;
+
+  new(this.element);
+}
+
+class MissingSdkLibraryResultImpl implements MissingSdkLibraryResult {
+  @override
+  final Uri missingUri;
+
+  new({required this.missingUri});
+}
+
+class ParsedLibraryResultImpl extends AnalysisResultImpl
+    implements ParsedLibraryResult {
+  @override
+  final List<ParsedUnitResult> units;
+
+  new({required super.session, required this.units});
+
+  @override
+  ElementDeclarationResultImpl? getFragmentDeclaration(Fragment fragment) {
+    return _getFragmentDeclaration(fragment, useV2: false);
+  }
+
+  @override
+  ElementDeclarationResultImpl? getFragmentDeclaration2(Fragment fragment) {
+    return _getFragmentDeclaration(fragment, useV2: true);
+  }
+
+  ElementDeclarationResultImpl? _getFragmentDeclaration(
+    Fragment fragment, {
+    required bool useV2,
+  }) {
+    var nameOffset = _getFragmentNameOffset(fragment);
+    if (fragment is LibraryFragment || nameOffset == null) {
+      return null;
+    }
+
+    var elementPath = fragment.libraryFragment!.source.fullName;
+    var unitResult = units.firstWhere(
+      (r) => r.path == elementPath,
+      orElse: () {
+        var elementStr = fragment.element.displayName;
+        throw ArgumentError(
+          'Element (${fragment.runtimeType}) $elementStr is '
+          'not defined in this library.',
+        );
+      },
+    );
+
+    var locator = DeclarationByElementLocator(fragment, nameOffset);
+    unitResult.unit.accept2(locator);
+    var declaration = locator.result;
+
+    if (declaration == null) {
+      return null;
+    }
+    if (!useV2) {
+      declaration = _toV1Declaration(declaration);
+    }
+
+    return ElementDeclarationResultImpl(
+      fragment,
+      declaration,
+      unitResult,
+      null,
+    );
+  }
+}
+
+class ParsedUnitResultImpl extends FileResultImpl implements ParsedUnitResult {
+  @override
+  final CompilationUnit unit;
+
+  @override
+  final List<Diagnostic> diagnostics;
+
+  new({
+    required super.session,
+    required super.fileState,
+    required this.unit,
+    required this.diagnostics,
+  });
+
+  @override
+  List<Diagnostic> get errors => diagnostics;
+}
+
+class ParseStringResultImpl implements ParseStringResult {
+  @override
+  final String content;
+
+  @override
+  final List<Diagnostic> errors;
+
+  @override
+  final CompilationUnit unit;
+
+  new(this.content, this.unit, this.errors);
+
+  @override
+  LineInfo get lineInfo => unit.lineInfo;
+}
+
+class ResolvedForCompletionResultImpl {
+  final AnalysisSession analysisSession;
+  final FileState fileState;
+  final String path;
+  final Uri uri;
+  final bool exists;
+  final String content;
+  final LineInfo lineInfo;
+
+  /// The full parsed unit.
+  final CompilationUnit parsedUnit;
+
+  /// The full element for the unit.
+  final LibraryFragment libraryFragment;
+
+  /// Nodes from [parsedUnit] that were resolved to provide enough context
+  /// to perform completion. How much is enough depends on the location
+  /// where resolution for completion was requested, and our knowledge
+  /// how completion contributors work and what information they expect.
+  ///
+  /// This is usually a small subset of the whole unit - a method, a field.
+  /// It could be even empty if the location does not provide any context
+  /// information for any completion contributor, e.g. a type annotation.
+  /// But it could be the whole unit as well, if the location is not something
+  /// we have an optimization for.
+  ///
+  /// If this list is not empty, then the last node contains the requested
+  /// offset. Other nodes are provided mostly FYI.
+  final List<AstNode> resolvedNodes;
+
+  new({
+    required this.analysisSession,
+    required this.fileState,
+    required this.path,
+    required this.uri,
+    required this.exists,
+    required this.content,
+    required this.lineInfo,
+    required this.parsedUnit,
+    required this.libraryFragment,
+    required this.resolvedNodes,
+  });
+}
+
+class ResolvedLibraryResultImpl extends AnalysisResultImpl
+    implements ResolvedLibraryResult {
+  @override
+  final LibraryElementImpl element;
+
+  @override
+  final List<ResolvedUnitResultImpl> units;
+
+  new({required super.session, required this.element, required this.units});
+
+  @override
+  TypeProviderImpl get typeProvider => element.typeProvider;
+
+  @override
+  ElementDeclarationResultImpl? getFragmentDeclaration(Fragment fragment) {
+    return _getFragmentDeclaration(fragment, useV2: false);
+  }
+
+  @override
+  ElementDeclarationResultImpl? getFragmentDeclaration2(Fragment fragment) {
+    return _getFragmentDeclaration(fragment, useV2: true);
+  }
+
+  @override
+  ResolvedUnitResult? unitWithPath(String path) {
+    for (var unit in units) {
+      if (unit.path == path) {
+        return unit;
+      }
+    }
+    return null;
+  }
+
+  ElementDeclarationResultImpl? _getFragmentDeclaration(
+    Fragment fragment, {
+    required bool useV2,
+  }) {
+    var nameOffset = _getFragmentNameOffset(fragment);
+    if (fragment is LibraryFragment || nameOffset == null) {
+      return null;
+    }
+
+    var elementPath = fragment.libraryFragment!.source.fullName;
+    var unitResult = units.firstWhere(
+      (r) => r.path == elementPath,
+      orElse: () {
+        var elementStr = fragment.element.displayName.ifNotEmptyOrElse(
+          fragment.element.displayString(),
+        );
+        throw ArgumentError(
+          'Element (${fragment.runtimeType}) $elementStr is '
+          'not defined in this library.',
+        );
+      },
+    );
+
+    var locator = DeclarationByElementLocator(fragment, nameOffset);
+    unitResult.unit.accept2(locator);
+    var declaration = locator.result;
+
+    if (declaration == null) {
+      return null;
+    }
+    if (!useV2) {
+      declaration = _toV1Declaration(declaration);
+    }
+
+    return ElementDeclarationResultImpl(
+      fragment,
+      declaration,
+      null,
+      unitResult,
+    );
+  }
+}
+
+class ResolvedUnitResultImpl extends FileResultImpl
+    implements ResolvedUnitResult {
+  @override
+  final CompilationUnitImpl unit;
+
+  @override
+  final List<Diagnostic> diagnostics;
+
+  new({
+    required super.session,
+    required super.fileState,
+    required this.unit,
+    required this.diagnostics,
+  });
+
+  @override
+  List<Diagnostic> get errors => diagnostics;
+
+  @override
+  bool get exists => fileState.exists;
+
+  @override
+  LibraryElementImpl get libraryElement {
+    return libraryFragment.element;
+  }
+
+  @override
+  LibraryFragmentImpl get libraryFragment => unit.declaredFragment!;
+
+  @override
+  TypeProviderImpl get typeProvider => libraryElement.typeProvider;
+
+  @override
+  TypeSystemImpl get typeSystem => libraryElement.typeSystem;
+}
+
+class UnitElementResultImpl extends FileResultImpl
+    implements UnitElementResult {
+  @override
+  final LibraryFragmentImpl fragment;
+
+  new({
+    required super.session,
+    required super.fileState,
+    required this.fragment,
+  });
+}

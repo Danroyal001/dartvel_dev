@@ -1,0 +1,859 @@
+// Copyright (c) 2015, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+#include "vm/globals.h"
+#if !defined(PRODUCT) && !defined(DART_PRECOMPILED_RUNTIME)
+#include "vm/source_report.h"
+
+#include "vm/bit_vector.h"
+#include "vm/bytecode_reader.h"
+#include "vm/closure_functions_cache.h"
+#include "vm/compiler/jit/compiler.h"
+#include "vm/isolate.h"
+#include "vm/kernel_loader.h"
+#include "vm/object.h"
+#include "vm/object_store.h"
+#include "vm/profiler.h"
+#include "vm/profiler_service.h"
+
+namespace dart {
+
+const char* SourceReport::kCallSitesStr = "_CallSites";
+const char* SourceReport::kCoverageStr = "Coverage";
+const char* SourceReport::kPossibleBreakpointsStr = "PossibleBreakpoints";
+const char* SourceReport::kProfileStr = "_Profile";
+const char* SourceReport::kBranchCoverageStr = "BranchCoverage";
+
+SourceReport::SourceReport(intptr_t report_set,
+                           CompileMode compile_mode,
+                           bool report_lines)
+    : report_set_(report_set),
+      compile_mode_(compile_mode),
+      report_lines_(report_lines),
+      library_filters_(GrowableObjectArray::Handle()),
+      libraries_already_compiled_(nullptr),
+      thread_(nullptr),
+      script_(nullptr),
+      start_pos_(TokenPosition::kMinSource),
+      end_pos_(TokenPosition::kMaxSource),
+      next_script_index_(0) {}
+
+SourceReport::SourceReport(intptr_t report_set,
+                           const GrowableObjectArray& library_filters,
+                           ZoneCStringSet* libraries_already_compiled,
+                           CompileMode compile_mode,
+                           bool report_lines)
+    : report_set_(report_set),
+      compile_mode_(compile_mode),
+      report_lines_(report_lines),
+      library_filters_(library_filters),
+      libraries_already_compiled_(libraries_already_compiled),
+      thread_(nullptr),
+      script_(nullptr),
+      start_pos_(TokenPosition::kMinSource),
+      end_pos_(TokenPosition::kMaxSource),
+      next_script_index_(0) {}
+
+SourceReport::~SourceReport() {
+  ClearScriptTable();
+}
+
+void SourceReport::ClearScriptTable() {
+  // Delete entries from script_table_ as it has the unfiltered list.
+  DirectChainedHashMap<ScriptTableTrait>::Iterator iter =
+      script_table_.GetIterator();
+  ScriptTableTrait::Pair* pair;
+  while ((pair = iter.Next()) != nullptr) {
+    delete ScriptTableTrait::ValueOf(*pair);
+  }
+  script_table_.Clear();
+
+  for (intptr_t i = 0; i < script_table_entries_.length(); i++) {
+    script_table_entries_[i] = nullptr;
+  }
+  script_table_entries_.Clear();
+
+  next_script_index_ = 0;
+}
+
+void SourceReport::Init(Thread* thread,
+                        const Script* script,
+                        TokenPosition start_pos,
+                        TokenPosition end_pos) {
+  thread_ = thread;
+  script_ = script;
+  start_pos_ = TokenPosition::Max(start_pos, TokenPosition::kMinSource);
+  end_pos_ = TokenPosition::Min(end_pos, TokenPosition::kMaxSource);
+  ClearScriptTable();
+  if (IsReportRequested(kProfile)) {
+    // Build the profile.
+    SampleFilter samplesForIsolate(thread_->isolate()->main_port(),
+                                   Thread::kMutatorTask, -1, -1);
+    profile_.Build(thread, thread->isolate(), &samplesForIsolate,
+                   Profiler::sample_block_buffer());
+  }
+}
+
+bool SourceReport::IsReportRequested(ReportKind report_kind) {
+  return (report_set_ & report_kind) != 0;
+}
+
+bool SourceReport::ShouldSkipFunction(const Function& func) {
+  // TODO(32315): Verify that the check is still needed after the issue is
+  // resolved.
+  if (!func.token_pos().IsReal() || !func.end_token_pos().IsReal()) {
+    // At least one of the token positions is not known.
+    return true;
+  }
+
+  if (script_ != nullptr && !script_->IsNull()) {
+    if (func.script() != script_->ptr()) {
+      // The function is from the wrong script.
+      return true;
+    }
+    if ((func.end_token_pos() < start_pos_) || (func.token_pos() > end_pos_)) {
+      // The function does not intersect with the requested token range.
+      return true;
+    }
+  }
+
+  // These don't have unoptimized code and are only used for synthetic stubs.
+  if (func.ForceOptimize()) return true;
+
+  switch (func.kind()) {
+    case UntaggedFunction::kRegularFunction:
+    case UntaggedFunction::kClosureFunction:
+    case UntaggedFunction::kImplicitClosureFunction:
+    case UntaggedFunction::kImplicitStaticGetter:
+    case UntaggedFunction::kFieldInitializer:
+    case UntaggedFunction::kGetterFunction:
+    case UntaggedFunction::kSetterFunction:
+    case UntaggedFunction::kConstructor:
+      break;
+    default:
+      return true;
+  }
+  if (func.is_abstract() || func.IsImplicitConstructor() ||
+      func.is_synthetic() || func.IsRedirectingFactory()) {
+    return true;
+  }
+  if (func.IsNonImplicitClosureFunction() && !func.HasBytecode() &&
+      (func.context_scope() == ContextScope::null())) {
+    // TODO(iposva): This can arise if we attempt to compile an inner function
+    // before we have compiled its enclosing function or if the enclosing
+    // function failed to compile.
+    return true;
+  }
+
+  // There is an idiom where static utility classes are given a private
+  // constructor to prevent the class from being instantiated. Ignore these
+  // constructors so that they don't lower the coverage rate. See #47021.
+  SafepointReadRwLocker ml(thread_, thread_->isolate_group()->program_lock());
+  if (func.kind() == UntaggedFunction::kConstructor &&
+      func.NumParameters() == func.NumImplicitParameters() &&
+      func.IsPrivate()) {
+    // Check that the class has no non-static members and no subclasses.
+    Class& cls = Class::Handle(func.Owner());
+    GrowableObjectArray& subclasses =
+        GrowableObjectArray::Handle(cls.direct_subclasses());
+    if (cls.is_abstract() && !cls.HasInstanceFields() &&
+        (subclasses.IsNull() || subclasses.Length() == 0)) {
+      // Check that the constructor is the only non-static function.
+      Array& clsFuncs = Array::Handle(cls.functions());
+      Function& otherFunc = Function::Handle();
+      intptr_t numNonStaticFunctions = 0;
+      for (intptr_t i = 0; i < clsFuncs.Length(); ++i) {
+        otherFunc ^= clsFuncs.At(i);
+        if (!otherFunc.IsStaticFunction()) {
+          ++numNonStaticFunctions;
+        }
+      }
+      if (numNonStaticFunctions == 1) {
+        return true;
+      }
+    }
+  }
+
+  // Enum constructors cannot be invoked by the user, so ignore them.
+  if (func.IsGenerativeConstructor()) {
+    Class& cls = Class::Handle(func.Owner());
+    if (cls.is_enum_class()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool SourceReport::ShouldSkipField(const Field& field) {
+  if (!field.token_pos().IsReal() || !field.end_token_pos().IsReal()) {
+    // At least one of the token positions is not known.
+    return true;
+  }
+
+  if (script_ != nullptr && !script_->IsNull()) {
+    if (field.Script() != script_->ptr()) {
+      // The field is from the wrong script.
+      return true;
+    }
+    if ((field.end_token_pos() < start_pos_) ||
+        (field.token_pos() > end_pos_)) {
+      // The field does not intersect with the requested token range.
+      return true;
+    }
+  }
+
+  // Static const fields from compiled code will not have an initializer
+  // function, just an implicit static getter (which is skipped).
+  // Static const fields in bytecode _do_ have initializer functions,
+  // though, so skip them to ensure they aren't reported in the coverage
+  // information so as to match coverage for compile code.
+  if (field.is_static() && field.is_const()) {
+    return true;
+  }
+
+  return false;
+}
+
+bool SourceReport::IsLibraryAlreadyCompiled(const Library& lib) {
+  if (libraries_already_compiled_ == nullptr) return false;
+  const char* url = String::ToCString(thread(), lib.url());
+  if (url == nullptr) return false;
+  return libraries_already_compiled_->Lookup(url) != nullptr;
+}
+
+bool SourceReport::ShouldFiltersIncludeUrl(const String& url) {
+  String& filter = String::Handle(zone());
+  const intptr_t num_filters = library_filters_.Length();
+  for (intptr_t i = 0; i < num_filters; ++i) {
+    filter ^= library_filters_.At(i);
+    if (url.StartsWith(filter)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool SourceReport::ShouldFiltersIncludeScript(const Script& script) {
+  if (library_filters_.IsNull()) return true;
+  String& url = String::Handle(zone(), script.url());
+  if (ShouldFiltersIncludeUrl(url)) return true;
+  const Library& lib = Library::Handle(zone(), script.FindLibrary());
+  url ^= lib.url();
+  return ShouldFiltersIncludeUrl(url);
+}
+
+intptr_t SourceReport::GetScriptIndex(const Script& script) {
+  ScriptTableEntry wrapper;
+  const String& url = String::Handle(zone(), script.url());
+  wrapper.key = &url;
+  wrapper.script = &Script::Handle(zone(), script.ptr());
+  ScriptTableEntry* pair = script_table_.LookupValue(&wrapper);
+  if (pair != nullptr) {
+    return pair->index;
+  }
+  ScriptTableEntry* tmp = new ScriptTableEntry();
+  tmp->key = &url;
+  tmp->script = wrapper.script;
+  if (ShouldFiltersIncludeScript(script)) {
+    tmp->index = next_script_index_++;
+    script_table_entries_.Add(tmp);
+  } else {
+    tmp->index = -1;
+  }
+  script_table_.Insert(tmp);
+  ASSERT(script_table_entries_.length() == next_script_index_);
+#if defined(DEBUG)
+  VerifyScriptTable();
+#endif
+  return tmp->index;
+}
+
+#if defined(DEBUG)
+void SourceReport::VerifyScriptTable() {
+  for (intptr_t i = 0; i < script_table_entries_.length(); i++) {
+    const String* url = script_table_entries_[i]->key;
+    const Script* script = script_table_entries_[i]->script;
+    intptr_t index = script_table_entries_[i]->index;
+    ASSERT(i == index);
+    const String& url2 = String::Handle(zone(), script->url());
+    ASSERT(url2.Equals(*url));
+    ScriptTableEntry wrapper;
+    wrapper.key = &url2;
+    wrapper.script = &Script::Handle(zone(), script->ptr());
+    ScriptTableEntry* pair = script_table_.LookupValue(&wrapper);
+    ASSERT(i == pair->index);
+  }
+}
+#endif
+
+bool SourceReport::ScriptIsLoadedByLibrary(const Script& script,
+                                           const Library& lib) {
+  const Array& scripts = Array::Handle(zone(), lib.LoadedScripts());
+  for (intptr_t j = 0; j < scripts.Length(); j++) {
+    if (scripts.At(j) == script.ptr()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+struct SourceReportCodeInfo : public ValueObject {
+ public:
+  SourceReportCodeInfo(const Script& script,
+                       intptr_t script_index,
+                       const Function& function,
+                       const Object& code_or_bytecode,
+                       bool report_lines)
+      : script(script),
+        script_index(script_index),
+        function(function),
+        begin_pos(function.token_pos()),
+        end_pos(function.end_token_pos()),
+        code_or_bytecode_(code_or_bytecode),
+        report_lines_(report_lines) {
+    ASSERT(!script.IsNull());
+    ASSERT(script_index >= 0);
+    ASSERT(!code_or_bytecode.IsNull());
+    ASSERT_EQUAL(function.HasBytecode(), code_or_bytecode.IsBytecode());
+  }
+
+  const Script& script;
+  const intptr_t script_index;
+  const Function& function;
+  const TokenPosition begin_pos;
+  const TokenPosition end_pos;
+
+  DART_FORCE_INLINE bool HasBytecode() const {
+#if defined(DART_DYNAMIC_MODULES)
+    return code_or_bytecode_.IsBytecode();
+#else
+    return false;
+#endif
+  }
+
+  const dart::Code& Code() const { return Code::Cast(code_or_bytecode_); }
+
+#if defined(DART_DYNAMIC_MODULES)
+  const Bytecode& Bytecode() const { return Bytecode::Cast(code_or_bytecode_); }
+#endif
+
+  bool Contains(const TokenPosition& token_pos) const {
+    return token_pos.IsWithin(begin_pos, end_pos);
+  }
+
+  intptr_t GetTokenOffset(const TokenPosition& token_pos) const {
+    return token_pos.Pos() - begin_pos.Pos();
+  }
+
+  intptr_t GetTokenPosOrLine(const TokenPosition& token_pos) const {
+    if (!report_lines_) {
+      return token_pos.Pos();
+    }
+    intptr_t line = -1;
+    const bool found = script.GetTokenLocation(token_pos, &line);
+    ASSERT(found);
+    return line;
+  }
+
+ private:
+  const Object& code_or_bytecode_;
+  const bool report_lines_;
+};
+
+void SourceReport::PrintCallSitesData(JSONObject* jsobj,
+                                      const SourceReportCodeInfo& info) {
+  if (info.HasBytecode()) {
+    // TODO(sstrickl): Handle call site data for bytecode.
+    return;
+  }
+  ZoneGrowableArray<const ICData*>* ic_data_array =
+      new (zone()) ZoneGrowableArray<const ICData*>();
+  info.function.RestoreICDataMap(ic_data_array, /*clone_ic_data=*/false);
+  const PcDescriptors& descriptors =
+      PcDescriptors::Handle(zone(), info.Code().pc_descriptors());
+
+  JSONArray sites(jsobj, "callSites");
+
+  PcDescriptors::Iterator iter(
+      descriptors,
+      UntaggedPcDescriptors::kIcCall | UntaggedPcDescriptors::kUnoptStaticCall);
+  while (iter.MoveNext()) {
+    HANDLESCOPE(thread());
+    ASSERT(iter.DeoptId() < ic_data_array->length());
+    const ICData* ic_data = (*ic_data_array)[iter.DeoptId()];
+    if (ic_data != nullptr) {
+      const TokenPosition& token_pos = iter.TokenPos();
+      if (!info.Contains(token_pos)) {
+        // Does not correspond to a valid source position.
+        continue;
+      }
+      ic_data->PrintToJSONArray(sites, token_pos);
+    }
+  }
+}
+
+void SourceReport::PrintCoverageData(JSONObject* jsobj,
+                                     const SourceReportCodeInfo& info,
+                                     bool report_branch_coverage) {
+  bool const_constructor_hit = false;
+  if (info.function.IsFunction() && info.function.is_const()) {
+    for (TokenPosition hit :
+         script_table_entries_[info.script_index]->const_constructor_hits) {
+      if (hit == info.begin_pos) {
+        const_constructor_hit = true;
+        break;
+      }
+    }
+  }
+
+  const int kCoverageNone = 0;
+  const int kCoverageMiss = 1;
+  const int kCoverageHit = 2;
+
+  intptr_t func_length = info.function.SourceSize() + 1;
+  GrowableArray<char> coverage(func_length);
+  coverage.SetLength(func_length);
+  for (int i = 0; i < func_length; i++) {
+    coverage[i] = kCoverageNone;
+  }
+
+  if (info.function.WasExecuted() || const_constructor_hit) {
+    coverage[0] = kCoverageHit;
+  } else {
+    coverage[0] = kCoverageMiss;
+  }
+
+  auto update_coverage = [&](TokenPosition token_pos, bool was_executed) {
+    if (!token_pos.IsReal() || !info.Contains(token_pos)) {
+      return;
+    }
+
+    const intptr_t token_offset = info.GetTokenOffset(token_pos);
+    if (was_executed) {
+      coverage[token_offset] = kCoverageHit;
+    } else {
+      if (coverage[token_offset] == kCoverageNone) {
+        coverage[token_offset] = kCoverageMiss;
+      }
+    }
+  };
+
+  // Merge the coverage from coverage_array attached to the function.
+  const auto& coverage_array =
+      TypedData::Handle(info.function.GetCoverageArray());
+  if (!coverage_array.IsNull()) {
+    for (intptr_t i = 0; i < coverage_array.Length(); i += 2) {
+      bool is_branch_coverage;
+      const TokenPosition token_pos = TokenPosition::DecodeCoveragePosition(
+          coverage_array.GetUint32(i * kInt32Size), &is_branch_coverage);
+      if (is_branch_coverage == report_branch_coverage) {
+        const bool was_executed =
+            coverage_array.GetUint32((i + 1) * kInt32Size) != 0;
+        update_coverage(token_pos, was_executed || const_constructor_hit);
+      }
+    }
+  }
+
+  JSONObject cov(jsobj, report_branch_coverage ? "branchCoverage" : "coverage");
+  {
+    JSONArray hits(&cov, "hits");
+    TokenPosition pos = info.begin_pos;
+    for (int i = 0; i < func_length; i++) {
+      if (coverage[i] == kCoverageHit) {
+        // Add the token position or line number of the hit.
+        hits.AddValue(info.GetTokenPosOrLine(pos));
+      }
+      pos = pos.Next();
+    }
+  }
+  {
+    JSONArray misses(&cov, "misses");
+    TokenPosition pos = info.begin_pos;
+    for (int i = 0; i < func_length; i++) {
+      if (coverage[i] == kCoverageMiss) {
+        // Add the token position or line number of the miss.
+        misses.AddValue(info.GetTokenPosOrLine(pos));
+      }
+      pos = pos.Next();
+    }
+  }
+}
+
+void SourceReport::PrintPossibleBreakpointsData(
+    JSONObject* jsobj,
+    const SourceReportCodeInfo& info) {
+  intptr_t func_length = info.function.SourceSize() + 1;
+
+  BitVector possible(zone(), func_length);
+
+  if (info.HasBytecode()) {
+#if defined(DART_DYNAMIC_MODULES)
+    // Currently, every source position is a possible breakpoint.
+    bytecode::BytecodeSourcePositionsIterator iter(zone(), info.Bytecode());
+    while (iter.MoveNext()) {
+      const TokenPosition& token_pos = iter.TokenPos();
+      if (!info.Contains(token_pos)) {
+        // Does not correspond to a valid source position.
+        continue;
+      }
+      const intptr_t token_offset = info.GetTokenOffset(token_pos);
+      possible.Add(token_offset);
+    }
+#else
+    UNREACHABLE();
+#endif
+  } else {
+    const uint8_t kSafepointKind = (UntaggedPcDescriptors::kIcCall |
+                                    UntaggedPcDescriptors::kUnoptStaticCall |
+                                    UntaggedPcDescriptors::kRuntimeCall);
+
+    const PcDescriptors& descriptors =
+        PcDescriptors::Handle(zone(), info.Code().pc_descriptors());
+
+    PcDescriptors::Iterator iter(descriptors, kSafepointKind);
+    while (iter.MoveNext()) {
+      const TokenPosition& token_pos = iter.TokenPos();
+      if (!info.Contains(token_pos)) {
+        // Does not correspond to a valid source position.
+        continue;
+      }
+      const intptr_t token_offset = info.GetTokenOffset(token_pos);
+      possible.Add(token_offset);
+    }
+  }
+  JSONArray bpts(jsobj, "possibleBreakpoints");
+  TokenPosition pos = info.begin_pos;
+  for (int i = 0; i < func_length; i++) {
+    if (possible.Contains(i)) {
+      // Add the token position or line number.
+      bpts.AddValue(info.GetTokenPosOrLine(pos));
+    }
+    pos = pos.Next();
+  }
+}
+
+void SourceReport::PrintProfileData(JSONObject* jsobj,
+                                    ProfileFunction* profile_function) {
+  ASSERT(profile_function != nullptr);
+  ASSERT(profile_function->NumSourcePositions() > 0);
+
+  {
+    JSONObject profile(jsobj, "profile");
+
+    {
+      JSONObject profileData(&profile, "metadata");
+      profileData.AddProperty("sampleCount", profile_.sample_count());
+    }
+
+    // Positions.
+    {
+      JSONArray positions(&profile, "positions");
+      for (intptr_t i = 0; i < profile_function->NumSourcePositions(); i++) {
+        const ProfileFunctionSourcePosition& position =
+            profile_function->GetSourcePosition(i);
+        if (position.token_pos().IsReal()) {
+          // Add as an integer.
+          positions.AddValue(position.token_pos().Pos());
+        } else {
+          // Add as a string.
+          positions.AddValue(position.token_pos().ToCString());
+        }
+      }
+    }
+
+    // Exclusive ticks.
+    {
+      JSONArray exclusiveTicks(&profile, "exclusiveTicks");
+      for (intptr_t i = 0; i < profile_function->NumSourcePositions(); i++) {
+        const ProfileFunctionSourcePosition& position =
+            profile_function->GetSourcePosition(i);
+        exclusiveTicks.AddValue(position.exclusive_ticks());
+      }
+    }
+    // Inclusive ticks.
+    {
+      JSONArray inclusiveTicks(&profile, "inclusiveTicks");
+      for (intptr_t i = 0; i < profile_function->NumSourcePositions(); i++) {
+        const ProfileFunctionSourcePosition& position =
+            profile_function->GetSourcePosition(i);
+        inclusiveTicks.AddValue(position.inclusive_ticks());
+      }
+    }
+  }
+}
+
+void SourceReport::PrintScriptTable(JSONArray* scripts) {
+  for (intptr_t i = 0; i < script_table_entries_.length(); i++) {
+    const Script* script = script_table_entries_[i]->script;
+    scripts->AddValue(*script);
+  }
+}
+
+void SourceReport::VisitFunction(JSONArray* jsarr,
+                                 const Function& func,
+                                 CompileMode compile_mode) {
+  if (ShouldSkipFunction(func)) {
+    return;
+  }
+
+  const Script& script = Script::Handle(zone(), func.script());
+  const intptr_t script_index = GetScriptIndex(script);
+  if (script_index < 0) {
+    return;
+  }
+
+  auto& code = Code::Handle(zone(), func.unoptimized_code());
+  auto& err = Error::Handle(zone());
+  bool is_compiled = !code.IsNull();
+  const Object* code_or_bytecode = &code;
+#if defined(DART_DYNAMIC_MODULES)
+  if (func.HasBytecode()) {
+    ASSERT(code.IsNull());
+    // We treat unexecuted bytecode as "uncompiled" unless force compilation was
+    // requested, to match the reports for compiled code.
+    is_compiled = func.WasExecuted() || compile_mode == kForceCompile;
+    code_or_bytecode = &Bytecode::Handle(zone(), func.GetBytecode());
+  }
+#endif
+  if (code_or_bytecode->IsNull() &&
+      (func.HasCode() || (compile_mode == kForceCompile))) {
+    err = Compiler::EnsureUnoptimizedCode(thread(), func);
+    if (err.IsNull()) {
+      is_compiled = true;
+      code = func.unoptimized_code();
+    } else {
+      // Emit an uncompiled range for this function with error information.
+    }
+  }
+
+  JSONObject range(jsarr);
+  range.AddProperty("scriptIndex", script_index);
+  range.AddProperty("startPos", func.token_pos());
+  range.AddProperty("endPos", func.end_token_pos());
+  range.AddProperty("compiled", is_compiled);
+  if (!err.IsNull()) {
+    range.AddProperty("error", err);
+  }
+  if (is_compiled) {
+    SourceReportCodeInfo info(script, script_index, func, *code_or_bytecode,
+                              report_lines_);
+    if (IsReportRequested(kCallSites)) {
+      PrintCallSitesData(&range, info);
+    }
+    if (IsReportRequested(kCoverage)) {
+      PrintCoverageData(&range, info, /*report_branch_coverage=*/false);
+    }
+    if (IsReportRequested(kBranchCoverage)) {
+      PrintCoverageData(&range, info, /*report_branch_coverage=*/true);
+    }
+    if (IsReportRequested(kPossibleBreakpoints)) {
+      PrintPossibleBreakpointsData(&range, info);
+    }
+    if (IsReportRequested(kProfile)) {
+      if (auto* const profile_function = profile_.FindFunction(func)) {
+        if (profile_function->NumSourcePositions() > 0) {
+          PrintProfileData(&range, profile_function);
+        }
+      }
+    }
+  }
+}
+
+void SourceReport::VisitField(JSONArray* jsarr,
+                              const Field& field,
+                              CompileMode compile_mode) {
+  if (ShouldSkipField(field) || !field.HasInitializerFunction()) return;
+  const Function& func = Function::Handle(field.InitializerFunction());
+  VisitFunction(jsarr, func, compile_mode);
+}
+
+void SourceReport::VisitLibrary(JSONArray* jsarr, const Library& lib) {
+  Class& cls = Class::Handle(zone());
+  Array& functions = Array::Handle(zone());
+  Array& fields = Array::Handle(zone());
+  Function& func = Function::Handle(zone());
+  Field& field = Field::Handle(zone());
+  Script& script = Script::Handle(zone());
+  auto& err = Error::Handle(zone());
+  ClassDictionaryIterator it(lib, ClassDictionaryIterator::kIteratePrivate);
+  CompileMode compile_mode = compile_mode_;
+  if (compile_mode == kForceCompile && IsLibraryAlreadyCompiled(lib)) {
+    compile_mode = kNoCompile;
+  }
+  while (it.HasNext()) {
+    cls = it.GetNextClass();
+
+    if (!cls.is_finalized() && compile_mode == kForceCompile) {
+      err = cls.EnsureIsFinalized(thread());
+    }
+
+    if (!cls.is_finalized()) {
+      // Either compilation is not forced or there was an error when
+      // finalizing the class, so emit one range for the whole uncompiled
+      // class with any appropriate error information.
+      script = cls.script();
+      const intptr_t script_index = GetScriptIndex(script);
+      if (script_index < 0) {
+        continue;
+      }
+      JSONObject range(jsarr);
+      range.AddProperty("scriptIndex", script_index);
+      range.AddProperty("startPos", cls.token_pos());
+      range.AddProperty("endPos", cls.end_token_pos());
+      range.AddProperty("compiled", false);
+      if (!err.IsNull()) {
+        range.AddProperty("error", err);
+      }
+    } else {
+      functions = cls.current_functions();
+      for (int i = 0; i < functions.Length(); i++) {
+        func ^= functions.At(i);
+        // Skip getter functions of static const field.
+        if (func.kind() == UntaggedFunction::kImplicitStaticGetter) {
+          field ^= func.accessor_field();
+          if (field.is_const() && field.is_static()) {
+            continue;
+          }
+        }
+        VisitFunction(jsarr, func, compile_mode);
+      }
+
+      fields = cls.fields();
+      for (intptr_t i = 0; i < fields.Length(); i++) {
+        field ^= fields.At(i);
+        VisitField(jsarr, field, compile_mode);
+      }
+    }
+  }
+}
+
+void SourceReport::VisitClosures(JSONArray* jsarr) {
+  ClosureFunctionsCache::ForAllClosureFunctions([&](const Function& func) {
+    VisitFunction(jsarr, func, compile_mode_);
+    return true;  // Continue iteration.
+  });
+}
+
+void SourceReport::PrintJSON(JSONStream* js,
+                             const Script& script,
+                             TokenPosition start_pos,
+                             TokenPosition end_pos) {
+  Init(Thread::Current(), &script, start_pos, end_pos);
+
+  JSONObject report(js);
+  report.AddProperty("type", "SourceReport");
+  {
+    JSONArray ranges(&report, "ranges");
+
+    // Output constant coverage if coverage is requested.
+    if (IsReportRequested(kCoverage) || IsReportRequested(kBranchCoverage)) {
+      // Find all scripts. We need to go though all scripts because a script
+      // (even one we don't want) can add coverage to another library (i.e.
+      // potentially one we want).
+      DirectChainedHashMap<ScriptTableTrait> local_script_table;
+      GrowableArray<ScriptTableEntry*> local_script_table_entries;
+      CollectAllScripts(&local_script_table, &local_script_table_entries);
+      CollectConstConstructorCoverageFromScripts(&local_script_table_entries);
+      CleanupCollectedScripts(&local_script_table, &local_script_table_entries);
+    }
+
+    const GrowableObjectArray& libs = GrowableObjectArray::Handle(
+        zone(), thread()->isolate_group()->object_store()->libraries());
+
+    // We only visit the libraries which actually load the specified script.
+    Library& lib = Library::Handle(zone());
+    for (intptr_t i = 0; i < libs.Length(); i++) {
+      lib ^= libs.At(i);
+      if (script.IsNull() || ScriptIsLoadedByLibrary(script, lib)) {
+        VisitLibrary(&ranges, lib);
+      }
+    }
+
+    // Visit all closures for this isolate.
+    VisitClosures(&ranges);
+  }
+
+  // Print the script table.
+  JSONArray scripts(&report, "scripts");
+  PrintScriptTable(&scripts);
+}
+
+void SourceReport::CollectAllScripts(
+    DirectChainedHashMap<ScriptTableTrait>* local_script_table,
+    GrowableArray<ScriptTableEntry*>* local_script_table_entries) {
+  ScriptTableEntry wrapper;
+  const GrowableObjectArray& libs = GrowableObjectArray::Handle(
+      zone(), thread()->isolate_group()->object_store()->libraries());
+  Library& lib = Library::Handle(zone());
+  Script& scriptRef = Script::Handle(zone());
+  for (int i = 0; i < libs.Length(); i++) {
+    lib ^= libs.At(i);
+    const Array& scripts = Array::Handle(zone(), lib.LoadedScripts());
+    for (intptr_t j = 0; j < scripts.Length(); j++) {
+      scriptRef ^= scripts.At(j);
+      const String& url = String::Handle(zone(), scriptRef.url());
+      wrapper.key = &url;
+      wrapper.script = &Script::Handle(zone(), scriptRef.ptr());
+      ScriptTableEntry* pair = local_script_table->LookupValue(&wrapper);
+      if (pair != nullptr) {
+        // Existing one.
+        continue;
+      }
+      // New one. Insert.
+      ScriptTableEntry* tmp = new ScriptTableEntry();
+      tmp->key = &url;
+      tmp->index = -1;
+      tmp->script = wrapper.script;
+      local_script_table_entries->Add(tmp);
+      local_script_table->Insert(tmp);
+    }
+  }
+}
+
+void SourceReport::CleanupCollectedScripts(
+    DirectChainedHashMap<ScriptTableTrait>* local_script_table,
+    GrowableArray<ScriptTableEntry*>* local_script_table_entries) {
+  for (intptr_t i = 0; i < local_script_table_entries->length(); i++) {
+    delete local_script_table_entries->operator[](i);
+    local_script_table_entries->operator[](i) = nullptr;
+  }
+  local_script_table_entries->Clear();
+  local_script_table->Clear();
+}
+
+void SourceReport::CollectConstConstructorCoverageFromScripts(
+    GrowableArray<ScriptTableEntry*>* local_script_table_entries) {
+  // Now output the wanted constant coverage.
+  for (intptr_t i = 0; i < local_script_table_entries->length(); i++) {
+    const Script* script = local_script_table_entries->At(i)->script;
+
+    // Whether we want *this* script or not we need to look at the constant
+    // constructor coverage. Any of those could be in a script we *do* want.
+    {
+      Script& scriptRef = Script::Handle(zone());
+      const Array& constructors =
+          Array::Handle(script->CollectConstConstructorCoverageFrom());
+      intptr_t constructors_count = constructors.Length();
+      Function& constructor = Function::Handle(zone());
+      for (intptr_t i = 0; i < constructors_count; i++) {
+        constructor ^= constructors.At(i);
+        // Check if we want coverage for this constructor.
+        if (ShouldSkipFunction(constructor)) {
+          continue;
+        }
+        scriptRef ^= constructor.script();
+        const intptr_t script_index = GetScriptIndex(scriptRef);
+        if (script_index < 0) {
+          continue;
+        }
+
+        script_table_entries_[script_index]->const_constructor_hits.Add(
+            constructor.token_pos());
+      }
+    }
+  }
+}
+
+}  // namespace dart
+#endif  // !defined(PRODUCT) && !defined(DART_PRECOMPILED_RUNTIME)

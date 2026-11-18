@@ -1,0 +1,33 @@
+>>>
+class Foo {
+  Future<
+      ComponentSettings<
+          BiddingStrategyConfiguration>> _biddingStrategyConfigurationFuture;
+
+  Future<
+      ComponentSettings<
+          BiddingStrategyConfiguration>> get biddingStrategyConfigurationFuture =>
+      _biddingStrategyConfigurationFuture;
+}
+<<< 3.6
+class Foo {
+  Future<ComponentSettings<BiddingStrategyConfiguration>>
+      _biddingStrategyConfigurationFuture;
+
+  Future<ComponentSettings<BiddingStrategyConfiguration>>
+      get biddingStrategyConfigurationFuture =>
+          _biddingStrategyConfigurationFuture;
+}
+>>>
+class Foo {
+  HashMap<
+      AnalysisTarget,
+      List<
+          PendingFuture>> get pendingFutureSources_forTesting =>
+      _pendingFutureTargets;
+}
+<<< 3.6
+class Foo {
+  HashMap<AnalysisTarget, List<PendingFuture>>
+      get pendingFutureSources_forTesting => _pendingFutureTargets;
+}

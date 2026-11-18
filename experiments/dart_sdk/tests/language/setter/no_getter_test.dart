@@ -1,0 +1,22 @@
+// Copyright (c) 2012, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+set topLevel(value) {}
+
+class Example {
+  set foo(value) {}
+}
+
+main() {
+  print(topLevel++);
+  //    ^^^^^^^^
+  // [analyzer] COMPILE_TIME_ERROR.UNDEFINED_UNQUALIFIED_NAME_READ
+  // [cfe] Getter not found: 'topLevel'.
+
+  Example ex = new Example();
+  print(ex.foo++);
+  //       ^^^
+  // [analyzer] COMPILE_TIME_ERROR.UNDEFINED_INSTANCE_MEMBER_READ
+  // [cfe] The getter 'foo' isn't defined for the type 'Example'.
+}

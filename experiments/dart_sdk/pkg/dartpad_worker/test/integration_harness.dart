@@ -1,0 +1,131 @@
+// Copyright (c) 2026, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:checks/context.dart';
+import 'package:dartpad/dartpad.dart';
+import 'package:test/test.dart';
+import 'package:web/web.dart' as web;
+
+import 'asset_server/asset_server_client.dart';
+
+export 'package:dartpad/dartpad.dart'
+    show ConsoleLevel, SandboxNotFoundException;
+export 'package:test/test.dart' show TestOn, printOnFailure;
+export 'checks_ext.dart';
+
+final class TestContext {
+  final AssetServerClient server;
+  final DartPad dartpad;
+  final Workspace ws;
+  final SandboxedIframe iframe;
+  final Sandbox sandbox;
+  final consoleLog = <({ConsoleLevel level, String message})>[];
+
+  TestContext._(this.server, this.dartpad, this.ws, this.iframe, this.sandbox) {
+    sandbox.console.listen((entry) {
+      consoleLog.add(entry);
+      printOnFailure(
+        '[sandbox] console (${entry.level.name}): ${entry.message}',
+      );
+    });
+  }
+
+  /// Check that console has emitted or will emit a message satisfying
+  /// [condition].
+  Future<void> checkConsole(
+    Condition<String> condition, {
+    ConsoleLevel? level,
+    Duration timeLimit = const Duration(seconds: 5),
+  }) async {
+    bool matches(({ConsoleLevel level, String message}) entry) =>
+        (level == null || entry.level == level) &&
+        condition.softCheckSync(entry.message) == null;
+
+    if (consoleLog.any(matches)) {
+      return;
+    }
+
+    await sandbox.console
+        .firstWhere(matches)
+        .timeout(
+          timeLimit,
+          onTimeout: () => throw TestFailure(
+            'Expected console message with $timeLimit that '
+            '${condition.describeSync().join('\n')}',
+          ),
+        );
+  }
+}
+
+const _integrationTestTimeout = Timeout(Duration(seconds: 120));
+
+void testDartIntegration(
+  String description,
+  Future<void> Function(TestContext ctx) fn,
+) {
+  test(description, timeout: _integrationTestTimeout, () async {
+    final server = await AssetServerClient.spawnHybrid(stayAlive: false);
+
+    // Initialize DartPad Worker
+    printOnFailure('# Creating worker');
+    final sdk = DartPadSdk(assetBaseUrl: server.baseUrl.resolve('dart/'));
+    final dartpad = await sdk.dedicatedWorker(pubHostedUrl: server.baseUrl);
+
+    printOnFailure('# Creating workspace');
+    final workspace = await dartpad.createWorkspace();
+
+    // Initialize Sandbox
+    printOnFailure('# Initializing sandbox');
+    final iframe = await sdk.createSandboxedIframe(web.document.body!);
+    final sandbox = await workspace.connectSandboxedIframe(iframe.port);
+
+    try {
+      await fn(TestContext._(server, dartpad, workspace, iframe, sandbox));
+    } finally {
+      await sandbox.close();
+      await iframe.close();
+      await workspace.close();
+      await dartpad.close();
+    }
+  });
+}
+
+void testFlutterIntegration(
+  String description,
+  Future<void> Function(TestContext ctx) fn,
+) {
+  test(description, timeout: _integrationTestTimeout, () async {
+    final server = await AssetServerClient.spawnHybrid(stayAlive: false);
+
+    if (!server.hasFlutter) {
+      markTestSkipped(
+        'Run pkg/dartpad_worker/tool/setup_local_flutter.dart to '
+        'enable flutter tests',
+      );
+      return;
+    }
+
+    // Initialize DartPad Worker
+    printOnFailure('# Creating worker');
+    final sdk = DartPadSdk(assetBaseUrl: server.baseUrl.resolve('flutter/'));
+    final dartpad = await sdk.dedicatedWorker(pubHostedUrl: server.baseUrl);
+
+    printOnFailure('# Creating workspace');
+    final workspace = await dartpad.createWorkspace();
+
+    // Initialize Sandbox
+    printOnFailure('# Initializing sandbox');
+    final iframe = await sdk.createSandboxedIframe(web.document.body!);
+    final sandbox = await workspace.connectSandboxedIframe(iframe.port);
+
+    try {
+      await fn(TestContext._(server, dartpad, workspace, iframe, sandbox));
+    } finally {
+      await sandbox.close();
+      await iframe.close();
+      await workspace.close();
+      await dartpad.close();
+    }
+  });
+}

@@ -49,6 +49,14 @@ const Map<String, String> _allowed = <String, String>{
           'install-sysroot.py',
 };
 
+/// The Dart SDK and Flutter forks the Rust stack side effort ports, kept
+/// in-tree under `experiments/`. Their files are upstream's, Python build
+/// scripts and platform channels included, and are not ours to rewrite.
+const List<String> _upstreamForks = <String>[
+  'experiments/dart_sdk/',
+  'experiments/flutter/',
+];
+
 void main(List<String> arguments) {
   final ProcessResult tracked =
       Process.runSync('git', <String>['ls-files'], runInShell: true);
@@ -66,6 +74,7 @@ void main(List<String> arguments) {
       .toList();
 
   for (final String path in files) {
+    if (_upstreamForks.any(path.startsWith)) continue;
     if (path.endsWith('.py')) {
       problems.add('$path is Python. Write it in Dart under tool/ci/.');
       continue;

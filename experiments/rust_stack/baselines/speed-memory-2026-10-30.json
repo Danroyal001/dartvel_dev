@@ -1,0 +1,135 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 4,
+    "os": "Linux 6.18.44-fc-v185 #1 SMP PREEMPT_DYNAMIC @0",
+    "dart": "3.13.7 (stable) (Thu Oct 22 14:28:57 2026 -0700) on \"linux_x64\"",
+    "note": "A cloud container, not a named reference machine: these numbers are provisional until the proposal's reference machines exist."
+  },
+  "results": [
+    {
+      "label": "dart format: flutter packages/flutter/lib, 695 files (warm)",
+      "command": [
+        "dart",
+        "format",
+        "-o",
+        "none",
+        "experiments/upstream/flutter/packages/flutter/lib"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 6.005885,
+        "median": 6.0567,
+        "max": 6.326755
+      },
+      "peakRssMb": {
+        "min": 146.8125,
+        "median": 199.11328125,
+        "max": 201.84765625
+      },
+      "sampleIntervalMs": 50
+    },
+    {
+      "label": "dart format: sdk pkg/analyzer/lib (warm)",
+      "command": [
+        "dart",
+        "format",
+        "-o",
+        "none",
+        "experiments/upstream/sdk/pkg/analyzer/lib"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 3.472805,
+        "median": 3.625077,
+        "max": 3.763825
+      },
+      "peakRssMb": {
+        "min": 255.00390625,
+        "median": 255.43359375,
+        "max": 271.87109375
+      },
+      "sampleIntervalMs": 50
+    },
+    {
+      "label": "dart analyze: dart_style package (warm cache)",
+      "command": [
+        "sh",
+        "-c",
+        "cd experiments/upstream/dart_style && dart analyze"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 0.638848,
+        "median": 0.655742,
+        "max": 0.659537
+      },
+      "peakRssMb": {
+        "min": 182.9375,
+        "median": 183.34375,
+        "max": 184.51953125
+      },
+      "sampleIntervalMs": 50
+    },
+    {
+      "label": "dart analyze: pub package (warm cache)",
+      "command": [
+        "sh",
+        "-c",
+        "cd experiments/upstream/pub && dart analyze"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 0.945392,
+        "median": 0.966522,
+        "max": 0.972547
+      },
+      "peakRssMb": {
+        "min": 201.7890625,
+        "median": 203.00390625,
+        "max": 204.0546875
+      },
+      "sampleIntervalMs": 50
+    },
+    {
+      "label": "dart analyze: dart_style package (cold: fresh, empty analysis cache each run)",
+      "command": [
+        "sh",
+        "-c",
+        "cd experiments/upstream/dart_style && HOME=$(mktemp -d -p <tmp>) dart analyze"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 6.974811,
+        "median": 7.046695,
+        "max": 7.346231
+      },
+      "peakRssMb": {
+        "min": 611.98046875,
+        "median": 630.484375,
+        "max": 632.60546875
+      },
+      "sampleIntervalMs": 50
+    },
+    {
+      "label": "dart analyze: pub package (cold: fresh, empty analysis cache each run)",
+      "command": [
+        "sh",
+        "-c",
+        "cd experiments/upstream/pub && HOME=$(mktemp -d -p <tmp>) dart analyze"
+      ],
+      "runs": 5,
+      "wallSeconds": {
+        "min": 10.004441,
+        "median": 10.476634,
+        "max": 10.777729
+      },
+      "peakRssMb": {
+        "min": 576.52734375,
+        "median": 586.28125,
+        "max": 608.9140625
+      },
+      "sampleIntervalMs": 50
+    }
+  ]
+}

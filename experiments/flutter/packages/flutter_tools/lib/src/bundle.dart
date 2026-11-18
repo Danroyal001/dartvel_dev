@@ -1,0 +1,52 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:convert/convert.dart';
+import 'package:crypto/crypto.dart';
+
+import 'base/config.dart';
+import 'base/file_system.dart';
+import 'build_info.dart';
+import 'compile.dart';
+import 'convert.dart';
+
+String defaultMainPath(FileSystem fileSystem) => fileSystem.path.join('lib', 'main.dart');
+const defaultManifestPath = 'pubspec.yaml';
+String defaultDepfilePath({required Config config, required FileSystem fileSystem}) =>
+    fileSystem.path.join(getBuildDirectory(config, fileSystem), 'snapshot_blob.bin.d');
+
+String getDefaultCachedKernelPath({
+  required bool trackWidgetCreation,
+  required List<String> dartDefines,
+  required Config config,
+  required FileSystem fileSystem,
+  TargetModel? targetModel,
+  List<String> extraFrontEndOptions = const <String>[],
+}) {
+  final buffer = StringBuffer();
+  final List<String> cacheFrontEndOptions = extraFrontEndOptions.toList()
+    ..removeWhere((String arg) => arg.startsWith('--enable-experiment='));
+  if (targetModel != null) {
+    buffer.write('$targetModel;');
+  }
+  buffer.writeAll(dartDefines);
+  buffer.writeAll(cacheFrontEndOptions);
+  var buildPrefix = '';
+  if (buffer.isNotEmpty) {
+    final output = buffer.toString();
+    final Digest digest = md5.convert(utf8.encode(output));
+    buildPrefix = '${hex.encode(digest.bytes)}.';
+  }
+  return getKernelPathForTransformerOptions(
+    fileSystem.path.join(getBuildDirectory(config, fileSystem), '${buildPrefix}cache.dill'),
+    trackWidgetCreation: trackWidgetCreation,
+  );
+}
+
+String getKernelPathForTransformerOptions(String path, {required bool trackWidgetCreation}) {
+  if (trackWidgetCreation) {
+    path += '.track.dill';
+  }
+  return path;
+}

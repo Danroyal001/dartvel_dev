@@ -1,0 +1,439 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:package_config/package_config.dart';
+
+/// Used to load prerequisite scripts such as ddc_module_loader.js
+const _simpleLoaderScript = r'''
+window.$dartCreateScript = (function() {
+  // Find the nonce value. (Note, this is only computed once.)
+  const scripts = Array.from(document.getElementsByTagName("script"));
+  let nonce;
+  scripts.some(
+      script => (nonce = script.nonce || script.getAttribute("nonce")));
+  // If present, return a closure that automatically appends the nonce.
+  if (nonce) {
+    return function() {
+      const script = document.createElement("script");
+      script.nonce = nonce;
+      return script;
+    };
+  } else {
+    return function() {
+      return document.createElement("script");
+    };
+  }
+})();
+
+// Loads a module [relativeUrl] relative to [root].
+//
+// If not specified, [root] defaults to the directory serving the main app.
+const forceLoadModule = function (relativeUrl, root) {
+  const actualRoot = root ?? _currentDirectory;
+  return new Promise(function(resolve, reject) {
+    const script = self.$dartCreateScript();
+    let policy = {
+      createScriptURL: function(src) {return src;}
+    };
+    if (self.trustedTypes && self.trustedTypes.createPolicy) {
+      policy = self.trustedTypes.createPolicy('dartDdcModuleUrl', policy);
+    }
+    script.onload = resolve;
+    script.onerror = reject;
+    script.src = policy.createScriptURL(actualRoot + relativeUrl);
+    document.head.appendChild(script);
+  });
+};
+''';
+
+/// The JavaScript bootstrap script to support in-browser hot restart/reload.
+///
+/// The [ddcModuleLoaderUrl] defines the custom module loader.
+/// The [mapperUrl] loads the special Dart stack trace mapper.
+///
+/// This file is served when the browser requests "main.dart.js" in debug mode,
+/// and is responsible for bootstrapping the library bundles and attaching
+/// the hot reload hooks.
+///
+/// If [generateLoadingIndicator] is `true`, embeds a loading indicator onto the
+/// web page that's visible while the Flutter app is loading.
+String generateDDCLibraryBundleBootstrapScript({
+  required String ddcModuleLoaderUrl,
+  required String mapperUrl,
+  required bool generateLoadingIndicator,
+  required bool isWindows,
+}) {
+  return '''
+${generateLoadingIndicator ? _generateLoadingIndicator() : ""}
+// Save the current directory so we can access it in a closure.
+const _currentDirectory = (function () {
+  const _url = document.currentScript.src;
+  const lastSlash = _url.lastIndexOf('/');
+  if (lastSlash == -1) return _url;
+  const currentDirectory = _url.substring(0, lastSlash + 1);
+  return currentDirectory;
+})();
+
+$_simpleLoaderScript
+
+(function() {
+  // Load pre-requisite DDC scripts. We intentionally use invalid names to avoid
+  // namespace clashes.
+  let prerequisiteScripts = [
+    {
+      "src": "$ddcModuleLoaderUrl",
+      "id": "ddc_module_loader \x00"
+    },
+    {
+      "src": "$mapperUrl",
+      "id": "dart_stack_trace_mapper \x00"
+    }
+  ];
+
+  // Load ddc_module_loader.js to access DDC's module loader API.
+  let prerequisiteLoads = [];
+  for (let i = 0; i < prerequisiteScripts.length; i++) {
+    prerequisiteLoads.push(forceLoadModule(prerequisiteScripts[i].src));
+  }
+  Promise.all(prerequisiteLoads).then((_) => afterPrerequisiteLogic());
+
+  // Save the current script so we can access it in a closure.
+  const _currentScript = document.currentScript;
+
+  // Create a policy if needed to load the files during a hot restart.
+  let policy = {
+    createScriptURL: function(src) {return src;}
+  };
+  if (self.trustedTypes && self.trustedTypes.createPolicy) {
+    policy = self.trustedTypes.createPolicy('dartDdcModuleUrl', policy);
+  }
+
+  const afterPrerequisiteLogic = function() {
+    window.\$dartLoader.rootDirectories.push(_currentDirectory);
+    let scripts = [
+      {
+        "src": "dart_sdk.js",
+        "id": "dart_sdk"
+      },
+      {
+        "src": "main_module.bootstrap.js",
+        "id": "data-main"
+      }
+    ];
+
+    let loadConfig = new window.\$dartLoader.LoadConfiguration();
+    // TODO(srujzs): Verify this is sufficient for Windows.
+    loadConfig.isWindows = $isWindows;
+    loadConfig.bootstrapScript = scripts[scripts.length - 1];
+
+    loadConfig.loadScriptFn = function(loader) {
+      loader.addScriptsToQueue(scripts, null);
+      loader.loadEnqueuedModules();
+    }
+    loadConfig.ddcEventForLoadStart = /* LOAD_ALL_MODULES_START */ 1;
+    loadConfig.ddcEventForLoadedOk = /* LOAD_ALL_MODULES_END_OK */ 2;
+    loadConfig.ddcEventForLoadedError = /* LOAD_ALL_MODULES_END_ERROR */ 3;
+
+    let loader = new window.\$dartLoader.DDCLoader(loadConfig);
+
+    // Record prerequisite scripts' fully resolved URLs.
+    prerequisiteScripts.forEach(script => loader.registerScript(script));
+
+    // Note: these variables should only be used in non-multi-app scenarios
+    // since they can be arbitrarily overridden based on multi-app load order.
+    window.\$dartLoader.loadConfig = loadConfig;
+    window.\$dartLoader.loader = loader;
+
+    // Begin loading libraries
+    loader.nextAttempt();
+
+    // Set up stack trace mapper.
+    if (window.\$dartStackTraceUtility &&
+        !window.\$dartStackTraceUtility.ready) {
+      window.\$dartStackTraceUtility.ready = true;
+      window.\$dartStackTraceUtility.setSourceMapProvider(function(url) {
+        const baseUrl = window.location.protocol + '//' + window.location.host;
+        url = url.replace(baseUrl + '/', '');
+        if (url == 'dart_sdk.js') {
+          return dartDevEmbedder.debugger.getSourceMap('dart_sdk');
+        }
+        url = url.replace(".lib.js", "");
+        return dartDevEmbedder.debugger.getSourceMap(url);
+      });
+    }
+
+    if (!window.\$dartReloadModifiedModules) {
+      window.\$dartReloadModifiedModules = (function(filesToReload, appName) {
+        return new Promise(function(resolve) {
+          function callback() {
+            resolve(filesToReload);
+          }
+          let numToLoad = 0;
+          let numLoaded = 0;
+          for (let i = 0; i < filesToReload.length; i++) {
+            const file = filesToReload[i];
+            const module = file.module;
+            if (module == null) continue;
+            const src = file.src;
+            const oldSrc = window.\$dartLoader.moduleIdToUrl.get(module);
+
+            // We might actually load from a different uri, delete the old one
+            // just to be sure.
+            window.\$dartLoader.urlToModuleId.delete(oldSrc);
+
+            window.\$dartLoader.moduleIdToUrl.set(module, src);
+            window.\$dartLoader.urlToModuleId.set(src, module);
+
+            numToLoad++;
+
+            let el = document.getElementById(module);
+            if (el) el.remove();
+            el = window.\$dartCreateScript();
+            el.src = policy.createScriptURL(src);
+            el.async = false;
+            el.defer = true;
+            el.id = module;
+            el.onload = function() {
+              numLoaded++;
+              if (numToLoad == numLoaded) callback();
+            };
+            document.head.appendChild(el);
+          }
+          // Call `callback` right away if we found no updated scripts.
+          if (numToLoad == 0) callback();
+        });
+      });
+    }
+  };
+})();
+''';
+}
+
+/// Creates a visual animated loading indicator and puts it on the page to
+/// provide feedback to the developer that the app is being loaded. Otherwise,
+/// the developer would be staring at a blank page wondering if the app will
+/// come up or not.
+///
+/// This indicator should only be used when DWDS is enabled, e.g. with the
+/// `-d chrome` option. Debug builds without DWDS, e.g. `flutter run -d web-server`
+/// or `flutter build web --debug` should not use this indicator.
+String _generateLoadingIndicator() {
+  return '''
+const styles = `
+  .flutter-loader {
+    width: 100%;
+    height: 8px;
+    background-color: #13B9FD;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    overflow: hidden;
+  }
+
+  .indeterminate {
+      position: relative;
+      width: 100%;
+      height: 100%;
+  }
+
+  .indeterminate:before {
+      content: '';
+      position: absolute;
+      height: 100%;
+      width: 100%;
+      left: 0;
+      background-color: #0175C2;
+      transform-origin: left;
+      will-change: transform;
+      animation: indeterminate_first 2.0s infinite ease-out;
+  }
+
+  .indeterminate:after {
+      content: '';
+      position: absolute;
+      height: 100%;
+      width: 100%;
+      left: 0;
+      background-color: #02569B;
+      transform-origin: left;
+      will-change: transform;
+      animation: indeterminate_second 2.0s infinite ease-in;
+  }
+
+  @keyframes indeterminate_first {
+      0% {
+          transform: translateX(-100%) scaleX(1);
+      }
+      100% {
+          transform: translateX(100%) scaleX(0.1);
+      }
+  }
+
+  @keyframes indeterminate_second {
+      0% {
+          transform: translateX(-150%) scaleX(1);
+      }
+      100% {
+          transform: translateX(100%) scaleX(0.1);
+      }
+  }
+`;
+
+const styleSheet = document.createElement("style")
+styleSheet.type = "text/css";
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
+
+const loader = document.createElement('div');
+loader.className = "flutter-loader";
+document.body.append(loader);
+
+const indeterminate = document.createElement('div');
+indeterminate.className = "indeterminate";
+loader.appendChild(indeterminate);
+
+window._removeFlutterLoader = function() {
+  loader.remove();
+  styleSheet.remove();
+  window._removeFlutterLoader = null;
+};
+''';
+}
+
+const _onLoadEndCallback = r'$onLoadEndCallback';
+
+/// Generate a synthetic main module which captures the application's main
+/// method defined in the filename [entrypoint].
+///
+/// [nativeNullAssertions] is passed through as a DDC runtime option.
+///
+/// The [onLoadEndBootstrap] names the script file to be loaded last which will
+/// trigger the callback to start the application.
+///
+/// When [isCi] is true, the concurrent script requests will be throttled to
+/// avoid resource issues.
+String generateDDCLibraryBundleMainModule({
+  required String entrypoint,
+  required bool nativeNullAssertions,
+  required String onLoadEndBootstrap,
+  required bool isCi,
+}) {
+  // Chrome in CI seems to hang when there are too many requests at once, so we
+  // limit the max number of script requests for that environment.
+  // https://github.com/flutter/flutter/issues/169574
+  final setMaxRequests = isCi ? r'window.$dartLoader.loadConfig.maxRequestPoolSize = 100;' : '';
+  // The typo below in "EXTENTION" is load-bearing, package:build depends on it.
+  return '''
+/* ENTRYPOINT_EXTENTION_MARKER */
+
+(function() {
+  const appName = "org-dartlang-app:///$entrypoint";
+
+  dartDevEmbedder.debugger.registerDevtoolsFormatter();
+
+  $setMaxRequests
+  // Set up a final script that lets us know when all scripts have been loaded.
+  // Only then can we call the main method.
+  const onLoadEndSrc = '$onLoadEndBootstrap';
+  window.\$dartLoader.loadConfig.bootstrapScript = {
+    src: onLoadEndSrc,
+    id: onLoadEndSrc,
+  };
+  window.\$dartLoader.loadConfig.tryLoadBootstrapScript = true;
+  // Should be called by $onLoadEndBootstrap once all the scripts have been
+  // loaded.
+  window.$_onLoadEndCallback = function() {
+    const child = {};
+    child.main = function() {
+      const sdkOptions = {
+        nativeNonNullAsserts: $nativeNullAssertions,
+      };
+      if (window._removeFlutterLoader) {
+        window._removeFlutterLoader();
+      }
+      dartDevEmbedder.runMain(appName, sdkOptions);
+    }
+    /* MAIN_EXTENSION_MARKER */
+    child.main();
+  }
+})();
+''';
+}
+
+String generateDDCLibraryBundleOnLoadEndBootstrap() {
+  return '''window.$_onLoadEndCallback();''';
+}
+
+typedef WebTestInfo = ({String entryPoint, Uri goldensUri, String? configFile});
+
+/// Generates the bootstrap logic required for running a group of unit test
+/// files in the browser.
+///
+/// This creates one "switchboard" main function that imports all the main
+/// functions of the unit test files that need to be run. The javascript code
+/// that starts the test sets a `window.testSelector` that specifies which main
+/// function to invoke. This allows us to compile all the unit test files as a
+/// single web application and invoke that with a different selector for each
+/// test.
+String generateTestEntrypoint({
+  required List<WebTestInfo> testInfos,
+  required LanguageVersion languageVersion,
+}) {
+  final importMainStatements = <String>[];
+  final importTestConfigStatements = <String>[];
+  final webTestPairs = <String>[];
+
+  for (var index = 0; index < testInfos.length; index++) {
+    final WebTestInfo testInfo = testInfos[index];
+    final String entryPointPath = testInfo.entryPoint;
+    importMainStatements.add(
+      "import 'org-dartlang-app:///${Uri.file(entryPointPath)}' as test_$index show main;",
+    );
+
+    final String? testConfigPath = testInfo.configFile;
+    String? testConfigFunction = 'null';
+    if (testConfigPath != null) {
+      importTestConfigStatements.add(
+        "import 'org-dartlang-app:///${Uri.file(testConfigPath)}' as test_config_$index show testExecutable;",
+      );
+      testConfigFunction = 'test_config_$index.testExecutable';
+    }
+    webTestPairs.add('''
+  '$entryPointPath': (
+    entryPoint: test_$index.main,
+    entryPointRunner: $testConfigFunction,
+    goldensUri: Uri.parse('${testInfo.goldensUri}'),
+  ),
+''');
+  }
+  return '''
+// @dart = ${languageVersion.major}.${languageVersion.minor}
+
+${importMainStatements.join('\n')}
+
+${importTestConfigStatements.join('\n')}
+
+import 'package:flutter_test/flutter_test.dart';
+
+Map<String, WebTest> webTestMap = <String, WebTest>{
+  ${webTestPairs.join('\n')}
+};
+
+Future<void> main() {
+  final WebTest? webTest = webTestMap[testSelector];
+  if (webTest == null) {
+    throw Exception('Web test for \${testSelector} not found');
+  }
+  return runWebTest(webTest);
+}
+  ''';
+}
+
+String generateDefaultFlutterBootstrapScript() {
+  return '''
+{{flutter_js}}
+{{flutter_build_config}}
+_flutter.loader.load();
+''';
+}

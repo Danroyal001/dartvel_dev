@@ -1,0 +1,16 @@
+# Copy to pubspec_overrides.yaml (ignored by git) to record the pinned
+# upstream sources instead of the hosted packages in pubspec.yaml. Needs the
+# submodules first:
+#
+#   git submodule update --init --filter=blob:none \
+#     experiments/upstream/sdk experiments/upstream/dart_style
+#
+# Not the default, because CI checks out without submodules and pub refuses a
+# path that does not exist.
+dependency_overrides:
+  dart_style:
+    path: ../upstream/dart_style
+  analyzer:
+    path: ../upstream/sdk/pkg/analyzer
+  _fe_analyzer_shared:
+    path: ../upstream/sdk/pkg/_fe_analyzer_shared

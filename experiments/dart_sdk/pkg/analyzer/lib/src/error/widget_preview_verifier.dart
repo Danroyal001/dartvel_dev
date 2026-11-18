@@ -1,0 +1,261 @@
+// Copyright (c) 2025, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/utilities/extensions/flutter.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+
+/// Helper for verifying the validity of @Preview(...) applications.
+///
+/// The Flutter Widget Previewer relies on code generation to import code from
+/// a developer's project into a generated 'widget preview scaffold' that lives
+/// in the project's '.dart_tool' directory. The nature of this implementation
+/// means that any symbols referenced in the declaration of the preview (e.g.,
+/// in the invocation of the `Preview(...)` constructor or the name of the
+/// preview function) must be publicly accessible from outside the library in
+/// which they are defined. One of the main uses for this verifier is to flag
+/// usages of private symbols within preview declarations.
+///
+/// This verifier also ensures that the `@Preview(...)` annotation can only be
+/// applied to a functions or constructors that:
+///
+///  - Are statically accessible (e.g., no instance methods)
+///  - Have explicit implementations (e.g., not abstract or external)
+class WidgetPreviewVerifier {
+  final DiagnosticReporter _diagnosticReporter;
+
+  new(this._diagnosticReporter);
+
+  /// Check is [node] is a Widget Preview application and verify its
+  /// correctness.
+  void checkAnnotation(Annotation node) {
+    if (node.elementAnnotation?.isWidgetPreview ?? false) {
+      _checkWidgetPreview(node);
+    }
+  }
+
+  void _checkWidgetPreview(Annotation node) {
+    var argumentList = node.argumentList;
+    if (argumentList == null) {
+      // This is an invalid annotation application since there's no constructor
+      // invocation.
+      return;
+    }
+
+    var parent = node.parent2!;
+    bool isValidApplication = switch (parent) {
+      // First, check that the preview application is happening in a supported
+      // context.
+      _ when !_isSupportedParent(node: parent) => false,
+      ConstructorDeclaration2() => _isValidConstructorPreviewApplication(
+        declaration: parent,
+        name: parent.name?.lexeme,
+        parentDeclaration: parent.parent2?.parent2,
+        isExternal: parent.externalKeyword != null,
+        isFactory: parent.factoryKeyword != null,
+        parameters: parent.formalParameters,
+      ),
+      TopLevelFunctionDeclaration() => _isValidFunctionPreviewApplication(
+        declaration: parent,
+      ),
+      MethodDeclaration2() => _isValidMethodPreviewApplication(
+        declaration: parent,
+      ),
+      PrimaryConstructorBody2(:var declaration?) =>
+        _isValidConstructorPreviewApplication(
+          declaration: parent,
+          name: parent.declaration?.constructorName?.name.lexeme,
+          parentDeclaration: parent.parent2?.parent2,
+          isExternal: false,
+          isFactory: false,
+          parameters: declaration.formalParameters,
+        ),
+      _ => false,
+    };
+
+    if (!isValidApplication) {
+      _diagnosticReporter.report(
+        diag.invalidWidgetPreviewApplication.at(node.nameEntity),
+      );
+    }
+
+    var visitor = _InvalidWidgetPreviewArgumentDetectorVisitor(
+      diagnosticReporter: _diagnosticReporter,
+    );
+    argumentList.accept2(visitor);
+  }
+
+  bool _hasRequiredParameters(List<FormalParameter> parameters) {
+    return parameters.any((e) => e.isRequired);
+  }
+
+  /// Returns whether [name] is private or `node.parent` is a [ClassDeclaration2]
+  /// that has a private name.
+  bool _isPrivateContext({required String? name, required AstNode node}) {
+    if (name != null && name.isPrivateName) return true;
+
+    var parent = node.parent2?.parent2;
+    if (parent == null) return false;
+
+    var nameToken = switch (parent) {
+      ClassDeclaration2 declaration => declaration.namePart.typeName,
+      EnumDeclaration2 declaration => declaration.namePart.typeName,
+      ExtensionDeclaration2 declaration => declaration.name,
+      ExtensionTypeDeclaration2 declaration => declaration.namePart.typeName,
+      MixinDeclaration2 declaration => declaration.name,
+      _ => null,
+    };
+    if (nameToken == null) return false;
+
+    return nameToken.lexeme.isPrivateName;
+  }
+
+  /// Returns true if `node.parent` is a supported context for defining widget
+  /// previews.
+  ///
+  /// Currently, this only includes previews defined within classes and at the
+  /// top level of a compilation unit.
+  bool _isSupportedParent({required AstNode node}) {
+    if (node.parent2 is CompilationUnit) {
+      return true;
+    }
+
+    if (node.parent2 case BlockInstanceDeclarationBody body) {
+      if (body.parent2 is ClassDeclaration2) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Returns true if `declaration` is a valid constructor target for a widget
+  /// preview application.
+  ///
+  /// Constructor preview applications are valid if:
+  ///   - The class and constructor names are public
+  ///   - The class is a subtype of Widget
+  ///   - The class is not abstract or is a valid factory constructor
+  ///   - The constructor is not external
+  ///   - The constructor does not have any required arguments
+  bool _isValidConstructorPreviewApplication({
+    required AstNode declaration,
+    required String? name,
+    required AstNode? parentDeclaration,
+    required bool isExternal,
+    required bool isFactory,
+    required FormalParameterList parameters,
+  }) {
+    if (isExternal) return false;
+    if (parentDeclaration is! ClassDeclaration2) return false;
+
+    var element = parentDeclaration.declaredFragment?.element;
+    if (element is! ClassElement) return false;
+
+    return !_isPrivateContext(name: name, node: declaration) &&
+        element.isWidget &&
+        !(element.isAbstract && !isFactory) &&
+        !_hasRequiredParameters(parameters.allFormalParameters);
+  }
+
+  /// Returns true if `declaration` is a valid top-level function target for a
+  /// widget preview application.
+  ///
+  /// Function preview applications are valid if:
+  ///   - The function name is public
+  ///   - The function is not external
+  ///   - The function returns a subtype of `Widget` or `WidgetBuilder`
+  ///   - The function does not have any required arguments
+  bool _isValidFunctionPreviewApplication({
+    required TopLevelFunctionDeclaration declaration,
+  }) {
+    if (declaration case TopLevelFunctionDeclaration(
+      :var name,
+      :var externalKeyword,
+      :NamedType returnType,
+      formalParameters: FormalParameterList(:var allFormalParameters),
+    )) {
+      return !_isPrivateContext(name: name.lexeme, node: declaration) &&
+          externalKeyword == null &&
+          returnType.isValidWidgetPreviewReturnType &&
+          !_hasRequiredParameters(allFormalParameters);
+    }
+    return false;
+  }
+
+  /// Returns true if `declaration` is a valid static class member target for a
+  /// widget preview application.
+  ///
+  /// Class member preview applications are valid if:
+  ///   - The function is static
+  ///   - The function name is public
+  ///   - The function is not external
+  ///   - The function returns a subtype of `Widget` or `WidgetBuilder`
+  ///   - The function does not have any required arguments
+  bool _isValidMethodPreviewApplication({
+    required MethodDeclaration2 declaration,
+  }) {
+    if (declaration case MethodDeclaration2(
+      staticKeyword: _?,
+      :var externalKeyword,
+      :var name,
+      :NamedType returnType,
+      formalParameters: FormalParameterList(:var allFormalParameters),
+    )) {
+      return !_isPrivateContext(name: name.lexeme, node: declaration) &&
+          externalKeyword == null &&
+          returnType.isValidWidgetPreviewReturnType &&
+          !_hasRequiredParameters(allFormalParameters);
+    }
+    return false;
+  }
+}
+
+class _InvalidWidgetPreviewArgumentDetectorVisitor
+    extends RecursiveAstVisitor2 {
+  final DiagnosticReporter diagnosticReporter;
+
+  NamedArgument? rootArgument;
+  new({required this.diagnosticReporter});
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    for (var argument in node.arguments2) {
+      if (argument is NamedArgument) {
+        rootArgument = argument;
+        argument.argumentExpression2.accept2(this);
+        rootArgument = null;
+      }
+    }
+  }
+
+  @override
+  void visitImportPrefixedNameExpression(ImportPrefixedNameExpression node) {
+    _checkName(node.name.lexeme);
+    super.visitImportPrefixedNameExpression(node);
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    _checkName(node.name.lexeme);
+  }
+
+  void _checkName(String name) {
+    if (name.isPrivateName) {
+      diagnosticReporter.report(
+        diag.invalidWidgetPreviewPrivateArgument
+            .withArguments(
+              privateSymbolName: name,
+              suggestedName: name.replaceFirst(RegExp('_*'), ''),
+            )
+            .at(rootArgument!),
+      );
+    }
+  }
+}

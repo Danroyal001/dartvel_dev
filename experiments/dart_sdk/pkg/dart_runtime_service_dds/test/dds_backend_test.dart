@@ -1,0 +1,567 @@
+// Copyright (c) 2026, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
+
+import 'package:dart_runtime_service/dart_runtime_service.dart';
+import 'package:dart_runtime_service_dds/dart_runtime_service_dds.dart';
+import 'package:dds_service_extensions/dds_service_extensions.dart';
+import 'package:json_rpc_2/json_rpc_2.dart' as json_rpc;
+import 'package:path/path.dart' as path;
+import 'package:test/test.dart';
+import 'package:vm_service/vm_service.dart' as vm;
+import 'package:vm_service/vm_service_io.dart';
+import 'package:web_socket_channel/io.dart';
+
+class MockVmService {
+  MockVmService._(this.server, this.port);
+
+  final HttpServer server;
+  final int port;
+  final clients = <json_rpc.Peer>[];
+  Uri? existingDdsUri;
+  int? yieldControlErrorCode;
+
+  Uri get uri => Uri.parse('http://localhost:$port/');
+
+  static Future<MockVmService> start() async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final mock = MockVmService._(server, server.port);
+
+    server.transform(WebSocketTransformer()).listen((webSocket) {
+      final channel = IOWebSocketChannel(webSocket);
+      final peer = json_rpc.Peer(channel.cast<String>());
+      mock.clients.add(peer);
+
+      peer.registerMethod('getVM', (json_rpc.Parameters params) {
+        return {
+          'type': 'VM',
+          'name': 'mock-vm',
+          'isolates': <Map<String, Object?>>[],
+        };
+      });
+
+      peer.registerMethod('getObject', (json_rpc.Parameters params) {
+        return {'type': 'Instance', 'kind': 'Null', 'valueAsString': 'null'};
+      });
+
+      peer.registerMethod('_echo', (json_rpc.Parameters params) {
+        return {
+          'type': '_EchoResponse',
+          'customField': 'customValue',
+          '_privateField': 'secret',
+        };
+      });
+
+      peer.registerMethod('_yieldControlToDDS', (json_rpc.Parameters params) {
+        final errorCode = mock.yieldControlErrorCode;
+        if (errorCode != null) {
+          throw json_rpc.RpcException(errorCode, 'Server error');
+        }
+        final ddsUri = mock.existingDdsUri;
+        if (ddsUri != null) {
+          throw json_rpc.RpcException(
+            100,
+            'Feature is disabled',
+            data: <String, Object?>{
+              'details': 'A DDS instance is already connected at $ddsUri.',
+              'ddsUri': ddsUri.toString(),
+            },
+          );
+        }
+        return vm.Success().toJson();
+      });
+
+      peer.registerMethod('streamListen', (json_rpc.Parameters params) {
+        return vm.Success().toJson();
+      });
+
+      peer.registerMethod('getVersion', (json_rpc.Parameters params) {
+        return vm.Version(major: 4, minor: 0).toJson();
+      });
+
+      peer.registerMethod('getSupportedProtocols', (
+        json_rpc.Parameters params,
+      ) {
+        return vm.ProtocolList(
+          protocols: [
+            vm.Protocol(protocolName: 'VM Service', major: 4, minor: 0),
+          ],
+        ).toJson();
+      });
+
+      peer.registerMethod('getFlagList', (json_rpc.Parameters params) {
+        return vm.FlagList(
+          flags: [
+            vm.Flag(name: 'pause_isolates_on_start', valueAsString: 'false'),
+            vm.Flag(name: 'pause_isolates_on_exit', valueAsString: 'false'),
+          ],
+        ).toJson();
+      });
+
+      peer.registerMethod('getPerfettoVMTimeline', (
+        json_rpc.Parameters params,
+      ) {
+        return vm.PerfettoTimeline(
+          trace: base64Encode(utf8.encode('vm-timeline')),
+          timeOriginMicros: params['timeOriginMicros'].asIntOr(-1),
+          timeExtentMicros: params['timeExtentMicros'].asIntOr(-1),
+        ).toJson();
+      });
+
+      peer.listen();
+    });
+
+    return mock;
+  }
+
+  void registerHangingMethod(String method) {
+    for (final client in clients) {
+      client.registerMethod(method, (json_rpc.Parameters params) {
+        return Completer<Object?>().future;
+      });
+    }
+  }
+
+  void sendStreamNotify(String streamId, Map<String, Object?> event) {
+    for (final client in clients) {
+      client.sendNotification('streamNotify', <String, Object?>{
+        'streamId': streamId,
+        'event': event,
+      });
+    }
+  }
+
+  Future<void> shutdown() async {
+    for (final client in clients) {
+      await client.close();
+    }
+    await server.close();
+  }
+}
+
+void main() {
+  group('DartRuntimeServiceDdsBackend', () {
+    MockVmService? mockVmService;
+    DartRuntimeService? ddsService;
+    vm.VmService? ddsClient;
+
+    setUp(() async {
+      mockVmService = await MockVmService.start();
+
+      ddsService = await DartRuntimeService.initialize(
+        config: const DartRuntimeServiceOptions(),
+        backendBuilder: (frontend) => DartRuntimeServiceDdsBackend(
+          mockVmService!.uri,
+          frontend: frontend,
+        ),
+      );
+
+      ddsClient = await vmServiceConnectUri(ddsService!.uri.toString());
+    });
+
+    tearDown(() async {
+      await ddsClient?.dispose();
+      await ddsService?.shutdown();
+      await mockVmService?.shutdown();
+    });
+
+    test('forward RPC request', () async {
+      final vmResult = await ddsClient!.getVM();
+      expect(vmResult.name, 'mock-vm');
+    });
+
+    test('forward RPC request returning null instance', () async {
+      final result = await ddsClient!.callMethod(
+        'getObject',
+        isolateId: 'isolates/1',
+        args: <String, Object?>{'objectId': 'objects/null'},
+      );
+      expect(result.json?['type'] ?? result.type, equals('Instance'));
+      expect(result.json?['kind'], equals('Null'));
+    });
+
+    test(
+      'forward RPC request preserving private fields and custom types',
+      () async {
+        final result = await ddsClient!.callMethod('_echo');
+        expect(result.json?['type'] ?? result.type, equals('_EchoResponse'));
+        expect(result.json?['customField'], equals('customValue'));
+        expect(result.json?['_privateField'], equals('secret'));
+      },
+    );
+
+    test('pending raw requests fail when VM service closes', () async {
+      mockVmService!.registerHangingMethod('hangingMethod');
+
+      final pendingCall = ddsClient!.callMethod('hangingMethod');
+
+      await mockVmService!.shutdown();
+
+      await expectLater(pendingCall, throwsA(isA<vm.RPCError>()));
+    });
+
+    test('getVersion returns VM Service version', () async {
+      final version = await ddsClient!.getVersion();
+      expect(version.major, 4);
+      expect(version.minor, 0);
+    });
+
+    test('getDartDevelopmentServiceVersion returns DDS version', () async {
+      final version = await ddsClient!.getDartDevelopmentServiceVersion();
+      expect(version.type, 'Version');
+      expect(version.major, 2);
+      expect(version.minor, 1);
+    });
+
+    test(
+      'getSupportedProtocols returns protocols list including DDS',
+      () async {
+        final protocols = await ddsClient!.getSupportedProtocols();
+        final ddsProto = protocols.protocols!.firstWhere(
+          (p) => p.protocolName == 'DDS',
+        );
+        expect(ddsProto.major, 2);
+        expect(ddsProto.minor, 1);
+      },
+    );
+
+    test('getPerfettoVMTimelineWithCpuSamples invokes getPerfettoVMTimeline on '
+        'VM service', () async {
+      final timeline = await ddsClient!.getPerfettoVMTimelineWithCpuSamples(
+        timeOriginMicros: 1,
+        timeExtentMicros: 1000,
+      );
+      expect(timeline.timeOriginMicros, 1);
+      expect(timeline.timeExtentMicros, 1000);
+      expect(utf8.decode(base64Decode(timeline.trace!)), 'vm-timeline');
+    });
+
+    test(
+      'getAvailableCachedCpuSamples and getCachedCpuSamples return deprecated '
+      'placeholder values',
+      () async {
+        final serialized = CachedCpuSamples(
+          userTag: 'customTag',
+          truncated: false,
+          samplePeriod: -1,
+          maxStackDepth: -1,
+          sampleCount: -1,
+          timeOriginMicros: -1,
+          timeExtentMicros: -1,
+          pid: -1,
+          functions: <vm.ProfileFunction>[],
+          samples: <vm.CpuSample>[],
+        ).toJson();
+        final parsed = CachedCpuSamples.parse(serialized);
+        expect(parsed, isNotNull);
+        expect(parsed!.type, 'CachedCpuSamples');
+        expect(parsed.userTag, 'customTag');
+        expect(parsed.truncated, isFalse);
+
+        // ignore: deprecated_member_use
+        final available = await ddsClient!.getAvailableCachedCpuSamples();
+        expect(available.cacheNames, isEmpty);
+
+        // ignore: deprecated_member_use
+        final samples = await ddsClient!.getCachedCpuSamples(
+          'isolates/1',
+          'fakeTag',
+        );
+        expect(samples.type, 'CachedCpuSamples');
+        expect(samples.userTag, '');
+        expect(samples.truncated, isNull);
+        expect(samples.toJson().containsKey('truncated'), isFalse);
+        expect(samples.samplePeriod, -1);
+        expect(samples.maxStackDepth, -1);
+        expect(samples.sampleCount, -1);
+        expect(samples.timeOriginMicros, -1);
+        expect(samples.timeExtentMicros, -1);
+        expect(samples.pid, -1);
+        expect(samples.functions, isEmpty);
+        expect(samples.samples, isEmpty);
+      },
+    );
+
+    test('getStreamHistory returns buffered raw events and rejects unsupported '
+        'streams', () async {
+      final nullInstanceRef = vm.InstanceRef(
+        kind: vm.InstanceKind.kNull,
+        id: 'objects/null',
+        valueAsString: 'null',
+      );
+      final messageRef = vm.InstanceRef(
+        kind: vm.InstanceKind.kString,
+        id: 'objects/1',
+        valueAsString: 'hello history',
+      );
+      final event = vm.Event(
+        kind: vm.EventKind.kLogging,
+        timestamp: 123456,
+        logRecord: vm.LogRecord(
+          sequenceNumber: 1,
+          time: 123456,
+          level: 800,
+          loggerName: nullInstanceRef,
+          message: messageRef,
+          zone: nullInstanceRef,
+          error: nullInstanceRef,
+          stackTrace: nullInstanceRef,
+        ),
+      );
+      final eventFuture = ddsClient!.onLoggingEvent.first;
+      await ddsClient!.streamListen(vm.EventStreams.kLogging);
+      mockVmService!.sendStreamNotify(vm.EventStreams.kLogging, event.toJson());
+      await eventFuture;
+
+      final streamHistory = await ddsClient!.getStreamHistory(
+        vm.EventStreams.kLogging,
+      );
+      expect(streamHistory.history, hasLength(1));
+      final recordedEvent = streamHistory.history.single;
+      expect(recordedEvent.kind, vm.EventKind.kLogging);
+      expect(recordedEvent.timestamp, 123456);
+      final recordedLog = recordedEvent.logRecord!;
+      expect(recordedLog.sequenceNumber, 1);
+      expect(recordedLog.time, 123456);
+      expect(recordedLog.level, 800);
+      expect(recordedLog.message, messageRef);
+      expect(recordedLog.loggerName, nullInstanceRef);
+      expect(recordedLog.zone, nullInstanceRef);
+      expect(recordedLog.error, nullInstanceRef);
+      expect(recordedLog.stackTrace, nullInstanceRef);
+
+      await expectLater(
+        ddsClient!.getStreamHistory(vm.EventStreams.kIsolate),
+        throwsA(
+          isA<vm.RPCError>().having(
+            (e) => e.code,
+            'code',
+            vm.RPCErrorKind.kInvalidParams.code,
+          ),
+        ),
+      );
+    });
+
+    test('does not start DTD when serveDevTools is false', () async {
+      late DartRuntimeServiceDdsBackend backend;
+      final service = await DartRuntimeService.initialize(
+        // Note: serveDevTools defaults to false. It is omitted here to adhere
+        // to the avoid_redundant_argument_values lint.
+        config: const DartRuntimeServiceOptions(),
+        backendBuilder: (frontend) => backend = DartRuntimeServiceDdsBackend(
+          mockVmService!.uri,
+          frontend: frontend,
+        ),
+      );
+      expect(backend.hostedDartToolingDaemon, isNull);
+      await service.shutdown();
+    });
+
+    test('starts DTD when serveDevTools is true', () async {
+      late DartRuntimeServiceDdsBackend backend;
+      final service = await DartRuntimeService.initialize(
+        config: const DartRuntimeServiceOptions(serveDevTools: true),
+        backendBuilder: (frontend) => backend = DartRuntimeServiceDdsBackend(
+          mockVmService!.uri,
+          frontend: frontend,
+          serveDevTools: true,
+        ),
+      );
+      expect(backend.hostedDartToolingDaemon, isNotNull);
+      await service.shutdown();
+    });
+
+    test('throws ExistingDartDevelopmentServiceException when DDS instance '
+        'already connected', () async {
+      mockVmService!.existingDdsUri = ddsService!.httpUri;
+      late DartRuntimeService frontendService;
+      late DartRuntimeServiceDdsBackend backend;
+      await expectLater(
+        DartRuntimeService.initialize(
+          config: const DartRuntimeServiceOptions(serveDevTools: true),
+          backendBuilder: (frontend) {
+            frontendService = frontend;
+            return backend = DartRuntimeServiceDdsBackend(
+              mockVmService!.uri,
+              frontend: frontend,
+              serveDevTools: true,
+            );
+          },
+        ),
+        throwsA(
+          isA<ExistingDartDevelopmentServiceException>()
+              .having(
+                (e) => e.errorCode,
+                'errorCode',
+                DartDevelopmentServiceException.existingDdsInstanceError,
+              )
+              .having((e) => e.ddsUri, 'ddsUri', ddsService!.httpUri),
+        ),
+      );
+      expect(backend.hostedDartToolingDaemon, isNull);
+      expect(frontendService.isServerRunning, isFalse);
+    });
+
+    test(
+      'throws failedToStart when yieldControlToDds fails with server error',
+      () async {
+        mockVmService!.yieldControlErrorCode =
+            vm.RPCErrorKind.kServerError.code;
+        await expectLater(
+          DartRuntimeService.initialize(
+            config: const DartRuntimeServiceOptions(),
+            backendBuilder: (frontend) => DartRuntimeServiceDdsBackend(
+              mockVmService!.uri,
+              frontend: frontend,
+            ),
+          ),
+          throwsA(
+            isA<DartDevelopmentServiceException>().having(
+              (e) => e.errorCode,
+              'errorCode',
+              DartDevelopmentServiceException.failedToStartError,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('CLI entrypoint emits ddsExceptionDetails JSON on existing DDS '
+        'instance error', () async {
+      mockVmService!.existingDdsUri = ddsService!.httpUri;
+      final entrypointUri = await Isolate.resolvePackageUri(
+        Uri.parse('package:dart_runtime_service_dds/'),
+      );
+      final entrypointPath = path.normalize(
+        path.join(
+          entrypointUri!.toFilePath(),
+          '..',
+          'bin',
+          'dds_entrypoint.dart',
+        ),
+      );
+      final result = await Process.run(Platform.resolvedExecutable, <String>[
+        entrypointPath,
+        '--vm-service-uri=${mockVmService!.uri}',
+      ]);
+      expect(result.exitCode, 1);
+      final stderrOutput = (result.stderr as String).trim();
+      final decoded = json.decode(stderrOutput) as Map<String, Object?>;
+      expect(decoded['state'], 'error');
+      final details = decoded['ddsExceptionDetails'] as Map<String, Object?>?;
+      expect(details, isNotNull);
+      final exception = DartDevelopmentServiceException.fromJson(details!);
+      expect(
+        exception,
+        isA<ExistingDartDevelopmentServiceException>()
+            .having(
+              (e) => e.errorCode,
+              'errorCode',
+              DartDevelopmentServiceException.existingDdsInstanceError,
+            )
+            .having((e) => e.ddsUri, 'ddsUri', ddsService!.httpUri),
+      );
+    });
+  });
+
+  group('DevTools hosting', () {
+    late MockVmService mockVmService;
+    late Directory tempDir;
+
+    setUp(() async {
+      mockVmService = await MockVmService.start();
+      tempDir = Directory.systemTemp.createTempSync('devtools_test');
+      File(
+        path.join(tempDir.path, 'index.html'),
+      ).writeAsStringSync('<html><body>DevTools</body></html>');
+    });
+
+    tearDown(() async {
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
+      await mockVmService.shutdown();
+    });
+
+    test('serve DevTools assets', () async {
+      late DartRuntimeServiceDdsBackend backend;
+      final service = await DartRuntimeService.initialize(
+        config: const DartRuntimeServiceOptions(serveDevTools: true),
+        backendBuilder: (frontend) => backend = DartRuntimeServiceDdsBackend(
+          mockVmService.uri,
+          frontend: frontend,
+          customDevToolsPath: tempDir.uri,
+          serveDevTools: true,
+        ),
+      );
+
+      final devToolsUri = backend.devToolsUri;
+      expect(devToolsUri, isNotNull);
+
+      final client = HttpClient();
+      final request = await client.getUrl(devToolsUri!);
+      final response = await request.close();
+      expect(response.statusCode, HttpStatus.ok);
+
+      final body = await response.transform(utf8.decoder).join();
+      expect(body, '<html><body>DevTools</body></html>');
+
+      client.close();
+      await service.shutdown();
+    });
+
+    test('redirect to external DevTools', () async {
+      late DartRuntimeServiceDdsBackend backend;
+      final service = await DartRuntimeService.initialize(
+        config: const DartRuntimeServiceOptions(),
+        backendBuilder: (frontend) => backend = DartRuntimeServiceDdsBackend(
+          mockVmService.uri,
+          frontend: frontend,
+        ),
+      );
+
+      final client = HttpClient();
+
+      final ddsHttpUri = service.httpUri;
+      final devtoolsReqUri = ddsHttpUri.replace(
+        pathSegments: [
+          ...ddsHttpUri.pathSegments.where((e) => e.isNotEmpty),
+          'devtools',
+        ],
+      );
+
+      final request1 = await client.getUrl(devtoolsReqUri);
+      request1.followRedirects = false;
+      final response1 = await request1.close();
+      expect(response1.statusCode, HttpStatus.notFound);
+      await response1.drain<void>();
+
+      final externalUri = Uri.parse('http://localhost:1234/custom');
+      backend.setExternalDevToolsUri(externalUri);
+
+      expect(backend.devToolsUri, isNotNull);
+      expect(
+        backend.devToolsUri.toString(),
+        startsWith('http://localhost:1234/custom?uri='),
+      );
+
+      final request2 = await client.getUrl(devtoolsReqUri);
+      request2.followRedirects = false;
+      final response2 = await request2.close();
+      expect(response2.statusCode, HttpStatus.seeOther);
+      expect(
+        response2.headers.value(HttpHeaders.locationHeader),
+        startsWith(externalUri.toString()),
+      );
+      await response2.drain<void>();
+
+      client.close();
+      await service.shutdown();
+    });
+  });
+}

@@ -1,0 +1,127 @@
+// Copyright (c) 2019, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:io';
+
+import 'package:_fe_analyzer_shared/src/testing/id.dart' show ActualDataMap, Id;
+import 'package:_fe_analyzer_shared/src/testing/id_testing.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/src/dart/analysis/testing_data.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/util/ast_data_extractor.dart';
+
+import '../util/id_testing_helper.dart';
+
+main(List<String> args) {
+  Directory dataDir = Directory.fromUri(
+    Platform.script.resolve(
+      '../../../_fe_analyzer_shared/test/flow_analysis/type_promotion/'
+      'data',
+    ),
+  );
+  return runTests<DartType>(
+    dataDir,
+    args: args,
+    createUriForFileName: createUriForFileName,
+    onFailure: onFailure,
+    runTest: runTestFor(const _TypePromotionDataComputer(), [
+      analyzerDefaultConfig,
+    ]),
+  );
+}
+
+class _TypePromotionDataComputer extends DataComputer<DartType> {
+  const new();
+
+  @override
+  DataInterpreter<DartType> get dataValidator =>
+      const _TypePromotionDataInterpreter();
+
+  @override
+  bool get supportsErrors => true;
+
+  @override
+  void computeUnitData(
+    TestingData testingData,
+    CompilationUnit unit,
+    ActualDataMap<DartType> actualMap,
+  ) {
+    var unitUri = unit.declaredFragment!.source.uri;
+    _TypePromotionDataExtractor(unitUri, actualMap).run(unit);
+  }
+}
+
+class _TypePromotionDataExtractor extends AstDataExtractor<DartType> {
+  new(super.uri, super.actualMap);
+
+  @override
+  DartType? computeNodeValue(Id id, AstNode node) {
+    Element? element;
+    DartType? promotedType;
+    if (node case UnqualifiedNameExpression(
+      resolution: VariableReadResolution(element: var readElement, :var type),
+    )) {
+      element = readElement;
+      promotedType = type;
+    } else if (node is IfNullAssignment || node is CompoundAssignment) {
+      var target = (node as AssignmentExpression2).target;
+      if (target is UnqualifiedNameAssignmentTarget) {
+        var readResolution = target.read;
+        if (readResolution is VariableReadResolution) {
+          element = readResolution.element;
+          promotedType = readResolution.type;
+        }
+      }
+    } else if (node is UnqualifiedNameAssignmentTarget &&
+        node.parent2 is IncrementOrDecrementExpression) {
+      var readResolution = node.read;
+      if (readResolution is VariableReadResolution) {
+        element = readResolution.element;
+        promotedType = readResolution.type;
+      }
+    }
+    if ((element is LocalVariableElement ||
+            element is FormalParameterElement) &&
+        promotedType != null) {
+      var declaredType = (element as VariableElement).type;
+      if (promotedType != declaredType) {
+        return promotedType;
+      }
+    }
+    return null;
+  }
+
+  @override
+  void visitUnqualifiedNameAssignmentTarget(
+    UnqualifiedNameAssignmentTarget node,
+  ) {
+    if (node.parent2 is IncrementOrDecrementExpression) {
+      computeForNode(node, computeDefaultNodeId(node));
+    }
+    super.visitUnqualifiedNameAssignmentTarget(node);
+  }
+}
+
+class _TypePromotionDataInterpreter implements DataInterpreter<DartType> {
+  const new();
+
+  @override
+  String getText(DartType actualData, [String? indentation]) {
+    return actualData.getDisplayString();
+  }
+
+  @override
+  String? isAsExpected(DartType actualData, String? expectedData) {
+    var actualDataText = getText(actualData);
+    if (actualDataText == expectedData) {
+      return null;
+    } else {
+      return 'Expected $expectedData, got $actualDataText';
+    }
+  }
+
+  @override
+  bool isEmpty(DartType? actualData) => actualData == null;
+}

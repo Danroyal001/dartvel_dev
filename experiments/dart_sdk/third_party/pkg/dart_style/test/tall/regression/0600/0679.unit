@@ -1,0 +1,37 @@
+>>>
+class UnitConverterApp extends StatelessWidget {
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData(
+        textTheme: Theme.of(context).textTheme.apply(
+          bodyColor: Colors.black,
+          displayColor: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+}
+<<< 3.7
+class UnitConverterApp extends StatelessWidget {
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData(
+        textTheme: Theme.of(context).textTheme.apply(
+          bodyColor: Colors.black,
+          displayColor: Colors.grey[600],
+        ),
+      ),
+    );
+  }
+}
+<<< 3.13
+class UnitConverterApp extends StatelessWidget {
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      theme: ThemeData(
+        textTheme: Theme.of(context).textTheme
+            .apply(bodyColor: Colors.black, displayColor: Colors.grey[600]),
+      ),
+    );
+  }
+}

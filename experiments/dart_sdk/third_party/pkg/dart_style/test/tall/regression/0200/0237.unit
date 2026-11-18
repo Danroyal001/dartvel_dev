@@ -1,0 +1,39 @@
+>>>
+class Bar {
+  void foo() {
+    blah.method(someLongArgument, andAnotherOne, andAThirdOne, andOneMore)
+      .then((var x) {
+        var y = x * 2;
+      });
+  }
+}
+<<< 3.7
+class Bar {
+  void foo() {
+    blah.method(someLongArgument, andAnotherOne, andAThirdOne, andOneMore).then(
+      (var x) {
+        var y = x * 2;
+      },
+    );
+  }
+}
+<<< 3.13 (unsupported)
+>>> Without var
+class Bar {
+  void foo() {
+    blah.method(someLongArgument, andAnotherOne, andAThirdOne, andOneMore)
+      .then((x) {
+        var y = x * 2;
+      });
+  }
+}
+<<< 3.7
+class Bar {
+  void foo() {
+    blah.method(someLongArgument, andAnotherOne, andAThirdOne, andOneMore).then(
+      (x) {
+        var y = x * 2;
+      },
+    );
+  }
+}

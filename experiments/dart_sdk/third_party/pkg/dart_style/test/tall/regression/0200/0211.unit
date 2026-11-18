@@ -1,0 +1,104 @@
+>>> (indent 2)
+  LiteralMap mapLiteral(List<LiteralMapEntry> entries, {bool isConst: false}) {
+    return new LiteralMap(null, // Type arguments.
+        new NodeList(symbolToken(OPEN_CURLY_BRACKET_INFO),
+            linkedList(entries), symbolToken(CLOSE_CURLY_BRACKET_INFO), ','),
+        isConst ? keywordToken('const') : null);
+  }
+<<< 3.7
+  LiteralMap mapLiteral(List<LiteralMapEntry> entries, {bool isConst: false}) {
+    return new LiteralMap(
+      null, // Type arguments.
+      new NodeList(
+        symbolToken(OPEN_CURLY_BRACKET_INFO),
+        linkedList(entries),
+        symbolToken(CLOSE_CURLY_BRACKET_INFO),
+        ',',
+      ),
+      isConst ? keywordToken('const') : null,
+    );
+  }
+>>>
+void defineProperty(var obj, String property, var value) {
+  JS('void', 'Object.defineProperty(#, #, '
+      '{value: #, enumerable: false, writable: true, configurable: true})',
+      obj, property, value);
+}
+<<< 3.7
+void defineProperty(var obj, String property, var value) {
+  JS(
+    'void',
+    'Object.defineProperty(#, #, '
+        '{value: #, enumerable: false, writable: true, configurable: true})',
+    obj,
+    property,
+    value,
+  );
+}
+<<< 3.13 (unsupported)
+>>> Without var
+void defineProperty(obj, String property, value) {
+  JS('void', 'Object.defineProperty(#, #, '
+      '{value: #, enumerable: false, writable: true, configurable: true})',
+      obj, property, value);
+}
+<<< 3.7
+void defineProperty(obj, String property, value) {
+  JS(
+    'void',
+    'Object.defineProperty(#, #, '
+        '{value: #, enumerable: false, writable: true, configurable: true})',
+    obj,
+    property,
+    value,
+  );
+}
+>>> (indent 4)
+    main() {
+      return searchEngine.searchTopLevelDeclarations('').then(
+          (List<SearchMatch> matches) {
+        _addNonImportedElementSuggestions(matches, excludedLibs);
+        return true;
+      });
+    }
+<<< 3.7
+    main() {
+      return searchEngine.searchTopLevelDeclarations('').then((
+        List<SearchMatch> matches,
+      ) {
+        _addNonImportedElementSuggestions(matches, excludedLibs);
+        return true;
+      });
+    }
+>>> (indent 2)
+  test_getRelationships_empty() {
+    return store.getRelationships(elementA, relationship).then(
+        (List<Location> locations) {
+      expect(locations, isEmpty);
+    });
+  }
+<<< 3.7
+  test_getRelationships_empty() {
+    return store.getRelationships(elementA, relationship).then((
+      List<Location> locations,
+    ) {
+      expect(locations, isEmpty);
+    });
+  }
+>>> (indent 2)
+  _asRuntimeType() {
+    return [
+      _class._jsConstructor
+    ].addAll(typeArguments.map((t) => t._asRuntimeType()));
+  }
+<<< 3.7
+  _asRuntimeType() {
+    return [
+      _class._jsConstructor,
+    ].addAll(typeArguments.map((t) => t._asRuntimeType()));
+  }
+<<< 3.13
+  _asRuntimeType() {
+    return [_class._jsConstructor]
+        .addAll(typeArguments.map((t) => t._asRuntimeType()));
+  }

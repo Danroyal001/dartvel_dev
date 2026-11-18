@@ -1,0 +1,19 @@
+>>> (indent 2)
+  Iterable<VariableDeclaration> createCapturedTryVariables() => Iterable
+      .generate(
+      capturedTryDepth,
+      (depth) =>
+          VariableDeclaration(ContinuationVariables.savedTryContextVar(depth)));
+<<< 3.6
+  Iterable<VariableDeclaration> createCapturedTryVariables() =>
+      Iterable.generate(
+          capturedTryDepth,
+          (depth) => VariableDeclaration(
+              ContinuationVariables.savedTryContextVar(depth)));
+>>> (indent 10)
+          TypeParameterElementImpl typeParameter = TypeParameterElementImpl
+              .forNode(AstTestFactory.identifier3(parameterNames[i]));
+<<< 3.6
+          TypeParameterElementImpl typeParameter =
+              TypeParameterElementImpl.forNode(
+                  AstTestFactory.identifier3(parameterNames[i]));

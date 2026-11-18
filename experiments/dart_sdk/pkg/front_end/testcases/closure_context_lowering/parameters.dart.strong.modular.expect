@@ -1,0 +1,28 @@
+library;
+import self as self;
+import "dart:core" as core;
+
+static method foo1(core::int outer1) → dynamic/* scope=[
+  #ctx1: direct-captured [outer1],
+] */ {
+  return () /* #ctx1 */ → core::int => outer1;
+}
+static method foo2(core::int outer2) → dynamic/* scope=[
+  #ctx2: not-captured [outer2],
+] */ {
+  return ((core::int inner2) → () → core::int/* scope=[
+    #ctx3: direct-captured [inner2],
+  ] */ => () /* #ctx3 */ → core::int => inner2)(outer2){(core::int) → () → core::int};
+}
+static method foo3({required core::int outer3}) → dynamic/* scope=[
+  #ctx4: direct-captured [outer3],
+] */ {
+  return () /* #ctx4 */ → core::int => outer3;
+}
+static method foo4(core::int outer4) → dynamic/* scope=[
+  #ctx5: not-captured [outer4],
+] */ {
+  return (({required core::int inner4}) → () → core::int/* scope=[
+    #ctx6: direct-captured [inner4],
+  ] */ => () /* #ctx6 */ → core::int => inner4)(inner4: outer4){({required inner4: core::int}) → () → core::int};
+}

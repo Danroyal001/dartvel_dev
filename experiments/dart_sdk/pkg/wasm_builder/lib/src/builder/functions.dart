@@ -1,0 +1,58 @@
+// Copyright (c) 2023, the Dart project authors.  Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import '../ir/ir.dart' as ir;
+import 'builder.dart';
+import 'util.dart';
+
+/// The interface for the functions in a module.
+class FunctionsBuilder with Builder<ir.Functions> {
+  final ModuleBuilder _moduleBuilder;
+  final _definedFunctions = <ir.DefinedFunction>[];
+  final _importedFunctions = <ir.ImportedFunction>[];
+
+  FunctionsBuilder(this._moduleBuilder);
+
+  List<ir.DefinedFunction> get defined => _definedFunctions;
+
+  /// Defines a new function in this module with the given function type.
+  ///
+  /// The [ir.DefinedFunction.body] must be completed (including the terminating
+  /// `end`) before the module can be serialized.
+  FunctionBuilder define(ir.FunctionType type, [String? name]) {
+    final function = ir.DefinedFunction.withoutBody(
+      _moduleBuilder.module,
+      ir.FinalizableIndex(),
+      type,
+      name,
+    );
+    _definedFunctions.add(function);
+    return FunctionBuilder(_moduleBuilder, function);
+  }
+
+  /// Import a function into the module.
+  ir.ImportedFunction import(
+    String module,
+    String name,
+    ir.FunctionType type, [
+    String? functionName,
+  ]) {
+    final function = ir.ImportedFunction(
+      _moduleBuilder.module,
+      module,
+      name,
+      ir.FinalizableIndex(),
+      type,
+      functionName,
+    );
+    _importedFunctions.add(function);
+    return function;
+  }
+
+  @override
+  ir.Functions forceBuild() {
+    finalizeImportsAndDefinitions(_importedFunctions, _definedFunctions);
+    return ir.Functions(_importedFunctions, _definedFunctions);
+  }
+}

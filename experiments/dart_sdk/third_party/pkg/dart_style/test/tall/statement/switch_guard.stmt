@@ -1,0 +1,149 @@
+40 columns                              |
+>>> Pattern and guard on same line.
+switch (obj) {
+  case constant when condition: body;
+}
+<<< 3.7
+switch (obj) {
+  case constant when condition:
+    body;
+}
+>>> Pattern and guard on same line, split after ":".
+switch (obj) {
+  case constant when condition: longBody;
+}
+<<< 3.7
+switch (obj) {
+  case constant when condition:
+    longBody;
+}
+>>> Prefer to split guard before case.
+switch (obj) {
+  case veryLongConstant when longCondition: body;
+}
+<<< 3.7
+switch (obj) {
+  case veryLongConstant
+      when longCondition:
+    body;
+}
+>>> No split in pattern, expression split in guard.
+switch (obj) {
+  case longConstant when condition || anotherCondition: body;
+}
+<<< 3.7
+switch (obj) {
+  case longConstant
+      when condition ||
+          anotherCondition:
+    body;
+}
+>>> No split in pattern, block split in guard.
+switch (obj) {
+  case constant when [veryLongElement,veryLongElement,]: body;
+}
+<<< 3.7
+switch (obj) {
+  case constant
+      when [
+        veryLongElement,
+        veryLongElement,
+      ]:
+    body;
+}
+>>> Expression split in pattern.
+switch (obj) {
+  case veryLongPattern || reallyMustSplit: body;
+}
+<<< 3.7
+switch (obj) {
+  case veryLongPattern ||
+      reallyMustSplit:
+    body;
+}
+>>> Expression split in pattern forces guard to split.
+switch (obj) {
+  case veryLongPattern || reallyMustSplit when true: body;
+}
+<<< 3.7
+switch (obj) {
+  case veryLongPattern ||
+          reallyMustSplit
+      when true:
+    body;
+}
+>>> Expression split in pattern, expression split in guard.
+switch (obj) {
+  case veryLongPattern || reallyMustSplit when veryLongCondition
+  || anotherLongCondition: body;
+}
+<<< 3.7
+switch (obj) {
+  case veryLongPattern ||
+          reallyMustSplit
+      when veryLongCondition ||
+          anotherLongCondition:
+    body;
+}
+>>> Expression split in pattern, block split in guard.
+switch (obj) {
+  case veryLongPattern || reallyMustSplit when [veryLongElement,veryLongElement,]: body;
+}
+<<< 3.7
+switch (obj) {
+  case veryLongPattern ||
+          reallyMustSplit
+      when [
+        veryLongElement,
+        veryLongElement,
+      ]:
+    body;
+}
+>>> Block split in pattern forces guard to split.
+switch (obj) {
+  case [veryLongElement,veryLongElement,veryLongElement,] when true: body;
+}
+<<< 3.7
+switch (obj) {
+  case [
+        veryLongElement,
+        veryLongElement,
+        veryLongElement,
+      ]
+      when true:
+    body;
+}
+>>> Block split in pattern, expression split in guard.
+switch (obj) {
+  case [veryLongElement,veryLongElement,veryLongElement,] when longCondition || anotherLongCondition: body;
+}
+<<< 3.7
+switch (obj) {
+  case [
+        veryLongElement,
+        veryLongElement,
+        veryLongElement,
+      ]
+      when longCondition ||
+          anotherLongCondition:
+    body;
+}
+>>> Block split in pattern, block split in guard.
+switch (obj) {
+  case [veryLongElement,veryLongElement,veryLongElement,] when
+  [veryLongElement,veryLongElement,veryLongElement,]: body;
+}
+<<< 3.7
+switch (obj) {
+  case [
+        veryLongElement,
+        veryLongElement,
+        veryLongElement,
+      ]
+      when [
+        veryLongElement,
+        veryLongElement,
+        veryLongElement,
+      ]:
+    body;
+}

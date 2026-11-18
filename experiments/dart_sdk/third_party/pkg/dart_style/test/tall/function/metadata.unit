@@ -1,0 +1,108 @@
+40 columns                              |
+>>> Splitting in one parameter's metadata doesn't force others to split.
+function(@Annotation longParameter,
+  // Comment.
+@Annotation @Other @Third longParameter2,) {}
+<<< 3.7
+function(
+  @Annotation longParameter,
+  // Comment.
+  @Annotation
+  @Other
+  @Third
+  longParameter2,
+) {}
+>>> Split after metadata.
+@meta foo() {}
+<<< 3.7
+@meta
+foo() {}
+>>> Split after each annotation.
+@meta @another foo() {}
+<<< 3.7
+@meta
+@another
+foo() {}
+>>> Unsplit on parameter.
+foo(
+
+@a
+
+@b
+
+param) {}
+<<< 3.7
+foo(@a @b param) {}
+>>> Keep "covariant" with parameter.
+class A { function(@Annotation @VeryLongMetadataAnnotation covariant longParameter) {} }
+<<< 3.7
+class A {
+  function(
+    @Annotation
+    @VeryLongMetadataAnnotation
+    covariant longParameter,
+  ) {}
+}
+>>> Keep "required" with parameter.
+class A { function({@Annotation @VeryLongMetadataAnnotation required longParameter}) {} }
+<<< 3.7
+class A {
+  function({
+    @Annotation
+    @VeryLongMetadataAnnotation
+    required longParameter,
+  }) {}
+}
+>>> On function-typed formal parameter.
+withReturnType(@foo @bar int fn(@foo param)) {}
+withoutReturnType(@foo @bar fn(@foo param)) {}
+<<< 3.7
+withReturnType(
+  @foo @bar int fn(@foo param),
+) {}
+withoutReturnType(
+  @foo @bar fn(@foo param),
+) {}
+>>> On default formal parameter.
+positional([@foo bar]) {}
+named({@foo bar}) {}
+<<< 3.7
+positional([@foo bar]) {}
+named({@foo bar}) {}
+>>> On initializing formal.
+class Foo {
+  Foo(@bar this.field);
+}
+<<< 3.7
+class Foo {
+  Foo(@bar this.field);
+}
+>>> On "super." parameter.
+class Foo {
+  Foo(@bar super.field, [  @foo()   @baz   super.another  ]);
+}
+<<< 3.7
+class Foo {
+  Foo(
+    @bar super.field, [
+    @foo() @baz super.another,
+  ]);
+}
+>>> Function typed parameter with default value.
+f([@metadata @another(argument, argument) callback() = constantFunction]) {}
+<<< 3.7
+f([
+  @metadata
+  @another(argument, argument)
+  callback() = constantFunction,
+]) {}
+>>> Don't split return type if comment after metadata.
+@meta
+// Comment.
+int f() {;}
+<<< 3.7
+@meta
+// Comment.
+int f() {
+  ;
+}

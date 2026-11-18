@@ -1,0 +1,10 @@
+>>> doesn't wrap after condition on single-line ifs
+foo() {
+  if (xxxxxxxxxxxxxxxx || xxxxxxxxxxxxxxxxxxxxx)
+    return xxxxxxxxxxxxxx ? xxxxxxxxxxxxxxxxxxxx : xxxxxxxxxxxxxxxxxxxxxxxxxx;
+}
+<<< 3.6
+foo() {
+  if (xxxxxxxxxxxxxxxx || xxxxxxxxxxxxxxxxxxxxx)
+    return xxxxxxxxxxxxxx ? xxxxxxxxxxxxxxxxxxxx : xxxxxxxxxxxxxxxxxxxxxxxxxx;
+}

@@ -1,0 +1,8 @@
+>>>
+Future doThing() => pool.withResource(() {
+  // ...
+});
+<<< 3.7
+Future doThing() => pool.withResource(() {
+  // ...
+});

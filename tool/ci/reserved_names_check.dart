@@ -63,6 +63,14 @@ const List<String> _channels = <String>[
   'BasicMessageChannel',
 ];
 
+/// The Dart SDK and Flutter forks the Rust stack side effort ports, kept
+/// in-tree under `experiments/`. Their files are upstream's, Python build
+/// scripts and platform channels included, and are not ours to rewrite.
+const List<String> _upstreamForks = <String>[
+  'experiments/dart_sdk/',
+  'experiments/flutter/',
+];
+
 void main(List<String> arguments) {
   final ProcessResult tracked = Process.runSync(
     'git',
@@ -78,6 +86,7 @@ void main(List<String> arguments) {
   int scanned = 0;
   for (final String path in '${tracked.stdout}'.split('\u0000')) {
     if (path.isEmpty) continue;
+    if (_upstreamForks.any(path.startsWith)) continue;
     // This file names every one of them, and so does the checker that would
     // otherwise have to be written to exempt it.
     if (path == 'tool/ci/reserved_names_check.dart') continue;

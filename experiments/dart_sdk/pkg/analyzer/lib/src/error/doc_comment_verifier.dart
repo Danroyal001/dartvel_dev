@@ -1,0 +1,227 @@
+// Copyright (c) 2023, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:math' as math;
+
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/doc_comment.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/utilities/extensions/string.dart';
+
+/// Verifies various data parsed in doc comments.
+class DocCommentVerifier {
+  final DiagnosticReporter _diagnosticReporter;
+
+  new(this._diagnosticReporter);
+
+  /// Verifies that [commentReference] references a single element.
+  ///
+  /// A prefix alone, such as `[p]`, references the library imported with
+  /// this prefix, so it is ambiguous if there is more than one.
+  void commentReference(CommentReference commentReference) {
+    String libraryNames(Iterable<LibraryElement> libraries) {
+      var uris = {for (var library in libraries) library.uri.toString()};
+      return (uris.toList()..sort()).quotedAndCommaSeparatedWithAnd;
+    }
+
+    var components = commentReference.components;
+    if (components case [var component]) {
+      if (component.element case PrefixElement prefix) {
+        var libraries = prefix.scopeLibraries;
+        if (libraries.length > 1) {
+          _diagnosticReporter.report(
+            diag.ambiguousCommentReferencePrefix
+                .withArguments(
+                  prefix: component.name.lexeme,
+                  libraries: libraryNames(libraries),
+                )
+                .at(component.name),
+          );
+        }
+        return;
+      }
+    }
+
+    for (var component in components) {
+      if (component.element case MultiplyDefinedElementImpl element) {
+        _diagnosticReporter.report(
+          diag.ambiguousCommentReferenceName
+              .withArguments(
+                name: component.name.lexeme,
+                libraries: libraryNames(
+                  element.conflictingElements.map((e) => e.library).nonNulls,
+                ),
+              )
+              .at(component.name),
+        );
+      }
+    }
+  }
+
+  void docDirective(DocDirective docDirective) {
+    switch (docDirective) {
+      case SimpleDocDirective():
+        docDirectiveTag(docDirective.tag);
+      case BlockDocDirective(:var openingTag, :var closingTag):
+        docDirectiveTag(openingTag);
+        if (closingTag != null) {
+          docDirectiveTag(closingTag);
+        }
+    }
+  }
+
+  void docDirectiveTag(DocDirectiveTag tag) {
+    validateArgumentCount(tag);
+    validateArgumentFormat(tag);
+  }
+
+  /// Verifies doc imports, written as `@docImport`.
+  void docImport(DocImport docImport) {
+    var deferredKeyword = docImport.import.deferredKeyword;
+    if (deferredKeyword != null) {
+      _diagnosticReporter.report(
+        diag.docImportCannotBeDeferred.at(deferredKeyword),
+      );
+    }
+    var configurations = docImport.import.configurations;
+    if (configurations.isNotEmpty) {
+      _diagnosticReporter.report(
+        diag.docImportCannotHaveConfigurations.atOffset(
+          offset: configurations.first.offset,
+          length: configurations.last.end - configurations.first.offset,
+        ),
+      );
+    }
+  }
+
+  void validateArgumentCount(DocDirectiveTag tag) {
+    var positionalArgumentCount = tag.positionalArguments.length;
+    var required = tag.type.positionalParameters;
+    var requiredCount = tag.type.positionalParameters.length;
+
+    if (positionalArgumentCount < requiredCount) {
+      var gap = requiredCount - positionalArgumentCount;
+      if (gap == 1) {
+        _diagnosticReporter.report(
+          diag.docDirectiveMissingOneArgument
+              .withArguments(
+                directive: tag.type.name,
+                argumentName: required.last.name,
+              )
+              .atOffset(offset: tag.offset, length: tag.end - tag.offset),
+        );
+      } else if (gap == 2) {
+        _diagnosticReporter.report(
+          diag.docDirectiveMissingTwoArguments
+              .withArguments(
+                directive: tag.type.name,
+                argument1: required[required.length - 2].name,
+                argument2: required.last.name,
+              )
+              .atOffset(offset: tag.offset, length: tag.end - tag.offset),
+        );
+      } else if (gap == 3) {
+        _diagnosticReporter.report(
+          diag.docDirectiveMissingThreeArguments
+              .withArguments(
+                directive: tag.type.name,
+                argument1: required[required.length - 3].name,
+                argument2: required[required.length - 2].name,
+                argument3: required.last.name,
+              )
+              .atOffset(offset: tag.offset, length: tag.end - tag.offset),
+        );
+      }
+    }
+
+    if (tag.type.restParametersAllowed) {
+      // TODO(srawlins): We probably want to enforce that at least one argument
+      // is given, particularly for 'category' and 'subCategory'.
+      return;
+    }
+
+    if (positionalArgumentCount > requiredCount) {
+      var errorOffset = tag.positionalArguments[requiredCount].offset;
+      var errorLength = tag.positionalArguments.last.end - errorOffset;
+      _diagnosticReporter.report(
+        diag.docDirectiveHasExtraArguments
+            .withArguments(
+              directive: tag.type.name,
+              actualCount: positionalArgumentCount,
+              expectedCount: requiredCount,
+            )
+            .atOffset(offset: errorOffset, length: errorLength),
+      );
+    }
+
+    for (var namedArgument in tag.namedArguments) {
+      if (!tag.type.namedParameters.containsNamed(namedArgument.name)) {
+        _diagnosticReporter.report(
+          diag.docDirectiveHasUnexpectedNamedArgument
+              .withArguments(
+                directive: tag.type.name,
+                argumentName: namedArgument.name,
+              )
+              .atOffset(
+                offset: namedArgument.offset,
+                length: namedArgument.end - namedArgument.offset,
+              ),
+        );
+      }
+    }
+  }
+
+  void validateArgumentFormat(DocDirectiveTag tag) {
+    var required = tag.type.positionalParameters;
+    var positionalArgumentCount = math.min(
+      tag.positionalArguments.length,
+      required.length,
+    );
+    for (var i = 0; i < positionalArgumentCount; i++) {
+      var parameter = required[i];
+      var argument = tag.positionalArguments[i];
+
+      void reportWrongFormat() {
+        _diagnosticReporter.report(
+          diag.docDirectiveArgumentWrongFormat
+              .withArguments(
+                argumentName: parameter.name,
+                expectedFormat: parameter.expectedFormat.displayString,
+              )
+              .atOffset(
+                offset: argument.offset,
+                length: argument.end - argument.offset,
+              ),
+        );
+      }
+
+      switch (parameter.expectedFormat) {
+        case DocDirectiveParameterFormat.any:
+          continue;
+        case DocDirectiveParameterFormat.integer:
+          if (int.tryParse(argument.value) == null) {
+            reportWrongFormat();
+          }
+        case DocDirectiveParameterFormat.uri:
+          if (Uri.tryParse(argument.value) == null) {
+            reportWrongFormat();
+          }
+        case DocDirectiveParameterFormat.youtubeUrl:
+          if (Uri.tryParse(argument.value) == null ||
+              !argument.value.startsWith(
+                DocDirectiveParameterFormat.youtubeUrlPrefix,
+              )) {
+            reportWrongFormat();
+          }
+      }
+    }
+  }
+}
+
+extension on List<DocDirectiveParameter> {
+  bool containsNamed(String name) => any((p) => p.name == name);
+}

@@ -1,0 +1,39 @@
+40 columns                              |
+>>> On enum.
+@Awesome @Fierce("really")
+enum Primate{bonobo,chimp,gorilla}
+<<< 3.7
+@Awesome
+@Fierce("really")
+enum Primate { bonobo, chimp, gorilla }
+>>> On enum cases.
+enum Foo { a, @meta b, @meta1 @meta2 c}
+<<< 3.7
+enum Foo {
+  a,
+  @meta
+  b,
+  @meta1
+  @meta2
+  c,
+}
+>>> Remove blank lines before enum case with metadata.
+enum Foo { a,
+
+
+
+@meta b}
+<<< 3.7
+enum Foo {
+  a,
+
+  @meta
+  b,
+}
+>>> Metadata on enum case forces enum to split.
+enum Foo { @m a }
+<<< 3.7
+enum Foo {
+  @m
+  a,
+}

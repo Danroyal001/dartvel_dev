@@ -1,0 +1,235 @@
+// Copyright (c) 2020, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+import 'context_collection_resolution.dart';
+import 'node_text_expectations.dart';
+
+main() {
+  defineReflectiveSuite(() {
+    defineReflectiveTests(AwaitExpressionResolutionTest);
+    defineReflectiveTests(UpdateNodeTextExpectations);
+  });
+}
+
+@reflectiveTest
+class AwaitExpressionResolutionTest extends PubPackageResolutionTest {
+  test_future() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+f(Future<int> a) async {
+  await a;
+}
+''');
+    assertType(result.findNode.awaitExpression('await a'), 'int');
+  }
+
+  test_futureOr() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:async';
+
+f(FutureOr<int> a) async {
+  await a;
+}
+''');
+    assertType(result.findNode.awaitExpression('await a'), 'int');
+  }
+
+  test_futureOrQ() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:async';
+
+f(FutureOr<int>? a) async {
+  await a;
+}
+''');
+    assertType(result.findNode.awaitExpression('await a'), 'int?');
+  }
+
+  test_futureQ() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+f(Future<int>? a) async {
+  await a;
+}
+''');
+    assertType(result.findNode.awaitExpression('await a'), 'int?');
+  }
+
+  test_super() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+class A {
+  void f() async {
+    await super;
+//        ^^^^^
+// [diag.missingAssignableSelector] Missing selector such as '.identifier' or '[0]'.
+  }
+}
+''');
+    var node = result.findNode.singleAwaitExpression;
+    assertResolvedNodeText(node, r'''
+AwaitExpression
+  awaitKeyword: await
+  expression2: InvalidSuperExpression
+    superReference: SuperReference
+      superKeyword: super
+    staticType: InvalidType
+  expression(v1): SuperExpression
+    superKeyword: super
+    staticType: A
+  staticType: InvalidType
+''');
+  }
+
+  test_super_property() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+class A {
+  void f() async {
+    await super.hashCode;
+  }
+}
+''');
+
+    var node = result.findNode.singleAwaitExpression;
+    assertResolvedNodeText(node, r'''
+AwaitExpression
+  awaitKeyword: await
+  expression2: ReceiverPropertyExtraction
+    receiver: SuperReference
+      superKeyword: super
+    operator: .
+    name: hashCode
+    resolution: GetterInvocationResolution
+      element: dart:core::@class::Object::@getter::hashCode
+      type: int
+    staticType: int
+  expression(v1): PropertyAccess
+    target: SuperExpression
+      superKeyword: super
+      staticType: A
+    operator: .
+    propertyName: SimpleIdentifier
+      token: hashCode
+      element: dart:core::@class::Object::@getter::hashCode
+      staticType: int
+    staticType: int
+  staticType: int
+''');
+  }
+
+  test_unresolved_identifier() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() async {
+  await unresolved;
+//      ^^^^^^^^^^
+// [diag.undefinedUnqualifiedNameReadNotFound] Undefined name 'unresolved'.
+}
+''');
+
+    var node = result.findNode.singleAwaitExpression;
+    assertResolvedNodeText(node, r'''
+AwaitExpression
+  awaitKeyword: await
+  expression2: UnqualifiedNameExpression
+    name: unresolved
+    resolution: InvalidNamedReadResolution
+      recoveryElement: <null>
+    staticType: InvalidType
+  expression(v1): SimpleIdentifier
+    token: unresolved
+    element: <null>
+    staticType: InvalidType
+  staticType: InvalidType
+''');
+  }
+
+  test_unresolved_prefixedIdentifier() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+import 'dart:math' as prefix;
+
+void f() async {
+  await prefix.unresolved;
+//             ^^^^^^^^^^
+// [diag.undefinedPrefixedNameReadNotFound] The name 'unresolved' isn't defined in the libraries imported with the prefix 'prefix'.
+}
+''');
+
+    var node = result.findNode.singleAwaitExpression;
+    assertResolvedNodeText(node, r'''
+AwaitExpression
+  awaitKeyword: await
+  expression2: ImportPrefixedNameExpression
+    importPrefix: ImportPrefixReference
+      name: prefix
+      period: .
+      element: <testLibraryFragment>::@prefix::prefix
+    name: unresolved
+    resolution: InvalidNamedReadResolution
+      recoveryElement: <null>
+    staticType: InvalidType
+  expression(v1): PrefixedIdentifier
+    prefix: SimpleIdentifier
+      token: prefix
+      element: <testLibraryFragment>::@prefix::prefix
+      staticType: null
+    period: .
+    identifier: SimpleIdentifier
+      token: unresolved
+      element: <null>
+      staticType: InvalidType
+    element: <null>
+    staticType: InvalidType
+  staticType: InvalidType
+''');
+  }
+
+  test_unresolved_propertyAccess() async {
+    var result = await resolveTestCodeWithDiagnostics(r'''
+void f() async {
+  await 0.isEven.unresolved;
+//               ^^^^^^^^^^
+// [diag.undefinedInstanceMemberReadNotFound] The member 'unresolved' isn't defined for the type 'bool'.
+}
+''');
+
+    var node = result.findNode.singleAwaitExpression;
+    assertResolvedNodeText(node, r'''
+AwaitExpression
+  awaitKeyword: await
+  expression2: ReceiverPropertyExtraction
+    receiver: ReceiverPropertyExtraction
+      receiver: IntegerLiteral
+        literal: 0
+        staticType: int
+      operator: .
+      name: isEven
+      resolution: GetterInvocationResolution
+        element: dart:core::@class::int::@getter::isEven
+        type: bool
+      staticType: bool
+    operator: .
+    name: unresolved
+    resolution: InvalidNamedReadResolution
+      recoveryElement: <null>
+    staticType: InvalidType
+  expression(v1): PropertyAccess
+    target: PropertyAccess
+      target: IntegerLiteral
+        literal: 0
+        staticType: int
+      operator: .
+      propertyName: SimpleIdentifier
+        token: isEven
+        element: dart:core::@class::int::@getter::isEven
+        staticType: bool
+      staticType: bool
+    operator: .
+    propertyName: SimpleIdentifier
+      token: unresolved
+      element: <null>
+      staticType: InvalidType
+    staticType: InvalidType
+  staticType: InvalidType
+''');
+  }
+}

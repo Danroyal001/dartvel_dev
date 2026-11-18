@@ -1,0 +1,215 @@
+40 columns                              |
+>>> Single value.
+enum Unity {one}
+<<< 3.7
+enum Unity { one }
+>>> Multiple unsplit values.
+enum Primate{
+
+  bonobo,
+
+
+
+  chimp,
+
+
+  gorilla
+
+
+
+}
+<<< 3.7
+enum Primate { bonobo, chimp, gorilla }
+>>> Remove trailing comma if values don't split.
+enum Primate{bonobo,chimp,}
+<<< 3.7
+enum Primate { bonobo, chimp }
+>>> Split values and insert trailing comma.
+enum Primate{bonobo,chimp,gorilla,organutan}
+<<< 3.7
+enum Primate {
+  bonobo,
+  chimp,
+  gorilla,
+  organutan,
+}
+>>> Insert blank line before and after enum declaration.
+var x = 1;
+enum A { a }
+var y = 2;
+<<< 3.7
+var x = 1;
+
+enum A { a }
+
+var y = 2;
+>>> Remove semicolon if there are no members.
+enum E { a, b; }
+<<< 3.7
+enum E { a, b }
+>>> Remove trailing comma and semicolon if unsplit.
+enum E {a,b,c,;}
+<<< 3.7
+enum E { a, b, c }
+>>> Remove semicolon but split if a primary constructor.
+enum E() {a,b,c,;}
+<<< 3.13
+enum E() {
+  a,
+  b,
+  c,
+}
+>>> Split values and add trailing comma but remove semicolon if no members.
+enum Primate{bonobo,chimp,gorilla,organutan;}
+<<< 3.7
+enum Primate {
+  bonobo,
+  chimp,
+  gorilla,
+  organutan,
+}
+>>> Argument lists in values.
+enum Args {
+first(),second(a,b,c),
+third(named:1,2,another:3)
+}
+<<< 3.7
+enum Args {
+  first(),
+  second(a, b, c),
+  third(named: 1, 2, another: 3),
+}
+>>> Split argument lists in values.
+enum Args {
+firstEnumValue(longArgument,anotherArgument),
+secondEnumValue(longArgument,anotherArgument,aThirdArgument,theLastOne),
+thirdGenericOne<FirstTypeArgument,
+SecondTypeArgument<NestedTypeArgument,AnotherNestedTypeArgument>,
+LastTypeArgument>(namedArgument: firstValue,anotherNamed:argumentValue)
+}
+<<< 3.7
+enum Args {
+  firstEnumValue(
+    longArgument,
+    anotherArgument,
+  ),
+  secondEnumValue(
+    longArgument,
+    anotherArgument,
+    aThirdArgument,
+    theLastOne,
+  ),
+  thirdGenericOne<
+    FirstTypeArgument,
+    SecondTypeArgument<
+      NestedTypeArgument,
+      AnotherNestedTypeArgument
+    >,
+    LastTypeArgument
+  >(
+    namedArgument: firstValue,
+    anotherNamed: argumentValue,
+  ),
+}
+>>> Named constructor in value.
+enum Things {
+  unsplit.name(argument),
+  private._(argument),
+  splitInArgumentList.longerName(argument),
+  generic<int>.name(argument)
+}
+<<< 3.7
+enum Things {
+  unsplit.name(argument),
+  private._(argument),
+  splitInArgumentList.longerName(
+    argument,
+  ),
+  generic<int>.name(argument),
+}
+>>> Generic enum type.
+enum MagicNumbers< T    extends num   ,   S> {
+  one(1), two(2),pi<double,String>(3.14159)
+}
+<<< 3.7
+enum MagicNumbers<T extends num, S> {
+  one(1),
+  two(2),
+  pi<double, String>(3.14159),
+}
+>>> Split in type parameters forces body to split.
+enum SomeEnumType<LongTypeParameterName, Another> { a, b, c }
+<<< 3.7
+enum SomeEnumType<
+  LongTypeParameterName,
+  Another
+> {
+  a,
+  b,
+  c,
+}
+>>> Remove blank lines before first and last value. Preserve one between.
+enum E {
+
+
+  firstConstant,
+
+
+
+  secondConstant,
+
+
+
+  thirdConstant
+
+
+}
+<<< 3.7
+enum E {
+  firstConstant,
+
+  secondConstant,
+
+  thirdConstant,
+}
+>>> Discard blank lines if doesn't need to split.
+enum E {
+
+
+  a,
+
+
+
+  b,
+
+
+
+  c,
+
+
+}
+<<< 3.7
+enum E { a, b, c }
+>>> Empty body with semicolon.
+enum E;
+<<< 3.13
+enum E;
+>>> Don't force blank lines around `;` bodies.
+var x = 1;
+enum A ;
+var y = 2;
+<<< 3.13
+var x = 1;
+enum A;
+var y = 2;
+>>> Generic enum type with empty body.
+enum MagicNumbers< T    extends num   ,   S> ;
+<<< 3.13
+enum MagicNumbers<T extends num, S>;
+>>> Split in type parameters with empty body.
+enum SomeEnumType<LongTypeParameterName, Another> ;
+<<< 3.13
+enum SomeEnumType<
+  LongTypeParameterName,
+  Another
+>;

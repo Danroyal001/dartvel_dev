@@ -1,0 +1,1135 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'package:args/command_runner.dart';
+import 'package:file/memory.dart';
+import 'package:flutter_tools/src/android/android_builder.dart';
+import 'package:flutter_tools/src/android/android_sdk.dart';
+import 'package:flutter_tools/src/android/android_studio.dart';
+import 'package:flutter_tools/src/android/gradle_utils.dart'
+    show templateAndroidGradlePluginVersion;
+import 'package:flutter_tools/src/android/java.dart';
+import 'package:flutter_tools/src/base/context.dart';
+import 'package:flutter_tools/src/base/file_system.dart';
+import 'package:flutter_tools/src/base/version.dart';
+import 'package:flutter_tools/src/build_system/build_system.dart';
+import 'package:flutter_tools/src/cache.dart';
+import 'package:flutter_tools/src/commands/build_apk.dart';
+import 'package:flutter_tools/src/features.dart';
+import 'package:flutter_tools/src/globals.dart' as globals;
+import 'package:flutter_tools/src/project.dart';
+import 'package:test/fake.dart';
+import 'package:unified_analytics/testing.dart';
+import 'package:unified_analytics/unified_analytics.dart';
+
+import '../../src/android_common.dart';
+import '../../src/common.dart';
+import '../../src/context.dart';
+import '../../src/fake_process_manager.dart';
+import '../../src/fakes.dart'
+    show DelegatingToolContext, FakeAndroidContext, FakeFlutterVersion, TestFeatureFlags;
+import '../../src/test_build_system.dart';
+import '../../src/test_flutter_command_runner.dart';
+
+void main() {
+  Cache.disableLocking();
+
+  group('Usage', () {
+    late Directory tempDir;
+    late FakeAnalytics fakeAnalytics;
+
+    setUp(() {
+      tempDir = globals.fs.systemTempDirectory.createTempSync('flutter_tools_packages_test.');
+      fakeAnalytics = getInitializedFakeAnalyticsInstance(
+        fs: MemoryFileSystem.test(),
+        fakeFlutterVersion: FakeFlutterVersion(),
+      );
+    });
+
+    tearDown(() {
+      tryToDelete(tempDir);
+    });
+
+    testUsingContext(
+      'indicate the default target platforms',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        // Without buildMode flag.
+        await runBuildApkCommand(projectPath);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(projectPath, arguments: <String>['--debug']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'debug',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(projectPath, arguments: <String>['--jit-release']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'jit_release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(projectPath, arguments: <String>['--profile']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'profile',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(projectPath, arguments: <String>['--release']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      'reports hcpp analytics false when the manifest is silent and the feature flag is off',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        await runBuildApkCommand(projectPath);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+      },
+    );
+
+    testUsingContext(
+      'reports hcpp analytics from the enable-hcpp feature flag when the manifest is silent',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        // The manifest does not set EnableHcpp, so the build injects the feature flag value
+        // and the packaged app has HCPP on.
+        await runBuildApkCommand(projectPath);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: true,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(isHcppEnabled: true),
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+      },
+    );
+
+    testUsingContext(
+      'reports hcpp analytics from an explicit --no-enable-hcpp flag',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        await runBuildApkCommand(projectPath, arguments: <String>['--no-enable-hcpp']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+      },
+    );
+
+    testUsingContext(
+      'reports hcpp analytics from an explicit --enable-hcpp flag when not in the manifest',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        // The manifest does not set EnableHcpp, so the build injects the flag value and the
+        // packaged app has HCPP on. Analytics has to report what was packaged, not what the
+        // source manifest happened to say.
+        await runBuildApkCommand(projectPath, arguments: <String>['--enable-hcpp']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: true,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+      },
+    );
+
+    testUsingContext(
+      'reports hcpp analytics from an explicit --enable-hcpp over a manifest value',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+        final File manifestFile = globals.fs.file(
+          globals.fs.path.join(projectPath, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'),
+        );
+        manifestFile.writeAsStringSync(
+          manifestFile.readAsStringSync().replaceFirst(
+            '</application>',
+            '    <meta-data android:name="io.flutter.embedding.android.EnableHcpp" '
+                'android:value="false" />\n'
+                '    </application>',
+          ),
+        );
+
+        // The flag is passed at invocation time, so it wins over the checked in manifest value
+        // and gradle writes true into the merged manifest. Analytics reports what is packaged.
+        await runBuildApkCommand(projectPath, arguments: <String>['--enable-hcpp']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm,android-arm64,android-x64',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: true,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+      },
+    );
+
+    testUsingContext(
+      'Each build mode respects --target-platform',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        // Without buildMode flag.
+        await runBuildApkCommand(projectPath, arguments: <String>['--target-platform=android-arm']);
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--debug', '--target-platform=android-arm'],
+        );
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm',
+              buildApkBuildMode: 'debug',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--release', '--target-platform=android-arm'],
+        );
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm',
+              buildApkBuildMode: 'release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--profile', '--target-platform=android-arm'],
+        );
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm',
+              buildApkBuildMode: 'profile',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+
+        await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--jit-release', '--target-platform=android-arm'],
+        );
+        expect(
+          fakeAnalytics.sentEvents,
+          contains(
+            Event.commandUsageValues(
+              workflow: 'apk',
+              commandHasTerminal: false,
+              buildApkTargetPlatform: 'android-arm',
+              buildApkBuildMode: 'jit_release',
+              buildApkSplitPerAbi: false,
+              buildApkEnableHcpp: false,
+            ),
+          ),
+        );
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext('split per abi', () async {
+      final String projectPath = await createProject(
+        tempDir,
+        arguments: <String>['--no-pub', '--template=app'],
+      );
+
+      final BuildApkCommand commandWithFlag = await runBuildApkCommand(
+        projectPath,
+        arguments: <String>['--split-per-abi'],
+      );
+
+      expect(
+        (await commandWithFlag.unifiedAnalyticsUsageValues('run')).eventData['buildApkSplitPerAbi'],
+        isTrue,
+      );
+
+      final BuildApkCommand commandWithoutFlag = await runBuildApkCommand(projectPath);
+      expect(
+        (await commandWithoutFlag.unifiedAnalyticsUsageValues('run'))
+            .eventData['buildApkSplitPerAbi'],
+        isFalse,
+      );
+    }, overrides: <Type, Generator>{AndroidBuilder: () => FakeAndroidBuilder()});
+
+    testUsingContext(
+      'build type',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        final BuildApkCommand defaultBuildCommand = await runBuildApkCommand(projectPath);
+        final Event defaultBuildCommandUsageValues = await defaultBuildCommand
+            .unifiedAnalyticsUsageValues('build');
+        expect(defaultBuildCommandUsageValues.eventData['buildApkBuildMode'], 'release');
+
+        final BuildApkCommand releaseBuildCommand = await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--release'],
+        );
+        final Event releaseBuildCommandUsageValues = await releaseBuildCommand
+            .unifiedAnalyticsUsageValues('build');
+        expect(releaseBuildCommandUsageValues.eventData['buildApkBuildMode'], 'release');
+
+        final BuildApkCommand debugBuildCommand = await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--debug'],
+        );
+        final Event debugBuildCommandUsageValues = await debugBuildCommand
+            .unifiedAnalyticsUsageValues('build');
+        expect(debugBuildCommandUsageValues.eventData['buildApkBuildMode'], 'debug');
+
+        final BuildApkCommand profileBuildCommand = await runBuildApkCommand(
+          projectPath,
+          arguments: <String>['--profile'],
+        );
+        final Event profileBuildCommandUsageValues = await profileBuildCommand
+            .unifiedAnalyticsUsageValues('build');
+        expect(profileBuildCommandUsageValues.eventData['buildApkBuildMode'], 'profile');
+
+        fakeAnalytics.sentEvents.clear();
+        await runBuildApkCommand(projectPath, arguments: <String>['--profile']);
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+      },
+    );
+
+    testUsingContext(
+      'logs success',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app'],
+        );
+
+        await runBuildApkCommand(projectPath);
+
+        final Iterable<Event> successEvent = fakeAnalytics.sentEvents.where(
+          (Event e) =>
+              e.eventName == DashEvent.flutterCommandResult &&
+              e.eventData['commandPath'] == 'create' &&
+              e.eventData['result'] == 'success',
+        );
+        expect(successEvent, isNotEmpty, reason: 'Tool should send create success event');
+      },
+      overrides: <Type, Generator>{
+        AndroidBuilder: () => FakeAndroidBuilder(),
+        Analytics: () => fakeAnalytics,
+      },
+    );
+
+    group('Impeller AndroidManifest.xml setting', () {
+      // Adds a key-value `<meta-data>` pair to the `<application>` tag in the
+      // corresponding `AndroidManifest.xml` file, right before the closing
+      // `</application>` tag.
+      void writeManifestMetadata({
+        required String projectPath,
+        required String name,
+        required String value,
+      }) {
+        final String manifestPath = globals.fs.path.join(
+          projectPath,
+          'android',
+          'app',
+          'src',
+          'main',
+          'AndroidManifest.xml',
+        );
+
+        // It would be unnecessarily complicated to parse this XML file and
+        // insert the key-value pair, so we just insert it right before the
+        // closing </application> tag.
+        final String oldManifest = globals.fs.file(manifestPath).readAsStringSync();
+        final String newManifest = oldManifest.replaceFirst(
+          '</application>',
+          '    <meta-data\n'
+              '        android:name="$name"\n'
+              '        android:value="$value" />\n'
+              '    </application>',
+        );
+        globals.fs.file(manifestPath).writeAsStringSync(newManifest);
+      }
+
+      testUsingContext(
+        'a default APK build reports Impeller as enabled',
+        () async {
+          final String projectPath = await createProject(
+            tempDir,
+            arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+          );
+
+          await runBuildApkCommand(projectPath);
+
+          expect(
+            fakeAnalytics.sentEvents,
+            contains(
+              Event.flutterBuildInfo(label: 'manifest-impeller-enabled', buildType: 'android'),
+            ),
+          );
+        },
+        overrides: <Type, Generator>{
+          Analytics: () => fakeAnalytics,
+          AndroidBuilder: () => FakeAndroidBuilder(),
+          FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        },
+      );
+
+      testUsingContext(
+        'EnableImpeller="true" reports an enabled event',
+        () async {
+          final String projectPath = await createProject(
+            tempDir,
+            arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+          );
+
+          writeManifestMetadata(
+            projectPath: projectPath,
+            name: 'io.flutter.embedding.android.EnableImpeller',
+            value: 'true',
+          );
+
+          await runBuildApkCommand(projectPath);
+
+          expect(
+            fakeAnalytics.sentEvents,
+            contains(
+              Event.flutterBuildInfo(label: 'manifest-impeller-enabled', buildType: 'android'),
+            ),
+          );
+        },
+        overrides: <Type, Generator>{
+          Analytics: () => fakeAnalytics,
+          AndroidBuilder: () => FakeAndroidBuilder(),
+          FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        },
+      );
+
+      testUsingContext(
+        'EnableImpeller="false" reports a disabled event',
+        () async {
+          final String projectPath = await createProject(
+            tempDir,
+            arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+          );
+
+          writeManifestMetadata(
+            projectPath: projectPath,
+            name: 'io.flutter.embedding.android.EnableImpeller',
+            value: 'false',
+          );
+
+          await runBuildApkCommand(projectPath);
+
+          expect(
+            fakeAnalytics.sentEvents,
+            contains(
+              Event.flutterBuildInfo(label: 'manifest-impeller-disabled', buildType: 'android'),
+            ),
+          );
+        },
+        overrides: <Type, Generator>{
+          Analytics: () => fakeAnalytics,
+          AndroidBuilder: () => FakeAndroidBuilder(),
+          FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        },
+      );
+    });
+  });
+
+  group('Gradle', () {
+    late Directory tempDir;
+    late FakeProcessManager processManager;
+    late String gradlew;
+    late AndroidSdk mockAndroidSdk;
+    late FakeAnalytics analytics;
+
+    setUp(() {
+      tempDir = globals.fs.systemTempDirectory.createTempSync('flutter_tools_packages_test.');
+      gradlew = globals.fs.path.join(
+        tempDir.path,
+        'flutter_project',
+        'android',
+        globals.platform.isWindows ? 'gradlew.bat' : 'gradlew',
+      );
+      processManager = FakeProcessManager.empty();
+      mockAndroidSdk = FakeAndroidSdk(globals.fs.directory('irrelevant'));
+      analytics = getInitializedFakeAnalyticsInstance(
+        fs: MemoryFileSystem.test(),
+        fakeFlutterVersion: FakeFlutterVersion(),
+      );
+    });
+
+    tearDown(() {
+      tryToDelete(tempDir);
+    });
+
+    group('AndroidSdk', () {
+      testUsingContext(
+        'throws throwsToolExit if AndroidSdk is null',
+        () async {
+          final String projectPath = await createProject(
+            tempDir,
+            arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+          );
+
+          await expectLater(
+            () => runBuildApkCommand(projectPath, arguments: <String>['--no-pub']),
+            throwsToolExit(
+              message: 'No Android SDK found. Try setting the ANDROID_HOME environment variable',
+            ),
+          );
+        },
+        overrides: <Type, Generator>{
+          AndroidSdk: () => null,
+          Java: () => null,
+          FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+          ProcessManager: () => processManager,
+          AndroidStudio: () => FakeAndroidStudio(),
+        },
+      );
+    });
+
+    testUsingContext(
+      'shrinking is enabled by default on release mode',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+            exitCode: 1,
+          ),
+        );
+
+        await expectLater(
+          () => runBuildApkCommand(projectPath),
+          throwsToolExit(message: 'Gradle task assembleRelease failed with exit code 1'),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        Java: () => null,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        ProcessManager: () => processManager,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      '--split-debug-info is enabled when an output directory is provided',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Psplit-debug-info=${tempDir.path}',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+            exitCode: 1,
+          ),
+        );
+
+        await expectLater(
+          () => runBuildApkCommand(
+            projectPath,
+            arguments: <String>['--split-debug-info=${tempDir.path}'],
+          ),
+          throwsToolExit(message: 'Gradle task assembleRelease failed with exit code 1'),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        Java: () => null,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        ProcessManager: () => processManager,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      '--extra-front-end-options are provided to gradle project',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Pextra-front-end-options=foo,bar',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+            exitCode: 1,
+          ),
+        );
+
+        await expectLater(
+          () => runBuildApkCommand(
+            projectPath,
+            arguments: <String>['--extra-front-end-options=foo', '--extra-front-end-options=bar'],
+          ),
+          throwsToolExit(message: 'Gradle task assembleRelease failed with exit code 1'),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        Java: () => null,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        ProcessManager: () => processManager,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      'shrinking is disabled when --no-shrink is passed',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+            exitCode: 1,
+          ),
+        );
+
+        await expectLater(
+          () => runBuildApkCommand(projectPath, arguments: <String>['--no-shrink']),
+          throwsToolExit(message: 'Gradle task assembleRelease failed with exit code 1'),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        Java: () => null,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        ProcessManager: () => processManager,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      "reports when the app isn't using AndroidX",
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        // Simulate a non-androidx project.
+        tempDir
+            .childDirectory('flutter_project')
+            .childDirectory('android')
+            .childFile('gradle.properties')
+            .writeAsStringSync('android.useAndroidX=false');
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+          ),
+        );
+
+        // The command throws a [ToolExit] because it expects an APK in the file system.
+        await expectLater(() => runBuildApkCommand(projectPath), throwsToolExit());
+
+        expect(testLogger.statusText, isNot(contains("Your app isn't using AndroidX")));
+
+        expect(
+          analytics.sentEvents,
+          contains(
+            Event.flutterBuildInfo(
+              label: 'app-not-using-android-x',
+              buildType: 'gradle',
+              settings: 'androidGradlePluginVersion: $templateAndroidGradlePluginVersion',
+            ),
+          ),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        Java: () => null,
+        ProcessManager: () => processManager,
+        Analytics: () => analytics,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      'reports when the app is using AndroidX',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=false',
+              'assembleRelease',
+            ],
+          ),
+        );
+
+        // The command throws a [ToolExit] because it expects an APK in the file system.
+        await expectLater(() => runBuildApkCommand(projectPath), throwsToolExit());
+
+        expect(
+          testLogger.statusText,
+          allOf(
+            isNot(contains("[!] Your app isn't using AndroidX")),
+            isNot(
+              contains(
+                'To avoid potential build failures, you can quickly migrate your app by '
+                'following the steps on https://goo.gl/CP92wY',
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          analytics.sentEvents,
+          contains(
+            Event.flutterBuildInfo(
+              label: 'app-using-android-x',
+              buildType: 'gradle',
+              settings: 'androidGradlePluginVersion: $templateAndroidGradlePluginVersion',
+            ),
+          ),
+        );
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        Java: () => null,
+        ProcessManager: () => processManager,
+        Analytics: () => analytics,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+
+    testUsingContext(
+      'passes enable-hcpp and explicit-enable-hcpp to gradle for --enable-hcpp',
+      () async {
+        final String projectPath = await createProject(
+          tempDir,
+          arguments: <String>['--no-pub', '--template=app', '--platform=android'],
+        );
+        processManager.addCommand(
+          FakeCommand(
+            command: <String>[
+              gradlew,
+              '-q',
+              '-Ptarget-platform=android-arm,android-arm64,android-x64',
+              '-Ptarget=${globals.fs.path.join(tempDir.path, 'flutter_project', 'lib', 'main.dart')}',
+              '-Pbase-application-name=android.app.Application',
+              '-Pdart-defines=${encodeDartDefinesMap(<String, String>{
+                'FLUTTER_BUILD_NAME': '1.0.0',
+                'FLUTTER_BUILD_NUMBER': '1',
+                'FLUTTER_VERSION': '0.0.0', //
+                'FLUTTER_CHANNEL': 'master',
+                'FLUTTER_GIT_URL': 'https://github.com/flutter/flutter.git',
+                'FLUTTER_FRAMEWORK_REVISION': '11111',
+                'FLUTTER_ENGINE_REVISION': 'abcde',
+                'FLUTTER_DART_VERSION': '12',
+              })}',
+              '-Pdart-obfuscation=false',
+              '-Ptrack-widget-creation=true',
+              '-Ptree-shake-icons=true',
+              '-Penable-hcpp=true',
+              '-Pexplicit-enable-hcpp=true',
+              'assembleRelease',
+            ],
+          ),
+        );
+
+        // The command throws a [ToolExit] because it expects an APK in the file system.
+        await expectLater(
+          () => runBuildApkCommand(projectPath, arguments: <String>['--enable-hcpp']),
+          throwsToolExit(),
+        );
+
+        expect(processManager, hasNoRemainingExpectations);
+      },
+      overrides: <Type, Generator>{
+        AndroidSdk: () => mockAndroidSdk,
+        FlutterProjectFactory: () => FakeFlutterProjectFactory(tempDir),
+        Java: () => null,
+        ProcessManager: () => processManager,
+        Analytics: () => analytics,
+        AndroidStudio: () => FakeAndroidStudio(),
+        FeatureFlags: () => TestFeatureFlags(),
+      },
+    );
+  });
+}
+
+Future<BuildApkCommand> runBuildApkCommand(
+  String target, {
+  AndroidBuilder? androidBuilder,
+  List<String>? arguments,
+}) async {
+  final command = BuildApkCommand(
+    androidBuilder: androidBuilder ?? context.get<AndroidBuilder>()!,
+    androidContext: FakeAndroidContext(
+      androidSdk:
+          context.get<AndroidSdk>() ??
+          FakeAndroidSdk(
+            (context.get<FileSystem>() ?? MemoryFileSystem.test()).directory('android-sdk'),
+          ),
+    ),
+    buildSystem: context.get<BuildSystem>() ?? TestBuildSystem.all(BuildResult(success: true)),
+    toolContext: const DelegatingToolContext(),
+  );
+  final CommandRunner<void> runner = createTestCommandRunner(command);
+  await runner.run(<String>[
+    'apk',
+    ...?arguments,
+    '--no-pub',
+    globals.fs.path.join(target, 'lib', 'main.dart'),
+  ]);
+  return command;
+}
+
+class FakeAndroidSdk extends Fake implements AndroidSdk {
+  FakeAndroidSdk(this.directory);
+
+  @override
+  final Directory directory;
+}
+
+class FakeAndroidStudio extends Fake implements AndroidStudio {
+  @override
+  String get javaPath => 'java';
+
+  @override
+  Version get version => Version(2021, 3, 1);
+}

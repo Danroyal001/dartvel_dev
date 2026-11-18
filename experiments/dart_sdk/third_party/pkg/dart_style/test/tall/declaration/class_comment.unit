@@ -1,0 +1,126 @@
+40 columns                              |
+>>> Empty class containing line comment.
+class C { // comment
+}
+<<< 3.7
+class C {
+  // comment
+}
+>>> Indent line comment in body.
+### Note: The old formatter had a special rule that line comments starting at
+### column 1 would not be indented even if the surrounding code otherwise
+### required it. The new style deliberately does not have that rule.
+class C {
+// comment
+}
+<<< 3.7
+class C {
+  // comment
+}
+>>> Empty class containing inline block comment.
+class C {   /* comment */  }
+<<< 3.7
+class C {
+  /* comment */
+}
+>>> Empty class containing non-inline block comment.
+class C {
+
+  /* comment */
+
+
+}
+<<< 3.7
+class C {
+  /* comment */
+}
+>>> Empty class containing multi-line block comment.
+class C {   /* comment
+line */  }
+<<< 3.7
+class C {
+  /* comment
+line */
+}
+>>>
+class C {
+
+  /* comment
+line */
+
+
+}
+<<< 3.7
+class C {
+  /* comment
+line */
+}
+>>> Remove blank lines before and after comments at end of class.
+class C {
+
+
+
+  // comment
+
+
+
+}
+<<< 3.7
+class C {
+  // comment
+}
+>>> Force blank line before doc comment between classes.
+class Foo {} /// Doc comment.
+class Bar {}
+<<< 3.7
+class Foo {}
+
+/// Doc comment.
+class Bar {}
+>>> Force newline after JavaDoc-style block comment.
+class Foo {}
+/**
+*/ class Bar {}
+<<< 3.7
+class Foo {}
+
+/**
+*/
+class Bar {}
+>>> Comment before empty body.
+class C // Comment.
+;
+<<< 3.13
+class C // Comment.
+;
+>>> Don't force a blank line after a member and comment at the end.
+class C {
+  a() {;}
+  // comment
+}
+<<< 3.7
+class C {
+  a() {
+    ;
+  }
+  // comment
+}
+>>> Ensure blank line between declarations with comment between.
+class C {}
+// comment
+class D {}
+<<< 3.7
+class C {}
+
+// comment
+class D {}
+>>> Allow line after comment as the blank line.
+class C {}
+// comment
+
+class D {}
+<<< 3.7
+class C {}
+// comment
+
+class D {}

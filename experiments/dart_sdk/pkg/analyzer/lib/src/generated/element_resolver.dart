@@ -1,0 +1,330 @@
+// Copyright (c) 2014, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/element/element.dart';
+import 'package:analyzer/src/dart/element/type.dart';
+import 'package:analyzer/src/dart/resolver/comment_reference_resolver.dart';
+import 'package:analyzer/src/dart/resolver/scope.dart';
+import 'package:analyzer/src/dart/resolver/type_analyzer.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/generated/super_context.dart';
+import 'package:analyzer/src/utilities/extensions/object.dart';
+
+/// An object used by instances of [TypeAnalyzer] to resolve references
+/// within the AST structure to the elements being referenced. The requirements
+/// for the element resolver are:
+///
+/// 1. Every [SimpleIdentifier] should be resolved to the element to which it
+///    refers. Specifically:
+///    * An identifier within the declaration of that name should resolve to the
+///      element being declared.
+///    * An identifier denoting a prefix should resolve to the element
+///      representing the import that defines the prefix (an [LibraryImport]).
+///    * An identifier denoting a variable should resolve to the element
+///      representing the variable (a [VariableElement]).
+///    * An identifier denoting a parameter should resolve to the element
+///      representing the parameter (a [FormalParameterElement]).
+///    * An identifier denoting a field should resolve to the element
+///      representing the getter or setter being invoked (a
+///      [PropertyAccessorElement]).
+///    * An identifier denoting the name of a method or function being invoked
+///      should resolve to the element representing the method or function (an
+///      [ExecutableElement]).
+///    * An identifier denoting a label should resolve to the element
+///      representing the label (a [LabelElement]).
+///    The identifiers within directives are exceptions to this rule and are
+///    covered below.
+/// 2. Every node containing a token representing an operator that can be
+///    overridden ([BinaryOperatorInvocation], [UnaryOperatorInvocation], and
+///    [IncrementOrDecrementExpression]) should resolve to the element
+///    representing the method invoked by that operator (a [MethodElement]).
+/// 3. Every [FunctionInvocation] should resolve to the element
+///    representing the function being invoked (a [ExecutableElement]). This
+///    will be the same element as that to which the name is resolved if the
+///    function has a name, but is provided for those cases where an unnamed
+///    function is being invoked.
+/// 4. Every [LibraryDirective] and [PartOfDirective] should resolve to the
+///    element representing the library being specified by the directive (a
+///    [LibraryElement]) unless, in the case of a part-of directive, the
+///    specified library does not exist.
+/// 5. Every [ImportDirective] and [ExportDirective] should resolve to the
+///    element representing the library being specified by the directive unless
+///    the specified library does not exist (an [LibraryImport] or
+///    [LibraryExport]).
+/// 6. The identifier representing the prefix in an [ImportDirective] should
+///    resolve to the element representing the prefix (a [PrefixElement]).
+/// 7. The identifiers in the hide and show combinators in [ImportDirective]s
+///    and [ExportDirective]s should resolve to the elements that are being
+///    hidden or shown, respectively, unless those names are not defined in the
+///    specified library (or the specified library does not exist).
+/// 8. Every [PartDirective] should resolve to the element representing the
+///    compilation unit being specified by the string unless the specified
+///    compilation unit does not exist (a [LibraryFragment]).
+///
+/// Note that AST nodes that would represent elements that are not defined are
+/// not resolved to anything. This includes such things as references to
+/// undeclared variables (which is an error) and names in hide and show
+/// combinators that are not defined in the imported library (which is not an
+/// error).
+class ElementResolver {
+  /// The type analyzer driving this participant.
+  final TypeAnalyzer _typeAnalyzer;
+
+  /// The element for the library containing the compilation unit being visited.
+  final LibraryElementImpl _definingLibrary;
+
+  late final _commentReferenceResolver = CommentReferenceResolver(
+    _typeAnalyzer,
+  );
+
+  /// Initialize a newly created visitor to work for the given [_typeAnalyzer]
+  /// to resolve the nodes in a compilation unit.
+  new(this._typeAnalyzer) : _definingLibrary = _typeAnalyzer.definingLibrary;
+
+  DiagnosticReporter get _diagnosticReporter =>
+      _typeAnalyzer.diagnosticReporter;
+
+  void visitCommentReference(CommentReferenceImpl node) {
+    _commentReferenceResolver.resolve(node);
+  }
+
+  void visitConstructorDeclaration2(ConstructorDeclaration2Impl node) {
+    var element = node.declaredFragment!.element;
+    var redirectedNode = node.factoryRedirectionTarget;
+    if (redirectedNode != null) {
+      // set redirected factory constructor
+      var redirectedElement = redirectedNode.element;
+      element.redirectedConstructor = redirectedElement;
+    } else {
+      // set redirected generative constructor
+      for (ConstructorInitializer initializer in node.initializers) {
+        if (initializer is RedirectingConstructorInvocationImpl) {
+          var redirectedElement = initializer.element;
+          element.redirectedConstructor = redirectedElement;
+        }
+      }
+    }
+  }
+
+  void visitConstructorInvocation(covariant ConstructorInvocationImpl node) {
+    var invokedConstructor = node.constructorReference.element;
+    var argumentList = node.argumentList;
+    var parameters = _resolveArgumentsToFunction(
+      argumentList,
+      invokedConstructor,
+    );
+    if (parameters != null) {
+      argumentList.correspondingStaticParameters = parameters;
+    }
+  }
+
+  void visitConstructorReference2(covariant ConstructorReference2Impl node) {
+    var type = node.typeReference.type;
+    if (type is InterfaceTypeImpl) {
+      node.element = type.lookUpConstructor(
+        node.selector?.name2.lexeme,
+        _definingLibrary,
+      );
+    }
+  }
+
+  void visitDotShorthandConstructorInvocation2(
+    covariant DotShorthandConstructorInvocation2Impl node,
+  ) {
+    var parameters = _resolveArgumentsToFunction(
+      node.argumentList,
+      node.element,
+    );
+    if (parameters != null) {
+      node.argumentList.correspondingStaticParameters = parameters;
+    }
+  }
+
+  void visitExportDirective(ExportDirectiveImpl node) {
+    var exportElement = node.libraryExport;
+    if (exportElement != null) {
+      // The element is null when the URI is invalid
+      // TODO(brianwilkerson): Figure out whether the element can ever be
+      // something other than an ExportElement
+      _resolveCombinators(exportElement.exportedLibrary, node.combinators);
+    }
+  }
+
+  void visitImportDirective(covariant ImportDirectiveImpl node) {
+    var importElement = node.libraryImport;
+    if (importElement != null) {
+      // The element is null when the URI is invalid
+      var library = importElement.importedLibrary;
+      if (library != null) {
+        _resolveCombinators(library, node.combinators);
+      }
+    }
+  }
+
+  void visitRedirectingConstructorInvocation(
+    covariant RedirectingConstructorInvocationImpl node,
+  ) {
+    var enclosingInterface = _typeAnalyzer.enclosingInstanceElement;
+    if (enclosingInterface is! InterfaceElementImpl) {
+      // TODO(brianwilkerson): Report this error.
+      return;
+    }
+    ConstructorElementImpl? element;
+    var selector = node.constructorSelector;
+    var name = selector?.name2.lexeme;
+    if (name == null) {
+      element = enclosingInterface.unnamedConstructor;
+    } else {
+      element = enclosingInterface.getNamedConstructor(name);
+    }
+    if (element == null) {
+      // TODO(brianwilkerson): Report this error and decide what element to
+      // associate with the node.
+      return;
+    }
+    selector?.element = element;
+    node.element = element;
+    var argumentList = node.argumentList;
+    var parameters = _resolveArgumentsToFunction(argumentList, element);
+    if (parameters != null) {
+      argumentList.correspondingStaticParameters = parameters;
+    }
+  }
+
+  void visitSuperConstructorInvocation(
+    covariant SuperConstructorInvocationImpl node,
+  ) {
+    var enclosingInterface = _typeAnalyzer.enclosingInstanceElement;
+    if (enclosingInterface is! InterfaceElementImpl) {
+      // TODO(brianwilkerson): Report this error.
+      return;
+    }
+    var superType = enclosingInterface.supertype;
+    if (superType == null) {
+      // TODO(brianwilkerson): Report this error.
+      return;
+    }
+    var selector = node.constructorSelector;
+    var superName = selector?.name2.lexeme;
+    var element = superType.lookUpConstructor(superName, _definingLibrary);
+    if (element == null || !element.isAccessibleIn(_definingLibrary)) {
+      if (superName != null) {
+        _diagnosticReporter.report(
+          diag.undefinedConstructorInInitializer
+              .withArguments(type: superType, constructorName: superName)
+              .at(node),
+        );
+      } else {
+        _diagnosticReporter.report(
+          diag.undefinedConstructorInInitializerDefault
+              .withArguments(className: superType.element.name ?? '<unknown>')
+              .at(node),
+        );
+      }
+      return;
+    } else {
+      if (element.isFactory &&
+          // Check if we've reported [NO_GENERATIVE_CONSTRUCTORS_IN_SUPERCLASS].
+          !element.enclosingElement.constructors.every(
+            (constructor) => constructor.isFactory,
+          )) {
+        _diagnosticReporter.report(
+          diag.nonGenerativeConstructor
+              .withArguments(constructor: element)
+              .at(node),
+        );
+      }
+    }
+    selector?.element = element;
+    node.element = element;
+    // TODO(brianwilkerson): Defer this check until we know there's an error (by
+    // in-lining _resolveArgumentsToFunction below).
+    var declaration = node.thisOrAncestorOfType2<ClassDeclaration2>();
+    var extendedNamedType = declaration?.extendsClause?.superclass;
+    if (extendedNamedType != null &&
+        _typeAnalyzer.libraryFragment.shouldIgnoreUndefinedNamedType(
+          extendedNamedType,
+        )) {
+      return;
+    }
+    var argumentList = node.argumentList;
+    var parameters = _resolveArgumentsToFunction(
+      argumentList,
+      element,
+      enclosingConstructorFormalParameterList:
+          node.parent2
+              .tryCast<ConstructorDeclaration2Impl>()
+              ?.formalParameters ??
+          node.parent2
+              .tryCast<PrimaryConstructorBody2Impl>()
+              ?.declaration
+              ?.formalParameters,
+    );
+    if (parameters != null) {
+      argumentList.correspondingStaticParameters = parameters;
+    }
+  }
+
+  void visitSuperReference(SuperReference node) {
+    var context = SuperContext.of(node);
+    switch (context) {
+      case SuperContext.annotation:
+      case SuperContext.static:
+      case SuperContext.anonymousMethod:
+        _diagnosticReporter.report(diag.superInInvalidContext.at(node));
+      case SuperContext.extension:
+        _diagnosticReporter.report(diag.superInExtension.at(node));
+      case SuperContext.extensionType:
+        _diagnosticReporter.report(diag.superInExtensionType.at(node));
+    }
+  }
+
+  /// Given an [argumentList] and the [executableElement] that will be invoked
+  /// using those argument, compute the list of parameters that correspond to
+  /// the list of arguments. An error will be reported if any of the arguments
+  /// cannot be matched to a parameter. Return the parameters that correspond to
+  /// the arguments, or `null` if no correspondence could be computed.
+  List<InternalFormalParameterElement?>? _resolveArgumentsToFunction(
+    ArgumentList argumentList,
+    ExecutableElement? executableElement, {
+    FormalParameterList? enclosingConstructorFormalParameterList,
+  }) {
+    if (executableElement == null) {
+      return null;
+    }
+    return TypeAnalyzer.resolveArgumentsToParameters(
+      argumentList: argumentList,
+      formalParameters: executableElement.formalParameters,
+      diagnosticReporter: _diagnosticReporter,
+      enclosingConstructorFormalParameterList:
+          enclosingConstructorFormalParameterList,
+    );
+  }
+
+  /// Resolve the names in the given [combinators] in the scope of the given
+  /// [library].
+  void _resolveCombinators(
+    LibraryElementImpl? library,
+    NodeList<CombinatorImpl> combinators,
+  ) {
+    if (library == null) {
+      //
+      // The library will be null if the directive containing the combinators
+      // has a URI that is not valid.
+      //
+      return;
+    }
+    Namespace namespace = library.exportNamespace;
+    for (var combinator in combinators) {
+      for (var name in combinator.names) {
+        var nameStr = name.name.lexeme;
+        name.element = namespace.get2(nameStr);
+        name.setterElement = namespace.get2('$nameStr=');
+      }
+    }
+  }
+}

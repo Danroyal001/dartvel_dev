@@ -1,0 +1,39 @@
+40 columns                              |
+>>> Split in value and pattern.
+var list = [
+if (veryLongExpression + anotherVeryLongOne case someCaseConstant || anotherCaseConstant) element
+];
+<<< 3.7
+var list = [
+  if (veryLongExpression +
+          anotherVeryLongOne
+      case someCaseConstant ||
+          anotherCaseConstant)
+    element,
+];
+>>> Block formatted pattern.
+var list = [
+if (expression case const [veryLongElement,veryLongElement,veryLongElement,]) element
+];
+<<< 3.7
+var list = [
+  if (expression case const [
+    veryLongElement,
+    veryLongElement,
+    veryLongElement,
+  ])
+    element,
+];
+>>> With guard.
+var list = [
+if (veryLongExpression + anotherVeryLongOne case someCase when someGuardCondition || otherCondition) element
+];
+<<< 3.7
+var list = [
+  if (veryLongExpression +
+          anotherVeryLongOne
+      case someCase
+      when someGuardCondition ||
+          otherCondition)
+    element,
+];

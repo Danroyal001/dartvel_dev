@@ -1,0 +1,625 @@
+// Copyright (c) 2022, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'dart:io' as io;
+
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/file_system/physical_file_system.dart';
+import 'package:analyzer/source/line_info.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/utilities/extensions/collection.dart';
+import 'package:test/test.dart';
+import 'package:test_reflective_loader/test_reflective_loader.dart';
+
+class NodeTextExpectationsCollector {
+  /// If this flag is `true`, we accumulate updates to expectations.
+  /// This should only happen locally, to update tests or implementation.
+  ///
+  /// This flag should be `false` during code review.
+  static bool updatingIsEnabled = bool.fromEnvironment(
+    'updateExpectations',
+    // ignore: avoid_redundant_argument_values
+    defaultValue: false,
+  );
+
+  static final assertMethods = [
+    _AssertMethod.forFunction(
+      methodName: 'assertEdits',
+      argument: _ArgumentNamed('expected'),
+    ),
+    _AssertMethod(
+      className: 'AnalysisContextCollectionTest',
+      methodName: '_assertContextRootsText',
+      argument: _ArgumentNamed('expected'),
+    ),
+    _AssertMethod(
+      className: 'AnalysisContextCollectionTest',
+      methodName: '_assertWorkspaceCollectionText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'AnalysisContextCollectionTest',
+      methodName: '_assertCollectionText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'AnalysisSessionImplTest',
+      methodName: '_assertFileUnitElementResultText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ContextResolutionTest',
+      methodName: 'assertDriverStateString',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ElementsBaseTest',
+      methodName: 'checkElementText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ElementLocatorTest',
+      methodName: '_assertElement',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ElementLocatorV1Test',
+      methodName: '_assertElement',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'FileResolutionTest',
+      methodName: 'assertStateString',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runChangeScenarioTA',
+      argument: _ArgumentNamed(
+        'expectedInitialEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runChangeScenarioTA',
+      argument: _ArgumentNamed(
+        'expectedUpdatedEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runChangeScenarioUA',
+      argument: _ArgumentNamed(
+        'expectedUpdatedEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runChangeScenario',
+      argument: _ArgumentNamed(
+        'expectedInitialEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runChangeScenario',
+      argument: _ArgumentNamed(
+        'expectedUpdatedEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runLibraryManifestScenario',
+      argument: _ArgumentNamed(
+        'expectedInitialEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runLibraryManifestScenario',
+      argument: _ArgumentNamed(
+        'expectedUpdatedEvents',
+        shouldCheckIntraInvocationId: true,
+      ),
+    ),
+    _AssertMethod(
+      className: 'FineAnalysisDriverTest',
+      methodName: '_runManualRequirementsRecording',
+      argument: _ArgumentNamed('expectedEvents'),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: 'assertElementIndexText',
+      argument: _ArgumentIndex(2),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: 'assertElementsIndexText',
+      argument: _ArgumentIndex(2),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: 'assertNamesIndexText',
+      argument: _ArgumentIndex(2),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: 'assertLibraryFragmentIndexText',
+      argument: _ArgumentIndex(2),
+    ),
+    _AssertMethod(
+      className: '_InheritanceManager3Base2',
+      methodName: 'assertInterfaceText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'LibraryElementTest_scope',
+      methodName: '_assertLibraryExtensions',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'LibraryFragmentElementTest',
+      methodName: '_assertScopeLookups',
+      argument: _ArgumentIndex(3),
+    ),
+    _AssertMethod(
+      className: 'MetadataResolutionTest',
+      methodName: '_assertAnnotationValueText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'MetadataResolutionTest',
+      methodName: '_assertElementAnnotationValueText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ParserDiagnosticsTest',
+      methodName: 'assertParsedNodeText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ParserDiagnosticsTest',
+      methodName: 'parseTestCodeWithDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'AbstractAnalysisOptionsTest',
+      methodName: 'assertAnalysisOptionsDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'AbstractAnalysisOptionsTest',
+      methodName: 'assertAnalysisOptionsDiagnosticsInFiles',
+      argument: _ArgumentMapEntryValue(mapArgument: _ArgumentIndex(0)),
+    ),
+    _AssertMethod(
+      className: 'AbstractAnalysisOptionsTest',
+      methodName: 'parseAnalysisOptionsWithDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'AbstractAnalysisOptionsTest',
+      methodName: 'parseAnalysisOptionsFilesWithDiagnostics',
+      argument: _ArgumentMapEntryValue(mapArgument: _ArgumentIndex(0)),
+    ),
+    _AssertMethod(
+      className: 'AbstractAnalysisOptionsTest',
+      methodName: 'assertAnalysisOptionsText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'PubspecDiagnosticTest',
+      methodName: 'assertDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'assertDartObjectText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'assertParsedNodeText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'assertResolvedLibraryResultText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'assertResolvedNodeText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'resolveFileWithDiagnostics',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'WithStrictCastsMixin',
+      methodName: 'assertTestCodeWithStrictCastsDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'resolveFilesWithDiagnostics',
+      argument: _ArgumentMapEntryValue(mapArgument: _ArgumentIndex(0)),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: '_indexTestCode',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'IndexTest',
+      methodName: '_indexFileWithDiagnostics',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'LookupPromotedThisTypeTest',
+      methodName: 'assertPromotedThisTypes',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'ResolutionTest',
+      methodName: 'resolveTestCodeWithDiagnostics',
+      argument: _ArgumentIndex(0),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertDeclarationsText',
+      argument: _ArgumentIndex(2),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertElementReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertElementsReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertLibraryFragmentReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertLibraryImportReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertDirectSubtypeReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: 'SearchTest',
+      methodName: 'assertUnresolvedMemberReferencesText',
+      argument: _ArgumentIndex(1),
+    ),
+    _AssertMethod(
+      className: '_EventsMixin',
+      methodName: 'assertEventsText',
+      argument: _ArgumentIndex(1),
+    ),
+  ];
+
+  /// Some top-level "assert" have multiple expectations.
+  /// They set this field, so that [_ArgumentNamed] can disambiguate.
+  static String? intraInvocationId;
+
+  static final Map<String, _File> _files = {};
+
+  static bool get shouldPrintFailureDetails => !currentTestIsExpectedToFail;
+
+  static void add(String actual, {String? intraInvocationId}) {
+    if (!updatingIsEnabled || currentTestIsExpectedToFail) {
+      return;
+    }
+
+    // TODO(scheglov): Use a single mechanism for intra-invocation ids.
+    intraInvocationId ??= NodeTextExpectationsCollector.intraInvocationId;
+
+    var traceLines = '${StackTrace.current}'.split('\n');
+    for (var assertMethod in assertMethods) {
+      // Disambiguate multi-expectation arguments.
+      if (assertMethod.argument case _ArgumentNamed namedArgument) {
+        if (namedArgument.shouldCheckIntraInvocationId) {
+          if (namedArgument.name != intraInvocationId) {
+            continue;
+          }
+        }
+      }
+
+      for (var traceIndex = 0; traceIndex < traceLines.length; traceIndex++) {
+        var traceLine = traceLines[traceIndex];
+        if (!traceLine.contains(' ${assertMethod.stackTracePattern} ')) {
+          continue;
+        }
+
+        // Find the invocation of the assert method in the stack trace.
+        var invocationTraceIndex = traceIndex + 1;
+        if (traceLines[invocationTraceIndex] == '<asynchronous suspension>') {
+          invocationTraceIndex++;
+        }
+        var invocationTraceLine = traceLines[invocationTraceIndex];
+
+        // Parse the invocation stack trace line.
+        var locationMatch = RegExp(r'(file://.+_test.dart):(\d+):')
+            .firstMatch(invocationTraceLine);
+        if (locationMatch == null) {
+          fail('Cannot parse: $invocationTraceLine');
+        }
+
+        var path = Uri.parse(locationMatch[1]!).toFilePath();
+        var line = int.parse(locationMatch[2]!);
+        var file = _getFile(path);
+
+        var invocation = file.findInvocation(invocationLine: line);
+        if (invocation == null) {
+          fail('Cannot find assertion invocation.');
+        }
+
+        if (invocation.name != assertMethod.methodName) {
+          fail(
+            'Expected: ${assertMethod.methodName}\n'
+            'Actual: ${invocation.name}\n',
+          );
+        }
+
+        var argumentList = invocation.argumentList;
+        var argument = assertMethod.argument.get(
+          argumentList,
+          intraInvocationId: intraInvocationId,
+        );
+        if (argument is! SimpleStringLiteral) {
+          fail('Not a literal: ${argument.runtimeType}');
+        }
+
+        file.addReplacement(
+          _Replacement(argument.contentsOffset, argument.contentsEnd, actual),
+        );
+
+        // Stop after the first (most specific) assert method.
+        return;
+      }
+    }
+  }
+
+  static void apply() {
+    for (var file in _files.values) {
+      file.applyReplacements();
+    }
+    _files.clear();
+  }
+
+  static _File _getFile(String path) {
+    return _files[path] ??= _File(path);
+  }
+}
+
+@reflectiveTest
+class UpdateNodeTextExpectations {
+  test_applyReplacements() {
+    NodeTextExpectationsCollector.apply();
+  }
+}
+
+sealed class _Argument {
+  Expression get(ArgumentList argumentList, {String? intraInvocationId});
+}
+
+final class _ArgumentIndex extends _Argument {
+  final int index;
+
+  new(this.index);
+
+  @override
+  Expression get(ArgumentList argumentList, {String? intraInvocationId}) {
+    return argumentList.arguments2
+        .whereNotType<NamedArgument>()
+        .elementAt(index)
+        .argumentExpression2;
+  }
+}
+
+final class _ArgumentMapEntryValue extends _Argument {
+  final _Argument mapArgument;
+
+  new({required this.mapArgument});
+
+  @override
+  Expression get(ArgumentList argumentList, {String? intraInvocationId}) {
+    if (intraInvocationId == null) {
+      fail('Expected an intra-invocation id for a map entry value.');
+    }
+
+    var index = int.tryParse(intraInvocationId);
+    if (index == null) {
+      fail('Expected a map entry index, got: $intraInvocationId');
+    }
+
+    var mapExpression = mapArgument.get(argumentList);
+    if (mapExpression is! SetOrMapLiteral) {
+      fail('Not a map literal: ${mapExpression.runtimeType}');
+    }
+
+    var elements = mapExpression.elements2;
+    if (elements.any((element) => element is! MapLiteralEntry)) {
+      fail('Only plain map literal entries are supported.');
+    }
+
+    if (index < 0 || index >= elements.length) {
+      fail('Map entry index $index is out of range: ${elements.length}');
+    }
+
+    return (elements[index] as MapLiteralEntry).value2;
+  }
+}
+
+final class _ArgumentNamed extends _Argument {
+  final String name;
+  final bool shouldCheckIntraInvocationId;
+
+  new(this.name, {this.shouldCheckIntraInvocationId = false});
+
+  @override
+  Expression get(ArgumentList argumentList, {String? intraInvocationId}) {
+    return argumentList.arguments2
+        .whereType<NamedArgument>()
+        .where((argument) => argument.name.lexeme == name)
+        .single
+        .argumentExpression2;
+  }
+}
+
+class _AssertMethod {
+  final String methodName;
+  final String stackTracePattern;
+  final _Argument argument;
+
+  const new({
+    required String className,
+    required this.methodName,
+    required this.argument,
+  }) : stackTracePattern = '$className.$methodName';
+
+  const new forFunction({required this.methodName, required this.argument})
+    : stackTracePattern = ' $methodName';
+}
+
+class _File {
+  final String path;
+  final String content;
+  final LineInfo lineInfo;
+  final CompilationUnit unit;
+  final List<_Replacement> replacements = [];
+
+  factory(String path) {
+    var content = io.File(path).readAsStringSync();
+
+    var collection = AnalysisContextCollection(
+      resourceProvider: PhysicalResourceProvider.INSTANCE,
+      includedPaths: [path],
+    );
+    var analysisContext = collection.contextFor(path);
+    var analysisSession = analysisContext.currentSession;
+    var parseResult = analysisSession.getParsedUnit(path);
+    parseResult as ParsedUnitResult;
+
+    return _File._(
+      path: path,
+      content: content,
+      lineInfo: LineInfo.fromContent(content),
+      unit: parseResult.unit,
+    );
+  }
+
+  new _({
+    required this.path,
+    required this.content,
+    required this.lineInfo,
+    required this.unit,
+  });
+
+  void addReplacement(_Replacement replacement) {
+    // Check if there is the same replacement.
+    for (var existing in replacements) {
+      if (existing.offset == replacement.offset) {
+        // Sanity check.
+        if (existing.end != replacement.end) {
+          fail(
+            'At offset: ${existing.offset}\n'
+            'Existing end: ${existing.end}\n'
+            'New end: ${replacement.end}\n',
+          );
+        }
+        if (existing.text != replacement.text) {
+          fail(
+            'At offset: ${existing.offset}\n'
+            'Existing text:\n${existing.text}\n'
+            'New text:\n${replacement.end}\n',
+          );
+        }
+        // We already have the same replacement, exit.
+        return;
+      }
+    }
+
+    // This is a new replacement, add it.
+    replacements.add(replacement);
+  }
+
+  void applyReplacements() {
+    replacements.sort((a, b) => b.offset - a.offset);
+    var newCode = content;
+    for (var replacement in replacements) {
+      newCode =
+          newCode.substring(0, replacement.offset) +
+          replacement.text +
+          newCode.substring(replacement.end);
+    }
+    io.File(path).writeAsStringSync(newCode);
+  }
+
+  ({String name, ArgumentList argumentList})? findInvocation({
+    required int invocationLine,
+  }) {
+    var visitor = _InvocationVisitor(
+      lineInfo: lineInfo,
+      requestedLine: invocationLine,
+    );
+    unit.accept2(visitor);
+    return visitor.result;
+  }
+}
+
+class _InvocationVisitor extends RecursiveAstVisitor2<void> {
+  final LineInfo lineInfo;
+  final int requestedLine;
+  ({String name, ArgumentList argumentList})? result;
+
+  new({required this.lineInfo, required this.requestedLine});
+
+  @override
+  void visitParsedValueArguments(ParsedValueArguments node) {
+    if (result != null) return;
+    if (lineInfo.getLocation(node.offset).lineNumber == requestedLine) {
+      Expression operand = node.operand;
+      if (operand is ParsedTypeArguments) {
+        operand = operand.operand;
+      }
+      var name = switch (operand) {
+        ParsedUnqualifiedName(:var name) => name,
+        ParsedNameAccess(:var name) => name,
+        _ => null,
+      };
+      if (name != null) {
+        result = (name: name.lexeme, argumentList: node.argumentList);
+      }
+    }
+    super.visitParsedValueArguments(node);
+  }
+}
+
+class _Replacement {
+  final int offset;
+  final int end;
+  final String text;
+
+  new(this.offset, this.end, this.text);
+}

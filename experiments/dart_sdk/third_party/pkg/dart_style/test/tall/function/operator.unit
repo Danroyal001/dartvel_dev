@@ -1,0 +1,19 @@
+40 columns                              |
+>>> Operator declaration.
+class A {
+  bool  operator  ==  (  Object  other  )  =>  true  ;
+  int  operator  +  (  int  other  )  {  return  value  +  other  ;  }
+  int  operator  -  (    )  {  return  -  value  ;  }
+}
+<<< 3.7
+class A {
+  bool operator ==(Object other) =>
+      true;
+  int operator +(int other) {
+    return value + other;
+  }
+
+  int operator -() {
+    return -value;
+  }
+}

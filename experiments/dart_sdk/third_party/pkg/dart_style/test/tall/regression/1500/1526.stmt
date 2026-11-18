@@ -1,0 +1,70 @@
+>>> (indent 2)
+  final character =
+      await repository.fetchCharacter(id, cancelToken: cancelToken);
+<<< 3.7
+  final character = await repository.fetchCharacter(
+    id,
+    cancelToken: cancelToken,
+  );
+>>> (indent 6)
+      final charactersResponse =
+          await repository.fetchCharacters(
+            offset: meta.page * kCharactersPageLimit,
+            limit: kCharactersPageLimit,
+            nameStartsWith: meta.name,
+            cancelToken: cancelToken,
+          );
+<<< 3.7
+      final charactersResponse = await repository.fetchCharacters(
+        offset: meta.page * kCharactersPageLimit,
+        limit: kCharactersPageLimit,
+        nameStartsWith: meta.name,
+        cancelToken: cancelToken,
+      );
+>>> (indent 4)
+    final response =
+        await _get('characters', queryParameters: <String, Object?>{
+          'offset': offset,
+          if (limit != null) 'limit': limit,
+          if (cleanNameFilter != null && cleanNameFilter.isNotEmpty)
+            'nameStartsWith': cleanNameFilter,
+        }, cancelToken: cancelToken);
+<<< 3.7
+    final response = await _get(
+      'characters',
+      queryParameters: <String, Object?>{
+        'offset': offset,
+        if (limit != null) 'limit': limit,
+        if (cleanNameFilter != null && cleanNameFilter.isNotEmpty)
+          'nameStartsWith': cleanNameFilter,
+      },
+      cancelToken: cancelToken,
+    );
+>>> (indent 2)
+  final content = json.decode(
+    await rootBundle.loadString('assets/configurations.json'),
+  ) as Map<String, Object?>;
+<<< 3.7
+  final content =
+      json.decode(await rootBundle.loadString('assets/configurations.json'))
+          as Map<String, Object?>;
+<<< 3.13
+  final content = json.decode(
+    await rootBundle.loadString('assets/configurations.json'),
+  ) as Map<String, Object?>;
+>>> (indent 4)
+    final results =
+        annotationsOf(element, throwOnUnresolved: throwOnUnresolved);
+<<< 3.7
+    final results = annotationsOf(
+      element,
+      throwOnUnresolved: throwOnUnresolved,
+    );
+>>> (indent 8)
+        final newListeners =
+            List<_Listener<T>?>.filled(_listeners.length * 2, null);
+<<< 3.7
+        final newListeners = List<_Listener<T>?>.filled(
+          _listeners.length * 2,
+          null,
+        );

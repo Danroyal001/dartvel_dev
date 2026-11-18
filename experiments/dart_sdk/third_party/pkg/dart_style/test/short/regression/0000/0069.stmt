@@ -1,0 +1,28 @@
+>>>
+var x = foo("""
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+""");
+<<< 3.6
+var x = foo("""
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+""");
+>>>
+var map = {
+  'key------': '''
+    -----------------
+    -----------------
+    -----------------
+  ''',
+};
+<<< 3.6
+var map = {
+  'key------': '''
+    -----------------
+    -----------------
+    -----------------
+  ''',
+};

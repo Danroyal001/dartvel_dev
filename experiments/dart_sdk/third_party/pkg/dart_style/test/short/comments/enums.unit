@@ -1,0 +1,119 @@
+40 columns                              |
+>>> line comments
+enum A {
+  // comment
+  B,
+
+  // comment
+  C
+
+  // comment
+}
+<<< 3.6
+enum A {
+  // comment
+  B,
+
+  // comment
+  C
+
+  // comment
+}
+>>> block comments
+enum A {
+  /* comment */
+  B,
+
+  /* comment */
+  C
+
+  /* comment */
+}
+<<< 3.6
+enum A {
+  /* comment */
+  B,
+
+  /* comment */
+  C
+
+  /* comment */
+}
+>>> remove blank lines before beginning of body
+enum A {
+
+
+
+  // comment
+  B
+}
+<<< 3.6
+enum A {
+  // comment
+  B
+}
+>>> remove blank lines after end of body
+enum A {
+  B
+  // comment
+
+
+
+}
+<<< 3.6
+enum A {
+  B
+  // comment
+}
+>>> ensure blank line above doc comments
+enum Foo {/// doc
+a,/// doc
+b;/// doc
+var x = 1;
+/// doc
+void y() {}}
+<<< 3.6
+enum Foo {
+  /// doc
+  a,
+
+  /// doc
+  b;
+
+  /// doc
+  var x = 1;
+
+  /// doc
+  void y() {}
+}
+>>> line comment after last
+enum Foo {
+  a,
+  b // comment
+}
+<<< 3.6
+enum Foo {
+  a,
+  b // comment
+}
+>>> line comment in middle
+enum Foo {
+  a,  // comment
+  b
+}
+<<< 3.6
+enum Foo {
+  a, // comment
+  b
+}
+>>> line comment in member constructor
+enum Foo {
+  a(// c
+  ),b()
+}
+<<< 3.6
+enum Foo {
+  a(// c
+      ),
+  b()
+}

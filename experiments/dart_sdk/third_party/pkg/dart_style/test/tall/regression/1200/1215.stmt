@@ -1,0 +1,14 @@
+>>>
+return switch (level) {
+  0 => a,
+  // Comment.
+  1
+      when flag =>
+    b,
+};
+<<< 3.7
+return switch (level) {
+  0 => a,
+  // Comment.
+  1 when flag => b,
+};

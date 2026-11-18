@@ -1,0 +1,119 @@
+40 columns                              |
+>>> Line comments before operators.
+1// a
++2// b
+-3;
+<<< 3.7
+### This looks weird because the comment is before a hanging operator. Most
+### users wouldn't put a comment here.
+### TODO(rnystrom): Consider whether we want to move comments when they occur
+### in weird locations.
+1 // a
+    +
+    2 // b
+    -
+    3;
+>>> Unsplit inline block comments before operators.
+1/* a */+2/* b */%3;
+<<< 3.7
+1 /* a */ + 2 /* b */ % 3;
+>>> Split inline block comments before operators.
+longOperand/* a */||longOperand/* b */||longOperand;
+<<< 3.7
+longOperand /* a */ ||
+    longOperand /* b */ ||
+    longOperand;
+>>> Line comments after operators.
+1+// a
+2-// b
+3;
+<<< 3.7
+1 + // a
+    2 - // b
+    3;
+>>> Unsplit inline block comments after operators.
+1+/* a */2%/* b */3;
+<<< 3.7
+1 + /* a */ 2 % /* b */ 3;
+>>> Split inline block comments after operators.
+longOperand-/* a */longOperand+/* b */longOperand;
+<<< 3.7
+longOperand - /* a */
+    longOperand + /* b */
+    longOperand;
+>>> Discard newlines before line comment inside expression.
+foo
+
+
+    // comment
+    + bar;
+<<< 3.7
+foo
+    // comment
+    +
+    bar;
+>>>
+foo &&
+
+
+
+  // comment
+  bar;
+<<< 3.7
+foo &&
+    // comment
+    bar;
+>>> Line comment before binary operator expression statement.
+{
+      // comment
+  1+2;
+}
+<<< 3.7
+{
+  // comment
+  1 + 2;
+}
+>>> Multiple line comments in expression.
+a + // one
+// two
+// three
+// four
+// five
+b;
+<<< 3.7
+a + // one
+    // two
+    // three
+    // four
+    // five
+    b;
+>>> Don't split infix operator with leading line comment before first operand.
+value =
+    // comment
+    a + b + c;
+<<< 3.7
+value =
+    // comment
+    a + b + c;
+>>> Comment before unsplit call chain operand.
+firstOperand &&
+    // Comment.
+    longTarget.someLongProperty &&
+    lastOperand;
+<<< 3.7
+firstOperand &&
+    // Comment.
+    longTarget.someLongProperty &&
+    lastOperand;
+>>> Comment before split call chain operand.
+firstOperand &&
+    // Comment.
+    longTarget.someLongProperty.anotherProperty &&
+    lastOperand;
+<<< 3.7
+firstOperand &&
+    // Comment.
+    longTarget
+        .someLongProperty
+        .anotherProperty &&
+    lastOperand;

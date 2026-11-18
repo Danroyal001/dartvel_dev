@@ -1,0 +1,78 @@
+40 columns                              |
+>>> continue with line comment
+while (true) {
+  continue // comment
+  ;
+}
+<<< 3.6
+while (true) {
+  continue // comment
+      ;
+}
+>>> continue with wrapped block comment
+while (true) {
+  continue /* a long comment that does not wrap */;
+}
+<<< 3.6
+while (true) {
+  continue /* a long comment that does not wrap */;
+}
+>>> do with line comment
+do // comment
+{;} while (true);
+<<< 3.6
+do // comment
+    {
+  ;
+} while (true);
+>>> remove blank lines before beginning of block
+while (true) {
+
+
+
+  // comment
+}
+<<< 3.6
+while (true) {
+  // comment
+}
+>>> remove blank lines after end of block
+while (true) {
+  // comment
+
+
+
+}
+<<< 3.6
+while (true) {
+  // comment
+}
+>>>
+main() {
+  /* comment */ statement;
+}
+<<< 3.6
+main() {
+  /* comment */ statement;
+}
+>>>
+main() {
+  code;
+
+  /* comment */ statement;
+}
+<<< 3.6
+main() {
+  code;
+
+  /* comment */ statement;
+}
+>>>
+main() {
+  while (b)
+  /*unreachable*/ {}
+}
+<<< 3.6
+main() {
+  while (b) /*unreachable*/ {}
+}

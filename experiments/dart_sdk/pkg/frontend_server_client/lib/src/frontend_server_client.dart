@@ -1,0 +1,614 @@
+// Copyright 2020 The Dart Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:async/async.dart';
+import 'package:path/path.dart' as p;
+
+import 'shared.dart';
+
+/// Wrapper around the incremental frontend server compiler.
+class FrontendServerClient {
+  final String _entrypoint;
+  final Process _feServer;
+  final StreamQueue<String> _feServerStdoutLines;
+  final bool _verbose;
+
+  _ClientState _state;
+
+  /// Completes the next time this client becomes idle, see [_isIdle].
+  Completer<void>? _idleCompleter;
+
+  FrontendServerClient._(
+    this._entrypoint,
+    this._feServer,
+    this._feServerStdoutLines, {
+    bool? verbose,
+  }) : _verbose = verbose ?? false,
+       _state = _ClientState.waitingForFirstCompile {
+    _feServer.stderr.transform(utf8.decoder).listen(stderr.write);
+  }
+
+  /// Starts the frontend server.
+  ///
+  /// Most arguments directly mirror the command line arguments for the
+  /// frontend_server (see `pkg/frontend_server/lib/frontend_server.dart` in
+  /// the sdk). Options are exposed on an as-needed basis.
+  ///
+  /// The [entrypoint] and [packagesJson] may be a relative path or any uri
+  /// supported by the frontend server.
+  ///
+  /// The [librariesSpec] is a path or uri to the libraries specification JSON
+  /// (e.g. `libraries.json`).
+  ///
+  /// The [outputDillPath] determines where the primary output should be, and
+  /// some targets may output additional files based on that file name (by
+  /// adding file extensions for instance).
+  ///
+  /// When the [frontendServerPath] argument is provided, the frontend server
+  /// will be started from the specified file. The specified file can either be
+  /// a Dart source file or an AppJIT snapshot.
+  ///
+  /// When the [frontendServerPath] argument is provided, setting [debug] to
+  /// true permits debuggers to attach to the frontend server. When the
+  /// [frontendServerPath] argument is omitted, setting [debug] to true will
+  /// cause an [ArgumentError] to be thrown.
+  ///
+  /// [additionalArgs] are passed to the frontend server after all other args.
+  static Future<FrontendServerClient> start(
+    String entrypoint,
+    String outputDillPath,
+    String platformKernel, {
+    String dartdevcModuleFormat = 'amd',
+    bool debug = false,
+    List<String>? enabledExperiments,
+    bool enableHttpUris = false,
+    List<String> fileSystemRoots = const [], // For `fileSystemScheme` uris,
+    String fileSystemScheme =
+        'org-dartlang-root', // Custom scheme for virtual `fileSystemRoots`.
+    String? frontendServerPath, // Defaults to the snapshot in the sdk.
+    String? librariesSpec,
+    String packagesJson = '.dart_tool/package_config.json',
+    String? sdkRoot, // Defaults to the current SDK root.
+    String target = 'vm', // The kernel target type.
+    bool verbose = false, // Verbose logs, including server/client messages
+    bool printIncrementalDependencies = true,
+    List<String> additionalSources = const [],
+    String? nativeAssets,
+    List<String> additionalArgs = const [],
+  }) async {
+    final sdk = sdkRoot ?? sdkDir;
+    final commonArguments = <String>[
+      '--sdk-root',
+      sdk,
+      '--platform=$platformKernel',
+      '--target=$target',
+      if (target == 'dartdevc')
+        '--dartdevc-module-format=$dartdevcModuleFormat',
+      for (final root in fileSystemRoots) '--filesystem-root=$root',
+      '--filesystem-scheme',
+      fileSystemScheme,
+      '--output-dill',
+      outputDillPath,
+      '--packages=$packagesJson',
+      if (librariesSpec != null) ...['--libraries-spec', librariesSpec],
+      if (enableHttpUris) '--enable-http-uris',
+      '--incremental',
+      if (verbose) '--verbose',
+      if (!printIncrementalDependencies) '--no-print-incremental-dependencies',
+      if (enabledExperiments != null)
+        for (final experiment in enabledExperiments)
+          '--enable-experiment=$experiment',
+      for (final source in additionalSources) ...['--source', source],
+      if (nativeAssets != null) ...['--native-assets', nativeAssets],
+      ...additionalArgs,
+    ];
+    final dartExecutable = p.join(
+      sdk,
+      'bin',
+      Platform.isWindows ? 'dart.exe' : 'dart',
+    );
+    final dartAotRuntimePath = p.join(
+      sdk,
+      'bin',
+      Platform.isWindows ? 'dartaotruntime.exe' : 'dartaotruntime',
+    );
+    final feServerAotSnapshotPath = p.join(
+      sdk,
+      'bin',
+      'snapshots',
+      'frontend_server_aot.dart.snapshot',
+    );
+
+    late final Process feServer;
+    if (frontendServerPath != null) {
+      if (!File(frontendServerPath).existsSync()) {
+        throw ArgumentError.value(
+          frontendServerPath,
+          'frontendServerPath',
+          'Frontend server snapshot does not exist',
+        );
+      }
+      feServer = await Process.start(dartExecutable, <String>[
+        if (debug) '--observe',
+        frontendServerPath,
+        ...commonArguments,
+      ]);
+    } else {
+      if (debug) {
+        throw ArgumentError(
+          'The debug argument cannot be set to true when the '
+          'frontendServerPath argument is omitted.',
+        );
+      }
+      if (!File(feServerAotSnapshotPath).existsSync()) {
+        throw ArgumentError.value(
+          sdk,
+          'sdkRoot',
+          'Frontend server AOT snapshot does not exist at '
+              '"$feServerAotSnapshotPath"',
+        );
+      }
+      if (!File(dartAotRuntimePath).existsSync()) {
+        throw ArgumentError.value(
+          sdk,
+          'sdkRoot',
+          'Dart AOT runtime does not exist at "$dartAotRuntimePath"',
+        );
+      }
+      feServer = await Process.start(dartAotRuntimePath, <String>[
+        feServerAotSnapshotPath,
+        ...commonArguments,
+      ]);
+    }
+    final feServerStdoutLines = StreamQueue(
+      feServer.stdout.transform(utf8.decoder).transform(const LineSplitter()),
+    );
+
+    // The frontend_server doesn't appear to recursively create files, so we
+    //  need to make sure the output dir already exists.
+    final outputDir = Directory(p.dirname(outputDillPath));
+    if (!await outputDir.exists()) await outputDir.create();
+
+    return FrontendServerClient._(
+      entrypoint,
+      feServer,
+      feServerStdoutLines,
+      verbose: verbose,
+    );
+  }
+
+  /// Compiles [_entrypoint], using an incremental recompile if possible.
+  ///
+  /// [invalidatedUris] must not be null for all but the very first compile.
+  ///
+  /// The frontend server _does not_ do any of its own invalidation.
+  Future<CompileResult> compile([List<Uri>? invalidatedUris]) =>
+      _compile(invalidatedUris, restart: false);
+
+  /// Like [compile] but for a hot restart.
+  ///
+  /// Must not be called before the first [compile].
+  Future<CompileResult> recompileRestart(List<Uri> invalidatedUris) =>
+      _compile(invalidatedUris, restart: true);
+
+  Future<CompileResult> _compile(
+    List<Uri>? invalidatedUris, {
+    required bool restart,
+  }) async {
+    while (_state == _ClientState.compilingExpression) {
+      await _nextIdle;
+    }
+    String action;
+    switch (_state) {
+      case _ClientState.waitingForFirstCompile:
+        if (restart) {
+          throw StateError(
+            '`recompileRestart` must not be called before the first `compile`.',
+          );
+        }
+        action = 'compile';
+        break;
+      case _ClientState.waitingForRecompile:
+        if (invalidatedUris == null || invalidatedUris.isEmpty) {
+          throw StateError(
+            '`invalidatedUris` must be non-empty after the first `compile`.',
+          );
+        }
+        action = restart ? 'recompile-restart' : 'recompile';
+        break;
+      case _ClientState.waitingForAcceptOrReject:
+        throw StateError(
+          'Previous `CompileResult` must be accepted or rejected by '
+          'calling `accept` or `reject`.',
+        );
+      case _ClientState.compiling:
+        throw StateError(
+          'App is already being compiled, you must wait for that to '
+          'complete and `accept` or `reject` the result before compiling '
+          'again.',
+        );
+      case _ClientState.rejecting:
+        throw StateError(
+          'Still waiting for previous `reject` call to finish. '
+          'You must await that before compiling again.',
+        );
+      case _ClientState.compilingExpression:
+        throw StateError('Unreachable');
+    }
+    _state = _ClientState.compiling;
+
+    try {
+      final command = StringBuffer('$action $_entrypoint');
+      if (action != 'compile') {
+        final boundaryKey = generateUuidV4();
+        command.writeln(' $boundaryKey');
+        for (final uri in invalidatedUris!) {
+          command.writeln('$uri');
+        }
+        command.write(boundaryKey);
+      }
+
+      _sendCommand(command.toString());
+      var state = _CompileState.started;
+      late String feBoundaryKey;
+      final newSources = <Uri>{};
+      final removedSources = <Uri>{};
+      final compilerOutputLines = <String>[];
+      var errorCount = 0;
+      String? outputDillPath;
+      while (state != _CompileState.done &&
+          await _feServerStdoutLines.hasNext) {
+        final line = await _nextInputLine();
+        switch (state) {
+          case _CompileState.started:
+            assert(line.startsWith('result'));
+            feBoundaryKey = line.substring(line.indexOf(' ') + 1);
+            state = _CompileState.waitingForKey;
+            continue;
+          case _CompileState.waitingForKey:
+            if (line == feBoundaryKey) {
+              state = _CompileState.gettingSourceDiffs;
+            } else {
+              compilerOutputLines.add(line);
+            }
+            continue;
+          case _CompileState.gettingSourceDiffs:
+            if (line.startsWith(feBoundaryKey)) {
+              state = _CompileState.done;
+              final parts = line.split(' ');
+              outputDillPath = parts.getRange(1, parts.length - 1).join(' ');
+              errorCount = int.parse(parts.last);
+              continue;
+            }
+            final diffUri = Uri.parse(line.substring(1));
+            if (line.startsWith('+')) {
+              newSources.add(diffUri);
+            } else if (line.startsWith('-')) {
+              removedSources.add(diffUri);
+            } else {
+              throw StateError(
+                'unrecognized diff line, should start with a + or - '
+                'but got: $line',
+              );
+            }
+            continue;
+          case _CompileState.done:
+            throw StateError('Unreachable');
+        }
+      }
+
+      return CompileResult._(
+        dillOutput: outputDillPath,
+        errorCount: errorCount,
+        newSources: newSources,
+        removedSources: removedSources,
+        compilerOutputLines: compilerOutputLines,
+      );
+    } finally {
+      _state = _ClientState.waitingForAcceptOrReject;
+    }
+  }
+
+  /// TODO: Document
+  Future<CompileResult> compileExpression({
+    required String expression,
+    required List<String> definitions,
+    required bool isStatic,
+    required String klass,
+    required String libraryUri,
+    required List<String> typeDefinitions,
+  }) => throw UnimplementedError();
+
+  /// Compiles Dart [expression] to JS in the scope of [line] and [column]
+  /// of [libraryUri], or of its part [scriptUri].
+  ///
+  /// [jsFrameValues] maps variables in scope to their JS values.
+  /// Can only be called after the first [compile] and automatically awaits
+  /// an [accept] or [reject].
+  ///
+  /// On success, stores the emitted JS in [CompileResult.compiledExpression].
+  /// On failure, errors are stored in [CompileResult.compilerOutputLines].
+  Future<CompileResult> compileExpressionToJs({
+    required String expression,
+    required int column,
+    required Map<String, String> jsFrameValues,
+    required Map<String, String> jsModules,
+    required String libraryUri,
+    required int line,
+    required String moduleName,
+    String? scriptUri,
+  }) async {
+    while (!_isIdle) {
+      await _nextIdle;
+    }
+    // See Frontend Server state machine here:
+    // pkg/frontend_server/lib/frontend_server.dart
+    final previousState = _state;
+    _state = _ClientState.compilingExpression;
+    try {
+      _sendCommand('JSON_INPUT');
+      _sendCommand(
+        jsonEncode({
+          'type': 'COMPILE_EXPRESSION_JS',
+          'data': {
+            'expression': expression,
+            'libraryUri': libraryUri,
+            'scriptUri': ?scriptUri,
+            'line': line,
+            'column': column,
+            'jsModules': jsModules,
+            'jsFrameValues': jsFrameValues,
+            'moduleName': moduleName,
+          },
+        }),
+      );
+      final compilerOutputLines = <String>[];
+      String? feBoundaryKey;
+      while (await _feServerStdoutLines.hasNext) {
+        final line = await _nextInputLine();
+        if (feBoundaryKey == null) {
+          if (line.startsWith('result ')) {
+            feBoundaryKey = line.substring('result '.length);
+          } else {
+            compilerOutputLines.add(line);
+          }
+        } else if (line == feBoundaryKey) {
+          return CompileResult._(
+            dillOutput: null,
+            compilerOutputLines: compilerOutputLines,
+            errorCount: 1,
+            newSources: const [],
+            removedSources: const [],
+          );
+        } else if (line.startsWith('$feBoundaryKey ')) {
+          final parts = line.split(' ');
+          final outputPath = parts.getRange(1, parts.length - 1).join(' ');
+          final errorCount = int.parse(parts.last);
+          // Read [outputPath] before it's overridden by another compile.
+          final output = await File(outputPath).readAsString();
+          return CompileResult._(
+            dillOutput: null,
+            compilerOutputLines: [
+              ...compilerOutputLines,
+              if (errorCount > 0) output,
+            ],
+            errorCount: errorCount,
+            newSources: const [],
+            removedSources: const [],
+            compiledExpression: errorCount == 0 ? output : null,
+          );
+        } else {
+          compilerOutputLines.add(line);
+        }
+      }
+      throw StateError(
+        'The frontend server exited while compiling an expression.',
+      );
+    } finally {
+      _setState(previousState);
+    }
+  }
+
+  /// Should be invoked when results of compilation are accepted by the client.
+  ///
+  /// Either [accept] or [reject] should be called after every [compile] call.
+  void accept() {
+    if (_state != _ClientState.waitingForAcceptOrReject) {
+      throw StateError(
+        'Called `accept` but there was no previous compile to accept.',
+      );
+    }
+    _sendCommand('accept');
+    _setState(_ClientState.waitingForRecompile);
+  }
+
+  /// Should be invoked when results of compilation are rejected by the client.
+  ///
+  /// Either [accept] or [reject] should be called after every [compile] call.
+  ///
+  /// The result of this call must be awaited before a new [compile] can be
+  /// done.
+  Future<void> reject() async {
+    if (_state != _ClientState.waitingForAcceptOrReject) {
+      throw StateError(
+        'Called `reject` but there was no previous compile to reject.',
+      );
+    }
+    _state = _ClientState.rejecting;
+    _sendCommand('reject');
+    late String boundaryKey;
+    var rejectState = _RejectState.started;
+    while (rejectState != _RejectState.done &&
+        await _feServerStdoutLines.hasNext) {
+      final line = await _nextInputLine();
+      switch (rejectState) {
+        case _RejectState.started:
+          if (!line.startsWith('result')) {
+            throw StateError(
+              'Expected a line like `result <boundary-key>` after a `reject` '
+              'command, but got:\n$line',
+            );
+          }
+          boundaryKey = line.split(' ').last;
+          rejectState = _RejectState.waitingForKey;
+          continue;
+        case _RejectState.waitingForKey:
+          if (line != boundaryKey) {
+            throw StateError('Expected exactly `$boundaryKey` but got:\n$line');
+          }
+          rejectState = _RejectState.done;
+          continue;
+        case _RejectState.done:
+          throw StateError('Unreachable');
+      }
+    }
+    _setState(_ClientState.waitingForRecompile);
+  }
+
+  /// Should be invoked when frontend server compiler should forget what was
+  /// accepted previously so that next call to [compile] produces complete
+  /// kernel file.
+  void reset() {
+    if (_state == _ClientState.compiling ||
+        _state == _ClientState.compilingExpression) {
+      throw StateError(
+        'Called `reset` during an active compile, you must wait for that to '
+        'complete first.',
+      );
+    }
+    _sendCommand('reset');
+    _setState(_ClientState.waitingForRecompile);
+  }
+
+  /// Stop the service gracefully (using the shutdown command)
+  Future<int> shutdown() async {
+    _sendCommand('quit');
+    final timer = Timer(const Duration(seconds: 1), _feServer.kill);
+    final exitCode = await _feServer.exitCode;
+    timer.cancel();
+    await _feServerStdoutLines.cancel();
+    return exitCode;
+  }
+
+  /// Kills the server forcefully by calling `kill` on the process, and
+  /// returns the result.
+  bool kill({ProcessSignal processSignal = ProcessSignal.sigterm}) {
+    _feServerStdoutLines.cancel();
+    return _feServer.kill(processSignal);
+  }
+
+  /// Sends [command] to the [_feServer] via stdin, and logs it if [_verbose].
+  void _sendCommand(String command) {
+    if (_verbose) {
+      final lines = const LineSplitter().convert(command);
+      for (final line in lines) {
+        print('>> $line');
+      }
+    }
+    _feServer.stdin.writeln(command);
+  }
+
+  /// Reads a line from [_feServerStdoutLines] and logs it if [_verbose].
+  Future<String> _nextInputLine() async {
+    final line = await _feServerStdoutLines.next;
+    if (_verbose) print('<< $line');
+    return line;
+  }
+
+  /// `true` if no request is in progress or waiting to be accepted/rejected.
+  bool get _isIdle =>
+      _state == _ClientState.waitingForFirstCompile ||
+      _state == _ClientState.waitingForRecompile;
+
+  /// Completes the next time this client is idle.
+  Future<void> get _nextIdle => (_idleCompleter ??= Completer<void>()).future;
+
+  /// Sets [_state] and updates _idleCompleter.
+  void _setState(_ClientState state) {
+    _state = state;
+    if (_isIdle) {
+      _idleCompleter?.complete();
+      _idleCompleter = null;
+    }
+  }
+}
+
+/// The result of a compile call.
+class CompileResult {
+  const CompileResult._({
+    required this.dillOutput,
+    required this.compilerOutputLines,
+    required this.errorCount,
+    required this.newSources,
+    required this.removedSources,
+    this.compiledExpression,
+  });
+
+  /// The produced dill output file, this will either be a full dill file, an
+  /// incremental dill file, or `null` if no file was produced.
+  final String? dillOutput;
+
+  /// All output from the compiler, typically this would contain errors or
+  /// warnings.
+  final Iterable<String> compilerOutputLines;
+
+  /// The total count of errors, details should appear in
+  /// [compilerOutputLines].
+  final int errorCount;
+
+  /// A single file containing all source maps for all JS outputs.
+  ///
+  /// Read [jsManifestOutput] for file offsets for each sourcemap.
+  String? get jsSourceMapsOutput =>
+      dillOutput == null ? null : '$dillOutput.map';
+
+  /// A single file containing all JS outputs.
+  ///
+  /// Read [jsManifestOutput] for file offsets for each source.
+  String? get jsSourcesOutput =>
+      dillOutput == null ? null : '$dillOutput.sources';
+
+  /// A single file containing the debugger metadata for all JS outputs.
+  ///
+  /// [jsManifestOutput] holds file offsets for each module's metadata. Only
+  /// written with `--experimental-emit-debug-metadata`.
+  String? get jsMetadataOutput =>
+      dillOutput == null ? null : '$dillOutput.metadata';
+
+  /// A JSON manifest containing offsets for the sources and source maps in
+  /// the [jsSourcesOutput] and [jsSourceMapsOutput] files.
+  String? get jsManifestOutput =>
+      dillOutput == null ? null : '$dillOutput.json';
+
+  /// All the transitive source dependencies that were added as a part of this
+  /// compile.
+  final Iterable<Uri> newSources;
+
+  /// All the transitive source dependencies that were removed as a part of
+  /// this compile.
+  final Iterable<Uri> removedSources;
+
+  /// JS from a valid expression compile, or `null`.
+  final String? compiledExpression;
+}
+
+/// Internal states for the client.
+enum _ClientState {
+  compiling,
+  compilingExpression,
+  rejecting,
+  waitingForAcceptOrReject,
+  waitingForFirstCompile,
+  waitingForRecompile,
+}
+
+/// Frontend server interaction states for a `compile` call.
+enum _CompileState { started, waitingForKey, gettingSourceDiffs, done }
+
+/// Frontend server interaction states for a `reject` call.
+enum _RejectState { started, waitingForKey, done }

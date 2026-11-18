@@ -1,0 +1,48 @@
+[submodule "experiments/upstream/pub"]
+	path = experiments/upstream/pub
+	url = https://github.com/dart-lang/pub
+	shallow = true
+[submodule "experiments/upstream/dart_style"]
+	path = experiments/upstream/dart_style
+	url = https://github.com/dart-lang/dart_style
+	shallow = true
+[submodule "experiments/dartvel-passepartout"]
+	path = experiments/dartvel-passepartout
+	url = https://github.com/Danroyal001/dartvel-passepartout
+	branch = dartvel
+[submodule "experiments/homebrew-dartvel_dev"]
+	path = experiments/homebrew-dartvel_dev
+	url = https://github.com/Danroyal001/homebrew-dartvel_dev
+	branch = main
+[submodule "experiments/dartvel_cli_flt"]
+	path = experiments/dartvel_cli_flt
+	url = https://github.com/Danroyal001/dartvel_cli_flt
+	branch = main
+[submodule "experiments/dartvel_vscode"]
+	path = experiments/dartvel_vscode
+	url = https://github.com/Danroyal001/dartvel_vscode
+	branch = main
+[submodule "experiments/dartvel_webos"]
+	path = experiments/dartvel_webos
+	url = https://github.com/Danroyal001/dartvel_webos
+	branch = main
+[submodule "experiments/dartvel_elinux"]
+	path = experiments/dartvel_elinux
+	url = https://github.com/Danroyal001/dartvel_elinux
+	branch = main
+[submodule "experiments/dartvel_mix"]
+	path = experiments/dartvel_mix
+	url = https://github.com/Danroyal001/dartvel_mix
+	branch = main
+[submodule "experiments/dartvel_fuchsia"]
+	path = experiments/dartvel_fuchsia
+	url = https://github.com/Danroyal001/dartvel_fuchsia
+	branch = main
+[submodule "experiments/dartvel_tvos"]
+	path = experiments/dartvel_tvos
+	url = https://github.com/Danroyal001/dartvel_tvos
+	branch = dev
+[submodule "experiments/dartvel_tizen"]
+	path = experiments/dartvel_tizen
+	url = https://github.com/Danroyal001/dartvel_tizen
+	branch = master

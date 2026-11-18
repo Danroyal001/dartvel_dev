@@ -1,0 +1,44 @@
+40 columns                              |
+>>> do not split after "("
+doSomethingWithFn((argument) => functionBodyTooLong());
+<<< 3.6
+doSomethingWithFn((argument) =>
+    functionBodyTooLong());
+>>> newline before fn expression should not force => to split
+{
+  () => one;
+  () => two;
+}
+<<< 3.6
+{
+  () => one;
+  () => two;
+}
+>>> indent entire block body
+SomeLongFunctionName(
+  (longParameterName______) =>
+      <LongTypeArgument>[
+    longListElement,
+  ],
+);
+<<< 3.6
+SomeLongFunctionName(
+  (longParameterName______) =>
+      <LongTypeArgument>[
+    longListElement,
+  ],
+);
+>>>
+SomeLongFunctionName(
+  (longParameterName______) =>
+      switch (value) {
+    constant => body,
+  },
+);
+<<< 3.6
+SomeLongFunctionName(
+  (longParameterName______) =>
+      switch (value) {
+    constant => body,
+  },
+);

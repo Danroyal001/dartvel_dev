@@ -1,0 +1,385 @@
+// Copyright (c) 2018, the Dart project authors. Please see the AUTHORS file
+// for details. All rights reserved. Use of this source code is governed by a
+// BSD-style license that can be found in the LICENSE file.
+
+import 'package:analyzer/dart/ast/syntactic_entity.dart';
+import 'package:analyzer/dart/ast/token.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
+import 'package:analyzer/src/dart/ast/ast.dart';
+import 'package:analyzer/src/dart/ast/extensions.dart';
+import 'package:analyzer/src/diagnostic/diagnostic.dart' as diag;
+import 'package:analyzer/src/error/listener.dart';
+import 'package:analyzer/src/utilities/extensions/version.dart';
+import 'package:pub_semver/pub_semver.dart';
+
+/// A visitor that finds code that assumes a later version of the SDK than the
+/// minimum version required by the SDK constraints in `pubspec.yaml`.
+class SdkConstraintVerifier extends RecursiveAstVisitor2<void> {
+  /// The error reporter to be used to report errors.
+  final DiagnosticReporter _errorReporter;
+
+  /// The version constraint for the SDK.
+  final VersionConstraint _versionConstraint;
+
+  /// A cached flag indicating whether references to the triple-shift features
+  /// need to be checked. Use [checkTripleShift] to access this field.
+  bool? _checkTripleShift;
+
+  /// Initialize a newly created verifier to use the given [_errorReporter] to
+  /// report errors.
+  new(this._errorReporter, this._versionConstraint);
+
+  /// Return a range covering every version up to, but not including, 2.14.0.
+  VersionRange get before_2_14_0 => VersionRange(max: Version.parse('2.14.0'));
+
+  /// Return a range covering every version up to, but not including, 2.1.0.
+  VersionRange get before_2_1_0 => VersionRange(max: Version.parse('2.1.0'));
+
+  /// Return a range covering every version up to, but not including, 2.2.0.
+  VersionRange get before_2_2_0 => VersionRange(max: Version.parse('2.2.0'));
+
+  /// Return a range covering every version up to, but not including, 2.2.2.
+  VersionRange get before_2_2_2 => VersionRange(max: Version.parse('2.2.2'));
+
+  /// Return a range covering every version up to, but not including, 2.5.0.
+  VersionRange get before_2_5_0 => VersionRange(max: Version.parse('2.5.0'));
+
+  /// Return a range covering every version up to, but not including, 2.6.0.
+  VersionRange get before_2_6_0 => VersionRange(max: Version.parse('2.6.0'));
+
+  /// Return `true` if references to the constant-update-2018 features need to
+  /// be checked.
+  bool get checkTripleShift => _checkTripleShift ??= !before_2_14_0
+      .intersect(_versionConstraint)
+      .isEmpty;
+
+  @override
+  void visitArgumentList(ArgumentList node) {
+    // Check (optional) positional arguments.
+    // Named arguments are checked in [NamedArgument].
+    for (var argument in node.arguments2) {
+      if (argument is! NamedArgument) {
+        var parameter = argument.correspondingParameter;
+        _checkSinceSdkVersion(parameter, node, errorEntity: argument);
+      }
+    }
+
+    super.visitArgumentList(node);
+  }
+
+  @override
+  void visitBinaryOperatorInvocation(BinaryOperatorInvocation node) {
+    if (checkTripleShift) {
+      TokenType operatorType = node.operator.type;
+      if (operatorType == TokenType.GT_GT_GT) {
+        _errorReporter.report(diag.sdkVersionGtGtGtOperator.at(node.operator));
+      }
+    }
+    super.visitBinaryOperatorInvocation(node);
+  }
+
+  @override
+  void visitCallInvocation(CallInvocation node) {
+    if (node.resolution case ExecutableInvocationResolution(:var element)) {
+      _checkSinceSdkVersion(element, node);
+    }
+    super.visitCallInvocation(node);
+  }
+
+  @override
+  void visitCascadeIndexExpression(CascadeIndexExpression node) {
+    _checkIndexRead(node);
+    super.visitCascadeIndexExpression(node);
+  }
+
+  @override
+  void visitCascadeMethodInvocation(CascadeMethodInvocation node) {
+    _checkNamedFunctionInvocation(node);
+    super.visitCascadeMethodInvocation(node);
+  }
+
+  @override
+  void visitCascadePropertyExtraction(CascadePropertyExtraction node) {
+    var element = node.resolution?.element;
+    _checkSinceSdkVersion(element, node, errorEntity: node.name);
+    super.visitCascadePropertyExtraction(node);
+  }
+
+  @override
+  void visitCompoundAssignment(CompoundAssignment node) {
+    _checkAssignmentTarget(node.target);
+    _checkSinceSdkVersion(node.element, node);
+    super.visitCompoundAssignment(node);
+  }
+
+  @override
+  void visitConstructorReference2(ConstructorReference2 node) {
+    var typeReference = node.typeReference;
+    _checkSinceSdkVersion(
+      typeReference.element,
+      typeReference,
+      errorEntity: typeReference.name,
+    );
+    _checkSinceSdkVersion(
+      node.element,
+      node,
+      errorEntity: node.selector?.name2 ?? typeReference.name,
+    );
+    super.visitConstructorReference2(node);
+  }
+
+  @override
+  void visitConstructorTearOff(ConstructorTearOff node) {
+    var typeReference = node.typeReference;
+    _checkSinceSdkVersion(
+      typeReference.element,
+      typeReference,
+      errorEntity: typeReference.name,
+    );
+    _checkSinceSdkVersion(node.element, node, errorEntity: node.selector.name2);
+    super.visitConstructorTearOff(node);
+  }
+
+  @override
+  void visitDirectAssignment(DirectAssignment node) {
+    _checkAssignmentTarget(node.target);
+    super.visitDirectAssignment(node);
+  }
+
+  @override
+  void visitDotShorthandMethodInvocation(DotShorthandMethodInvocation node) {
+    _checkNamedFunctionInvocation(node);
+    super.visitDotShorthandMethodInvocation(node);
+  }
+
+  @override
+  void visitGetterDeclaration(covariant GetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitGetterDeclaration(node));
+  }
+
+  @override
+  void visitHideCombinator(HideCombinator node) {
+    // Don't flag references to either `Future` or `Stream` within a combinator.
+  }
+
+  @override
+  void visitIfNullAssignment(IfNullAssignment node) {
+    _checkAssignmentTarget(node.target);
+    super.visitIfNullAssignment(node);
+  }
+
+  @override
+  void visitImportPrefixedAssignmentTarget(
+    ImportPrefixedAssignmentTarget node,
+  ) {
+    _checkNamedRead(node.read, node, errorEntity: node.name);
+    _checkSinceSdkVersion(node.write?.element, node, errorEntity: node.name);
+    super.visitImportPrefixedAssignmentTarget(node);
+  }
+
+  @override
+  void visitImportPrefixedFunctionInvocation(
+    ImportPrefixedFunctionInvocation node,
+  ) {
+    _checkNamedFunctionInvocation(node);
+    super.visitImportPrefixedFunctionInvocation(node);
+  }
+
+  @override
+  void visitImportPrefixedNameExpression(ImportPrefixedNameExpression node) {
+    _checkNamedRead(node.resolution, node, errorEntity: node.name);
+    super.visitImportPrefixedNameExpression(node);
+  }
+
+  @override
+  void visitMethodDeclaration2(covariant MethodDeclaration2Impl node) {
+    _visitMethodDeclaration(node, () => super.visitMethodDeclaration2(node));
+  }
+
+  @override
+  void visitNamedArgument(NamedArgument node) {
+    _checkSinceSdkVersion(
+      node.correspondingParameter,
+      node,
+      errorEntity: node.name,
+    );
+    super.visitNamedArgument(node);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    _checkSinceSdkVersion(node.element, node);
+    super.visitNamedType(node);
+  }
+
+  @override
+  void visitOperatorDeclaration(covariant OperatorDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitOperatorDeclaration(node));
+  }
+
+  @override
+  void visitReceiverIndexExpression(ReceiverIndexExpression node) {
+    _checkIndexRead(node);
+    super.visitReceiverIndexExpression(node);
+  }
+
+  @override
+  void visitReceiverMethodInvocation(ReceiverMethodInvocation node) {
+    _checkNamedFunctionInvocation(node);
+    super.visitReceiverMethodInvocation(node);
+  }
+
+  @override
+  void visitReceiverPropertyExtraction(ReceiverPropertyExtraction node) {
+    var element = node.resolution?.element;
+    _checkSinceSdkVersion(element, node);
+    super.visitReceiverPropertyExtraction(node);
+  }
+
+  @override
+  void visitSetterDeclaration(covariant SetterDeclarationImpl node) {
+    _visitMethodDeclaration(node, () => super.visitSetterDeclaration(node));
+  }
+
+  @override
+  void visitShowCombinator(ShowCombinator node) {
+    // Don't flag references to either `Future` or `Stream` within a combinator.
+  }
+
+  @override
+  void visitStaticQualifier(StaticQualifier node) {
+    _checkSinceSdkVersion(node.element, node, errorEntity: node.name);
+    super.visitStaticQualifier(node);
+  }
+
+  @override
+  void visitUnqualifiedFunctionInvocation(UnqualifiedFunctionInvocation node) {
+    _checkNamedFunctionInvocation(node);
+    super.visitUnqualifiedFunctionInvocation(node);
+  }
+
+  @override
+  void visitUnqualifiedNameExpression(UnqualifiedNameExpression node) {
+    _checkNamedRead(node.resolution, node, errorEntity: node.name);
+  }
+
+  void _checkAssignmentTarget(AssignmentTarget target) {
+    // Import-prefixed targets are checked by their own visitor.
+    if (target is ImportPrefixedAssignmentTarget) {
+      return;
+    }
+
+    var errorEntity = switch (target) {
+      NamedAssignmentTarget() => target.name,
+      _ => null,
+    };
+    _checkSinceSdkVersion(
+      target.read?.element,
+      target,
+      errorEntity: errorEntity,
+    );
+    _checkSinceSdkVersion(
+      target.write?.element,
+      target,
+      errorEntity: errorEntity,
+    );
+  }
+
+  void _checkIndexRead(IndexExpression2 node) {
+    _checkSinceSdkVersion(node.resolution?.elementOrRecovery, node);
+  }
+
+  void _checkNamedFunctionInvocation(NamedFunctionInvocation node) {
+    var element = switch (node.resolution) {
+      ExecutableInvocationResolution(:var element) => element,
+      _ => null,
+    };
+    _checkSinceSdkVersion(element, node, errorEntity: node.name);
+  }
+
+  void _checkNamedRead(
+    NamedReadResolution? resolution,
+    AstNode node, {
+    required SyntacticEntity errorEntity,
+  }) {
+    var element = resolution?.elementOrRecovery;
+    _checkSinceSdkVersion(element, node, errorEntity: errorEntity);
+  }
+
+  void _checkSinceSdkVersion(
+    Element? element,
+    AstNode target, {
+    SyntacticEntity? errorEntity,
+  }) {
+    element = element?.nonSynthetic;
+    if (element?.sinceSdkVersion case var sinceSdkVersion?) {
+      if (!_versionConstraint.requiresAtLeast(sinceSdkVersion)) {
+        if (errorEntity == null) {
+          if (!_shouldReportEnumIndex(target, element!)) {
+            return;
+          }
+          if (target is ExtensionOverride2) {
+            errorEntity = target.name;
+          } else if (target is CallInvocation) {
+            errorEntity = target.argumentList;
+          } else if (target is IndexExpression2) {
+            errorEntity = target.leftBracket;
+          } else if (target is IndexAssignmentTarget) {
+            errorEntity = target.leftBracket;
+          } else if (target is NamedType) {
+            errorEntity = target.name;
+          } else if (target is PropertyExtraction) {
+            errorEntity = target.name;
+          } else {
+            throw UnimplementedError('(${target.runtimeType}) $target');
+          }
+        }
+        _errorReporter.report(
+          diag.sdkVersionSince
+              .withArguments(
+                availableVersion: sinceSdkVersion.toString(),
+                versionConstraints: _versionConstraint.toString(),
+              )
+              .at(errorEntity),
+        );
+      }
+    }
+  }
+
+  void _visitMethodDeclaration(
+    MethodDeclarationV1OriginImpl node,
+    void Function() visitSuper,
+  ) {
+    if (checkTripleShift &&
+        (node is OperatorDeclarationImpl) &&
+        node.nameToken.lexeme == '>>>') {
+      _errorReporter.report(diag.sdkVersionGtGtGtOperator.at(node.nameToken));
+    }
+    visitSuper();
+  }
+
+  /// Returns `false` if [element] is the `index` property, and the target
+  /// of [node] is exactly the `Enum` class from `dart:core`. We have already
+  /// checked that the property is not available to the enclosing package.
+  ///
+  /// Returns `true` if [element] is something else, or if the target is a
+  /// concrete enum. The `index` was always available for concrete enums,
+  /// but there was no common `Enum` supertype for all enums.
+  static bool _shouldReportEnumIndex(AstNode node, Element element) {
+    if (element is PropertyAccessorElement && element.name == 'index') {
+      DartType? targetType;
+      if (node is ReceiverPropertyExtraction && node.receiver is Expression) {
+        targetType = (node.receiver as Expression).staticType;
+      }
+      if (targetType != null) {
+        var targetElement = targetType.element;
+        return targetElement is ClassElement && targetElement.isDartCoreEnum;
+      }
+      return false;
+    } else {
+      return true;
+    }
+  }
+}

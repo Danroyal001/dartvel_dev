@@ -1,0 +1,49 @@
+name: Experiments
+
+# The suites under experiments/. Each experiment is its own Dart package
+# outside the pub workspace and every published package, so nothing else
+# here runs them; tool/ci/test_matrix_check.dart watches packages/ and
+# sites/ only. A suite nobody runs is the failure that check exists for, so
+# this job runs every experiment that has a test/ directory, and fails when
+# it finds none at all rather than passing on an empty loop.
+on:
+  push:
+    paths:
+      - 'experiments/**'
+      - '.github/workflows/experiments.yml'
+  pull_request:
+    paths:
+      - 'experiments/**'
+      - '.github/workflows/experiments.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: experiments-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: 3.13.4
+      - name: Analyze and test every experiment
+        run: |
+          set -euo pipefail
+          ran=0
+          for pubspec in experiments/*/pubspec.yaml; do
+            dir=$(dirname "$pubspec")
+            [ -d "$dir/test" ] || continue
+            echo "::group::$dir"
+            (cd "$dir" && timeout 300 dart pub get && dart analyze --fatal-infos && dart format --output=none --set-exit-if-changed lib test bin && timeout 600 dart test)
+            echo "::endgroup::"
+            ran=$((ran + 1))
+          done
+          if [ "$ran" -eq 0 ]; then
+            echo "No experiment with a test/ directory was found; refusing to pass on nothing."
+            exit 1
+          fi
+          echo "Ran $ran experiment suite(s)."

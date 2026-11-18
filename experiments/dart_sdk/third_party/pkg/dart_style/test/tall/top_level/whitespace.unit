@@ -1,0 +1,39 @@
+40 columns                              |
+>>> Empty compilation unit.
+
+
+
+<<< 3.7
+
+>>> Force at least one newline between directives.
+import 'a.dart';import 'b.dart';export 'c.dart';
+<<< 3.7
+import 'a.dart';
+import 'b.dart';
+export 'c.dart';
+>>> Remove leading and trailing blank lines.
+
+
+
+import 'a.dart';
+
+
+
+<<< 3.7
+import 'a.dart';
+>>> Preserve up to one blank line between directives.
+import 'a.dart';
+import 'b.dart';
+
+export 'c.dart';
+
+
+
+export 'd.dart';
+<<< 3.7
+import 'a.dart';
+import 'b.dart';
+
+export 'c.dart';
+
+export 'd.dart';

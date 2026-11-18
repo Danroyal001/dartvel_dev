@@ -1,0 +1,20 @@
+# Cargo workspace for the Rust port of the Dart SDK.
+#
+# Each crate sits beside the package it ports (pkg/<name>/rust) and mirrors
+# that package's lib/src file by file. See
+# pkg/_fe_analyzer_shared/rust/README.md.
+[workspace]
+resolver = "2"
+members = ["pkg/_fe_analyzer_shared/rust", "sdk/lib/core/rust", "pkg/analyzer/rust", "pkg/kernel/rust", "pkg/vm/rust", "third_party/pkg/dart_style/rust"]
+
+[profile.release]
+debug = false
+lto = "fat"
+codegen-units = 1
+
+# Release code with thin LTO: builds about twice as fast as fat LTO, for a
+# few percent of speed (pkg/kernel/rust/README.md has the numbers).
+[profile.thin]
+inherits = "release"
+lto = "thin"
+codegen-units = 16

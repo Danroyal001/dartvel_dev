@@ -1,0 +1,17 @@
+# Not an upstream file: the Rust port of flutter/impeller/geometry.
+[package]
+name = "impeller_geometry"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "A file-by-file Rust port of Impeller's geometry library (flutter/impeller/geometry)."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "geometry_dump"
+path = "src/bin/geometry_dump.rs"
+
+[dependencies]
+fml = { path = "../../../fml/rust" }

@@ -1,0 +1,97 @@
+40 columns                              |
+>>> require at least one newline between statements
+{a();b();c();}
+<<< 3.6
+{
+  a();
+  b();
+  c();
+}
+>>> allow an extra newline between statements
+{
+  a();
+
+  b();
+  c();
+}
+<<< 3.6
+{
+  a();
+
+  b();
+  c();
+}
+>>> collapse any other newlines
+{
+
+
+  a();
+
+
+
+  b();
+
+
+
+  c();
+
+
+}
+<<< 3.6
+{
+  a();
+
+  b();
+
+  c();
+}
+>>> dartbug.com/16810
+{
+  var a;;;
+}
+<<< 3.6
+{
+  var a;
+  ;
+  ;
+}
+>>> force blank line after non-empty local function
+{
+  a() {;}
+  b();
+
+
+  c() {;}d(){;}
+
+
+}
+<<< 3.6
+{
+  a() {
+    ;
+  }
+
+  b();
+
+  c() {
+    ;
+  }
+
+  d() {
+    ;
+  }
+}
+>>> do not force blank line after empty local function
+{ a() {} b() {} }
+<<< 3.6
+{
+  a() {}
+  b() {}
+}
+>>> do not force blank line after => body local function
+{ a() => null; b() => null; }
+<<< 3.6
+{
+  a() => null;
+  b() => null;
+}
