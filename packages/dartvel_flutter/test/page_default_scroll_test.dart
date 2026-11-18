@@ -261,6 +261,23 @@ void main() {
       expect(find.byTooltip('Back to top'), findsOneWidget);
     });
 
+    // On the web the shell rebuilds its selection area when the browser's
+    // own menu is switched on or off, which moves the page into a new scroll
+    // view. The button's frame stayed with the old one, and dartvel.dev lost
+    // its button on every web-server build while every VM test still found it.
+    testWidgets('the button stays when the page moves into a new scroll view', (WidgetTester tester) async {
+      addTearDown(() => DVBrowserMenu.debugSetNativeMenuOn(true));
+      await tester.pumpWidget(shell(DVPageScrollFrame(child: SingleChildScrollView(child: longColumn()))));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('To the bottom'), findsOneWidget);
+      DVBrowserMenu.debugSetNativeMenuOn(!DVBrowserMenu.nativeMenuOn.value);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('To the bottom'), findsOneWidget);
+      await tester.tap(find.byTooltip('To the bottom'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Back to top'), findsOneWidget);
+    });
+
     testWidgets('a page covered by a pushed route keeps its place when it is popped', (WidgetTester tester) async {
       final GlobalKey<NavigatorState> navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(MaterialApp(

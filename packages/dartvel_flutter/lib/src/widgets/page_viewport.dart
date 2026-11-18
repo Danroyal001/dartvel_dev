@@ -82,8 +82,11 @@ class DVPageViewportScope extends InheritedWidget {
 
   final DVPageViewportState host;
 
+  /// A dependency, not a look: when the page moves into another shell's
+  /// scroll view (the web rebuilds the selection area when the browser's own
+  /// menu is switched), the caller hears of it and moves with it.
   static DVPageViewportState? maybeOf(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<DVPageViewportScope>()?.host;
+      context.dependOnInheritedWidgetOfExactType<DVPageViewportScope>()?.host;
 
   @override
   bool updateShouldNotify(DVPageViewportScope oldWidget) => !identical(host, oldWidget.host);
