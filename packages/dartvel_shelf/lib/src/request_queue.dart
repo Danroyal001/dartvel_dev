@@ -39,8 +39,7 @@ typedef RequestHandler = void Function(
 /// gives the event loop back, so timers, body chunks and WebSocket frames are
 /// not starved by a steady stream of requests.
 final class RequestQueue {
-  RequestQueue._(
-      this._take, this._register, this._drive, this._park, this._linger);
+  RequestQueue._(this._take, this._register, this._drive, this._park);
 
   /// The queue for a library that has one, or null for one that calls the
   /// request handler with each request.
@@ -70,10 +69,6 @@ final class RequestQueue {
           ? library.lookupFunction<ffi.Int32 Function(ffi.Uint64),
               int Function(int)>('aw_park')
           : null,
-      library.providesSymbol('aw_linger')
-          ? library.lookupFunction<ffi.Int32 Function(ffi.Uint64, ffi.Uint32),
-              int Function(int, int)>('aw_linger')
-          : null,
     );
   }
 
@@ -89,11 +84,12 @@ final class RequestQueue {
       _register;
   final int Function(int)? _drive;
   final int Function(int)? _park;
-  final int Function(int, int)? _linger;
 
   /// How long an idle turn waits for the next request before the isolate
   /// parks, in microseconds: what a timer can be late by while it waits.
-  static const int _lingerMicros = 250;
+  /// Turns with nothing to take before the runtime goes to the helper.
+  static const int _idleTurnsBeforePark = 8;
+  int _idleTurns = 0;
   final ffi.Pointer<FfiRequest> _out = pkgffi.calloc<FfiRequest>(_batch);
   bool _againScheduled = false;
   ffi.NativeCallable<ffi.Void Function()>? _wakeup;
@@ -164,25 +160,23 @@ final class RequestQueue {
       if (taken < _batch) break;
     }
     if (handedOver) {
+      _idleTurns = 0;
       _scheduleAgain();
       return;
     }
     // Nothing this turn. The next request of a busy server is usually a
-    // moment away: waited for here, it is taken without the helper's
-    // hand-back and its message.
-    final int Function(int, int)? linger = _linger;
-    if (linger != null && linger(_serverId, _lingerMicros) == 0) {
-      final int taken = _take(_serverId, _out, _batch);
-      for (var i = 0; i < taken; i++) {
-        final FfiRequest request = (_out + i).ref;
-        handler(request.id, request.method, request.target, request.hdrs,
-            request.hdrsLen, request.body, request.peer);
-      }
-      if (taken > 0) {
-        _scheduleAgain();
-        return;
-      }
+    // moment away, so a few more turns come back for it -- each a message to
+    // this isolate, so timers, other I/O and a client in this same isolate
+    // run in between -- before the runtime goes to the helper, whose
+    // hand-back costs a wakeup and a message. Waiting for it in the kernel
+    // instead (aw_linger) held the event loop: a client in the same isolate
+    // could not send the request being waited for.
+    if (_idleTurns < _idleTurnsBeforePark) {
+      _idleTurns++;
+      _scheduleAgain();
+      return;
     }
+    _idleTurns = 0;
     park(_serverId);
   }
 
