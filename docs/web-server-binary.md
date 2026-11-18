@@ -46,7 +46,7 @@ dartvel:
 ```
 
 The source is matched exactly as requested, trailing slash included, so `/downloads` → `/downloads/` never
-answers its own target. A query string is carried over unless the target has one. An entry that is not a
+answers its own target. A query string is carried over. When the target has one of its own, its parameters are defaults: a parameter the request also names takes the request's value, and the request's others are added, so a tagged short link (`/w/store: /product/store?utm_source=whatsapp`) keeps an ad's own `utm_*` and `fbclid`. An entry that is not a
 path, points at itself or names another status is reported by the build and left out. `dartvel dev
 --release` answers them the same way.
 

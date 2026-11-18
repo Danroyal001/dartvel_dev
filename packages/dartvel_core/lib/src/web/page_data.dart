@@ -1397,7 +1397,14 @@ DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
 }
 
 /// Where a redirect answered for a request with [query] sends it: [to], with
-/// the request's query carried over when [to] has none of its own.
+/// the request's query carried over.
+///
+/// When [to] has a query of its own, its parameters are defaults: one the
+/// request also names takes the request's value in place, and the request's
+/// other parameters follow. A short link that tags its target
+/// (`/w/store` -> `/product/store?utm_source=whatsapp`) so keeps an ad's own
+/// `utm_*` and `fbclid` when the ad links to it. Values pass through as they
+/// were encoded, and a fragment on [to] stays last.
 ///
 /// One rule for every redirect a Dartvel server answers -- `dartvel.redirects`
 /// and the `dartvel.hosts` entries that only redirect -- in the deployed
@@ -1405,5 +1412,40 @@ DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
 /// it out inline, and the preview's dartvel.redirects did not carry the query
 /// at all: `/old?ref=mail` reached `/new?ref=mail` in production and `/new`
 /// in the preview.
-String dvRedirectLocation(String to, String query) =>
-    query.isEmpty || to.contains('?') ? to : '$to?$query';
+String dvRedirectLocation(String to, String query) {
+  if (query.isEmpty) return to;
+  final int hashAt = to.indexOf('#');
+  final String fragment = hashAt < 0 ? '' : to.substring(hashAt);
+  final String withoutFragment = hashAt < 0 ? to : to.substring(0, hashAt);
+  final int questionAt = withoutFragment.indexOf('?');
+  if (questionAt < 0) return '$withoutFragment?$query$fragment';
+  final String path = withoutFragment.substring(0, questionAt);
+  final List<String> targetPairs = _queryPairs(withoutFragment.substring(questionAt + 1));
+  final List<String> requestPairs = _queryPairs(query);
+  final Map<String, String> requestByName = <String, String>{
+    for (final String pair in requestPairs) _queryPairName(pair): pair,
+  };
+  final Set<String> placed = <String>{};
+  final List<String> merged = <String>[];
+  for (final String pair in targetPairs) {
+    final String name = _queryPairName(pair);
+    final String? fromRequest = requestByName[name];
+    if (fromRequest == null) {
+      merged.add(pair);
+    } else if (placed.add(name)) {
+      merged.add(fromRequest);
+    }
+  }
+  for (final String pair in requestPairs) {
+    if (!placed.contains(_queryPairName(pair))) merged.add(pair);
+  }
+  return '$path?${merged.join('&')}$fragment';
+}
+
+List<String> _queryPairs(String query) =>
+    query.split('&').where((String pair) => pair.isNotEmpty).toList();
+
+String _queryPairName(String pair) {
+  final int equalsAt = pair.indexOf('=');
+  return equalsAt < 0 ? pair : pair.substring(0, equalsAt);
+}
