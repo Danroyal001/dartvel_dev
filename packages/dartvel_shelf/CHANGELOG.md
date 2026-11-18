@@ -1,5 +1,7 @@
 ## Unreleased
 
+- WebSocket `sink.addStream` takes frames from its source while the native queue has room and pauses only when it is full; it awaited each frame, so every frame was drained, queued and written on its own (a burst of 1,000 cost 1,000 writes, now a few). Same order, same completion, same errors. Frames are also received many to a call (`aw_ws_receive_batch`) into one buffer per isolate.
+
 - Plain HTTP/1.1 `GET` requests without a body are read and answered by the library's own HTTP/1 path (`rust/src/h1.rs`, no unsafe code) rather than by hyper and axum. Every other request -- a body, an upgrade or WebSocket, HTTP/1.0, `Connection: close`, `Expect`, the built-in health routes, static files, TLS, CORS -- hands its connection, with the bytes already read, to hyper, which serves the rest of that connection as before. Answers held whole in memory are written in one go from the bytes Dart gave. Property tests cover the head classifier and the answer writer, including request-smuggling heads (conflicting `Content-Length`, any `Transfer-Encoding`, line folds), which always go to hyper.
 - A library embedded as a whole file is opened from that file rather than copied into memory first; the peer address is parsed only when a handler reads it (`Request(peerAddressOf: ...)` in dartvel_core).
 
