@@ -1,0 +1,17 @@
+[package]
+name = "vm"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of pkg/vm, file by file: the AOT global type-flow analysis."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "summary_collector_test"
+path = "tests/summary_collector_test.rs"
+
+[dependencies]
+kernel = { path = "../../kernel/rust" }
