@@ -9,6 +9,7 @@ import 'package:dartvel_core/http.dart';
 // ignore: implementation_imports
 import 'package:dartvel_core/src/websocket/ws.dart';
 import 'package:ffi/ffi.dart';
+import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -267,7 +268,18 @@ class NativeWebSocketChannel(
 
   /// Sends what is queued: written from this thread when the socket takes it
   /// all, otherwise by the native writer. 0 written, 1 in progress, -1 closed.
-  int _flush() => _closed ? -1 : _api.aw_ws_flush(id);
+  int _flush() {
+    if (_closed) return -1;
+    _flushes++;
+    return _api.aw_ws_flush(id);
+  }
+
+  int _flushes = 0;
+
+  /// How many times this channel has asked the native side to write what it
+  /// queued. For tests: a burst should cost a few writes, not one per frame.
+  @visibleForTesting
+  int get flushCount => _flushes;
 
   int _withNative(
     int kind,
@@ -388,10 +400,91 @@ class _NativeSink implements WebSocketSink {
     channel.dispose();
   }
 
+  /// Frames waiting here, not yet queued natively, past which addStream
+  /// stops taking more from its source until they are.
+  static const int _addStreamHighWater = 256;
+
+  /// Called when [_outgoing] is empty again (or the channel is gone).
+  final List<void Function()> _onOutgoingEmpty = <void Function()>[];
+
+  /// Takes frames from [stream] as they come while the native queue has
+  /// room, and pauses it only when the frames waiting here pass
+  /// [_addStreamHighWater]. Awaiting each frame instead paused the source
+  /// after every one, so each frame was drained, queued and written on its
+  /// own: a burst cost a write per frame. Completes once [stream] is done and
+  /// every frame from it is queued; an error from [stream], or the channel
+  /// closing first, ends it with that error.
   @override
-  Future<void> addStream(Stream stream) async {
-    await for (final value in stream) {
-      await send(value);
+  Future<void> addStream(Stream stream) {
+    final Completer<void> finished = Completer<void>();
+    void fail(Object error, [StackTrace? stack]) {
+      if (!finished.isCompleted) finished.completeError(error, stack);
+    }
+
+    late final StreamSubscription<Object?> subscription;
+    void whenEmpty(void Function() then) {
+      if (_outgoing.isEmpty || channel._closed) {
+        then();
+      } else {
+        _onOutgoingEmpty.add(then);
+      }
+    }
+
+    subscription = stream.listen(
+      (Object? value) {
+        try {
+          add(value);
+        } catch (error, stack) {
+          subscription.cancel();
+          fail(error, stack);
+          return;
+        }
+        if (_outgoing.length >= _addStreamHighWater && !subscription.isPaused) {
+          subscription.pause();
+          whenEmpty(() {
+            if (channel._closed) {
+              subscription.cancel();
+              fail(StateError('WebSocket is closed'));
+            } else {
+              subscription.resume();
+            }
+          });
+        }
+      },
+      onError: (Object error, StackTrace stack) {
+        subscription.cancel();
+        fail(error, stack);
+      },
+      onDone: () {
+        if (finished.isCompleted) return;
+        // Everything already queued natively: done, as the last awaited send
+        // was.
+        if (_outgoing.isEmpty) {
+          finished.complete();
+          return;
+        }
+        // Otherwise done once it is; a channel that closes first dropped
+        // what was waiting, and says so.
+        _onOutgoingEmpty.add(() {
+          if (finished.isCompleted) return;
+          if (channel._closed) {
+            fail(StateError('WebSocket is closed'));
+          } else {
+            finished.complete();
+          }
+        });
+      },
+      cancelOnError: true,
+    );
+    return finished.future;
+  }
+
+  void _notifyOutgoingEmpty() {
+    if (_onOutgoingEmpty.isEmpty) return;
+    final List<void Function()> waiting = List<void Function()>.of(_onOutgoingEmpty);
+    _onOutgoingEmpty.clear();
+    for (final void Function() then in waiting) {
+      then();
     }
   }
 
@@ -483,6 +576,7 @@ class _NativeSink implements WebSocketSink {
       if (queued && channel._flush() < 0) {
         channel.dispose();
       }
+      if (_outgoing.isEmpty) _notifyOutgoingEmpty();
     } catch (e, st) {
       if (_outgoing.isNotEmpty) {
         final msg = _outgoing.removeFirst();
@@ -499,6 +593,7 @@ class _NativeSink implements WebSocketSink {
       final msg = _outgoing.removeFirst();
       msg.completer?.completeError(StateError('WebSocket is closed'));
     }
+    _notifyOutgoingEmpty();
   }
 }
 

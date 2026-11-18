@@ -114,6 +114,94 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
+## WebSocket round (18 November 2026, 10:00-11:00)
+
+**What changed:** `sink.addStream` no longer awaits each frame. Awaiting
+paused the incoming stream after every frame, so each frame was drained,
+queued and flushed (a system call) on its own: a burst of 1,000 frames
+echoed through `addStream` cost 1,000 writes. It now takes frames while the
+native queue has room and pauses only when full; the same burst costs a few
+writes (`test/websocket_add_stream_test.dart`, which failed with 1,000
+before the change). Order, completion and errors are as before.
+
+**What was tried and not kept** (measured, then reverted):
+
+- Receiving many frames per native call (`aw_ws_receive_batch`): fewer calls
+  and allocations, but the isolate then drained faster than the native
+  reader filled the queue, so frames went out in smaller batches (716-748
+  writes for the 1,000-frame burst under a loaded test run).
+- Letting the isolate own the runtime while WebSocket traffic flows, with a
+  short wait for the next frame on its own thread, as Relic does: ping-pong
+  drew level with `relic_native` (2,312 vs 1,555 msgs/s in one trial, 1,373
+  vs 1,496 in the next) but pipelined throughput fell from about 120k to
+  80-100k msgs/s, because reading, handling and writing then share one
+  thread where the helper used to read in parallel. Switching between the
+  two by burst size gave neither.
+
+Beating Relic on both WebSocket rows at once needs a single-threaded path
+cheap enough per frame -- a lean frame codec in Rust and a cheaper Dart frame
+path -- which is the next piece of work, not part of this change.
+
+**Numbers:** `compare.dart`, compiled servers, three trials each, medians, 18
+Nov 2026 10:07-10:25 CEST (load 10.9-27.3) for the HTTP rows; the WebSocket
+rows are a three-trial run at 10:5x (load 7.1-12.6) of the final code.
+`dartvel_before` is `origin/main` at 2ac69fff8 (#272). The HTTP code is the
+same as main's, so the HTTP rows of `dartvel` and `dartvel_before` differ by
+noise only.
+
+| scenario | metric | shelf | relic_io | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
+|---|---|---|---|---|---|---|---|---|
+| plaintext | rps | 3504 | 4091 | 20370 | 40998 | 12352 | 12087 | 17046 |
+| plaintext | p50_ms | 12.9 | 10.6 | 1.67 | 0.63 | 2.65 | 2.57 | 1.08 |
+| plaintext | p99_ms | 101 | 75.1 | 27.1 | 17.4 | 47.9 | 41.0 | 39.3 |
+| plaintext | cpu_us_per_req | 392 | 357 | 54.8 | 61.3 | 70.4 | 76.4 | 120 |
+| plaintext | peak_rss_mib | 20.1 | 20.5 | 17.0 | 27.1 | 22.5 | 23.1 | 25.3 |
+| json | rps | 3274 | 3478 | 15775 | 32600 | 12974 | 13715 | 14812 |
+| json | p50_ms | 13.3 | 12.5 | 1.84 | 0.69 | 2.98 | 2.74 | 1.17 |
+| json | p99_ms | 110 | 123 | 29.3 | 20.5 | 39.1 | 38.8 | 52.4 |
+| json | cpu_us_per_req | 363 | 400 | 57.1 | 84.2 | 80.6 | 67.7 | 127 |
+| json | peak_rss_mib | 20.3 | 20.9 | 16.9 | 27.0 | 23.0 | 22.9 | 25.3 |
+| headers | rps | 2507 | 2991 | 20794 | 34239 | 12144 | 9689 | 15238 |
+| headers | p50_ms | 17.3 | 16.2 | 1.86 | 0.65 | 2.57 | 3.04 | 1.20 |
+| headers | p99_ms | 144 | 90.7 | 26.0 | 19.2 | 44.3 | 58.1 | 45.3 |
+| headers | cpu_us_per_req | 540 | 490 | 56.0 | 68.0 | 65.7 | 75.5 | 108 |
+| headers | peak_rss_mib | 21.3 | 22.6 | 16.9 | 27.0 | 23.1 | 23.0 | 26.0 |
+| static | rps | 1004 | 937 | 1343 | 2083 | 3942 | 3039 | 6809 |
+| static | p50_ms | 40.6 | 47.7 | 41.3 | 24.1 | 12.7 | 13.2 | 4.05 |
+| static | p99_ms | 417 | 328 | 154 | 115 | 79.4 | 121 | 100 |
+| static | cpu_us_per_req | 1369 | 1021 | 578 | 761 | 448 | 469 | 424 |
+| static | peak_rss_mib | 52.0 | 52.4 | 31.9 | 65.0 | 18.5 | 18.5 | 20.3 |
+| many | rps | 1431 | 3347 | 9012 | 29996 | 11780 | 12910 | 26216 |
+| many | p50_ms | 62.7 | 46.7 | 18.4 | 20.0 | 65.2 | 66.1 | 27.9 |
+| many | p99_ms | 1806 | 1862 | 988 | 219 | 378 | 330 | 164 |
+| many | cpu_us_per_req | 366 | 329 | 84.1 | 58.3 | 79.8 | 77.4 | 67.3 |
+| many | peak_rss_mib | 45.0 | 47.8 | 37.0 | 46.7 | 61.8 | 62.0 | 68.1 |
+| many | non_200 | - | - | - | - | - | - | - |
+| startup | startup_ms | 22.2 | 31.1 | 49.6 | 101 | 24.4 | 35.0 | 36.2 |
+| startup | peak_rss_mib | 9.00 | 9.85 | 12.4 | 16.0 | 12.0 | 12.1 | 12.8 |
+| upload | mib_per_second | 230 | 303 | 551 | 295 | 165 | 231 | 171 |
+| upload | peak_rss_mib | 43.6 | 54.8 | 15.5 | 24.4 | 47.3 | 47.8 | 48.1 |
+| download | mib_per_second | 200 | 270 | 201 | 404 | 276 | 313 | 184 |
+| download | peak_rss_mib | 12.1 | 13.0 | 13.4 | 16.8 | 15.1 | 15.1 | 15.6 |
+| websocket | messages_per_second | 776 | 619 | 1427 | 1062 | 1168 | 1286 | 1365 |
+| websocket | p50_us | 372 | 567 | 178 | 351 | 227 | 199 | 220 |
+| websocket | p99_us | 13993 | 18036 | 9004 | 8904 | 8439 | 8789 | 7500 |
+| websocket | peak_rss_mib | 12.0 | 13.0 | 14.9 | 17.6 | 14.9 | 14.9 | 15.4 |
+| websocket_pipelined | messages_per_second | 33054 | 32609 | 156044 | 182099 | 50511 | 96870 | 69128 |
+| websocket_pipelined | peak_rss_mib | 81.6 | 81.2 | 15.6 | 25.3 | 22.0 | 16.0 | 16.4 |
+
+load1 during rows: median 16.97, min 7.06, max 27.28; rows 210
+
+- Pipelined WebSocket: 50,511 to 84,738 msgs/s against main (+68%);
+  `relic_native` 156,044, still 1.8x ahead.
+- WebSocket ping-pong: `dartvel` 1,286 msgs/s (p50 199 us) against
+  `relic_native` 1,427 (178 us); on four isolates `dartvel4` 1,365 against
+  `relic_native4` 1,062.
+- HTTP (code unchanged from main): `relic_native` ahead on plaintext and
+  browser headers; in this run `dartvel` answered more at 1,024 connections
+  (12,910 vs 9,012) and on static files (3,039 vs 1,343), and started faster
+  (35 vs 50 ms), each a single run on a loaded machine.
+
 ## Against Relic 2 with the lean HTTP/1 path (18 November 2026, later)
 
 The server below reads plain HTTP/1.1 itself (`rust/src/h1.rs`): a `GET`
