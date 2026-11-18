@@ -150,6 +150,19 @@ ffi.DynamicLibrary _openBytes(List<int> bytes) {
 /// from: an anonymous in-memory file on Linux, a private temporary file
 /// elsewhere.
 ffi.DynamicLibrary _openRange(({String path, int offset, int length}) at) {
+  // The whole file: opened from it. The loader maps it and only the pages
+  // that run become resident; copying it first made all of it resident, in
+  // every process, and cost the copy at start-up.
+  if (at.offset == 0) {
+    try {
+      if (File(at.path).lengthSync() == at.length) {
+        return ffi.DynamicLibrary.open(at.path);
+      }
+    } on Object {
+      // Unreadable, or on a file system that cannot map code (noexec):
+      // copied below, as before.
+    }
+  }
   void copyInto(RandomAccessFile out) {
     final RandomAccessFile source = File(at.path).openSync();
     try {
