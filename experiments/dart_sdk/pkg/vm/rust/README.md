@@ -84,8 +84,9 @@ print) are approximations or panics, and say so.
    (`analysis.dart`, `transformer.dart`, `signature_shaking.dart`,
    `table_selector_assigner.dart`, `unboxing_info.dart`, `rta.dart`,
    `native_code.dart`), kernel in and kernel out, compared with upstream's
-   `.expect` files for the 120 programs in
-   `testcases/transformations/type_flow/transformer`. That needs the VM's
+   `.expect` files for the programs in
+   `testcases/transformations/type_flow/transformer` (120 files, of which
+   110 are runnable programs). That needs the VM's
    metadata repositories in the kernel writer (the analysis writes inferred
    types, call-site attributes, table selectors and unboxing info as
    metadata) and kernel's text printer (`ast_to_text.dart`), which the
