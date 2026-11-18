@@ -10,7 +10,9 @@
 use std::collections::HashMap;
 
 use crate::ast::*;
-use crate::binary::ast_from_binary::{callerStackBudget, needsDeepStack, needsStackCheck, stackAddress, withDeepStack};
+use crate::binary::ast_from_binary::{
+    callerStackBudget, castError, needsDeepStack, needsStackCheck, nullCheckError, stackAddress, withDeepStack,
+};
 use crate::binary::tag::{ConstantTag, Tag, expectedSdkHash, numberOfFixedFields};
 use crate::canonical_name::CanonicalNames;
 
@@ -114,17 +116,17 @@ struct StackIndexer {
 impl StackIndexer {
     fn enter(&mut self, id: u32) {
         self.index.insert(id, self.stackHeight);
-        self.stackHeight += 1;
+        self.stackHeight = self.stackHeight.wrapping_add(1);
     }
 
     fn exitKeeping(&mut self, count: u32) {
-        self.stackHeight -= count;
+        self.stackHeight = self.stackHeight.wrapping_sub(count);
     }
 
     fn exitRemoving(&mut self, ids: impl Iterator<Item = u32>) {
         for id in ids {
             self.index.remove(&id);
-            self.stackHeight -= 1;
+            self.stackHeight = self.stackHeight.wrapping_sub(1);
         }
     }
 
@@ -177,6 +179,11 @@ pub struct BinaryPrinter<'c> {
     canonicalNameIndex: Vec<i64>,
     knownCanonicalNameNonRootTops: Vec<bool>,
     members: HashMap<CnId, MemberInfo>,
+    /// Which entries of [Bindings::classes] upstream has loaded.
+    loadedClasses: Vec<bool>,
+    /// The last library whose `"${library.importUri}"` the binding pass
+    /// needed, and that URI.
+    lastImportUri: Option<(CnId, Vec<u8>)>,
     /// `includeSources`, `includeSourceBytes`, `includeOffsets`.
     pub includeSources: bool,
     pub includeSourceBytes: bool,
@@ -250,6 +257,8 @@ impl<'c> BinaryPrinter<'c> {
             canonicalNameIndex: vec![-1; component.names.len()],
             knownCanonicalNameNonRootTops: vec![false; component.names.len()],
             members: HashMap::new(),
+            loadedClasses: component.bindings.classes.iter().map(|c| c.loaded || c.loadedLater).collect(),
+            lastImportUri: None,
             includeSources: true,
             includeSourceBytes: true,
             includeOffsets: true,
@@ -537,18 +546,313 @@ impl<'c> BinaryPrinter<'c> {
         }
     }
 
-    /// `writeNonNullInstanceMemberReference`: the target, then the member
-    /// it stands for when it is a member signature.
+    /// `writeNonNullInstanceMemberReference`: the target, then
+    /// `getMemberReferenceGetter(reference.asMember.memberSignatureOrigin)`.
     fn writeNonNullInstanceMemberReference(&mut self, target: &InterfaceTarget) -> Result<()> {
         self.writeNonNullReference(target.target)?;
-        // Upstream looks the member up through its reference. A reference
-        // to a member outside this component has no node there, and
-        // upstream cannot write it; here the origin that was read is kept.
-        let origin = match self.members.get(&target.target) {
-            Some(member) => member.memberSignatureOrigin,
-            None => target.origin,
+        let member = self.asNode(target.target, NamedNodeKind::Procedure, "Member", "A member was expected")?;
+        let origin = match member.kind {
+            NamedNodeKind::Procedure => self.members.get(&target.target).and_then(|m| m.memberSignatureOrigin),
+            _ => None,
+        };
+        let origin = match origin {
+            None => None,
+            Some(stubTarget) => {
+                // `stubTargetReference?.asMember`, then its getter reference.
+                let node = self.asNode(stubTarget, NamedNodeKind::Procedure, "Member", "A member was expected")?;
+                match node.kind {
+                    NamedNodeKind::Field => Some(self.members.get(&stubTarget).map_or(stubTarget, |m| m.getterReference)),
+                    _ => Some(node.cn),
+                }
+            }
         };
         self.writeNullAllowedReference(origin)
+    }
+
+    // References and the nodes they point at (`Reference.node`).
+
+    /// `reference.asProcedure` / `asMember` / ...: the node [name]'s
+    /// reference points at, or what upstream throws (`... is not bound to
+    /// an AST node. <expected>` or a failed `as <type>`). [kind] is
+    /// checked exactly, except that "Member" accepts any member.
+    fn asNode(&mut self, name: CnId, kind: NamedNodeKind, typeName: &str, expected: &str) -> Result<BoundNode> {
+        match self.referenceNode(name)? {
+            None => error(format!("Reference to {} is not bound to an AST node. {expected}", self.nameToStringInternal(name))),
+            Some(node) if node.kind == kind || (typeName == "Member" && node.kind.isMember()) => Ok(node),
+            Some(node) => error(castError(node.kind.runtimeType(), typeName)),
+        }
+    }
+
+    /// `Reference.node`: `_node`, or `_tryLoadNode`, which loads the
+    /// members of the class above the nearest `@`-name.
+    fn referenceNode(&mut self, name: CnId) -> Result<Option<BoundNode>> {
+        if let Some(node) = self.visibleNode(name) {
+            return Ok(Some(node));
+        }
+        let names = &self.component.names;
+        let strings = &self.component.strings;
+        let mut parent = names.parent(name);
+        while let Some(p) = parent {
+            if strings.get(names.name(p)).first() == Some(&b'@') {
+                break;
+            }
+            parent = names.parent(p);
+        }
+        if let Some(at) = parent
+            && let Some(owner) = names.parent(at)
+            && let Some(node) = self.visibleNode(owner)
+            && node.kind == NamedNodeKind::Class
+            && node.members != noRegion
+        {
+            self.loadClass(node.members)?;
+        }
+        Ok(self.visibleNode(name))
+    }
+
+    /// The node [name]'s reference points at, unless it is a member of a
+    /// class whose members upstream has not loaded yet.
+    fn visibleNode(&self, name: CnId) -> Option<BoundNode> {
+        let node = self.component.bindings.nodes.get(name as usize).copied().flatten()?;
+        if node.region == noRegion || self.loadedClasses.get(node.region as usize).copied().unwrap_or(true) {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    /// `Class.ensureLoaded`: the members upstream reads lazily, read now,
+    /// throwing what reading them threw.
+    fn loadClass(&mut self, region: u32) -> Result<()> {
+        let Some(loaded) = self.loadedClasses.get_mut(region as usize) else {
+            return Ok(());
+        };
+        if *loaded {
+            return Ok(());
+        }
+        *loaded = true;
+        match &self.component.bindings.classes[region as usize].error {
+            Some(thrown) => error(thrown.to_string()),
+            None => Ok(()),
+        }
+    }
+
+    fn text(&self, string: StrId) -> String {
+        crate::binary::ast_from_binary::wtf8ToString(self.component.strings.get(string))
+    }
+
+    /// `CanonicalName.toStringInternal()`: the names below the root,
+    /// joined by `::`.
+    fn nameToStringInternal(&self, name: CnId) -> String {
+        let names = &self.component.names;
+        let mut parts = Vec::new();
+        let mut current = name;
+        while !names.isRoot(current) {
+            parts.push(self.text(names.name(current)));
+            current = names.parent(current).unwrap();
+        }
+        parts.reverse();
+        parts.join("::")
+    }
+
+    /// `CanonicalName.toString()`.
+    fn nameToString(&self, name: CnId) -> String {
+        if self.component.names.isRoot(name) {
+            "root".to_string()
+        } else {
+            format!("root::{}", self.nameToStringInternal(name))
+        }
+    }
+
+    /// `"${library.importUri}"` of a library made for [name].
+    fn importUriOf(&self, name: CnId) -> std::result::Result<Vec<u8>, String> {
+        dart_core::uri::parseUriToStringWtf8(self.component.strings.get(self.component.names.name(name)))
+    }
+
+    /// A named node's `toString()`.
+    fn nodeToString(&self, node: &BoundNode) -> String {
+        let name = self.text(node.name);
+        match node.kind {
+            NamedNodeKind::Library => {
+                if !name.is_empty() {
+                    name
+                } else {
+                    let uri = self.importUriOf(node.cn).unwrap_or_default();
+                    format!("library {}", crate::binary::ast_from_binary::wtf8ToString(&uri))
+                }
+            }
+            NamedNodeKind::Class => format!("Class({name})"),
+            NamedNodeKind::Extension => format!("Extension({name})"),
+            NamedNodeKind::ExtensionTypeDeclaration => format!("ExtensionTypeDeclaration({name})"),
+            NamedNodeKind::Typedef => format!("Typedef({name})"),
+            NamedNodeKind::Field | NamedNodeKind::Constructor | NamedNodeKind::Procedure => match node.parent {
+                Some((_, parent)) => format!("{}.{name}", self.text(parent)),
+                None => name,
+            },
+        }
+    }
+
+    // `_computeCanonicalNames`.
+
+    /// `_computeCanonicalNames`: upstream recomputes the canonical name of
+    /// every library and of the declarations in it (not of class members:
+    /// a class read from a file is not dirty) and binds it to the node's
+    /// reference, which throws when the name it computes is not the one
+    /// the reference was read with. Names are compared, not computed,
+    /// unless they differ.
+    fn computeCanonicalNames(&mut self) -> Result<()> {
+        let component = self.component;
+        let root = CanonicalNames::root;
+        for library in &component.libraries {
+            let uri = match self.importUriOf(library.reference) {
+                Ok(uri) => uri,
+                // Unreachable: the reader made the library with it.
+                Err(thrown) => return error(thrown),
+            };
+            self.bindPath(root, &[&uri], library.reference)?;
+            let parent = library.reference;
+            for typedef in &library.typedefs {
+                self.bindPath(parent, &[b"@typedefs", component.strings.get(typedef.name)], typedef.reference)?;
+            }
+            for field in &library.fields {
+                self.bindQualified(parent, b"@fields", &field.name, field.fieldReference)?;
+                self.bindQualified(parent, b"@getters", &field.name, field.getterReference)?;
+                if let Some(setter) = field.setterReference {
+                    self.bindQualified(parent, b"@setters", &field.name, setter)?;
+                }
+            }
+            for procedure in &library.procedures {
+                self.bindProcedure(parent, procedure)?;
+            }
+            for class in &library.classes {
+                self.bindPath(parent, &[component.strings.get(class.name)], class.reference)?;
+            }
+            for extension in &library.extensions {
+                self.bindPath(parent, &[component.strings.get(extension.name)], extension.reference)?;
+            }
+            for declaration in &library.extensionTypeDeclarations {
+                self.bindPath(parent, &[component.strings.get(declaration.name)], declaration.reference)?;
+                for procedure in &declaration.procedures {
+                    self.bindProcedure(declaration.reference, procedure)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// `parent.getChildFromProcedure(procedure).bindTo(procedure.reference)`.
+    fn bindProcedure(&mut self, parent: CnId, procedure: &Procedure) -> Result<()> {
+        let qualifier: &[u8] = match procedure.kind {
+            ProcedureKind::Getter => b"@getters",
+            ProcedureKind::Setter => b"@setters",
+            ProcedureKind::Factory => b"@factories",
+            _ => b"@methods",
+        };
+        self.bindQualified(parent, qualifier, &procedure.name, procedure.reference)
+    }
+
+    /// `parent.getChild(qualifier).getChildFromQualifiedName(name)
+    /// .bindTo(read)`: a private name is under its library's URI
+    /// (`name.library!.importUri`).
+    fn bindQualified(&mut self, parent: CnId, qualifier: &[u8], name: &Name, read: CnId) -> Result<()> {
+        let component = self.component;
+        let text = component.strings.get(name.text);
+        if text.first() != Some(&b'_') {
+            return self.bindPath(parent, &[qualifier, text], read);
+        }
+        let library = match name.library {
+            Some(library) => library,
+            None => return error(nullCheckError),
+        };
+        let node = self.asNode(library, NamedNodeKind::Library, "Library", "A library was expected")?;
+        // Private names are nearly always their own library's: the last
+        // URI is kept.
+        if self.lastImportUri.as_ref().is_none_or(|(name, _)| *name != node.cn) {
+            match self.importUriOf(node.cn) {
+                Ok(uri) => self.lastImportUri = Some((node.cn, uri)),
+                Err(thrown) => return error(thrown),
+            }
+        }
+        let uri = &self.lastImportUri.as_ref().unwrap().1;
+        self.bindPath(parent, &[qualifier, uri, text], read)
+    }
+
+    /// `base.getChild(segments[0]).getChild(...)....bindTo(read)`: fine
+    /// when that is the name [read] was read as; otherwise what upstream
+    /// throws.
+    #[inline]
+    fn bindPath(&self, base: CnId, segments: &[&[u8]], read: CnId) -> Result<()> {
+        let names = &self.component.names;
+        let mut current = read;
+        for segment in segments.iter().rev() {
+            if names.isRoot(current) || self.component.strings.get(names.name(current)) != *segment {
+                return self.bindFailure(base, segments, read);
+            }
+            current = names.parent(current).unwrap();
+        }
+        if current != base {
+            return self.bindFailure(base, segments, read);
+        }
+        Ok(())
+    }
+
+    /// `getChild`, without making the child: [ComputedName::Child] when
+    /// there is none.
+    fn child(&self, parent: ComputedName, name: &[u8]) -> ComputedName {
+        if let ComputedName::Existing(id) = parent {
+            for &child in self.component.names.children(id) {
+                if self.component.strings.get(self.component.names.name(child)) == name {
+                    return ComputedName::Existing(child);
+                }
+            }
+        }
+        ComputedName::Child(Box::new(parent), name.into())
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn bindFailure(&self, base: CnId, segments: &[&[u8]], read: CnId) -> Result<()> {
+        let mut name = ComputedName::Existing(base);
+        for segment in segments {
+            name = self.child(name, segment);
+        }
+        if let ComputedName::Existing(id) = name
+            && id == read
+        {
+            return Ok(());
+        }
+        let this = self.computedToString(&name);
+        let target = self.visibleNode(read);
+        let withNode = |node: Option<BoundNode>| match node {
+            // The identity hash code is upstream's own (it differs from run
+            // to run); the oracle compares these messages without it.
+            Some(node) => format!(" with node {} ({}:0)", self.nodeToString(&node), node.kind.runtimeType()),
+            None => String::new(),
+        };
+        if let ComputedName::Existing(id) = name
+            && self.component.bindings.references.get(id as usize).is_some_and(|mark| mark & 1 != 0)
+        {
+            return error(format!(
+                "{this} is already bound to Reference to {}{}, trying to bind to Reference to {}{}",
+                self.nameToStringInternal(id),
+                withNode(self.visibleNode(id)),
+                self.nameToStringInternal(read),
+                withNode(target),
+            ));
+        }
+        let node = match target {
+            Some(node) => self.nodeToString(&node),
+            None => "null".to_string(),
+        };
+        error(format!("Cannot bind {this} to {node}, target is already bound to {}", self.nameToString(read)))
+    }
+
+    fn computedToString(&self, name: &ComputedName) -> String {
+        match name {
+            ComputedName::Existing(id) => self.nameToString(*id),
+            ComputedName::Child(parent, text) => {
+                format!("{}::{}", self.computedToString(parent), crate::binary::ast_from_binary::wtf8ToString(text))
+            }
+        }
     }
 
     fn writeLinkTable(&mut self) {
@@ -640,10 +944,10 @@ impl<'c> BinaryPrinter<'c> {
             }
         }
         for (signature, target) in stubTargets {
-            // `getMemberReferenceGetter(memberSignatureOrigin)`.
-            let origin = members.get(&target).map(|m| m.getterReference).or(Some(target));
+            // `stubTargetReference` of a member signature (resolved when
+            // written, as upstream resolves it).
             if let Some(info) = members.get_mut(&signature) {
-                info.memberSignatureOrigin = origin;
+                info.memberSignatureOrigin = Some(target);
             }
         }
         self.members = members;
@@ -654,6 +958,7 @@ impl<'c> BinaryPrinter<'c> {
     /// `writeComponentFile`.
     pub fn writeComponentFile(mut self) -> Result<Vec<u8>> {
         let component = self.component;
+        self.computeCanonicalNames()?;
         self.indexMembers();
         self.writeUInt32(Tag::ComponentFile);
         self.writeUInt32(Tag::BinaryFormatVersion);
@@ -662,8 +967,10 @@ impl<'c> BinaryPrinter<'c> {
         // `StringIndexer()` puts the empty string first.
         self.putStringContent(b"");
         self.indexLinkTable();
+        // `component.mainMethod`: `mainMethodName?.asProcedure`.
         if let Some(main) = component.mainMethod {
-            self.checkCanonicalName(main);
+            let node = self.asNode(main, NamedNodeKind::Procedure, "Procedure", "A procedure was expected")?;
+            self.checkCanonicalName(node.cn);
         }
         for library in &component.libraries {
             self.visitLibrary(library)?;
@@ -910,7 +1217,9 @@ impl<'c> BinaryPrinter<'c> {
                 fieldValues,
             } => {
                 self.writeByte(ConstantTag::InstanceConstant);
-                self.writeNonNullReference(*classReference)?;
+                // `writeClassReference(constant.classNode)`: `asClass`.
+                let class = self.asNode(*classReference, NamedNodeKind::Class, "Class", "A class was expected")?;
+                self.writeNonNullReference(class.cn)?;
                 self.writeDartTypeList(typeArguments)?;
                 self.writeUInt30(fieldValues.len() as u32);
                 for &(field, value) in fieldValues {
@@ -1068,8 +1377,11 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeUInt30(contexts.len() as u32);
                 for &context in contexts {
                     match self.variableContextIndexer.get(context) {
+                        // Negative after a lazily read body's scope was left
+                        // (upstream's `writeByte` keeps the low byte).
+                        Some(index) if (index as i32) < 0 => self.writeByte(index & 0xFF),
                         Some(index) => self.writeUInt30(index),
-                        None => return error("Variable context is not indexed."),
+                        None => return error("Invalid argument(s): Variable context is not indexed."),
                     }
                 }
             }
@@ -1114,7 +1426,9 @@ impl<'c> BinaryPrinter<'c> {
             self.writeOffset(dependency.fileOffset);
             self.writeByte(dependency.flags as u32);
             self.writeAnnotationList(&dependency.annotations)?;
-            self.writeNonNullReference(dependency.targetLibrary)?;
+            // `node.targetLibrary.reference`: `asLibrary`.
+            let target = self.asNode(dependency.targetLibrary, NamedNodeKind::Library, "Library", "A library was expected")?;
+            self.writeNonNullReference(target.cn)?;
             self.writeStringReference(dependency.name);
             self.writeUInt30(dependency.combinators.len() as u32);
             for combinator in &dependency.combinators {
@@ -1255,6 +1569,8 @@ impl<'c> BinaryPrinter<'c> {
         for s in &node.implementedTypes {
             self.writeSupertype(s)?;
         }
+        // `node.fields` loads the members upstream reads lazily.
+        self.loadClass(node.lazyRegion)?;
         self.writeUInt30(node.fields.len() as u32);
         for field in &node.fields {
             self.visitField(field)?;
@@ -1475,14 +1791,19 @@ impl<'c> BinaryPrinter<'c> {
         self.writeByte(Tag::FunctionNode);
         self.enterParameters(&node.typeParameters);
         self.enterVariableScope();
-        self.enterOptionalContexts(&node.scope);
+        // A body upstream reads lazily is not read yet here: its scope is
+        // null until the body is written.
+        let lazy = node.lazyBody != LazyBody::Eager;
+        if !lazy {
+            self.enterOptionalContexts(&node.scope);
+        }
         let oldLabels = self.labelIndexer.take();
         let oldCases = self.switchCaseIndexer.take();
         self.writeOffset(node.fileOffset);
         self.writeOffset(node.fileEndOffset);
         self.writeByte(node.asyncMarker as u32);
         self.writeByte(node.dartAsyncMarker as u32);
-        self.writeScopeSize(&node.scope);
+        self.writeScopeSize(if lazy { &None } else { &node.scope });
         self.writeTypeParameterList(&node.typeParameters)?;
         self.writeOptionalVariable(&node.thisVariable)?;
         self.writeUInt30((node.positionalParameters.len() + node.namedParameters.len()) as u32);
@@ -1517,6 +1838,9 @@ impl<'c> BinaryPrinter<'c> {
                     }
                 }
             }
+        }
+        if let LazyBody::Failed(thrown) = &node.lazyBody {
+            return error(thrown.to_string());
         }
         match &node.body {
             None => self.writeByte(Tag::Nothing),
@@ -1578,7 +1902,7 @@ impl<'c> BinaryPrinter<'c> {
     fn writeVariableReference(&mut self, variable: VarId) -> Result<()> {
         let index = match self.variableIndexer.get(variable) {
             Some(index) => index,
-            None => return error(format!("No index found for variable {variable}")),
+            None => return error(crate::binary::ast_from_binary::nullCheckError),
         };
         let offset = self.variableOffsets.get(variable as usize).copied().unwrap_or(0);
         self.writeUInt30(offset);
@@ -1837,7 +2161,7 @@ impl<'c> BinaryPrinter<'c> {
             } => {
                 let index = match self.variableIndexer.get(*variable) {
                     Some(index) => index,
-                    None => return error(format!("No index found for variable {variable}")),
+                    None => return error(crate::binary::ast_from_binary::nullCheckError),
                 };
                 let offset = self.variableOffsets.get(*variable as usize).copied().unwrap_or(0);
                 if index & Tag::SpecializedPayloadMask == index && promotedType.is_none() {
@@ -1865,7 +2189,7 @@ impl<'c> BinaryPrinter<'c> {
             } => {
                 let index = match self.variableIndexer.get(*variable) {
                     Some(index) => index,
-                    None => return error(format!("No index found for variable {variable}")),
+                    None => return error(crate::binary::ast_from_binary::nullCheckError),
                 };
                 let offset = self.variableOffsets.get(*variable as usize).copied().unwrap_or(0);
                 if index & Tag::SpecializedPayloadMask == index {
@@ -3039,7 +3363,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeOffset(*fileOffset);
                 match self.labelIndexer.as_ref().and_then(|l| l.get(*target)) {
                     Some(index) => self.writeUInt30(index),
-                    None => return error("a break to a label that is not in scope"),
+                    None => return error(crate::binary::ast_from_binary::nullCheckError),
                 }
             }
             Statement::While {
@@ -3154,7 +3478,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeOffset(*fileOffset);
                 match self.switchCaseIndexer.as_ref().and_then(|s| s.get(*target)) {
                     Some(index) => self.writeUInt30(index),
-                    None => return error("a continue to a switch case that is not in scope"),
+                    None => return error(crate::binary::ast_from_binary::nullCheckError),
                 }
             }
             Statement::If {
@@ -3336,4 +3660,12 @@ pub fn writeComponentToBytes(component: &Component) -> std::result::Result<Vec<u
         }),
         result => result,
     }
+}
+
+/// A canonical name `getChild` would give: one there is, or one it would
+/// make (under [ComputedName::Child]'s parent).
+#[derive(Clone)]
+enum ComputedName {
+    Existing(CnId),
+    Child(Box<ComputedName>, Box<[u8]>),
 }

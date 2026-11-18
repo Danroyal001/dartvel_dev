@@ -63,7 +63,7 @@ running it from source for every program.
 
 ```sh
 DART=/path/to/dart cargo test --release -p kernel --test roundtrip_oracle
-DART=/path/to/dart cargo test --release -p kernel --test damage_oracle -- --ignored
+DART=/path/to/dart cargo test --release -p kernel --test damage_oracle
 ```
 
 `KERNEL_WORK` moves the scratch directory (default
@@ -75,7 +75,7 @@ differ are kept, and the test names the first differing byte of each.
 | Dart (`../lib/...`) | Rust (`src/...`) |
 |---|---|
 | `binary/tag.dart` | `binary/tag.rs` |
-| `binary/ast_from_binary.dart` (`BinaryBuilder`, without lazy reading or metadata) | `binary/ast_from_binary.rs` |
+| `binary/ast_from_binary.dart` (`BinaryBuilder`, without metadata; lazily read parts are read in file order, their errors thrown where upstream reads them) | `binary/ast_from_binary.rs` |
 | `binary/ast_to_binary.dart` (`BinaryPrinter` and its indexers, without metadata) | `binary/ast_to_binary.rs` |
 | `canonical_name.dart` (the tree and `getChild`) | `canonical_name.rs` |
 | `ast.dart` and `src/ast/*.dart` (the fields the format carries) | `ast.rs` |
@@ -97,33 +97,45 @@ differ are kept, and the test names the first differing byte of each.
 
 - Metadata is dropped on read and not written, as upstream's plain reader
   and writer do; the VM's repositories come with the type-flow port.
-- An instance member reference whose target is not in the component (an
-  unlinked component) keeps the member-signature origin that was read;
-  upstream cannot write such a component at all.
-- **Damaged input is not yet fully 1:1** (`tests/damage_oracle.rs`, numbers
-  below). Matched: the header, the component index, the string, link,
-  source and constant tables, references, the library and class indexes,
-  string decoding (upstream's trusting WTF-8 decoder, re-encoded as its
-  writer does), URIs (`Uri.parse` and `"$uri"`, through the port of
-  `sdk/lib/core/uri.dart` in `../../../sdk/lib/core/rust`), allocation
-  failures and deep nesting. Not matched yet:
-  - Name binding: upstream's writer recomputes every canonical name from
-    the tree and binds it (`Cannot bind ... to ..., target is already bound
-    to ...`, `... is not bound to an AST node`), and its reader casts the
-    nodes a reference is bound to (`type 'Library' is not a subtype of type
-    'ExtensionTypeDeclaration?'`). The port keeps the names it read.
-  - Upstream reads class members and function bodies lazily, when its
-    writer reaches them; the port reads them in file order. For one
-    damaged place the error is the same; for several, which comes first can
-    differ.
+- **Damaged input** (`tests/damage_oracle.rs`, numbers below) is matched on
+  the four base files the oracle damages (no difference left): the header, the component index,
+  the string, link, source and constant tables, string decoding
+  (upstream's trusting WTF-8 decoder, re-encoded as its writer does), URIs
+  (`Uri.parse` and `"$uri"`, through the port of `sdk/lib/core/uri.dart`
+  in `../../../sdk/lib/core/rust`), the reader's casts, null checks and
+  enum ranges with Dart's messages, allocation failures, deep nesting,
+  and name binding: the reader keeps which canonical names have a
+  `Reference` and which node each points at (`Reference.node`), and the
+  writer recomputes and binds every library-level canonical name as
+  upstream's `_computeCanonicalNames` does (`Cannot bind ... target is
+  already bound to ...`, `... is not bound to an AST node`). Upstream
+  reads class members and most function bodies lazily; the port reads
+  them in file order but keeps what reading them throws and throws it
+  where upstream's writer (or `Reference.node`) would load them. What is
+  approximate:
   - Two kinds of upstream error depend on its environment, not its input:
     `Out of Memory` (the oracle runs with a 256 MB heap; the port models a
     single allocation of more than 248 MiB, and objects made before they
     are read with estimated sizes) and `Stack Overflow` (at 4205 levels of
     nesting, measured on chains of `!`; upstream's real limit depends on the
-    kinds of node). Near those limits the port is approximate, and some
-    `already bound` messages print identity hash codes, which differ from
-    run to run even upstream.
+    kinds of node). Near those limits the port is approximate.
+  - Upstream's `already bound` and orphan messages print identity hash
+    codes, which differ from run to run even upstream; the port prints 0
+    and the oracle compares those messages without the number.
+  - A named node read twice (two declarations damaged into one canonical
+    name) is one shared node upstream. The port shares procedures, fields
+    and constructors (every place holds what was read last) and a library
+    read again replaces itself in place; a class, typedef, extension or
+    extension type declaration read twice stays two nodes.
+  - Reading a lazily loaded part while another is being read (a damaged
+    reference into a class whose members are not loaded yet) moves
+    upstream's reader as the port models, but upstream also leaves the
+    first part's type parameters on its stack, which the port does not.
+  - `int.parse` of a damaged `BigIntLiteral` is the VM's parser and
+    `FormatException` message, ported, but no base file has hit it yet.
+  - The oracle's base files are small or sampled; damage elsewhere in a
+    large program (patterns, switch statements, records) has been ported
+    from reading upstream, not yet measured.
 - Not a pipeline stage on its own. The reader and writer are the first part
   of the type-flow port: they become a stage in `gen_kernel --aot` when the
   analysis itself is ported (Dart passes before, Rust type flow, Dart passes
@@ -158,29 +170,37 @@ read only single-component files; upstream's `readComponent` merges them).
 ### Damaged input
 
 `tests/damage_oracle.rs`: every truncation and every byte flipped four ways
-(masks 0x01, 0x40, 0x80, 0xFF); upstream (`oracle/damage.dart`, Dart
-3.15.0-145.0.dev JIT, 256 MB heap) and the port must write the same bytes or
-throw the same thing.
+(masks 0x01, 0x40, 0x80, 0xFF) of each small base file, and of a large one
+its first and last 256 bytes plus 60 offsets spread over it; upstream
+(`oracle/damage.dart`, Dart 3.15.0-145.0.dev JIT, 256 MB heap) and the port
+must write the same bytes or throw the same thing. Messages are compared
+without the identity hash codes upstream prints in `(Type:hashCode)`, which
+are random even between two upstream runs.
 
-| Base file | Damaged inputs | Differ, before | Differ, now |
+| Base file | Damaged inputs | Differ, before this round | Differ, now |
 |---|---|---|---|
-| `tests/fixtures/empty.dill` (88 bytes) | 440 | 273 | 0 |
-| `tests/fixtures/hello-unlinked.dill` (616 bytes) | 3,080 | not run (the harness died: upstream ran out of memory inside the test's scope) | 344 |
+| `tests/fixtures/empty.dill` (88 bytes) | 440 | 0 | 0 |
+| `tests/fixtures/hello-unlinked.dill` (616 bytes) | 3,080 | 344 | 0 |
+| `tests/fixtures/json_roundtrip-unlinked.dill` (1,760 bytes) | 8,800 | 5,748 | 0 |
+| corpus `hello-aot.dill` (6.3 MB, sampled) | 2,860 | 3 (after the binding work) | 0 |
 
-Of the 344: 267 are name binding (`Cannot bind ...`), the rest index errors
-the port does not hit or hits elsewhere (bodies read in file order instead
-of lazily), Out of Memory near the modelled limit, and node casts. Steps:
-upstream's errors for header, index and tables, 860; library indexes, 843;
-`Uri.parse`, 354; library URIs, 344.
+The program fixture's 344 were name binding (267), node casts, lazy reading
+order, index errors upstream hits where the port did not (the class list
+leaves the reader at `classOffsets.last` even when empty) and `Out of
+Memory` for lists the port did not model. The json fixture's 5,748 were
+`LibraryDependency.targetLibrary` (`asLibrary`) failing in upstream's
+writer for every input it can read. hello-aot's 3: a `Variance` out of
+range, a reference into a lazily read class that upstream's writer had
+already loaded, and a procedure read twice into one node. Upstream takes
+18.5 minutes for hello-aot's 2,860 (0.4 s each).
 
-After these changes the platform round trip's fastest run is 142.3 ms
-against 127.4 ms before them (20 alternating runs each, server load
-about 14): 12% slower, still 2.2x faster than upstream's 314.7 ms. Reading
-and writing timed alone did not move; the cost is in merging strings and
-constants by value and parsing every URI, which only damaged files need.
-To be won back. `tests/deep_nesting.rs`: upstream writes a chain 4202
-deep and throws `Stack Overflow` at 4203; so does the port (it aborted
-before).
+The bookkeeping costs on valid input (vm_platform.dill, against 232e7aa68,
+`perf stat`): reading +2.5% instructions, writing +2.5%. Wall clock, 20
+alternating runs of `kernel_roundtrip --bench 5`, load about 7 to 9:
+fastest 147.2 ms against 147.6 ms, median of fastest 167.4 against 160.4 ms
+(+4%), median of medians 190.0 against 186.4 ms (+2%). `tests/deep_nesting.rs`:
+upstream writes a chain 4202 deep and throws `Stack Overflow` at 4203; so
+does the port, in the writer, where upstream reads `main`'s body.
 
 ### Speed and memory (7 runs each)
 

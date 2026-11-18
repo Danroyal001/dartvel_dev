@@ -61,6 +61,22 @@ pub fn indexError(index: i64, length: usize) -> String {
     rangeErrorRange("length", index, 0, length as i64 - 1)
 }
 
+/// `value as Type` when it is not one ([actual] is its `runtimeType`).
+pub fn castError(actual: &str, expected: &str) -> String {
+    format!("type '{actual}' is not a subtype of type '{expected}' in type cast")
+}
+
+/// The longest list the VM makes (`List.length` past it is a RangeError).
+pub const maxListLength: i64 = 576460752303423487;
+
+/// `value!` on null.
+pub const nullCheckError: &str = "Null check operator used on a null value";
+
+/// A typed-data list stored to out of range (`list[index] = value`).
+pub fn storeIndexError(index: i64, length: usize) -> String {
+    format!("RangeError (index): Index out of range: index should be less than {length}: {index}")
+}
+
 /// `RangeError.range(value, minValue, null, name).toString()`.
 pub fn rangeErrorMin(name: &str, value: i64, min: i64) -> String {
     format!("RangeError ({name}): Invalid value: Not greater than or equal to {min}: {value}")
@@ -121,6 +137,30 @@ pub struct BinaryBuilder<'a> {
     /// How deeply the expression, statement, type and pattern being read
     /// are nested (see [nestingLimit]).
     nesting: u32,
+    /// What a reference read now marks in [Bindings::references]: 1, or 2
+    /// inside a part upstream reads lazily.
+    referenceMark: u8,
+    /// The lazily read class whose members are being read ([noRegion]
+    /// outside one).
+    currentRegion: u32,
+    /// `_currentLibrary!.dependencies.length`: None when there is no
+    /// current library.
+    currentLibraryDependencyCount: Option<usize>,
+    /// The error [Self::deferError] kept last.
+    lastDeferred: Option<Box<str>>,
+    /// Inside a part upstream reads lazily: how many of [Bindings::classes]
+    /// its writer has loaded by the time it reads that part (those before
+    /// it). None outside one.
+    lazyHorizon: Option<u32>,
+    /// Whether a named node was read twice (see [shareReusedMembers]).
+    reusedNodes: bool,
+    /// The ids of the structural parameters made (first, count).
+    structuralRanges: Vec<(TypeParamId, u32)>,
+    /// `_cachedSimpleInterfaceTypes`: by link table index, which
+    /// nullabilities (bits) have been read.
+    simpleInterfaceTypes: Vec<u8>,
+    /// Each variable's tag, by id (for upstream's casts of variables).
+    variableKinds: Vec<u8>,
     /// Where the stack was when reading began, and how much of it the
     /// reader may use on the caller's thread (None on [withDeepStack]'s).
     stackBase: usize,
@@ -152,6 +192,15 @@ impl<'a> BinaryBuilder<'a> {
             switchCaseStackBase: 0,
             variableContextStack: Vec::new(),
             nesting: 0,
+            referenceMark: 1,
+            currentRegion: noRegion,
+            currentLibraryDependencyCount: None,
+            lastDeferred: None,
+            lazyHorizon: None,
+            reusedNodes: false,
+            structuralRanges: Vec::new(),
+            simpleInterfaceTypes: Vec::new(),
+            variableKinds: Vec::new(),
             stackBase: stackAddress(),
             stackBudget: Some(callerStackBudget),
         }
@@ -258,6 +307,181 @@ impl<'a> BinaryBuilder<'a> {
     #[inline(never)]
     fn indexFailure<T>(&self, index: i64, length: usize) -> Result<T> {
         self.thrown(indexError(index, length))
+    }
+
+    /// The `runtimeType` of [t].
+    fn dartTypeRuntimeType(&self, t: &DartType) -> &'static str {
+        dartTypeRuntimeType(t, |id| self.structuralRanges.iter().any(|&(first, count)| id >= first && id - first < count))
+    }
+
+    /// `type as RecordType` and the like: [ok] when [t] is one.
+    #[inline(always)]
+    fn castType(&self, t: &DartType, ok: bool, expected: &str) -> Result<()> {
+        if !ok {
+            return self.castFailure(self.dartTypeRuntimeType(t), expected);
+        }
+        Ok(())
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn recordVariableKind(&mut self, id: VarId, kind: u32) {
+        let slot = id as usize;
+        if self.variableKinds.len() <= slot {
+            self.variableKinds.resize(slot + 1, 0);
+        }
+        self.variableKinds[slot] = kind as u8;
+    }
+
+    /// `variable as Type` for the variable [id], which must have a tag
+    /// [ok] accepts.
+    fn castVariable(&self, id: VarId, ok: impl Fn(u32) -> bool, expected: &str) -> Result<()> {
+        let kind = self.variableKinds.get(id as usize).copied().unwrap_or(0) as u32;
+        if !ok(kind) {
+            return self.castFailure(variableRuntimeType(kind), expected);
+        }
+        Ok(())
+    }
+
+    /// `Enum.values[index]` for an enum of [count] values.
+    #[inline(always)]
+    fn enumValue(&self, index: u32, count: u32) -> Result<u8> {
+        if index >= count {
+            return self.indexFailure(index as i64, count as usize);
+        }
+        Ok(index as u8)
+    }
+
+    /// `value as Type`: what the VM throws when [actual] is not one.
+    #[cold]
+    #[inline(never)]
+    fn castFailure<T>(&self, actual: &str, expected: &str) -> Result<T> {
+        self.thrown(castError(actual, expected))
+    }
+
+    /// `value!` on null.
+    #[cold]
+    #[inline(never)]
+    fn nullCheckFailure<T>(&self) -> Result<T> {
+        self.thrown(nullCheckError)
+    }
+
+    // References and the nodes they point at.
+
+    /// `canonicalName.reference`: upstream makes the reference the first
+    /// time a canonical name is read as one.
+    #[inline(always)]
+    fn markReference(&mut self, name: CnId) {
+        if let Some(mark) = self.component.bindings.references.get_mut(name as usize) {
+            *mark |= self.referenceMark;
+        }
+    }
+
+    /// `reference.node as Kind?` for the reference of [name]: the node it
+    /// points at if that is a [kind], null if none (after `_tryLoadNode`),
+    /// or upstream's cast error.
+    fn nodeOf(&mut self, name: CnId, kind: NamedNodeKind) -> Result<Option<BoundNode>> {
+        match self.boundNode(name)? {
+            None => Ok(None),
+            Some(node) if node.kind == kind => Ok(Some(node)),
+            Some(node) => self.castFailure(node.kind.runtimeType(), &format!("{}?", kind.runtimeType())),
+        }
+    }
+
+    /// `Reference.node` of [name]'s reference: `_node`, or when it has
+    /// none, `_tryLoadNode`, which loads the members of the class above
+    /// the nearest `@`-name (and makes that class's reference).
+    fn boundNode(&mut self, name: CnId) -> Result<Option<BoundNode>> {
+        let bound = self.component.bindings.nodes.get(name as usize).copied().flatten();
+        if let Some(node) = bound
+            && (node.region == noRegion || self.regionLoaded(node.region))
+        {
+            return Ok(Some(node));
+        }
+        // `_tryLoadNode`.
+        let names = &self.component.names;
+        let mut parent = names.parent(name);
+        while let Some(p) = parent {
+            if self.component.strings.get(names.name(p)).first() == Some(&b'@') {
+                break;
+            }
+            parent = names.parent(p);
+        }
+        if let Some(at) = parent
+            && let Some(owner) = self.component.names.parent(at)
+        {
+            self.markReference(owner);
+            if let Some(Some(node)) = self.component.bindings.nodes.get(owner as usize).copied()
+                && node.kind == NamedNodeKind::Class
+                && (node.region == noRegion || self.regionLoaded(node.region))
+                && node.members != noRegion
+                && !self.regionLoaded(node.members)
+            {
+                self.loadRegion(node.members)?;
+            }
+        }
+        let bound = self.component.bindings.nodes.get(name as usize).copied().flatten();
+        Ok(bound.filter(|node| node.region == noRegion || self.regionLoaded(node.region)))
+    }
+
+    fn regionLoaded(&self, region: u32) -> bool {
+        // The members being read are being loaded (upstream clears the
+        // lazy builder before it runs it).
+        if region == self.currentRegion {
+            return true;
+        }
+        let Some(class) = self.component.bindings.classes.get(region as usize) else {
+            return false;
+        };
+        match self.lazyHorizon {
+            None => class.loaded,
+            // Upstream reads this part when its writer reaches it, after it
+            // has loaded the classes before it.
+            Some(horizon) => region < horizon || class.loaded || class.loadedLater,
+        }
+    }
+
+    /// `Class.ensureLoaded` while reading: upstream reads the members then
+    /// (its reader is left after them, and its type parameter stack
+    /// empty), throwing what reading them throws.
+    #[cold]
+    #[inline(never)]
+    fn loadRegion(&mut self, region: u32) -> Result<()> {
+        let class = &mut self.component.bindings.classes[region as usize];
+        match self.lazyHorizon {
+            None => class.loaded = true,
+            Some(_) => class.loadedLater = true,
+        }
+        let class = &self.component.bindings.classes[region as usize];
+        if let Some(error) = &class.error {
+            return self.thrown(error.to_string());
+        }
+        self.byteOffset = class.endOffset;
+        self.typeParameterStack.clear();
+        Ok(())
+    }
+
+    /// A new node of [kind] made for [name]'s reference (`reference.node =
+    /// this`).
+    fn bindNode(&mut self, name: CnId, kind: NamedNodeKind, nodeName: StrId, parent: Option<(NamedNodeKind, StrId)>) -> u32 {
+        let id = self.component.bindings.nextId;
+        self.component.bindings.nextId += 1;
+        self.setBinding(name, BoundNode {
+            kind,
+            id,
+            name: nodeName,
+            parent,
+            cn: name,
+            region: self.currentRegion,
+            members: noRegion,
+        });
+        id
+    }
+
+    fn setBinding(&mut self, name: CnId, node: BoundNode) {
+        if let Some(slot) = self.component.bindings.nodes.get_mut(name as usize) {
+            *slot = Some(node);
+        }
     }
 
     #[inline(always)]
@@ -403,7 +627,7 @@ impl<'a> BinaryBuilder<'a> {
         let mut i = start;
         let push = |builder: &Self, charCodes: &mut Vec<u16>, value: i64| -> Result<()> {
             if charCodes.len() >= length {
-                return builder.thrown(indexError(charCodes.len() as i64, length));
+                return builder.thrown(storeIndexError(charCodes.len() as i64, length));
             }
             // A Uint16List keeps the low 16 bits.
             charCodes.push(value as u16);
@@ -480,11 +704,13 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     /// `getNullableCanonicalNameReferenceFromInt`.
-    fn getNullableCanonicalNameReferenceFromInt(&self, index: u32) -> Result<Ref> {
+    fn getNullableCanonicalNameReferenceFromInt(&mut self, index: u32) -> Result<Ref> {
         if index == 0 {
             return Ok(None);
         }
-        Ok(Some(self.index(&self.linkTable, index as i64 - 1)?))
+        let name = self.index(&self.linkTable, index as i64 - 1)?;
+        self.markReference(name);
+        Ok(Some(name))
     }
 
     fn readNonNullCanonicalNameReference(&mut self) -> Result<CnId> {
@@ -559,6 +785,9 @@ impl<'a> BinaryBuilder<'a> {
             }
             self.readOneComponent(componentFileSize)?;
             componentFileIndex += 1;
+        }
+        if self.reusedNodes {
+            shareReusedMembers(&mut self.component);
         }
         Ok(self.component)
     }
@@ -703,10 +932,7 @@ impl<'a> BinaryBuilder<'a> {
             let library = self.readLibrary(index.libraryOffsets[i + 1])?;
             // A library read again (a concatenated file) is the same node,
             // read over: it keeps its place in the component.
-            let existing = match self.laterComponent {
-                false => None,
-                true => self.component.libraries.iter().position(|l| l.reference == library.reference),
-            };
+            let existing = self.component.libraries.iter().position(|l| l.reference == library.reference);
             match existing {
                 Some(existing) => {
                     self.component.libraries[existing] = library;
@@ -789,6 +1015,10 @@ impl<'a> BinaryBuilder<'a> {
             let child = self.component.names.getChild(parent, name);
             self.linkTable.push(child);
         }
+        self.simpleInterfaceTypes = vec![0; self.linkTable.len()];
+        let count = self.component.names.len();
+        self.component.bindings.nodes.resize(count, None);
+        self.component.bindings.references.resize(count, 0);
         Ok(())
     }
 
@@ -946,7 +1176,7 @@ impl<'a> BinaryBuilder<'a> {
             ConstantTag::BoolConstant => Constant::Bool(self.readByte()? == 1),
             ConstantTag::IntConstant => match self.readExpression()? {
                 Expression::IntLiteral { value, .. } => Constant::Int(value),
-                _ => return self.fail("IntConstant without an integer literal"),
+                other => return self.castFailure(expressionRuntimeType(&other), "IntLiteral"),
             },
             ConstantTag::DoubleConstant => Constant::Double(self.readDouble()?),
             ConstantTag::StringConstant => Constant::String(self.readStringReference()?),
@@ -961,6 +1191,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartType()?;
                 let valueType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let key = self.readConstantReference()?;
@@ -990,6 +1221,7 @@ impl<'a> BinaryBuilder<'a> {
             ConstantTag::RecordConstant => {
                 let positional = self.readConstantReferenceList()?;
                 let namedLength = self.readUInt30()?;
+                self.dartList(namedLength as u64)?;
                 let mut named: Vec<(StrId, ConstId)> = Vec::with_capacity(self.cap(namedLength as usize));
                 for _ in 0..namedLength {
                     let name = self.readStringReference()?;
@@ -1009,7 +1241,7 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             ConstantTag::InstanceConstant => {
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let classReference = self.readNonNullClassReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let fieldValueCount = self.readUInt30()?;
                 let mut fieldValues: Vec<(CnId, ConstId)> =
@@ -1039,6 +1271,13 @@ impl<'a> BinaryBuilder<'a> {
                 let height = self.typeParameterStack.len();
                 let parameters = self.readAndPushStructuralParameterList()?;
                 let tearOffConstant = self.readConstantReference()?;
+                if !matches!(
+                    self.component.constants[tearOffConstant as usize],
+                    Constant::StaticTearOff { .. } | Constant::ConstructorTearOff { .. } | Constant::RedirectingFactoryTearOff { .. }
+                ) {
+                    let actual = constantRuntimeType(&self.component.constants[tearOffConstant as usize]);
+                    return self.castFailure(actual, "TearOffConstant");
+                }
                 let types = self.readDartTypeList()?;
                 self.typeParameterStack.truncate(height);
                 Constant::TypedefTearOff {
@@ -1092,32 +1331,34 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     fn readScope(&mut self, scopeSize: u32) -> Result<Scope> {
+        // Upstream only asserts that the count is the scope size.
         let contextCount = self.readUInt30()?;
-        if contextCount != scopeSize {
-            return self.fail("scope size disagrees with its context count");
-        }
+        self.dartList(contextCount as u64)?;
         let mut contexts = Vec::with_capacity(self.cap(contextCount as usize));
         for variableContextIndex in 0..contextCount {
-            let captureKind = self.readByte()? as u8;
+            let captureKind = self.readByte()?;
+            let captureKind = self.enumValue(captureKind, 3)?;
             let variableCount = self.readUInt30()?;
+            self.dartList(variableCount as u64)?;
             let mut variables = Vec::with_capacity(self.cap(variableCount as usize));
             for _ in 0..variableCount {
                 variables.push(self.readVariableReference()?);
             }
-            let position = (self.variableContextStack.len() + variableContextIndex as usize)
-                .checked_sub(scopeSize as usize);
-            let id = match position.and_then(|p| self.variableContextStack.get(p)) {
-                Some(&id) => id,
-                None => return self.fail("variable context out of range"),
-            };
+            // `variableContextStack[length - scopeSize + index]`.
+            let position = self.variableContextStack.len() as i64 - scopeSize as i64 + variableContextIndex as i64;
+            let id = self.index(&self.variableContextStack, position)?;
             contexts.push(VariableContext {
                 id,
                 captureKind,
                 variables,
             });
         }
-        let length = self.variableContextStack.len().saturating_sub(scopeSize as usize);
-        self.variableContextStack.truncate(length);
+        // `variableContextStack.length -= scopeSize`.
+        let length = self.variableContextStack.len() as i64 - scopeSize as i64;
+        if length < 0 {
+            return self.thrown(rangeErrorRange("length", length, 0, maxListLength));
+        }
+        self.variableContextStack.truncate(length as usize);
         Ok(Scope { contexts })
     }
 
@@ -1125,7 +1366,10 @@ impl<'a> BinaryBuilder<'a> {
         let index = self.readUInt30()? as usize;
         match self.variableContextStack.get(index) {
             Some(&id) => Ok(id),
-            None => self.fail(format!("Unexpected variable context index: {index}.")),
+            None => self.fail(format!(
+                "Unexpected variable context index: {index}. Current variable context count: {}.",
+                self.variableContextStack.len()
+            )),
         }
     }
 
@@ -1134,6 +1378,7 @@ impl<'a> BinaryBuilder<'a> {
             return Ok(None);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut contexts = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             contexts.push(self.readVariableContextReference()?);
@@ -1145,6 +1390,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readAnnotationList(&mut self) -> Result<Vec<Expression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut annotations = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             annotations.push(self.readExpression()?);
@@ -1193,31 +1439,50 @@ impl<'a> BinaryBuilder<'a> {
         let languageVersionMajor = self.readUInt30()?;
         let languageVersionMinor = self.readUInt30()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Library)?;
         let name = self.readStringReference()?;
         let fileUri = self.readUriReference()?;
-        // A library read for the first time is made with
+        // A library made here (not read before) is made with
         // `Uri.parse(canonicalName.name)`, which can throw.
-        let readBefore = self.laterComponent && self.component.libraries.iter().any(|l| l.reference == reference);
-        if !readBefore {
+        if existing.is_none() {
             let text = self.component.strings.get(self.component.names.name(reference));
             if let Err(thrown) = dart_core::uri::parseUriToStringWtf8(text) {
                 return self.thrown(thrown);
             }
+            self.bindNode(reference, NamedNodeKind::Library, name, None);
+        } else if let Some(mut node) = existing {
+            // `library.name = name`.
+            node.name = name;
+            self.setBinding(reference, node);
         }
+        // `_currentLibrary = library`: a new library has no dependencies
+        // yet; one read again keeps the ones it had until they are read.
+        self.currentLibraryDependencyCount = Some(match existing {
+            None => 0,
+            Some(_) => self
+                .component
+                .libraries
+                .iter()
+                .find(|l| l.reference == reference)
+                .map_or(0, |l| l.dependencies.len()),
+        });
         let problemsAsJson = self.readListOfStrings()?;
         let annotations = self.readAnnotationList()?;
 
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut dependencies = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             dependencies.push(self.readLibraryDependency()?);
         }
+        self.currentLibraryDependencyCount = Some(dependencies.len());
         let numExportedReference = self.readUInt30()?;
         let mut additionalExports = Vec::with_capacity(self.cap(numExportedReference as usize));
         for _ in 0..numExportedReference {
             additionalExports.push(self.readNonNullCanonicalNameReference()?);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut parts = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let annotations = self.readAnnotationList()?;
@@ -1230,6 +1495,7 @@ impl<'a> BinaryBuilder<'a> {
             });
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut typedefs = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             typedefs.push(self.readTypedef()?);
@@ -1243,21 +1509,24 @@ impl<'a> BinaryBuilder<'a> {
             let endOffset = self.index(&classOffsets, index as i64 + 1)?;
             classes.push(self.readClass(endOffset)?);
         }
-        if length > 0 {
-            self.byteOffset = *classOffsets.last().unwrap();
-        }
+        // `_byteOffset = classOffsets.last` (lists are growable, so even
+        // for no classes).
+        self.byteOffset = *classOffsets.last().unwrap();
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut extensions = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             extensions.push(self.readExtension()?);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut extensionTypeDeclarations = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             extensionTypeDeclarations.push(self.readExtensionTypeDeclaration()?);
         }
-        let fields = self.readFieldList()?;
-        let procedures = self.readProcedureList(&procedureOffsets)?;
+        let fields = self.readFieldList(None)?;
+        let procedures = self.readProcedureList(&procedureOffsets, None)?;
+        self.currentLibraryDependencyCount = None;
         Ok(Library {
             flags,
             languageVersionMajor,
@@ -1283,9 +1552,10 @@ impl<'a> BinaryBuilder<'a> {
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let annotations = self.readAnnotationList()?;
-        let targetLibrary = self.readNonNullCanonicalNameReference()?;
+        let targetLibrary = self.readNonNullLibraryReference()?;
         let name = self.readStringReference()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut combinators = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let isShow = self.readByte()? == 1;
@@ -1304,9 +1574,11 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readTypedef(&mut self) -> Result<Typedef> {
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Typedef)?;
         let fileUri = self.readUriReference()?;
         let fileOffset = self.readOffset()?;
         let name = self.readStringReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Typedef, name, None);
         let annotations = self.readAnnotationList()?;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let r#type = self.readDartType()?;
@@ -1323,34 +1595,92 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
+    /// A node made for [reference] (`new Node(reference: reference)`), or
+    /// the one it points at already, renamed (upstream reuses it).
+    fn bindOrRename(
+        &mut self,
+        reference: CnId,
+        existing: Option<BoundNode>,
+        kind: NamedNodeKind,
+        name: StrId,
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) -> u32 {
+        match existing {
+            None => self.bindNode(reference, kind, name, parent),
+            Some(mut node) => {
+                node.name = name;
+                node.parent = parent;
+                self.setBinding(reference, node);
+                self.reusedNodes = true;
+                node.id
+            }
+        }
+    }
+
     fn readClass(&mut self, endOffset: usize) -> Result<Class> {
         // Upstream only asserts the tag (asserts are off in its oracle).
         let _tag = self.readByte()?;
         let (_procedureCount, procedureOffsets) = self.readOffsetsTable(endOffset, 0)?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Class)?;
         let fileUri = self.readUriReference()?;
         let startFileOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
         let flags = self.readUInt30()?;
         let name = self.readStringReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Class, name, None);
         let annotations = self.readAnnotationList()?;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let supertype = self.readSupertypeOption()?;
         let mixedInType = self.readSupertypeOption()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut implementedTypes = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             implementedTypes.push(self.readSupertype()?);
         }
-        // `readClassPartialContent`.
-        let fields = self.readFieldList()?;
-        let length = self.readUInt30()?;
-        let mut constructors = Vec::with_capacity(self.cap(length as usize));
-        for _ in 0..length {
-            constructors.push(self.readConstructor()?);
-        }
-        let procedures = self.readProcedureList(&procedureOffsets)?;
+        let parent = Some((NamedNodeKind::Class, name));
+        let (fields, constructors, procedures, lazyRegion) = if self.disableLazyReading {
+            let (fields, constructors, procedures) = self.readClassPartialContent(&procedureOffsets, parent)?;
+            (fields, constructors, procedures, noRegion)
+        } else {
+            // `_setLazyLoadClass`: upstream reads the members when they are
+            // first used; they are read here, and what reading them throws
+            // is thrown when upstream would read them.
+            let region = self.component.bindings.classes.len() as u32;
+            self.component.bindings.classes.push(LazyClass {
+                reference,
+                endOffset: *procedureOffsets.last().unwrap(),
+                error: None,
+                loaded: false,
+                loadedLater: false,
+            });
+            if let Some(Some(node)) = self.component.bindings.nodes.get_mut(reference as usize)
+                && node.kind == NamedNodeKind::Class
+            {
+                // `node.lazyBuilder = ...`.
+                node.members = region;
+            }
+            let saved = self.saveStacks();
+            let (savedMark, savedRegion) = (self.referenceMark, self.currentRegion);
+            self.referenceMark = 2;
+            self.currentRegion = region;
+            let savedHorizon = self.lazyHorizon.replace(region);
+            let result = self.readClassPartialContent(&procedureOffsets, parent);
+            self.referenceMark = savedMark;
+            self.currentRegion = savedRegion;
+            self.lazyHorizon = savedHorizon;
+            match result {
+                Ok((fields, constructors, procedures)) => (fields, constructors, procedures, region),
+                Err(error) => {
+                    self.deferError(error)?;
+                    self.restoreStacks(saved);
+                    self.component.bindings.classes[region as usize].error = Some(self.lastDeferred.take().unwrap());
+                    (Vec::new(), Vec::new(), Vec::new(), region)
+                }
+            }
+        };
         self.typeParameterStack.clear();
         self.byteOffset = endOffset;
         Ok(Class {
@@ -1369,18 +1699,73 @@ impl<'a> BinaryBuilder<'a> {
             fields,
             constructors,
             procedures,
+            lazyRegion,
         })
     }
 
-    fn readExtensionMemberDescriptors(&mut self) -> Result<Vec<ExtensionMemberDescriptor>> {
+    /// `readClassPartialContent`.
+    #[allow(clippy::type_complexity)]
+    fn readClassPartialContent(
+        &mut self,
+        procedureOffsets: &[usize],
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) -> Result<(Vec<Field>, Vec<Constructor>, Vec<Procedure>)> {
+        let fields = self.readFieldList(parent)?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let mut constructors = Vec::with_capacity(self.cap(length as usize));
+        for _ in 0..length {
+            constructors.push(self.readConstructor(parent)?);
+        }
+        let procedures = self.readProcedureList(procedureOffsets, parent)?;
+        Ok((fields, constructors, procedures))
+    }
+
+    /// The reader's stacks, to put back when a lazily read part fails.
+    fn saveStacks(&self) -> [usize; 5] {
+        [
+            self.variableStack.len(),
+            self.typeParameterStack.len(),
+            self.labelStack.len(),
+            self.switchCaseStack.len(),
+            self.variableContextStack.len(),
+        ]
+    }
+
+    fn restoreStacks(&mut self, saved: [usize; 5]) {
+        self.variableStack.truncate(saved[0]);
+        self.typeParameterStack.truncate(saved[1]);
+        self.labelStack.truncate(saved[2]);
+        self.switchCaseStack.truncate(saved[3]);
+        self.variableContextStack.truncate(saved[4]);
+    }
+
+    /// Keeps [error] (from a part upstream reads lazily) for later, in
+    /// [Self::lastDeferred]; an error that is not upstream's (the reader
+    /// needing a deeper stack) goes on now.
+    #[cold]
+    #[inline(never)]
+    fn deferError(&mut self, error: ParseError) -> Result<()> {
+        if error.message == needsDeepStack {
+            return Err(error);
+        }
+        self.lastDeferred = Some(error.message.into_boxed_str());
+        Ok(())
+    }
+
+    fn readExtensionMemberDescriptors(&mut self, kinds: u32) -> Result<Vec<ExtensionMemberDescriptor>> {
+        let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut descriptors = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readName()?;
-            let kind = self.readByte()? as u8;
+            let kind = self.readByte()?;
             let flags = self.readByte()? as u8;
             let memberReference = self.readNullableCanonicalNameReference()?;
             let tearOffReference = self.readNullableCanonicalNameReference()?;
+            // `ExtensionMemberKind.values[kind]` (or the extension type
+            // declaration's), after the references.
+            let kind = self.enumValue(kind, kinds)?;
             descriptors.push(ExtensionMemberDescriptor {
                 name,
                 kind,
@@ -1395,15 +1780,17 @@ impl<'a> BinaryBuilder<'a> {
     fn readExtension(&mut self) -> Result<Extension> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Extension)?;
         let name = self.readStringReference()?;
         let annotations = self.readAnnotationList()?;
         let fileUri = self.readUriReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Extension, name, None);
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let onType = self.readDartType()?;
         self.typeParameterStack.clear();
-        let memberDescriptors = self.readExtensionMemberDescriptors()?;
+        let memberDescriptors = self.readExtensionMemberDescriptors(5)?;
         Ok(Extension {
             reference,
             name,
@@ -1420,22 +1807,38 @@ impl<'a> BinaryBuilder<'a> {
     fn readExtensionTypeDeclaration(&mut self) -> Result<ExtensionTypeDeclaration> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::ExtensionTypeDeclaration)?;
         let name = self.readStringReference()?;
         let annotations = self.readAnnotationList()?;
         let fileUri = self.readUriReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::ExtensionTypeDeclaration, name, None);
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let declaredRepresentationType = self.readDartType()?;
         let representationName = self.readStringReference()?;
-        let implements = self.readDartTypeList()?;
+        // `_readExtensionTypeDeclarationImplementsList`: each one `as
+        // TypeDeclarationType`.
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let mut implements = Vec::with_capacity(self.cap(length as usize));
+        for _ in 0..length {
+            let r#type = self.readDartType()?;
+            if !matches!(r#type, DartType::Interface { .. } | DartType::Extension { .. }) {
+                return self.castFailure(self.dartTypeRuntimeType(&r#type), "TypeDeclarationType");
+            }
+            implements.push(r#type);
+        }
+        // `_readProcedureListWithoutOffsets`: read now (no end offset).
+        let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let parent = Some((NamedNodeKind::ExtensionTypeDeclaration, name));
         let mut procedures = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            procedures.push(self.readProcedure()?);
+            procedures.push(self.readProcedure(-1, parent)?);
         }
         self.typeParameterStack.clear();
-        let memberDescriptors = self.readExtensionMemberDescriptors()?;
+        let memberDescriptors = self.readExtensionMemberDescriptors(8)?;
         Ok(ExtensionTypeDeclaration {
             reference,
             name,
@@ -1452,46 +1855,77 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readFieldList(&mut self) -> Result<Vec<Field>> {
+    fn readFieldList(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Vec<Field>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut fields = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            fields.push(self.readField()?);
+            fields.push(self.readField(parent)?);
         }
         Ok(fields)
     }
 
-    fn readProcedureList(&mut self, procedureOffsets: &[usize]) -> Result<Vec<Procedure>> {
+    fn readProcedureList(
+        &mut self,
+        procedureOffsets: &[usize],
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) -> Result<Vec<Procedure>> {
         let length = self.readUInt30()? as usize;
         self.dartList(length as u64)?;
         let mut procedures = Vec::with_capacity(self.cap(length as usize));
         for index in 0..length {
             self.byteOffset = self.index(procedureOffsets, index as i64)?;
-            // `readProcedure(procedureOffsets[index + 1])`.
-            self.index(procedureOffsets, index as i64 + 1)?;
-            procedures.push(self.readProcedure()?);
+            let endOffset = self.index(procedureOffsets, index as i64 + 1)?;
+            procedures.push(self.readProcedure(endOffset as i64, parent)?);
         }
         self.byteOffset = *procedureOffsets.last().unwrap();
         Ok(procedures)
     }
 
-    fn readField(&mut self) -> Result<Field> {
+    fn readField(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Field> {
         let _tag = self.readByte()?;
         let fieldReference = self.readNonNullCanonicalNameReference()?;
         let getterReference = self.readNonNullCanonicalNameReference()?;
         let setterReference = self.readNullableCanonicalNameReference()?;
+        let existing = self.nodeOf(fieldReference, NamedNodeKind::Field)?;
         let fileUri = self.readUriReference()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
         let flags = self.readUInt30()?;
         let name = self.readName()?;
+        let nodeId = match existing {
+            None => {
+                // `new Field(...)` points all its references at itself.
+                let id = self.bindNode(fieldReference, NamedNodeKind::Field, name.text, parent);
+                if let Some(node) = self.component.bindings.nodes.get(fieldReference as usize).copied().flatten() {
+                    self.setBinding(getterReference, node);
+                    if let Some(setter) = setterReference {
+                        self.setBinding(setter, node);
+                    }
+                }
+                id
+            }
+            Some(mut node) => {
+                node.name = name.text;
+                node.parent = parent;
+                self.setBinding(fieldReference, node);
+                self.reusedNodes = true;
+                node.id
+            }
+        };
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let annotations = self.readAnnotationList()?;
         let r#type = self.readDartType()?;
         let thisVariable = self.readAndPushVariableOption()?;
+        if let Some(variable) = &thisVariable
+            && variable.kind != Tag::ThisVariable
+        {
+            return self.castFailure(variableRuntimeType(variable.kind), "ThisVariable?");
+        }
         let initializer = self.readExpressionOption()?.map(Box::new);
         let scope = self.readOptionalScope(scopeSize)?;
         Ok(Field {
+            nodeId,
             fieldReference,
             getterReference,
             setterReference,
@@ -1508,9 +1942,10 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readConstructor(&mut self) -> Result<Constructor> {
+    fn readConstructor(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Constructor> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Constructor)?;
         let fileUri = self.readUriReference()?;
         let startFileOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
@@ -1518,7 +1953,8 @@ impl<'a> BinaryBuilder<'a> {
         let flags = self.readByte()? as u8;
         let name = self.readName()?;
         let annotations = self.readAnnotationList()?;
-        let (function, preAllocatedContexts) = self.readFunctionNode()?;
+        let (function, preAllocatedContexts) = self.readFunctionNode(false, -1)?;
+        let nodeId = self.bindOrRename(reference, existing, NamedNodeKind::Constructor, name.text, parent);
         if let Some(this) = &function.thisVariable {
             self.variableStack.push(this.id);
         }
@@ -1531,6 +1967,7 @@ impl<'a> BinaryBuilder<'a> {
         let savedVariableContextStackSize = self.variableContextStack.len();
         self.variableContextStack.extend(preAllocatedContexts);
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut initializers = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             initializers.push(self.readInitializer()?);
@@ -1538,6 +1975,7 @@ impl<'a> BinaryBuilder<'a> {
         self.variableContextStack.truncate(savedVariableContextStackSize);
         self.variableStack.clear();
         Ok(Constructor {
+            nodeId,
             reference,
             fileUri,
             startFileOffset,
@@ -1551,22 +1989,40 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readProcedure(&mut self) -> Result<Procedure> {
+    /// `readProcedure(endOffset)`: -1 for a procedure of an extension type
+    /// declaration (no offsets table).
+    fn readProcedure(&mut self, endOffset: i64, parent: Option<(NamedNodeKind, StrId)>) -> Result<Procedure> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Procedure)?;
         let fileUri = self.readUriReference()?;
         let fileStartOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
-        let kind = self.readByte()? as u8;
-        let stubKind = self.readByte()? as u8;
+        let kind = self.readByte()?;
+        let kind = self.enumValue(kind, 5)?;
+        let stubKind = self.readByte()?;
+        let stubKind = self.enumValue(stubKind, 8)?;
         let flags = self.readUInt30()?;
         let name = self.readName()?;
         let annotations = self.readAnnotationList()?;
+        let functionNodeSize = endOffset.wrapping_sub(self.byteOffset as i64);
+        // Small factories and extension type declaration procedures are
+        // read now; other bodies lazily.
+        let readFunctionNodeNow = endOffset == -1
+            || (kind == ProcedureKind::Factory && functionNodeSize <= 50)
+            || self.disableLazyReading;
         let stubTargetReference = self.readNullableCanonicalNameReference()?;
         let signatureType = self.readDartTypeOption()?;
-        let (function, _) = self.readFunctionNode()?;
+        if let Some(t) = &signatureType
+            && !matches!(t, DartType::Function(_))
+        {
+            return self.castFailure(self.dartTypeRuntimeType(t), "FunctionType?");
+        }
+        let (function, _) = self.readFunctionNode(!readFunctionNodeNow, endOffset)?;
+        let nodeId = self.bindOrRename(reference, existing, NamedNodeKind::Procedure, name.text, parent);
         Ok(Procedure {
+            nodeId,
             reference,
             fileUri,
             fileStartOffset,
@@ -1589,7 +2045,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FieldInitializer => {
                 let fileOffset = self.readOffset()?;
                 let isSynthetic = self.readByte()? == 1;
-                let fieldReference = self.readNonNullCanonicalNameReference()?;
+                let fieldReference = self.readNonNullMemberReference()?;
                 Initializer::Field {
                     fileOffset,
                     isSynthetic,
@@ -1600,7 +2056,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::SuperInitializer => {
                 let fileOffset = self.readOffset()?;
                 let isSynthetic = self.readByte()? == 1;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Initializer::Super {
                     fileOffset,
                     isSynthetic,
@@ -1610,9 +2066,13 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::AssertInitializer => {
                 let fileOffset = self.readOffset()?;
+                let statement = self.readStatement()?;
+                if !matches!(statement, Statement::Assert { .. }) {
+                    return self.castFailure(statementRuntimeType(&statement), "AssertStatement");
+                }
                 Initializer::Assert {
                     fileOffset,
-                    statement: Box::new(self.readStatement()?),
+                    statement: Box::new(statement),
                 }
             }
             Tag::InvalidInitializer => {
@@ -1626,7 +2086,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::RedirectingInitializer => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Initializer::Redirecting {
                     fileOffset,
                     targetReference,
@@ -1635,23 +2095,30 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::LocalInitializer => {
                 let fileOffset = self.readOffset()?;
-                Initializer::Local {
-                    fileOffset,
-                    variable: self.readAndPushVariable()?,
+                let variable = self.readAndPushVariable()?;
+                if variable.kind != Tag::SyntheticVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "SyntheticVariable");
                 }
+                // `variable.initializer!`.
+                if variable.initializer.is_none() {
+                    return self.nullCheckFailure();
+                }
+                Initializer::Local { fileOffset, variable }
             }
             _ => return self.fail(format!("unexpected initializer tag: {tag}")),
         })
     }
 
-    /// `readFunctionNode`, with the contexts it allocated for its scope
-    /// (`preAllocatedContexts`).
-    fn readFunctionNode(&mut self) -> Result<(FunctionNode, Vec<ContextId>)> {
+    /// `readFunctionNode(lazyLoadBody:, outerEndOffset:)`, with the
+    /// contexts it allocated for its scope (`preAllocatedContexts`).
+    fn readFunctionNode(&mut self, lazyLoadBody: bool, outerEndOffset: i64) -> Result<(FunctionNode, Vec<ContextId>)> {
         let _tag = self.readByte()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
-        let asyncMarker = self.readByte()? as u8;
-        let dartAsyncMarker = self.readByte()? as u8;
+        let asyncMarker = self.readByte()?;
+        let asyncMarker = self.enumValue(asyncMarker, 4)?;
+        let dartAsyncMarker = self.readByte()?;
+        let dartAsyncMarker = self.enumValue(dartAsyncMarker, 4)?;
         let typeParameterStackHeight = self.typeParameterStack.len();
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let preAllocatedContexts =
@@ -1659,17 +2126,33 @@ impl<'a> BinaryBuilder<'a> {
         let typeParameters = self.readAndPushTypeParameterList()?;
         let variableStackHeight = self.variableStack.len();
         let thisVariable = self.readAndPushVariableOption()?;
+        if let Some(variable) = &thisVariable
+            && variable.kind != Tag::ThisVariable
+        {
+            return self.castFailure(variableRuntimeType(variable.kind), "ThisVariable?");
+        }
         let _totalParameterCount = self.readUInt30()?;
         let requiredParameterCount = self.readUInt30()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut positionalParameters = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            positionalParameters.push(*self.readAndPushVariable()?);
+            let variable = self.readAndPushVariable()?;
+            if variable.kind != Tag::PositionalParameter {
+                return self.castFailure(variableRuntimeType(variable.kind), "PositionalParameter");
+            }
+            positionalParameters.push(*variable);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut namedParameters = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            namedParameters.push(*self.readAndPushVariable()?);
+            let variable = self.readVariable()?;
+            if variable.kind != Tag::NamedParameter {
+                return self.castFailure(variableRuntimeType(variable.kind), "NamedParameter");
+            }
+            self.variableStack.push(variable.id);
+            namedParameters.push(*variable);
         }
         let returnType = self.readDartType()?;
         let emittedValueType = self.readDartTypeOption()?;
@@ -1680,26 +2163,72 @@ impl<'a> BinaryBuilder<'a> {
             } else {
                 None
             };
-            let errorMessage = if self.readAndCheckOptionTag()? {
-                Some(self.readStringReference()?)
+            if self.readAndCheckOptionTag()? {
+                // `RedirectingFactoryTarget.error(errorMessage)`.
+                Some(RedirectingFactoryTarget {
+                    targetReference: None,
+                    typeArguments: None,
+                    errorMessage: Some(self.readStringReference()?),
+                })
             } else {
-                None
-            };
-            Some(RedirectingFactoryTarget {
-                targetReference,
-                typeArguments,
-                errorMessage,
-            })
+                // `.byReference(targetReference!, typeArguments!)`.
+                if targetReference.is_none() || typeArguments.is_none() {
+                    return self.nullCheckFailure();
+                }
+                Some(RedirectingFactoryTarget {
+                    targetReference,
+                    typeArguments,
+                    errorMessage: None,
+                })
+            }
         } else {
             None
         };
         let oldLabelStackBase = self.labelStackBase;
         let oldSwitchCaseStackBase = self.switchCaseStackBase;
+        let lazyLoadBody = lazyLoadBody && (outerEndOffset <= 0 || outerEndOffset - self.byteOffset as i64 > 2);
         self.labelStackBase = self.labelStack.len();
         self.switchCaseStackBase = self.switchCaseStack.len();
-        let body = self.readStatementOption()?.map(Box::new);
-        let scope = self.readOptionalScope(scopeSize)?;
-        let capturedContexts = self.readOptionalCapturedContexts()?;
+        let (body, scope, capturedContexts, lazyBody) = if !lazyLoadBody {
+            let body = self.readStatementOption()?.map(Box::new);
+            let scope = self.readOptionalScope(scopeSize)?;
+            let capturedContexts = self.readOptionalCapturedContexts()?;
+            (body, scope, capturedContexts, LazyBody::Eager)
+        } else {
+            // `_setLazyLoadFunction`: upstream reads the body when its
+            // writer reaches it, with these stacks; it is read here, and
+            // what reading it throws is thrown there.
+            let saved = self.saveStacks();
+            let savedMark = self.referenceMark;
+            self.referenceMark = 2;
+            // Upstream's writer reaches a class member's body after loading
+            // its class, and a library procedure's after all the classes
+            // read so far.
+            let horizon = match self.currentRegion {
+                region if region != noRegion => region + 1,
+                _ => self.component.bindings.classes.len() as u32,
+            };
+            let savedHorizon = self.lazyHorizon.replace(horizon);
+            let result = (|| -> Result<_> {
+                let body = self.readStatementOption()?.map(Box::new);
+                let scope = self.readOptionalScope(scopeSize)?;
+                let capturedContexts = self.readOptionalCapturedContexts()?;
+                Ok((body, scope, capturedContexts))
+            })();
+            self.referenceMark = savedMark;
+            self.lazyHorizon = savedHorizon;
+            match result {
+                Ok((body, scope, capturedContexts)) => (body, scope, capturedContexts, LazyBody::Lazy),
+                Err(error) => {
+                    self.deferError(error)?;
+                    self.restoreStacks(saved);
+                    // `variableContextStack.length -= scopeSize`.
+                    let length = self.variableContextStack.len().saturating_sub(scopeSize as usize);
+                    self.variableContextStack.truncate(length);
+                    (None, None, None, LazyBody::Failed(self.lastDeferred.take().unwrap()))
+                }
+            }
+        };
         self.labelStackBase = oldLabelStackBase;
         self.switchCaseStackBase = oldSwitchCaseStackBase;
         self.variableStack.truncate(variableStackHeight);
@@ -1721,6 +2250,7 @@ impl<'a> BinaryBuilder<'a> {
                 body,
                 scope,
                 capturedContexts,
+                lazyBody,
             },
             preAllocatedContexts,
         ))
@@ -1750,19 +2280,29 @@ impl<'a> BinaryBuilder<'a> {
         let r#type = self.readDartType()?;
         let initializer = self.readExpressionOption()?.map(Box::new);
         match kind {
+            // `name!` (`readStringOrNullIfEmpty`).
             Tag::LocalVariable
             | Tag::LateVariable
             | Tag::LocalFunctionVariable
             | Tag::ConstVariable
-            | Tag::SyntheticVariable
             | Tag::CatchVariable
             | Tag::PositionalParameter
-            | Tag::NamedParameter
-            | Tag::ThisVariable => {}
-            _ => return self.fail(format!("Unexpected variable tag {kind}")),
+            | Tag::NamedParameter => {
+                if self.component.strings.get(name).is_empty() {
+                    return self.nullCheckFailure();
+                }
+            }
+            Tag::SyntheticVariable | Tag::ThisVariable => {}
+            _ => return self.thrown(format!("Unsupported operation: Unexpected variable tag {kind}")),
         }
         let id = self.component.nextVar;
         self.component.nextVar += 1;
+        // Ids are handed out in order, so this is a push.
+        if self.variableKinds.len() == id as usize {
+            self.variableKinds.push(kind as u8);
+        } else {
+            self.recordVariableKind(id, kind);
+        }
         Ok(Box::new(Variable {
             id,
             kind,
@@ -1795,6 +2335,9 @@ impl<'a> BinaryBuilder<'a> {
         let fileOffset = self.readOffset()?;
         let capturedContexts = self.readOptionalCapturedContexts()?;
         let variable = self.readVariable()?;
+        if !isDeclaredVariable(variable.kind) {
+            return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+        }
         // Popped by the enclosing scope.
         self.variableStack.push(variable.id);
         Ok(VariableDeclaration {
@@ -1817,7 +2360,7 @@ impl<'a> BinaryBuilder<'a> {
                 className: classReference,
                 typeArguments,
             }),
-            _ => self.fail("a supertype is not an interface type"),
+            other => self.castFailure(self.dartTypeRuntimeType(&other), "InterfaceType"),
         }
     }
 
@@ -1831,6 +2374,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readDartTypeList(&mut self) -> Result<Vec<DartType>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut types = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             types.push(self.readDartType()?);
@@ -1840,6 +2384,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readNamedTypeList(&mut self) -> Result<Vec<NamedType>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut types = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readStringReference()?;
@@ -1874,23 +2419,33 @@ impl<'a> BinaryBuilder<'a> {
         let tag = self.readByte()?;
         Ok(match tag {
             Tag::SimpleInterfaceType => {
-                let nullability = self.readByte()? as u8;
-                let classReference = match self.readNullableCanonicalNameReference()? {
-                    Some(c) => c,
-                    None => {
-                        return self.fail("Expected a class reference to be valid but was `null`.");
+                let nullabilityIndex = self.readByte()?;
+                let classReferenceIndex = self.readUInt30()?;
+                if classReferenceIndex == 0 {
+                    return self.thrown("Expected a class reference to be valid but was `null`.");
+                }
+                let index = classReferenceIndex as usize - 1;
+                let classReference = self.index(&self.linkTable, index as i64)?;
+                if nullabilityIndex < 3 {
+                    // `_cachedSimpleInterfaceTypes`: remembered by index.
+                    self.simpleInterfaceTypes[index] |= 1 << nullabilityIndex;
+                    self.markReference(classReference);
+                    DartType::Interface {
+                        nullability: nullabilityIndex as u8,
+                        classReference,
+                        typeArguments: Vec::new(),
                     }
-                };
-                DartType::Interface {
-                    nullability,
-                    classReference,
-                    typeArguments: Vec::new(),
+                } else {
+                    self.cachedSimpleInterfaceType(index, nullabilityIndex)?
                 }
             }
             Tag::SimpleFunctionType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let positionalParameters = self.readDartTypeList()?;
                 let returnType = Box::new(self.readDartType()?);
+                // `Nullability.values[...]` (or the cache of `void
+                // Function()`s, as long).
+                let nullability = self.enumValue(nullability, 3)?;
                 DartType::Function(Box::new(FunctionType {
                     nullability,
                     typeParameters: Vec::new(),
@@ -1901,30 +2456,33 @@ impl<'a> BinaryBuilder<'a> {
                 }))
             }
             Tag::InterfaceType => {
-                let nullability = self.readByte()? as u8;
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let nullability = self.readByte()?;
+                let classReference = self.readNonNullClassReference()?;
+                let typeArguments = self.readDartTypeList()?;
                 DartType::Interface {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     classReference,
-                    typeArguments: self.readDartTypeList()?,
+                    typeArguments,
                 }
             }
             Tag::VoidType => DartType::Void,
             Tag::TypeParameterType => {
-                let declaredNullability = self.readByte()? as u8;
+                let declaredNullability = self.readByte()?;
                 let index = self.readUInt30()? as usize;
-                match self.typeParameterStack.get(index) {
-                    Some(&parameter) => DartType::TypeParameter {
-                        declaredNullability,
-                        parameter,
-                    },
-                    None => return self.fail(format!("type parameter index {index} out of range")),
+                let parameter = match self.typeParameterStack.get(index) {
+                    Some(&parameter) => parameter,
+                    None => return self.indexFailure(index as i64, self.typeParameterStack.len()),
+                };
+                DartType::TypeParameter {
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
+                    parameter,
                 }
             }
             Tag::DynamicType => DartType::Dynamic,
             Tag::TypedefType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let typedefReference = Some(self.readNonNullCanonicalNameReference()?);
+                let nullability = self.enumValue(nullability, 3)?;
                 DartType::Typedef {
                     nullability,
                     typedefReference,
@@ -1932,17 +2490,20 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InvalidType => DartType::Invalid,
-            Tag::NeverType => DartType::Never {
-                nullability: self.readByte()? as u8,
-            },
+            Tag::NeverType => {
+                let nullability = self.readByte()?;
+                DartType::Never {
+                    nullability: self.enumValue(nullability, 3)?,
+                }
+            }
             Tag::NullType => DartType::Null,
             Tag::ExtensionType => {
-                let declaredNullability = self.readByte()? as u8;
-                let extensionTypeDeclarationReference = self.readNonNullCanonicalNameReference()?;
+                let declaredNullability = self.readByte()?;
+                let extensionTypeDeclarationReference = self.readNonNullExtensionTypeDeclarationReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let extensionTypeErasure = Box::new(self.readDartType()?);
                 DartType::Extension {
-                    declaredNullability,
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
                     extensionTypeDeclarationReference,
                     typeArguments,
                     extensionTypeErasure,
@@ -1950,7 +2511,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::FunctionType => {
                 let typeParameterStackHeight = self.typeParameterStack.len();
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let typeParameters = self.readAndPushStructuralParameterList()?;
                 let requiredParameterCount = self.readUInt30()?;
                 let _totalParameterCount = self.readUInt30()?;
@@ -1959,7 +2520,7 @@ impl<'a> BinaryBuilder<'a> {
                 let returnType = Box::new(self.readDartType()?);
                 self.typeParameterStack.truncate(typeParameterStackHeight);
                 DartType::Function(Box::new(FunctionType {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     typeParameters,
                     requiredParameterCount,
                     positionalParameters,
@@ -1968,29 +2529,54 @@ impl<'a> BinaryBuilder<'a> {
                 }))
             }
             Tag::IntersectionType => {
-                let left = Box::new(self.readDartType()?);
+                let left = self.readDartType()?;
+                if !matches!(left, DartType::TypeParameter { .. }) || self.dartTypeRuntimeType(&left) != "TypeParameterType" {
+                    return self.castFailure(self.dartTypeRuntimeType(&left), "TypeParameterType");
+                }
                 let right = Box::new(self.readDartType()?);
-                DartType::Intersection { left, right }
+                DartType::Intersection {
+                    left: Box::new(left),
+                    right,
+                }
             }
             Tag::RecordType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let positional = self.readDartTypeList()?;
                 let named = self.readNamedTypeList()?;
                 DartType::Record(Box::new(RecordType {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     positional,
                     named,
                 }))
             }
             Tag::FutureOrType => {
-                let declaredNullability = self.readByte()? as u8;
+                let declaredNullability = self.readByte()?;
+                let typeArgument = Box::new(self.readDartType()?);
                 DartType::FutureOr {
-                    declaredNullability,
-                    typeArgument: Box::new(self.readDartType()?),
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
+                    typeArgument,
                 }
             }
             _ => return self.fail(format!("unexpected dart type tag: {tag}")),
         })
+    }
+
+    /// `_readSimpleInterfaceType` with a nullability index past the end:
+    /// upstream's cache key (`(index) * 3 + nullability`) can name a type
+    /// read before, which it returns; otherwise `Nullability.values` throws.
+    #[cold]
+    #[inline(never)]
+    fn cachedSimpleInterfaceType(&mut self, index: usize, nullabilityIndex: u32) -> Result<DartType> {
+        let key = index as u64 * 3 + nullabilityIndex as u64;
+        let (cachedIndex, cachedNullability) = ((key / 3) as usize, (key % 3) as u32);
+        if self.simpleInterfaceTypes.get(cachedIndex).is_some_and(|seen| seen & (1 << cachedNullability) != 0) {
+            return Ok(DartType::Interface {
+                nullability: cachedNullability as u8,
+                classReference: self.linkTable[cachedIndex],
+                typeArguments: Vec::new(),
+            });
+        }
+        self.indexFailure(nullabilityIndex as i64, 3)
     }
 
     /// `readAndPushTypeParameterList`: the parameters are on the stack
@@ -2015,11 +2601,17 @@ impl<'a> BinaryBuilder<'a> {
         for i in 0..length {
             self.typeParameterStack.push(first + i);
         }
+        if !keepAnnotations && length > 0 {
+            self.structuralRanges.push((first, length));
+        }
         let mut parameters = Vec::with_capacity(self.cap(length as usize));
         for i in 0..length {
             let flags = self.readByte()? as u8;
             let annotations = self.readAnnotationList()?;
-            let variance = self.readByte()? as u8;
+            let variance = self.readByte()?;
+            // `Variance.fromEncoding` (`values[encoding]`) unless it is the
+            // legacy-covariant marker (4).
+            let variance = if variance == 4 { 4 } else { self.enumValue(variance, 4)? };
             let name = self.readStringReference()?;
             let bound = self.readDartType()?;
             let defaultType = self.readDartType()?;
@@ -2044,6 +2636,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readExpressionList(&mut self) -> Result<Vec<Expression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut expressions = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             expressions.push(self.readExpression()?);
@@ -2077,6 +2670,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readNamedExpressionList(&mut self) -> Result<Vec<NamedExpression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut named = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readStringReference()?;
@@ -2105,6 +2699,12 @@ impl<'a> BinaryBuilder<'a> {
             Tag::LoadLibrary | Tag::CheckLibraryIsLoaded => {
                 let fileOffset = self.readOffset()?;
                 let import = self.readUInt30()?;
+                // `_currentLibrary!.dependencies[index]`.
+                match self.currentLibraryDependencyCount {
+                    None => return self.nullCheckFailure(),
+                    Some(count) if import as usize >= count => return self.indexFailure(import as i64, count),
+                    Some(_) => {}
+                }
                 if tag == Tag::LoadLibrary {
                     Expression::LoadLibrary { fileOffset, import }
                 } else {
@@ -2139,7 +2739,7 @@ impl<'a> BinaryBuilder<'a> {
                         variable,
                         promotedType: None,
                     },
-                    None => return self.fail(format!("Unexpected variable index: {index}.")),
+                    None => return self.indexFailure(index as i64, self.variableStack.len()),
                 }
             }
             Tag::VariableSet => {
@@ -2157,7 +2757,7 @@ impl<'a> BinaryBuilder<'a> {
                 self.readUInt30()?; // offset of the variable declaration in the binary.
                 let variable = match self.variableStack.get(index) {
                     Some(&variable) => variable,
-                    None => return self.fail(format!("Unexpected variable index: {index}.")),
+                    None => return self.indexFailure(index as i64, self.variableStack.len()),
                 };
                 Expression::VariableSet {
                     fileOffset,
@@ -2166,7 +2766,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceGet | Tag::InstanceTearOff => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2193,7 +2794,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicGet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 Expression::DynamicGet {
@@ -2207,6 +2809,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let receiverType = self.readDartType()?;
+                self.castType(&receiverType, matches!(receiverType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordIndexGet {
                     fileOffset,
                     receiver,
@@ -2218,6 +2821,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let receiverType = self.readDartType()?;
+                self.castType(&receiverType, matches!(receiverType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordNameGet {
                     fileOffset,
                     receiver,
@@ -2226,7 +2830,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceSet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2241,7 +2846,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicSet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2283,14 +2889,14 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 Expression::StaticGet {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::ConstructorTearOff => {
                 let fileOffset = self.readOffset()?;
                 Expression::ConstructorTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::TypedefTearOff => {
@@ -2311,19 +2917,19 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 Expression::RedirectingFactoryTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::StaticTearOff => {
                 let fileOffset = self.readOffset()?;
                 Expression::StaticTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::StaticSet => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::StaticSet {
                     fileOffset,
                     targetReference,
@@ -2331,13 +2937,15 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
                 let arguments = self.readArguments()?;
                 let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 let resultType = self.readDartType()?;
                 Expression::InstanceInvocation {
                     kind,
@@ -2352,7 +2960,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceGetterInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
@@ -2371,7 +2980,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
@@ -2386,7 +2996,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::FunctionInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let arguments = self.readArguments()?;
@@ -2408,12 +3019,15 @@ impl<'a> BinaryBuilder<'a> {
             Tag::LocalFunctionInvocation => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariableReference()?;
+                self.castVariable(variable, |k| k == Tag::LocalFunctionVariable, "LocalFunctionVariable")?;
                 let arguments = self.readArguments()?;
+                let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 Expression::LocalFunctionInvocation {
                     fileOffset,
                     variable,
                     arguments: Box::new(arguments),
-                    functionType: Box::new(self.readDartType()?),
+                    functionType: Box::new(functionType),
                 }
             }
             Tag::EqualsNull => {
@@ -2428,6 +3042,7 @@ impl<'a> BinaryBuilder<'a> {
                 let left = self.boxed()?;
                 let right = self.boxed()?;
                 let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 Expression::EqualsCall {
                     fileOffset,
                     left,
@@ -2452,7 +3067,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::StaticInvocation | Tag::ConstStaticInvocation => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::StaticInvocation {
                     isConst: tag == Tag::ConstStaticInvocation,
                     fileOffset,
@@ -2462,7 +3077,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::ConstructorInvocation | Tag::ConstConstructorInvocation => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::ConstructorInvocation {
                     isConst: tag == Tag::ConstConstructorInvocation,
                     fileOffset,
@@ -2472,11 +3087,15 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::RedirectingFactoryInvocation => {
                 let fileOffset = self.readOffset()?;
-                let redirectingFactoryTargetReference = self.readNonNullCanonicalNameReference()?;
+                let redirectingFactoryTargetReference = self.readNonNullMemberReference()?;
+                let expression = self.boxed()?;
+                if !isInvocationExpression(&expression) {
+                    return self.castFailure(expressionRuntimeType(&expression), "InvocationExpression");
+                }
                 Expression::RedirectingFactoryInvocation {
                     fileOffset,
                     redirectingFactoryTargetReference,
-                    expression: self.boxed()?,
+                    expression,
                 }
             }
             Tag::Not => {
@@ -2517,7 +3136,11 @@ impl<'a> BinaryBuilder<'a> {
                     condition,
                     then,
                     otherwise,
-                    staticType: self.readDartTypeOption()?.map(Box::new),
+                    // `readDartTypeOption()!`.
+                    staticType: match self.readDartTypeOption()? {
+                        Some(t) => Some(Box::new(t)),
+                        None => return self.nullCheckFailure(),
+                    },
                 }
             }
             Tag::StringConcatenation => {
@@ -2558,7 +3181,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::InstanceCreation => {
                 let fileOffset = self.readOffset()?;
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let classReference = self.readNonNullClassReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let fieldValueCount = self.readUInt30()?;
                 let mut fieldValues: Vec<(CnId, Expression)> =
@@ -2572,9 +3195,14 @@ impl<'a> BinaryBuilder<'a> {
                     }
                 }
                 let assertCount = self.readUInt30()?;
+                self.dartList(assertCount as u64)?;
                 let mut asserts = Vec::with_capacity(self.cap(assertCount as usize));
                 for _ in 0..assertCount {
-                    asserts.push(self.readStatement()?);
+                    let statement = self.readStatement()?;
+                    if !matches!(statement, Statement::Assert { .. }) {
+                        return self.castFailure(statementRuntimeType(&statement), "AssertStatement");
+                    }
+                    asserts.push(statement);
                 }
                 let unusedArguments = self.readExpressionList()?;
                 Expression::InstanceCreation {
@@ -2646,9 +3274,16 @@ impl<'a> BinaryBuilder<'a> {
             Tag::BigIntLiteral => {
                 let fileOffset = self.readOffset()?;
                 let text = self.readStringReference()?;
+                // `int.parse(readStringReference())`.
                 let value = match parseDartInt(self.component.strings.get(text)) {
                     Some(value) => value,
-                    None => return self.fail("BigIntLiteral is not an int"),
+                    None => {
+                        let units = dart_core::uri::decodeWtf8(self.component.strings.get(text)).unwrap_or_default();
+                        match dartIntParse(&units) {
+                            Ok(value) => value,
+                            Err(thrown) => return self.thrown(thrown),
+                        }
+                    }
                 };
                 Expression::IntLiteral { fileOffset, value }
             }
@@ -2720,6 +3355,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartType()?;
                 let valueType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let key = self.readExpression()?;
@@ -2738,12 +3374,14 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let positional = self.readExpressionList()?;
                 let named = self.readNamedExpressionList()?;
+                let recordType = self.readDartType()?;
+                self.castType(&recordType, matches!(recordType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordLiteral {
                     isConst: tag == Tag::ConstRecordLiteral,
                     fileOffset,
                     positional,
                     named,
-                    recordType: Box::new(self.readDartType()?),
+                    recordType: Box::new(recordType),
                 }
             }
             Tag::AwaitExpression => {
@@ -2758,7 +3396,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FunctionExpression => {
                 let fileOffset = self.readOffset()?;
                 let id = self.readUInt30()?;
-                let (function, _) = self.readFunctionNode()?;
+                let (function, _) = self.readFunctionNode(false, -1)?;
                 Expression::FunctionExpression {
                     fileOffset,
                     id,
@@ -2768,10 +3406,17 @@ impl<'a> BinaryBuilder<'a> {
             Tag::Let => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariable()?;
+                if variable.kind != Tag::SyntheticVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "SyntheticVariable");
+                }
                 let stackHeight = self.variableStack.len();
                 self.variableStack.push(variable.id);
                 let body = self.boxed()?;
                 self.variableStack.truncate(stackHeight);
+                // `variable.initializer!`.
+                if variable.initializer.is_none() {
+                    return self.nullCheckFailure();
+                }
                 Expression::Let {
                     fileOffset,
                     variable,
@@ -2827,6 +3472,7 @@ impl<'a> BinaryBuilder<'a> {
                 let expression = self.boxed()?;
                 let expressionType = self.readDartTypeOption()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut cases = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let fileOffset = self.readOffset()?;
@@ -2865,6 +3511,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readPatternList(&mut self) -> Result<Vec<Pattern>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut patterns = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             patterns.push(self.readPattern()?);
@@ -2888,10 +3535,16 @@ impl<'a> BinaryBuilder<'a> {
         let name = self.readStringReference()?;
         let pattern = Box::new(self.readPattern()?);
         let fieldName = self.readName()?;
-        let accessKind = self.readByte()? as u8;
+        let accessKind = self.readByte()?;
+        let accessKind = self.enumValue(accessKind, 12)?;
         let targetReference = self.readNullableCanonicalNameReference()?;
         let resultType = self.readDartTypeOption()?;
         let recordType = self.readDartTypeOption()?;
+        if let Some(t) = &recordType
+            && !matches!(t, DartType::Record(_))
+        {
+            return self.castFailure(self.dartTypeRuntimeType(t), "RecordType?");
+        }
         let recordFieldIndex = self.readUInt30()?;
         let typeArguments = if self.readAndCheckOptionTag()? {
             Some(self.readDartTypeList()?)
@@ -2961,22 +3614,30 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let expression = self.boxed()?;
                 let expressionType = self.readDartType()?;
-                let equalsTargetReference = self.readNonNullCanonicalNameReference()?;
+                let equalsTargetReference = self.readNonNullMemberReference()?;
+                let equalsType = self.readDartType()?;
+                self.castType(&equalsType, matches!(equalsType, DartType::Function(_)), "FunctionType")?;
                 Pattern::Constant {
                     fileOffset,
                     expression,
                     expressionType,
                     equalsTargetReference,
-                    equalsType: self.readDartType()?,
+                    equalsType,
                 }
             }
             Tag::InvalidPattern => {
                 let fileOffset = self.readOffset()?;
                 let invalidExpression = self.boxed()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut declaredVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
-                    declaredVariables.push(*self.readAndPushVariable()?);
+                    let variable = self.readVariable()?;
+                    if !isDeclaredVariable(variable.kind) {
+                        return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                    }
+                    self.variableStack.push(variable.id);
+                    declaredVariables.push(*variable);
                 }
                 Pattern::Invalid {
                     fileOffset,
@@ -2992,16 +3653,20 @@ impl<'a> BinaryBuilder<'a> {
                 let matchedValueType = self.readDartType()?;
                 let flags = self.readByte()? as u8;
                 let lookupType = self.readDartType()?;
-                let lengthTargetReference = self.readNonNullCanonicalNameReference()?;
+                let lengthTargetReference = self.readNonNullMemberReference()?;
                 let lengthType = self.readDartType()?;
-                let lengthCheckTargetReference = self.readNonNullCanonicalNameReference()?;
+                let lengthCheckTargetReference = self.readNonNullMemberReference()?;
                 let lengthCheckType = self.readDartType()?;
-                let sublistTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&lengthCheckType, matches!(lengthCheckType, DartType::Function(_)), "FunctionType")?;
+                let sublistTargetReference = self.readNonNullMemberReference()?;
                 let sublistType = self.readDartType()?;
-                let minusTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&sublistType, matches!(sublistType, DartType::Function(_)), "FunctionType")?;
+                let minusTargetReference = self.readNonNullMemberReference()?;
                 let minusType = self.readDartType()?;
-                let indexGetTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&minusType, matches!(minusType, DartType::Function(_)), "FunctionType")?;
+                let indexGetTargetReference = self.readNonNullMemberReference()?;
                 let indexGetType = self.readDartType()?;
+                self.castType(&indexGetType, matches!(indexGetType, DartType::Function(_)), "FunctionType")?;
                 Pattern::List {
                     fileOffset,
                     typeArgument,
@@ -3027,6 +3692,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartTypeOption()?;
                 let valueType = self.readDartTypeOption()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let tag = self.readByte()?;
@@ -3052,10 +3718,12 @@ impl<'a> BinaryBuilder<'a> {
                 let matchedValueType = self.readDartType()?;
                 let flags = self.readByte()? as u8;
                 let lookupType = self.readDartType()?;
-                let containsKeyTargetReference = self.readNonNullCanonicalNameReference()?;
+                let containsKeyTargetReference = self.readNonNullMemberReference()?;
                 let containsKeyType = self.readDartType()?;
-                let indexGetTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&containsKeyType, matches!(containsKeyType, DartType::Function(_)), "FunctionType")?;
+                let indexGetTargetReference = self.readNonNullMemberReference()?;
                 let indexGetType = self.readDartType()?;
+                self.castType(&indexGetType, matches!(indexGetType, DartType::Function(_)), "FunctionType")?;
                 Pattern::Map {
                     fileOffset,
                     keyType,
@@ -3091,11 +3759,12 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let requiredType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut fields = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     match self.readPattern()? {
                         Pattern::Named(named) => fields.push(named),
-                        _ => return self.fail("an object pattern field is not a named pattern"),
+                        other => return self.castFailure(patternRuntimeType(&other), "NamedPattern"),
                     }
                 }
                 let matchedValueType = self.readDartType()?;
@@ -3112,9 +3781,12 @@ impl<'a> BinaryBuilder<'a> {
                 let left = Box::new(self.readPattern()?);
                 let right = Box::new(self.readPattern()?);
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut orPatternJointVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
-                    orPatternJointVariables.push(self.readVariableReference()?);
+                    let variable = self.readVariableReference()?;
+                    self.castVariable(variable, isDeclaredVariable, "DeclaredVariable")?;
+                    orPatternJointVariables.push(variable);
                 }
                 Pattern::Or {
                     fileOffset,
@@ -3127,24 +3799,29 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let patterns = self.readPatternList()?;
                 let requiredType = self.readDartType()?;
+                self.castType(&requiredType, matches!(requiredType, DartType::Record(_)), "RecordType")?;
                 let matchedValueType = self.readDartType()?;
                 let needsCheck = self.readByte()? == 1;
+                let lookupType = self.readDartType()?;
+                self.castType(&lookupType, matches!(lookupType, DartType::Record(_)), "RecordType")?;
                 Pattern::Record {
                     fileOffset,
                     patterns,
                     requiredType,
                     matchedValueType,
                     needsCheck,
-                    lookupType: self.readDartType()?,
+                    lookupType,
                 }
             }
             Tag::RelationalPattern => {
                 let fileOffset = self.readOffset()?;
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 6)?;
                 let expression = self.boxed()?;
                 let expressionType = self.readDartType()?;
                 let matchedValueType = self.readDartType()?;
-                let accessKind = self.readByte()? as u8;
+                let accessKind = self.readByte()?;
+                let accessKind = self.enumValue(accessKind, 5)?;
                 let name = self.readName()?;
                 let targetReference = self.readNullableCanonicalNameReference()?;
                 let typeArguments = if self.readAndCheckOptionTag()? {
@@ -3162,7 +3839,13 @@ impl<'a> BinaryBuilder<'a> {
                     name,
                     targetReference,
                     typeArguments,
-                    functionType: self.readDartTypeOption()?,
+                    functionType: {
+                        let functionType = self.readDartTypeOption()?;
+                        if let Some(t) = &functionType {
+                            self.castType(t, matches!(t, DartType::Function(_)), "FunctionType?")?;
+                        }
+                        functionType
+                    },
                 }
             }
             Tag::RestPattern => {
@@ -3181,6 +3864,9 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let r#type = self.readDartTypeOption()?;
                 let variable = self.readVariable()?;
+                if !isDeclaredVariable(variable.kind) {
+                    return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                }
                 Pattern::Variable {
                     fileOffset,
                     r#type,
@@ -3203,6 +3889,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readStatementList(&mut self) -> Result<Vec<Statement>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut statements = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             statements.push(self.readStatement()?);
@@ -3355,6 +4042,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let scopeSize = self.readScopeSizeAndAllocateContexts()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut variables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     variables.push(self.readVariableDeclaration()?);
@@ -3379,7 +4067,12 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let bodyOffset = self.readOffset()?;
                 let scopeSize = self.readScopeSizeAndAllocateContexts()?;
-                let variable = self.readAndPushVariable()?;
+                // `readAndPushDeclaredVariable`.
+                let variable = self.readVariable()?;
+                if !isDeclaredVariable(variable.kind) {
+                    return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                }
+                self.variableStack.push(variable.id);
                 let iterable = self.boxed()?;
                 let body = self.boxedStatement()?;
                 let scope = self.readOptionalScope(scopeSize)?;
@@ -3406,6 +4099,7 @@ impl<'a> BinaryBuilder<'a> {
                 for id in ids {
                     let fileOffset = self.readOffset()?;
                     let length = self.readUInt30()?;
+                    self.dartList(length as u64)?;
                     let mut expressionOffsets = Vec::with_capacity(self.cap(length as usize));
                     let mut expressions = Vec::with_capacity(self.cap(length as usize));
                     for _ in 0..length {
@@ -3446,6 +4140,7 @@ impl<'a> BinaryBuilder<'a> {
                 let body = self.boxedStatement()?;
                 let flags = self.readByte()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut catches = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     catches.push(self.readCatch()?);
@@ -3478,10 +4173,13 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FunctionDeclaration => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariable()?;
+                if variable.kind != Tag::LocalFunctionVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "LocalFunctionVariable");
+                }
                 // Popped by the enclosing scope.
                 self.variableStack.push(variable.id);
                 let id = self.readUInt30()?;
-                let (function, _) = self.readFunctionNode()?;
+                let (function, _) = self.readFunctionNode(false, -1)?;
                 Statement::FunctionDeclaration {
                     fileOffset,
                     variable,
@@ -3563,13 +4261,23 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
+    /// `as CatchVariable?`.
+    fn castCatchVariable(&self, variable: &Option<Box<Variable>>) -> Result<()> {
+        match variable {
+            Some(v) if v.kind != Tag::CatchVariable => self.castFailure(variableRuntimeType(v.kind), "CatchVariable?"),
+            _ => Ok(()),
+        }
+    }
+
     fn readCatch(&mut self) -> Result<Catch> {
         let variableStackHeight = self.variableStack.len();
         let fileOffset = self.readOffset()?;
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let guard = self.readDartType()?;
         let exception = self.readAndPushVariableOption()?;
+        self.castCatchVariable(&exception)?;
         let stackTrace = self.readAndPushVariableOption()?;
+        self.castCatchVariable(&stackTrace)?;
         let body = self.boxedStatement()?;
         let scope = self.readOptionalScope(scopeSize)?;
         self.variableStack.truncate(variableStackHeight);
@@ -3908,5 +4616,514 @@ fn constantsEqual(a: &Constant, b: &Constant) -> bool {
             Constant::Instance { classReference: c2, typeArguments: t2, fieldValues: f2 },
         ) => c1 == c2 && t1 == t2 && sameMap(f1, f2),
         _ => a == b,
+    }
+}
+
+/// The `runtimeType` of a variable read with tag [kind].
+pub fn variableRuntimeType(kind: u32) -> &'static str {
+    match kind {
+        Tag::LocalVariable => "LocalVariable",
+        Tag::LateVariable => "LateVariable",
+        Tag::SyntheticVariable => "SyntheticVariable",
+        Tag::CatchVariable => "CatchVariable",
+        Tag::PositionalParameter => "PositionalParameter",
+        Tag::NamedParameter => "NamedParameter",
+        Tag::ThisVariable => "ThisVariable",
+        Tag::LocalFunctionVariable => "LocalFunctionVariable",
+        _ => "ConstVariable",
+    }
+}
+
+/// The `runtimeType` of a type, given which type parameters are
+/// structural ones.
+pub fn dartTypeRuntimeType(t: &DartType, isStructural: impl Fn(TypeParamId) -> bool) -> &'static str {
+    match t {
+        DartType::Never { .. } => "NeverType",
+        DartType::Invalid => "InvalidType",
+        DartType::Dynamic => "DynamicType",
+        DartType::Void => "VoidType",
+        DartType::Null => "NullType",
+        DartType::Interface { .. } => "InterfaceType",
+        DartType::Function(_) => "FunctionType",
+        DartType::Record(_) => "RecordType",
+        DartType::TypeParameter { parameter, .. } => {
+            if isStructural(*parameter) {
+                "StructuralParameterType"
+            } else {
+                "TypeParameterType"
+            }
+        }
+        DartType::Intersection { .. } => "IntersectionType",
+        DartType::Extension { .. } => "ExtensionType",
+        DartType::Typedef { .. } => "TypedefType",
+        DartType::FutureOr { .. } => "FutureOrType",
+    }
+}
+
+/// A string (WTF-8) as upstream's oracle prints it: UTF-8, each lone
+/// surrogate as U+FFFD (what `stdout`'s encoder does).
+pub fn wtf8ToString(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_string(),
+        Err(_) => match dart_core::uri::decodeWtf8(bytes) {
+            Ok(units) => String::from_utf16_lossy(&units),
+            Err(_) => String::from_utf8_lossy(bytes).into_owned(),
+        },
+    }
+}
+
+/// The `runtimeType` of an expression.
+pub fn expressionRuntimeType(e: &Expression) -> &'static str {
+    match e {
+        Expression::Invalid { .. } => "InvalidExpression",
+        Expression::SuperPropertyGet { isAbstract: true, .. } => "AbstractSuperPropertyGet",
+        Expression::SuperPropertySet { isAbstract: true, .. } => "AbstractSuperPropertySet",
+        Expression::SuperMethodInvocation { isAbstract: true, .. } => "AbstractSuperMethodInvocation",
+        Expression::VariableGet { .. } => "VariableGet",
+        Expression::VariableSet { .. } => "VariableSet",
+        Expression::SuperPropertyGet { .. } => "SuperPropertyGet",
+        Expression::SuperPropertySet { .. } => "SuperPropertySet",
+        Expression::InstanceGet { .. } => "InstanceGet",
+        Expression::RecordIndexGet { .. } => "RecordIndexGet",
+        Expression::RecordNameGet { .. } => "RecordNameGet",
+        Expression::InstanceSet { .. } => "InstanceSet",
+        Expression::InstanceTearOff { .. } => "InstanceTearOff",
+        Expression::DynamicGet { .. } => "DynamicGet",
+        Expression::DynamicSet { .. } => "DynamicSet",
+        Expression::StaticGet { .. } => "StaticGet",
+        Expression::StaticTearOff { .. } => "StaticTearOff",
+        Expression::ConstructorTearOff { .. } => "ConstructorTearOff",
+        Expression::RedirectingFactoryTearOff { .. } => "RedirectingFactoryTearOff",
+        Expression::TypedefTearOff { .. } => "TypedefTearOff",
+        Expression::StaticSet { .. } => "StaticSet",
+        Expression::InstanceInvocation { .. } => "InstanceInvocation",
+        Expression::InstanceGetterInvocation { .. } => "InstanceGetterInvocation",
+        Expression::DynamicInvocation { .. } => "DynamicInvocation",
+        Expression::FunctionInvocation { .. } => "FunctionInvocation",
+        Expression::FunctionTearOff { .. } => "FunctionTearOff",
+        Expression::LocalFunctionInvocation { .. } => "LocalFunctionInvocation",
+        Expression::EqualsNull { .. } => "EqualsNull",
+        Expression::EqualsCall { .. } => "EqualsCall",
+        Expression::SuperMethodInvocation { .. } => "SuperMethodInvocation",
+        Expression::StaticInvocation { .. } => "StaticInvocation",
+        Expression::ConstructorInvocation { .. } => "ConstructorInvocation",
+        Expression::RedirectingFactoryInvocation { .. } => "RedirectingFactoryInvocation",
+        Expression::Not { .. } => "Not",
+        Expression::NullCheck { .. } => "NullCheck",
+        Expression::LogicalExpression { .. } => "LogicalExpression",
+        Expression::ConditionalExpression { .. } => "ConditionalExpression",
+        Expression::StringConcatenation { .. } => "StringConcatenation",
+        Expression::ListConcatenation { .. } => "ListConcatenation",
+        Expression::SetConcatenation { .. } => "SetConcatenation",
+        Expression::MapConcatenation { .. } => "MapConcatenation",
+        Expression::InstanceCreation { .. } => "InstanceCreation",
+        Expression::FileUriExpression { .. } => "FileUriExpression",
+        Expression::IsExpression { .. } => "IsExpression",
+        Expression::AsExpression { .. } => "AsExpression",
+        Expression::StringLiteral { .. } => "StringLiteral",
+        Expression::IntLiteral { .. } => "IntLiteral",
+        Expression::DoubleLiteral { .. } => "DoubleLiteral",
+        Expression::BoolLiteral { .. } => "BoolLiteral",
+        Expression::NullLiteral { .. } => "NullLiteral",
+        Expression::SymbolLiteral { .. } => "SymbolLiteral",
+        Expression::TypeLiteral { .. } => "TypeLiteral",
+        Expression::ThisExpression { .. } => "ThisExpression",
+        Expression::Rethrow { .. } => "Rethrow",
+        Expression::Throw { .. } => "Throw",
+        Expression::ListLiteral { .. } => "ListLiteral",
+        Expression::SetLiteral { .. } => "SetLiteral",
+        Expression::MapLiteral { .. } => "MapLiteral",
+        Expression::RecordLiteral { .. } => "RecordLiteral",
+        Expression::AwaitExpression { .. } => "AwaitExpression",
+        Expression::FunctionExpression { .. } => "FunctionExpression",
+        Expression::Let { .. } => "Let",
+        Expression::BlockExpression { .. } => "BlockExpression",
+        Expression::Instantiation { .. } => "Instantiation",
+        Expression::LoadLibrary { .. } => "LoadLibrary",
+        Expression::CheckLibraryIsLoaded { .. } => "CheckLibraryIsLoaded",
+        Expression::ConstantExpression { .. } => "ConstantExpression",
+        Expression::FileUriConstantExpression { .. } => "FileUriConstantExpression",
+        Expression::SwitchExpression { .. } => "SwitchExpression",
+        Expression::PatternAssignment { .. } => "PatternAssignment",
+    }
+}
+
+/// Upstream's `InvocationExpression` classes.
+pub fn isInvocationExpression(e: &Expression) -> bool {
+    matches!(e, Expression::InstanceInvocation { .. } | Expression::InstanceGetterInvocation { .. } | Expression::DynamicInvocation { .. } | Expression::FunctionInvocation { .. } | Expression::LocalFunctionInvocation { .. } | Expression::SuperMethodInvocation { .. } | Expression::StaticInvocation { .. } | Expression::ConstructorInvocation { .. })
+}
+
+/// The `runtimeType` of a statement.
+pub fn statementRuntimeType(s: &Statement) -> &'static str {
+    match s {
+        Statement::Expression { .. } => "ExpressionStatement",
+        Statement::Block { .. } => "Block",
+        Statement::AssertBlock { .. } => "AssertBlock",
+        Statement::Empty { .. } => "EmptyStatement",
+        Statement::Assert { .. } => "AssertStatement",
+        Statement::Labeled { .. } => "LabeledStatement",
+        Statement::Break { .. } => "BreakStatement",
+        Statement::While { .. } => "WhileStatement",
+        Statement::Do { .. } => "DoStatement",
+        Statement::For { .. } => "ForStatement",
+        Statement::ForIn { .. } => "ForInStatement",
+        Statement::Switch { .. } => "SwitchStatement",
+        Statement::ContinueSwitch { .. } => "ContinueSwitchStatement",
+        Statement::If { .. } => "IfStatement",
+        Statement::Return { .. } => "ReturnStatement",
+        Statement::TryCatch { .. } => "TryCatch",
+        Statement::TryFinally { .. } => "TryFinally",
+        Statement::Yield { .. } => "YieldStatement",
+        Statement::VariableStatement { .. } => "VariableStatement",
+        Statement::FunctionDeclaration { .. } => "FunctionDeclaration",
+        Statement::IfCase { .. } => "IfCaseStatement",
+        Statement::PatternVariableDeclaration { .. } => "PatternVariableDeclaration",
+        Statement::PatternSwitch { .. } => "PatternSwitchStatement",
+    }
+}
+
+/// The `runtimeType` of a pattern.
+pub fn patternRuntimeType(p: &Pattern) -> &'static str {
+    match p {
+        Pattern::And { .. } => "AndPattern",
+        Pattern::AssignedVariable { .. } => "AssignedVariablePattern",
+        Pattern::Cast { .. } => "CastPattern",
+        Pattern::Constant { .. } => "ConstantPattern",
+        Pattern::Invalid { .. } => "InvalidPattern",
+        Pattern::List { .. } => "ListPattern",
+        Pattern::Map { .. } => "MapPattern",
+        Pattern::Named { .. } => "NamedPattern",
+        Pattern::NullAssert { .. } => "NullAssertPattern",
+        Pattern::NullCheck { .. } => "NullCheckPattern",
+        Pattern::Object { .. } => "ObjectPattern",
+        Pattern::Or { .. } => "OrPattern",
+        Pattern::Record { .. } => "RecordPattern",
+        Pattern::Relational { .. } => "RelationalPattern",
+        Pattern::Rest { .. } => "RestPattern",
+        Pattern::Variable { .. } => "VariablePattern",
+        Pattern::Wildcard { .. } => "WildcardPattern",
+    }
+}
+
+/// Upstream's `DeclaredVariable` classes, by tag.
+pub fn isDeclaredVariable(kind: u32) -> bool {
+    matches!(
+        kind,
+        Tag::LocalVariable | Tag::LateVariable | Tag::LocalFunctionVariable | Tag::ConstVariable | Tag::SyntheticVariable
+    )
+}
+
+/// The `runtimeType` of a constant.
+pub fn constantRuntimeType(c: &Constant) -> &'static str {
+    match c {
+        Constant::Null { .. } => "NullConstant",
+        Constant::Bool { .. } => "BoolConstant",
+        Constant::Int { .. } => "IntConstant",
+        Constant::Double { .. } => "DoubleConstant",
+        Constant::String { .. } => "StringConstant",
+        Constant::Symbol { .. } => "SymbolConstant",
+        Constant::Map { .. } => "MapConstant",
+        Constant::List { .. } => "ListConstant",
+        Constant::Set { .. } => "SetConstant",
+        Constant::Record { .. } => "RecordConstant",
+        Constant::Instance { .. } => "InstanceConstant",
+        Constant::Instantiation { .. } => "InstantiationConstant",
+        Constant::StaticTearOff { .. } => "StaticTearOffConstant",
+        Constant::ConstructorTearOff { .. } => "ConstructorTearOffConstant",
+        Constant::RedirectingFactoryTearOff { .. } => "RedirectingFactoryTearOffConstant",
+        Constant::TypeLiteral { .. } => "TypeLiteralConstant",
+        Constant::Unevaluated { .. } => "UnevaluatedConstant",
+        Constant::TypedefTearOff { .. } => "TypedefTearOffConstant",
+    }
+}
+
+/// The VM's `int.parse(source)` (sdk/lib/_internal/vm_shared/lib/
+/// integers_patch.dart, 64-bit): the value, or what it throws (a
+/// `FormatException`, as its `toString()` prints it).
+pub fn dartIntParse(source: &[u16]) -> std::result::Result<i64, String> {
+    fn isWhitespace(c: u16) -> bool {
+        if c <= 32 {
+            return c == 32 || (9..=13).contains(&c);
+        }
+        if c < 0x85 {
+            return false;
+        }
+        if c == 0x85 || c == 0xA0 {
+            return true;
+        }
+        if c <= 0x200A {
+            c == 0x1680 || 0x2000 <= c
+        } else {
+            matches!(c, 0x2028 | 0x2029 | 0x202F | 0x205F | 0x3000 | 0xFEFF)
+        }
+    }
+    // `_handleFormatError`: `FormatException(message, source, index)`.
+    let formatError = |index: Option<usize>, radix: Option<u32>, message: Option<&str>| -> String {
+        let message = match message {
+            Some(m) => m.to_string(),
+            None => match radix {
+                None => "Invalid number".to_string(),
+                Some(r) => format!("Invalid radix-{r} number"),
+            },
+        };
+        formatExceptionToString(&message, source, index)
+    };
+    if source.is_empty() {
+        return Err(formatError(Some(0), None, None));
+    }
+    let end = match source.iter().rposition(|&c| !isWhitespace(c)) {
+        Some(last) => last + 1,
+        None => return Err(formatError(Some(source.len()), None, None)),
+    };
+    let mut start = source.iter().position(|&c| !isWhitespace(c)).unwrap();
+    let mut first = source[start];
+    let mut sign: i64 = 1;
+    if first == 0x2b || first == 0x2d {
+        sign = 0x2c - first as i64;
+        start += 1;
+        if start == end {
+            return Err(formatError(Some(end), None, None));
+        }
+        first = source[start];
+    }
+    let mut radix = 10;
+    let mut allowU64 = false;
+    if first == 0x30 {
+        start += 1;
+        if start == end {
+            return Ok(0);
+        }
+        first = source[start];
+        if (first | 0x20) == 0x78 {
+            start += 1;
+            if start == end {
+                return Err(formatError(Some(start), None, None));
+            }
+            radix = 16;
+            allowU64 = sign > 0;
+        }
+    }
+    // `_parseRadix`.
+    while start < end && source[start] == 0x30 {
+        start += 1;
+    }
+    let length = end - start;
+    if length == 0 {
+        return Ok(0);
+    }
+    let (blockSize, multiplier, positiveLimit, negativeLimit, positiveSmiLimit, negativeSmiLimit): (usize, i64, i64, i64, i64, i64) =
+        if radix == 10 {
+            (18, 1_000_000_000_000_000_000, 0x9, -0x9, 0x31993af1d7bffff, 0x31993af1d7c0000)
+        } else {
+            (15, 1_152_921_504_606_846_976, 0x7, -0x8, 0xfffffffffffffff, 0x0)
+        };
+    let parseBlock = |from: usize, to: usize| -> Option<i64> {
+        let mut result: i64 = 0;
+        for &c in &source[from..to] {
+            let mut digit = (c ^ 0x30) as i64;
+            if radix == 16 && digit > 9 {
+                digit = ((c | 0x20) as i64) - (0x61 - 10);
+                if digit < 10 || digit >= 16 {
+                    return None;
+                }
+            } else if digit >= radix as i64 {
+                return None;
+            }
+            result = result.wrapping_mul(radix as i64).wrapping_add(digit);
+        }
+        Some(result)
+    };
+    if length <= blockSize {
+        return match parseBlock(start, end) {
+            Some(smi) => Ok(sign * smi),
+            None => Err(formatError(Some(start), Some(radix), None)),
+        };
+    }
+    let mut result: i64 = 0;
+    let smallBlockSize = length % blockSize;
+    if smallBlockSize > 0 {
+        let blockEnd = start + smallBlockSize;
+        match parseBlock(start, blockEnd) {
+            Some(smi) => result = sign * smi,
+            None => return Err(formatError(Some(start), Some(radix), None)),
+        }
+        start = blockEnd;
+    }
+    let mut blockEnd = start + blockSize;
+    loop {
+        let Some(smi) = parseBlock(start, blockEnd) else {
+            return Err(formatError(Some(start), Some(radix), None));
+        };
+        if result >= positiveLimit {
+            if result > positiveLimit || smi > positiveSmiLimit {
+                if allowU64 && blockEnd == end && result <= 0xF {
+                    return Ok(result.wrapping_mul(multiplier).wrapping_add(smi));
+                }
+                return Err(formatError(None, Some(radix), Some("Positive input exceeds the limit of integer")));
+            }
+        } else if result <= negativeLimit && (result < negativeLimit || smi > negativeSmiLimit) {
+            return Err(formatError(None, Some(radix), Some("Negative input exceeds the limit of integer")));
+        }
+        result = result.wrapping_mul(multiplier).wrapping_add(sign * smi);
+        start = blockEnd;
+        blockEnd = start + blockSize;
+        if blockEnd > end {
+            return Ok(result);
+        }
+    }
+}
+
+/// `FormatException(message, source, offset).toString()` for a string
+/// source.
+pub fn formatExceptionToString(message: &str, source: &[u16], offset: Option<usize>) -> String {
+    let text = |units: &[u16]| String::from_utf16_lossy(units);
+    let mut report = "FormatException".to_string();
+    if !message.is_empty() {
+        report = format!("{report}: {message}");
+    }
+    let offset = offset.filter(|&o| o <= source.len());
+    let Some(offset) = offset else {
+        let shown = if source.len() > 78 {
+            format!("{}...", text(&source[..75]))
+        } else {
+            text(source)
+        };
+        return format!("{report}\n{shown}");
+    };
+    let mut lineNum = 1;
+    let mut lineStart = 0;
+    let mut previousCharWasCR = false;
+    for (i, &c) in source[..offset].iter().enumerate() {
+        if c == 0x0a {
+            if lineStart != i || !previousCharWasCR {
+                lineNum += 1;
+            }
+            lineStart = i + 1;
+            previousCharWasCR = false;
+        } else if c == 0x0d {
+            lineNum += 1;
+            lineStart = i + 1;
+            previousCharWasCR = true;
+        }
+    }
+    if lineNum > 1 {
+        report += &format!(" (at line {lineNum}, character {})\n", offset - lineStart + 1);
+    } else {
+        report += &format!(" (at character {})\n", offset + 1);
+    }
+    let lineEnd = source[offset..].iter().position(|&c| c == 0x0a || c == 0x0d).map_or(source.len(), |p| offset + p);
+    let (mut start, mut end) = (lineStart, lineEnd);
+    let (mut prefix, mut postfix) = ("", "");
+    if lineEnd - lineStart > 78 {
+        if offset - lineStart < 75 {
+            end = start + 75;
+            postfix = "...";
+        } else if end - offset < 75 {
+            start = end - 75;
+            prefix = "...";
+        } else {
+            start = offset - 36;
+            end = offset + 36;
+            prefix = "...";
+            postfix = "...";
+        }
+    }
+    let markOffset = offset - start + prefix.len();
+    format!("{report}{prefix}{}{postfix}\n{}^\n", text(&source[start..end]), " ".repeat(markOffset))
+}
+
+/// Upstream reads a member whose reference already points at a member of
+/// its kind into that node (`reference.node as Procedure?`, then sets its
+/// fields): the node is in both places, with what was read last. A
+/// procedure keeps the kind it was made with, a field its getter and
+/// setter references.
+#[cold]
+#[inline(never)]
+fn shareReusedMembers(component: &mut Component) {
+    use std::collections::HashMap;
+    fn eachMember(component: &Component, mut visit: impl FnMut(Member<'_>)) {
+        for library in &component.libraries {
+            for c in &library.classes {
+                c.fields.iter().for_each(|f| visit(Member::Field(f)));
+                c.constructors.iter().for_each(|k| visit(Member::Constructor(k)));
+                c.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+            }
+            for e in &library.extensionTypeDeclarations {
+                e.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+            }
+            library.fields.iter().for_each(|f| visit(Member::Field(f)));
+            library.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+        }
+    }
+    enum Member<'a> {
+        Field(&'a Field),
+        Constructor(&'a Constructor),
+        Procedure(&'a Procedure),
+    }
+    let mut counts: HashMap<u32, u32> = HashMap::new();
+    eachMember(component, |m| {
+        let id = match m {
+            Member::Field(f) => f.nodeId,
+            Member::Constructor(k) => k.nodeId,
+            Member::Procedure(p) => p.nodeId,
+        };
+        *counts.entry(id).or_default() += 1;
+    });
+    let mut fields: HashMap<u32, Field> = HashMap::new();
+    let mut constructors: HashMap<u32, Constructor> = HashMap::new();
+    let mut procedures: HashMap<u32, Procedure> = HashMap::new();
+    eachMember(component, |m| match m {
+        Member::Field(f) if counts[&f.nodeId] > 1 => match fields.get_mut(&f.nodeId) {
+            None => {
+                fields.insert(f.nodeId, f.clone());
+            }
+            Some(shared) => {
+                let (getter, setter) = (shared.getterReference, shared.setterReference);
+                *shared = f.clone();
+                shared.getterReference = getter;
+                shared.setterReference = setter;
+            }
+        },
+        Member::Constructor(k) if counts[&k.nodeId] > 1 => {
+            constructors.insert(k.nodeId, k.clone());
+        }
+        Member::Procedure(p) if counts[&p.nodeId] > 1 => match procedures.get_mut(&p.nodeId) {
+            None => {
+                procedures.insert(p.nodeId, p.clone());
+            }
+            Some(shared) => {
+                let kind = shared.kind;
+                *shared = p.clone();
+                shared.kind = kind;
+            }
+        },
+        _ => {}
+    });
+    let replaceField = |f: &mut Field| {
+        if let Some(shared) = fields.get(&f.nodeId) {
+            *f = shared.clone();
+        }
+    };
+    let replaceConstructor = |k: &mut Constructor| {
+        if let Some(shared) = constructors.get(&k.nodeId) {
+            *k = shared.clone();
+        }
+    };
+    let replaceProcedure = |p: &mut Procedure| {
+        if let Some(shared) = procedures.get(&p.nodeId) {
+            *p = shared.clone();
+        }
+    };
+    for library in &mut component.libraries {
+        for c in &mut library.classes {
+            c.fields.iter_mut().for_each(replaceField);
+            c.constructors.iter_mut().for_each(replaceConstructor);
+            c.procedures.iter_mut().for_each(replaceProcedure);
+        }
+        for e in &mut library.extensionTypeDeclarations {
+            e.procedures.iter_mut().for_each(replaceProcedure);
+        }
+        library.fields.iter_mut().for_each(replaceField);
+        library.procedures.iter_mut().for_each(replaceProcedure);
     }
 }

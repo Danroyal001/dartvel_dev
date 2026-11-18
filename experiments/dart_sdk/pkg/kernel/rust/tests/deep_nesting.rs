@@ -14,8 +14,11 @@ fn the_deepest_chain_upstream_writes_is_written() {
 
 #[test]
 fn one_level_deeper_throws_stack_overflow() {
+    // Upstream reads `main`'s body lazily, when its writer reaches it, and
+    // throws there; so does the port.
     let bytes = include_bytes!("fixtures/not-chain-4203.dill");
-    let error = loadComponentFromBytes(bytes).err().expect("read a chain upstream cannot");
+    let component = loadComponentFromBytes(bytes).expect("main's body is read when it is written");
+    let error = writeComponentToBytes(&component).err().expect("wrote a chain upstream cannot");
     assert_eq!(error.to_string(), "Stack Overflow");
 }
 

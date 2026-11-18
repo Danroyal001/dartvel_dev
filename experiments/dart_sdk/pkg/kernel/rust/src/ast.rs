@@ -113,6 +113,111 @@ pub struct Component {
     pub nextContext: ContextId,
     pub nextLabel: LabelId,
     pub nextSwitchCase: SwitchCaseId,
+    /// Upstream's references and the nodes they point at, for its errors.
+    pub bindings: Bindings,
+}
+
+/// The class of a named node, as upstream's `runtimeType` prints it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedNodeKind {
+    Library,
+    Class,
+    Extension,
+    ExtensionTypeDeclaration,
+    Typedef,
+    Field,
+    Constructor,
+    Procedure,
+}
+
+impl NamedNodeKind {
+    pub fn runtimeType(self) -> &'static str {
+        match self {
+            NamedNodeKind::Library => "Library",
+            NamedNodeKind::Class => "Class",
+            NamedNodeKind::Extension => "Extension",
+            NamedNodeKind::ExtensionTypeDeclaration => "ExtensionTypeDeclaration",
+            NamedNodeKind::Typedef => "Typedef",
+            NamedNodeKind::Field => "Field",
+            NamedNodeKind::Constructor => "Constructor",
+            NamedNodeKind::Procedure => "Procedure",
+        }
+    }
+
+    /// `Member`: a field, a constructor or a procedure.
+    pub fn isMember(self) -> bool {
+        matches!(self, NamedNodeKind::Field | NamedNodeKind::Constructor | NamedNodeKind::Procedure)
+    }
+}
+
+/// No lazily read class (see [BoundNode::region]).
+pub const noRegion: u32 = u32::MAX;
+
+/// The named node a canonical name's `Reference` points at (upstream's
+/// `Reference.node`), with what upstream's messages print of it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoundNode {
+    pub kind: NamedNodeKind,
+    /// The node's identity: upstream reuses the node a reference already
+    /// points at, and checks that a node's reference points back at it.
+    pub id: u32,
+    /// A library's `name` (0 when null); otherwise the node's name (a
+    /// member's `name.text`).
+    pub name: StrId,
+    /// A member's enclosing class or extension type declaration.
+    pub parent: Option<(NamedNodeKind, StrId)>,
+    /// A library's canonical name when it was made (its `importUri` is
+    /// `Uri.parse` of that name).
+    pub cn: CnId,
+    /// For a member of a class, the class's index in
+    /// [Bindings::classes]: upstream makes the member only when it loads
+    /// the class's members (lazily); [noRegion] otherwise.
+    pub region: u32,
+    /// For a class whose members upstream reads lazily, their index in
+    /// [Bindings::classes] (its `lazyBuilder`); [noRegion] otherwise.
+    pub members: u32,
+}
+
+/// A class whose members upstream reads lazily (`Class.lazyBuilder`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LazyClass {
+    /// The class's canonical name.
+    pub reference: CnId,
+    /// Where upstream's reader is after loading the members
+    /// (`procedureOffsets.last`).
+    pub endOffset: usize,
+    /// What reading the members throws, if anything.
+    pub error: Option<Box<str>>,
+    /// Whether upstream has loaded them (while reading, through
+    /// `Reference.node`).
+    pub loaded: bool,
+    /// Whether upstream's writer loads them through `Reference.node`
+    /// while it reads a lazily read part before it reaches the class.
+    pub loadedLater: bool,
+}
+
+/// Upstream's `Reference`s as far as its errors need them: which canonical
+/// names have one (bit 0: made by the reader before the writer runs; bit
+/// 1: made while reading a part upstream reads lazily), and the node each
+/// points at.
+#[derive(Debug, Default, Clone)]
+pub struct Bindings {
+    pub nodes: Vec<Option<BoundNode>>,
+    pub references: Vec<u8>,
+    pub classes: Vec<LazyClass>,
+    /// The ids handed out so far.
+    pub nextId: u32,
+}
+
+/// How upstream reads a function's body: with the function (`Eager`),
+/// lazily when its writer reaches it (`Lazy`), or lazily, throwing what
+/// reading it threw (`Failed`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum LazyBody {
+    #[default]
+    Eager,
+    Lazy,
+    Failed(Box<str>),
 }
 
 /// `Name`: the text, and for a private name, its library.
@@ -205,6 +310,9 @@ pub struct Class {
     pub fields: Vec<Field>,
     pub constructors: Vec<Constructor>,
     pub procedures: Vec<Procedure>,
+    /// The class's entry in [Bindings::classes] (its members are read
+    /// lazily upstream), or [noRegion].
+    pub lazyRegion: u32,
 }
 
 impl Class {
@@ -255,6 +363,9 @@ pub struct ExtensionTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
+    /// The node's identity ([BoundNode::id]): upstream reuses the node a
+    /// reference points at, so one read twice is one node in two places.
+    pub nodeId: u32,
     pub fieldReference: CnId,
     pub getterReference: CnId,
     pub setterReference: Ref,
@@ -272,6 +383,8 @@ pub struct Field {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constructor {
+    /// See [Field::nodeId].
+    pub nodeId: u32,
     pub reference: CnId,
     pub fileUri: UriId,
     pub startFileOffset: Offset,
@@ -306,6 +419,8 @@ pub mod ProcedureStubKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Procedure {
+    /// See [Field::nodeId].
+    pub nodeId: u32,
     pub reference: CnId,
     pub fileUri: UriId,
     pub fileStartOffset: Offset,
@@ -395,6 +510,8 @@ pub struct FunctionNode {
     pub body: Option<Box<Statement>>,
     pub scope: Option<Scope>,
     pub capturedContexts: Option<Vec<ContextId>>,
+    /// Whether upstream reads the body lazily (see [LazyBody]).
+    pub lazyBody: LazyBody,
 }
 
 /// `Scope`.
