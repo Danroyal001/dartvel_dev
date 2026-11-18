@@ -56,6 +56,31 @@ fn mutations(length: usize, samples: usize) -> Vec<String> {
     lines
 }
 
+/// [line] with every `:<digits>)` as `:0)`. Upstream's `already bound`
+/// and orphan messages print nodes as `(Type:hashCode)`, and a node's
+/// `hashCode` is its identity hash, which the VM picks at random: two
+/// upstream runs over the same input print different numbers. The port
+/// prints 0; everything around the number must match.
+fn without_hash_codes(line: &str) -> String {
+    let bytes = line.as_bytes();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b':' {
+            let digits = bytes[i + 1..].iter().take_while(|b| b.is_ascii_digit()).count();
+            if digits > 0 && bytes.get(i + 1 + digits) == Some(&b')') {
+                out.push_str(":0)");
+                i += digits + 2;
+                continue;
+            }
+        }
+        let width = line[i..].chars().next().unwrap().len_utf8();
+        out.push_str(&line[i..i + width]);
+        i += width;
+    }
+    out
+}
+
 fn run(command: &mut Command) -> String {
     let output = command.output().unwrap_or_else(|e| panic!("cannot run {command:?}: {e}"));
     assert!(output.status.success(), "{command:?} failed: {}", String::from_utf8_lossy(&output.stderr));
@@ -110,7 +135,7 @@ fn damaged_input_does_what_upstream_does() {
         let mut here = 0;
         for ((mutation, expected), actual) in lines.iter().zip(&upstream).zip(&port) {
             total += 1;
-            if expected != actual {
+            if without_hash_codes(expected) != without_hash_codes(actual) {
                 here += 1;
                 if report.len() < 60 {
                     report.push(format!("{} [{mutation}]\n  upstream: {expected}\n  port:     {actual}",
