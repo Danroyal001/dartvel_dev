@@ -200,20 +200,37 @@ class DVMemoryLogSink implements DVLogSink {
       : assert(capacity > 0, 'a buffer that holds nothing records nothing');
 
   final int capacity;
-  final List<DVLogRecord> _records = <DVLogRecord>[];
+
+  // A ring: once full, each record takes the oldest one's slot. Dropping the
+  // oldest from the front of a list moved every other record down by one
+  // for every record written, which was most of what an access line cost.
+  late final List<DVLogRecord?> _slots =
+      List<DVLogRecord?>.filled(capacity, null);
+  int _oldest = 0;
+  int _count = 0;
 
   /// Oldest first.
-  List<DVLogRecord> get records => List<DVLogRecord>.unmodifiable(_records);
+  List<DVLogRecord> get records => List<DVLogRecord>.unmodifiable(<DVLogRecord>[
+        for (int i = 0; i < _count; i += 1)
+          _slots[(_oldest + i) % capacity]!,
+      ]);
 
   @override
   void write(DVLogRecord record) {
-    _records.add(record);
-    if (_records.length > capacity) {
-      _records.removeRange(0, _records.length - capacity);
+    if (_count < capacity) {
+      _slots[(_oldest + _count) % capacity] = record;
+      _count += 1;
+      return;
     }
+    _slots[_oldest] = record;
+    _oldest = (_oldest + 1) % capacity;
   }
 
-  void clear() => _records.clear();
+  void clear() {
+    _slots.fillRange(0, capacity, null);
+    _oldest = 0;
+    _count = 0;
+  }
 }
 
 /// Writes one JSON object per line wherever [_write] points.

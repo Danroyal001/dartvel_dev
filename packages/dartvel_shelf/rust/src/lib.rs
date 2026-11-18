@@ -12,7 +12,7 @@ use once_cell::sync::OnceCell;
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
 };
@@ -269,14 +269,30 @@ struct RequestQueue {
 }
 
 struct RequestQueueState {
-    queued: std::collections::VecDeque<FfiRequest>,
+    /// Each request with the bytes its pointers point into.
+    queued: std::collections::VecDeque<(FfiRequest, RequestParts)>,
     woken: bool,
 }
 
+thread_local! {
+    /// The bytes of the requests the last take on this thread handed over.
+    ///
+    /// An isolate reads every request of a batch, in the turn it took it,
+    /// before it takes again; and while it runs, nothing else runs on its
+    /// thread. So the next take on this thread -- by any isolate -- comes
+    /// after the batch was read, and frees it: no table entry per request,
+    /// and no call from Dart to say it has read one (see
+    /// aw_queue_holds_requests). Kept by the thread, not the queue: a server
+    /// that finishes stopping drops its queue on whichever thread drives it,
+    /// which may be while its isolate is still reading the last batch.
+    static TAKEN_REQUEST_PARTS: std::cell::RefCell<Vec<RequestParts>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
 impl RequestQueue {
-    fn push(&self, request: FfiRequest) {
+    fn push(&self, request: FfiRequest, parts: RequestParts) {
         if let Some(driven) = &self.driven {
-            safe_lock(&self.state).queued.push_back(request);
+            safe_lock(&self.state).queued.push_back((request, parts));
             if driven.lingering.load(Ordering::Relaxed) {
                 // Queued on the isolate's own thread, inside aw_linger.
                 driven.linger_arrived.notify_one();
@@ -287,7 +303,7 @@ impl RequestQueue {
         }
         let wake = {
             let mut state = safe_lock(&self.state);
-            state.queued.push_back(request);
+            state.queued.push_back((request, parts));
             !std::mem::replace(&mut state.woken, true)
         };
         if wake {
@@ -314,6 +330,8 @@ pub extern "C" fn aw_register_request_wakeup_handler(cb: DartRequestWakeup) {
 /// wakes the isolate again.
 #[no_mangle]
 pub extern "C" fn aw_take_requests(server_id: u64, out: *mut FfiRequest, max: usize) -> usize {
+    // The batch taken before this one on this thread has been read.
+    TAKEN_REQUEST_PARTS.with(|held| held.borrow_mut().clear());
     if out.is_null() || max == 0 {
         return 0;
     }
@@ -325,12 +343,16 @@ pub extern "C" fn aw_take_requests(server_id: u64, out: *mut FfiRequest, max: us
     };
     let mut state = safe_lock(&queue.state);
     let mut taken = 0;
-    while taken < max {
-        let Some(request) = state.queued.pop_front() else { break };
-        // SAFETY: the caller passes room for max requests at out.
-        unsafe { out.add(taken).write(request) };
-        taken += 1;
-    }
+    TAKEN_REQUEST_PARTS.with(|held| {
+        let mut held = held.borrow_mut();
+        while taken < max {
+            let Some((request, parts)) = state.queued.pop_front() else { break };
+            // SAFETY: the caller passes room for max requests at out.
+            unsafe { out.add(taken).write(request) };
+            held.push(parts);
+            taken += 1;
+        }
+    });
     if taken < max {
         state.woken = false;
     }
@@ -482,9 +504,17 @@ struct FfiRespOwned {
     body: Vec<u8>,
     is_stream: u8,
 }
-/// Each request's answer channel, and the driven server it came through.
-static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, (oneshot::Sender<FfiRespOwned>, Option<Arc<Driven>>), IdHash>>> =
-    OnceCell::new();
+/// Where a request's answer goes.
+enum Reply {
+    /// To the task waiting on this channel, with the driven server the
+    /// request came through.
+    Channel(oneshot::Sender<FfiRespOwned>, Option<Arc<Driven>>),
+    /// Straight to a lean connection's socket (src/h1.rs).
+    Direct(Arc<h1::DirectConn>),
+}
+
+/// Each request's answer, by request.
+static PENDING_RESPONSES: OnceCell<Mutex<HashMap<u64, Reply, IdHash>>> = OnceCell::new();
 /// Capacity for the bounded response stream channel.
 const RESPONSE_STREAM_CAPACITY: usize = 64;
 
@@ -815,15 +845,33 @@ struct RequestParts {
 
 static PENDING_REQUEST_PARTS: OnceCell<Mutex<HashMap<u64, RequestParts, IdHash>>> = OnceCell::new();
 
+/// Entries in PENDING_REQUEST_PARTS: none on a server whose requests are
+/// queued, whose answers then skip the table's lock.
+static HELD_REQUEST_PARTS: AtomicUsize = AtomicUsize::new(0);
+
 fn retain_request_parts(req_id: u64, parts: RequestParts) {
     let map = PENDING_REQUEST_PARTS.get_or_init(Default::default);
-    safe_lock(map).insert(req_id, parts);
+    if safe_lock(map).insert(req_id, parts).is_none() {
+        HELD_REQUEST_PARTS.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 fn release_request_parts(req_id: u64) {
-    if let Some(map) = PENDING_REQUEST_PARTS.get() {
-        safe_lock(map).remove(&req_id);
+    if HELD_REQUEST_PARTS.load(Ordering::Relaxed) == 0 {
+        return;
     }
+    if let Some(map) = PENDING_REQUEST_PARTS.get() {
+        if safe_lock(map).remove(&req_id).is_some() {
+            HELD_REQUEST_PARTS.fetch_sub(1, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Present when a queued request's bytes are kept by the queue until the
+/// next take: Dart then has no aw_request_received to call for one.
+#[no_mangle]
+pub extern "C" fn aw_queue_holds_requests() -> i32 {
+    1
 }
 
 /// aw_start could not parse host:port into an address.
@@ -1889,6 +1937,9 @@ pub extern "C" fn aw_start(host: FfiStr, port: u16, flags: u32) -> i32 {
             h1::serve(
                 listener,
                 Arc::new(h1::Lean {
+                    defaults: h1::RenderedDefaults::new(
+                        context.0.defaults.as_ref().map(|DefaultHeaders(map)| &**map),
+                    ),
                     context,
                     app,
                     compression: compression_enabled,
@@ -2021,6 +2072,20 @@ pub extern "C" fn aw_stop(server_id: u64) -> i32 {
     1
 }
 
+/// [len] bytes at [ptr]; empty for a null or dangling pointer with no bytes.
+///
+/// # Safety
+/// A non-zero [len] needs [ptr] valid for reading that many bytes for as long
+/// as the slice is used.
+unsafe fn bytes_at<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
+    if len == 0 {
+        &[]
+    } else {
+        // SAFETY: the caller's.
+        unsafe { std::slice::from_raw_parts(ptr, len) }
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
     // An answer means Dart read the request, whether or not it said so.
@@ -2029,8 +2094,33 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
         Some(m) => m,
         None => return 1,
     };
-    let mut map = safe_lock(map_mutex);
-    if let Some((tx, driven)) = map.remove(&req_id) {
+    let reply = safe_lock(map_mutex).remove(&req_id);
+    if let Some(reply) = reply {
+        let readable = !(resp.hdrs.is_null() && resp.hdrs_len > 0)
+            && !(resp.body.ptr.is_null() && resp.body.len > 0 && resp.is_stream == 0);
+        if !readable {
+            // Answered 500, as a dropped channel is on the hyper path.
+            if let Reply::Direct(conn) = &reply {
+                h1::answer_refused(conn);
+            }
+            return 1;
+        }
+        if let Reply::Direct(conn) = &reply {
+            if resp.is_stream == 0 {
+                // SAFETY: as below; the bytes are written out (or copied)
+                // before this returns, and Dart keeps them until then.
+                let (headers, body) = unsafe {
+                    (
+                        bytes_at(resp.hdrs, resp.hdrs_len),
+                        bytes_at(resp.body.ptr, resp.body.len),
+                    )
+                };
+                // A fast request has no body to mark answered.
+                if h1::answer_direct(conn, resp.status, headers, body) {
+                    return 0;
+                }
+            }
+        }
         // SAFETY: FfiResp guarantees valid pointers and lengths, data is copied immediately
         let owned = unsafe {
             if resp.hdrs.is_null() && resp.hdrs_len > 0 {
@@ -2060,16 +2150,16 @@ pub extern "C" fn aw_complete(req_id: u64, resp: FfiResp) -> i32 {
             safe_lock(senders).insert(req_id, chunk_tx);
             safe_lock(receivers).insert(req_id, chunk_rx);
         }
-        drop(map);
-        match driven {
+        match reply {
+            Reply::Direct(conn) => h1::answer_owned(&conn, owned),
             // The isolate drives this server and will turn its runtime next:
             // the answer is handed over then, from inside the runtime, so
             // waking the task that writes it is a queue push rather than a
             // write to the runtime's wakeup descriptor and an event for it.
-            Some(driven) if !driven.helper_drives() => {
+            Reply::Channel(tx, Some(driven)) if !driven.helper_drives() => {
                 safe_lock(&driven.deferred).push((tx, owned));
             }
-            _ => {
+            Reply::Channel(tx, _) => {
                 let _ = tx.send(owned);
             }
         }
@@ -2307,7 +2397,7 @@ async fn dart_proxy_with_fallback(
     let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
     if let Some(mutex) = PENDING_RESPONSES.get() {
         let driven = request_queue.as_ref().and_then(|ServerRequestQueue(queue)| queue.driven.clone());
-        safe_lock(mutex).insert(req_id, (response_tx, driven));
+        safe_lock(mutex).insert(req_id, Reply::Channel(response_tx, driven));
     } else {
         return Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -2335,29 +2425,31 @@ async fn dart_proxy_with_fallback(
     let headers_len = flattened_headers.len();
     // Moving a Vec or Bytes moves its handle, not its heap buffer, so the
     // pointers above stay valid for as long as the parts are held.
-    retain_request_parts(
-        req_id,
-        RequestParts {
-            _method: method,
-            _target: target,
-            _headers: flattened_headers,
-            _body: bytes,
-            _peer: peer,
-            _head: None,
-            _peer_bytes: None,
-        },
-    );
+    let parts = RequestParts {
+        _method: method,
+        _target: target,
+        _headers: flattened_headers,
+        _body: bytes,
+        _peer: peer,
+        _head: None,
+        _peer_bytes: None,
+    };
     match (&request_queue, request_handler) {
-        (Some(ServerRequestQueue(queue)), _) => queue.push(FfiRequest {
-            id: req_id,
-            method: method_ffi,
-            target: target_ffi,
-            hdrs: headers_ptr,
-            hdrs_len: headers_len,
-            body: body_ffi,
-            peer: peer_ffi,
-        }),
-        (None, Some(cb)) => (cb)(
+        (Some(ServerRequestQueue(queue)), _) => queue.push(
+            FfiRequest {
+                id: req_id,
+                method: method_ffi,
+                target: target_ffi,
+                hdrs: headers_ptr,
+                hdrs_len: headers_len,
+                body: body_ffi,
+                peer: peer_ffi,
+            },
+            parts,
+        ),
+        (None, Some(cb)) => {
+            retain_request_parts(req_id, parts);
+            (cb)(
             req_id,
             method_ffi,
             target_ffi,
@@ -2365,7 +2457,8 @@ async fn dart_proxy_with_fallback(
             headers_len,
             body_ffi,
             peer_ffi,
-        ),
+            )
+        }
         (None, None) => unreachable!("refused above"),
     }
 
@@ -2810,7 +2903,7 @@ mod request_tests {
             .insert(server_id, queue.clone());
         let before = WAKEUPS.load(Ordering::SeqCst);
         for id in 1..=5 {
-            queue.push(queued(id));
+            queue.push(queued(id), parts());
         }
         assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1, "one wakeup for five requests");
 
@@ -2818,13 +2911,13 @@ mod request_tests {
         assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
         assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [1, 2, 3]);
         // A full batch: still woken, so a new request does not wake again.
-        queue.push(queued(6));
+        queue.push(queued(6), parts());
         assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 1);
         assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 3);
         assert_eq!(out.iter().map(|r| r.id).collect::<Vec<_>>(), [4, 5, 6]);
         assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 0);
         // Emptied: the next request wakes the isolate again.
-        queue.push(queued(7));
+        queue.push(queued(7), parts());
         assert_eq!(WAKEUPS.load(Ordering::SeqCst) - before, 2);
         safe_lock(SERVER_REQUEST_QUEUES.get().unwrap()).remove(&server_id);
     }
@@ -2842,6 +2935,37 @@ mod request_tests {
         let values: Vec<_> = response.headers().get_all("x-a").iter().collect();
         assert_eq!(values, ["one", "two"]);
         assert_eq!(response.headers()["content-type"], "text/plain");
+    }
+
+    #[test]
+    fn a_queued_request_is_held_until_the_next_take_then_freed() {
+        let queue = Arc::new(RequestQueue {
+            state: Mutex::new(RequestQueueState {
+                queued: std::collections::VecDeque::new(),
+                woken: false,
+            }),
+            wakeup: count_wakeup,
+            driven: None,
+        });
+        let server_id = 990_002;
+        safe_lock(SERVER_REQUEST_QUEUES.get_or_init(Default::default))
+            .insert(server_id, queue.clone());
+        let probe = Bytes::from(b"GET / HTTP/1.1\r\n\r\n".to_vec());
+        let mut held_parts = parts();
+        held_parts._head = Some(probe.clone());
+        queue.push(queued(11), held_parts);
+        assert!(!probe.is_unique(), "held while queued");
+        let mut out: Vec<FfiRequest> = (0..3).map(|_| queued(0)).collect();
+        assert_eq!(aw_take_requests(server_id, out.as_mut_ptr(), 3), 1);
+        // The server finishing its stop drops its queue, maybe while Dart is
+        // still reading the batch: the batch must outlive it.
+        safe_lock(SERVER_REQUEST_QUEUES.get().unwrap()).remove(&server_id);
+        drop(queue);
+        assert!(!probe.is_unique(), "held while Dart reads the batch it came in");
+        // The next take on this thread, for any server, frees it.
+        assert_eq!(aw_take_requests(990_404, out.as_mut_ptr(), 3), 0);
+        assert!(probe.is_unique(), "freed by the next take");
+        assert!(!held(11), "never in the table an acknowledgement removes from");
     }
 
     #[test]
@@ -4210,3 +4334,92 @@ pub extern "C" fn aw_linger(server_id: u64, micros: u32) -> i32 {
 
 /// Tells a lean server (src/h1.rs) to stop: aw_stop sends true.
 static SERVER_SHUTDOWN: OnceCell<Mutex<HashMap<u64, tokio::sync::watch::Sender<bool>>>> = OnceCell::new();
+
+/// The native side's own cost per request, without Dart: a server driven by
+/// a loop that does what the isolate's request queue does (drive, take up to
+/// 64, answer each, park when idle), answering every request with the same
+/// plaintext answer the benchmark's route gives. Run under load with
+/// `perf stat`, its instructions per request are this library's alone.
+///
+/// `DARTVEL_NATIVE_ONLY_READY=<file> cargo test --release native_only -- --ignored`
+/// writes the port to the file and serves for DARTVEL_NATIVE_ONLY_SECONDS.
+#[cfg(test)]
+mod native_only {
+    use super::*;
+
+    static WOKEN: (Mutex<bool>, std::sync::Condvar) = (Mutex::new(false), std::sync::Condvar::new());
+
+    extern "C" fn wake() {
+        *safe_lock(&WOKEN.0) = true;
+        WOKEN.1.notify_one();
+    }
+
+    extern "C" fn unused(_: u64, _: FfiStr, _: FfiStr, _: *const u8, _: usize, _: FfiBuf, _: FfiStr) {}
+
+    #[test]
+    #[ignore]
+    fn native_only_server() {
+        let Ok(ready) = std::env::var("DARTVEL_NATIVE_ONLY_READY") else { return };
+        let seconds: u64 = std::env::var("DARTVEL_NATIVE_ONLY_SECONDS").ok().and_then(|s| s.parse().ok()).unwrap_or(15);
+        aw_register_handler(unused);
+        aw_register_request_wakeup_handler(wake);
+        let defaults = b"x-content-type-options\0nosniff\0x-frame-options\0SAMEORIGIN\0referrer-policy\0strict-origin-when-cross-origin\0";
+        assert_eq!(aw_configure_default_headers(defaults.as_ptr(), defaults.len()), 0);
+        let host = b"127.0.0.1";
+        let id = aw_start(FfiStr { ptr: host.as_ptr(), len: host.len() }, 0, AW_FLAG_DRIVEN);
+        assert!(id > 0, "aw_start {id}");
+        let id = id as u64;
+        std::fs::write(&ready, format!("{}\n", aw_server_port(id))).unwrap();
+
+        let headers = b"content-type\0text/plain; charset=utf-8\0";
+        let body = b"Hello, World!";
+        let mut taken_requests: Vec<FfiRequest> = Vec::with_capacity(64);
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(seconds);
+        let mut idle = 0;
+        while std::time::Instant::now() < until {
+            let mut handed = false;
+            for _ in 0..4 {
+                aw_drive(id);
+                taken_requests.clear();
+                let taken = aw_take_requests(id, taken_requests.spare_capacity_mut().as_mut_ptr().cast(), 64);
+                // SAFETY: aw_take_requests wrote that many.
+                unsafe { taken_requests.set_len(taken) };
+                for request in &taken_requests {
+                    aw_request_received(request.id);
+                    let answer = FfiResp {
+                        status: 200,
+                        body: FfiBuf { ptr: body.as_ptr(), len: body.len() },
+                        hdrs: headers.as_ptr(),
+                        hdrs_len: headers.len(),
+                        is_stream: 0,
+                    };
+                    aw_complete(request.id, answer);
+                }
+                handed |= taken > 0;
+                if taken < 64 {
+                    break;
+                }
+            }
+            if handed {
+                idle = 0;
+                continue;
+            }
+            idle += 1;
+            if idle < 8 {
+                continue;
+            }
+            idle = 0;
+            let mut woken = safe_lock(&WOKEN.0);
+            *woken = false;
+            aw_park(id);
+            while !*woken {
+                let (guard, timeout) = WOKEN.1.wait_timeout(woken, std::time::Duration::from_millis(100)).unwrap();
+                woken = guard;
+                if timeout.timed_out() {
+                    break;
+                }
+            }
+        }
+        aw_stop(id);
+    }
+}

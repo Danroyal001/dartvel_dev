@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+
 import '../observability/observability.dart';
 import 'client_address.dart';
 import 'peer_address.dart';
@@ -93,7 +94,23 @@ class Router {
     // records the status it sent, and the router's 404 on the way is not a
     // request of its own.
     if (Zone.current[_measuredOutside] == true) return _dispatch(req);
-    return measure(req, () => _dispatch(req));
+    final int start = _startMeasuring(req);
+    if (start < 0) return measure(req, () => _dispatch(req));
+    // What [measure] does for this case, without an async function around
+    // the route's own: that was one more suspend state, future, frame copy
+    // and resumption for every request. Recorded as the answer completes,
+    // before whoever awaits it goes on.
+    return _measuringZone()
+        .runUnary<Future<Response>, Request>(_dispatchTearOff, req)
+        .then((Response response) {
+      _finishMeasuring(req, start, response: response);
+      return response;
+    }, onError: (Object error, StackTrace stack) {
+      // The server turns this into a 500 inside a bare `catch (_)`, so if it
+      // is not recorded here the exception is gone.
+      _finishMeasuring(req, start, error: error, stackTrace: stack);
+      Error.throwWithStackTrace(error, stack);
+    });
   }
 
   static final Object _measuredOutside = Object();
@@ -133,6 +150,41 @@ class Router {
 
   static final _AccessLogBudget _accessBudget = _AccessLogBudget();
 
+  /// One clock for every request [call] times, read once when one starts and
+  /// once when it ends; the end is also the time the access-log budget
+  /// counts by. A Stopwatch per request, and a third reading of the clock
+  /// for the budget, cost more than the rest of the bookkeeping.
+  static final Stopwatch _clock = Stopwatch()..start();
+
+  /// When [req] started on [_clock], in microseconds, when [call] times and
+  /// records it itself; -1 when [measure] has more to do -- spans or
+  /// semantic metrics are read, or the path is one never measured.
+  static int _startMeasuring(Request req) {
+    if (DVObservability.requestTracing || DVObservability.semanticMetrics) {
+      return -1;
+    }
+    final String path = req.url.path;
+    if (_unmeasured.contains(path) || path.startsWith('/_dartvel/')) {
+      return -1;
+    }
+    return _clock.elapsedMicroseconds;
+  }
+
+  late final Future<Response> Function(Request) _dispatchTearOff = _dispatch;
+
+  /// Records [req], started at [start] by [_startMeasuring], as [measure]
+  /// records it: answered [response], or failed with [error] (500).
+  static void _finishMeasuring(Request req, int start,
+      {Response? response, Object? error, StackTrace? stackTrace}) {
+    final int end = _clock.elapsedMicroseconds;
+    if (error != null || response == null) {
+      _recordElapsed(req, 500, end - start, null, end ~/ 1000,
+          error: error, stackTrace: stackTrace);
+      return;
+    }
+    _recordElapsed(req, response.status, end - start, response, end ~/ 1000);
+  }
+
   /// Runs [serve] for [req] and records the request once, with the status
   /// [serve] answered: the count in `http_requests_total`, the duration and
   /// the access record.
@@ -158,7 +210,7 @@ class Router {
       try {
         final Response response = await inner();
         clock.stop();
-        _record(req, response.status, clock, response.headers.get('traceparent'));
+        _record(req, response.status, clock, response);
         return response;
       } on Object catch (error, stack) {
         clock.stop();
@@ -196,8 +248,7 @@ class Router {
       clock.stop();
       if (span != null) dvFinishServerSpan(span, response);
       // Inside the span, so the access line names the request's trace.
-      void record() => _record(
-          req, response.status, clock, response.headers.get('traceparent'));
+      void record() => _record(req, response.status, clock, response);
       span == null ? record() : dvInSpan(span, record);
       if (semantic) _recordSemantic(activeLabels, scope?.route, response.status, clock);
       return response;
@@ -247,30 +298,45 @@ class Router {
     Request req,
     int status,
     Stopwatch clock,
-    String? traceparent, {
+    Response? response, {
+    Object? error,
+    StackTrace? stackTrace,
+  }) =>
+      _recordElapsed(req, status, clock.elapsedMicroseconds, response, null,
+          error: error, stackTrace: stackTrace);
+
+  /// [_record] for a request that took [micros]; [nowMs] is [_clock]'s time
+  /// in milliseconds when the caller has just read it.
+  static void _recordElapsed(
+    Request req,
+    int status,
+    int micros,
+    Response? response,
+    int? nowMs, {
     Object? error,
     StackTrace? stackTrace,
   }) {
-    final double seconds = clock.elapsedMicroseconds / 1000000;
+    final double seconds = micros / 1000000;
     final _RequestSeries series = _RequestSeries.of(req.method, status);
     series.requests.increment();
     series.duration.observe(seconds);
 
     // Decided before the record is built, so a request past the rate costs
     // nothing more than its metrics.
-    if (error == null && status < 500 && !_accessBudget.take()) return;
+    if (error == null && status < 500 && !_accessBudget.take(nowMs)) return;
 
     // The span was created inside the handler, so it is out of scope by now;
     // the header the tracing middleware set on the response is what is left
     // of it. Reading the id back from there is what lets a support ticket
     // quoting a traceparent find the log line for that request.
-    final DVTraceContext? context =
-        dvCurrentSpan == null ? DVTraceContext.parse(traceparent) : null;
+    final DVTraceContext? context = dvCurrentSpan == null
+        ? DVTraceContext.parse(response?.headers.get('traceparent'))
+        : null;
     final Map<String, Object?> fields = <String, Object?>{
       'method': req.method,
       'path': req.url.path,
       'status': status,
-      'durationMs': clock.elapsedMicroseconds / 1000,
+      'durationMs': micros / 1000,
     };
 
     if (error != null) {
@@ -291,20 +357,31 @@ class Router {
     );
   }
 
-  Future<Response> _dispatch(Request req) async {
-    for (final route in _routes) {
-      if (route.method != '*' && route.method != req.method) continue;
-      final match = route.pattern.exec(req.url);
-      if (match != null) {
-        req.params
-          ..clear()
-          ..addAll(match.pathname);
-        // The template, for the request's span name and its metrics.
-        dvRecordHttpRoute(route.source);
-        return route.handler(req);
-
+  // Not async itself: a matched route's future is the answer as it is. As an
+  // async function this was one more suspend state, future and microtask
+  // hop between every handler and its client. A failure here is still a
+  // failed future, as it was, never a throw to the caller.
+  Future<Response> _dispatch(Request req) {
+    try {
+      for (final route in _routes) {
+        if (route.method != '*' && route.method != req.method) continue;
+        final match = route.pattern.exec(req.url);
+        if (match != null) {
+          req.params
+            ..clear()
+            ..addAll(match.pathname);
+          // The template, for the request's span name and its metrics.
+          dvRecordHttpRoute(route.source);
+          return route.handler(req);
+        }
       }
+    } catch (error, stack) {
+      return Future<Response>.error(error, stack);
     }
+    return _builtIn(req);
+  }
+
+  Future<Response> _builtIn(Request req) async {
     // Reached only when the application registered no route of its own for
     // it: the built-ins are a fallback, and an application that wants a
     // deeper check or a different shape must be able to have one.
@@ -448,15 +525,16 @@ bool _sameText(String a, String b) {
 /// How many access records may still be written this second, and how many
 /// were not.
 final class _AccessLogBudget {
-  final Stopwatch _clock = Stopwatch()..start();
+  Stopwatch get _clock => Router._clock;
   int _windowStartMs = 0;
   int _taken = 0;
   int _skipped = 0;
   Timer? _flush;
 
-  /// Whether one more record may be written now.
-  bool take() {
-    _roll();
+  /// Whether one more record may be written now: at [nowMs] on the router's
+  /// clock, when the caller has just read it.
+  bool take([int? nowMs]) {
+    _roll(nowMs ?? _clock.elapsedMilliseconds);
     if (_taken < Router.accessLogsPerSecond) {
       _taken++;
       return true;
@@ -470,10 +548,10 @@ final class _AccessLogBudget {
     return false;
   }
 
-  void _roll() {
-    if (_clock.elapsedMilliseconds - _windowStartMs < 1000) return;
+  void _roll(int nowMs) {
+    if (nowMs - _windowStartMs < 1000) return;
     _summarise();
-    _windowStartMs = _clock.elapsedMilliseconds;
+    _windowStartMs = nowMs;
     _taken = 0;
   }
 

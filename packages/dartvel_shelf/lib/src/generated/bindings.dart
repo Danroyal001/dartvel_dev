@@ -86,6 +86,19 @@ class DartvelShelfBindings {
   late final _aw_configure_default_headers = _aw_configure_default_headersPtr
       .asFunction<int Function(ffi.Pointer<ffi.Uint8>, int)>();
 
+  /// Present when a queued request's bytes are kept by the queue until the
+  /// next take: Dart then has no aw_request_received to call for one.
+  int aw_queue_holds_requests() {
+    return _aw_queue_holds_requests();
+  }
+
+  late final _aw_queue_holds_requestsPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function()>>(
+        'aw_queue_holds_requests',
+      );
+  late final _aw_queue_holds_requests = _aw_queue_holds_requestsPtr
+      .asFunction<int Function()>();
+
   void aw_register_handler(DartReqHandler cb) {
     return _aw_register_handler(cb);
   }
