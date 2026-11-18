@@ -152,6 +152,8 @@ pub struct BinaryBuilder<'a> {
     /// its writer has loaded by the time it reads that part (those before
     /// it). None outside one.
     lazyHorizon: Option<u32>,
+    /// Whether a named node was read twice (see [shareReusedMembers]).
+    reusedNodes: bool,
     /// The ids of the structural parameters made (first, count).
     structuralRanges: Vec<(TypeParamId, u32)>,
     /// `_cachedSimpleInterfaceTypes`: by link table index, which
@@ -195,6 +197,7 @@ impl<'a> BinaryBuilder<'a> {
             currentLibraryDependencyCount: None,
             lastDeferred: None,
             lazyHorizon: None,
+            reusedNodes: false,
             structuralRanges: Vec::new(),
             simpleInterfaceTypes: Vec::new(),
             variableKinds: Vec::new(),
@@ -776,6 +779,9 @@ impl<'a> BinaryBuilder<'a> {
             }
             self.readOneComponent(componentFileSize)?;
             componentFileIndex += 1;
+        }
+        if self.reusedNodes {
+            shareReusedMembers(&mut self.component);
         }
         Ok(self.component)
     }
@@ -1592,14 +1598,15 @@ impl<'a> BinaryBuilder<'a> {
         kind: NamedNodeKind,
         name: StrId,
         parent: Option<(NamedNodeKind, StrId)>,
-    ) {
+    ) -> u32 {
         match existing {
-            None => {
-                self.bindNode(reference, kind, name, parent);
-            }
+            None => self.bindNode(reference, kind, name, parent),
             Some(mut node) => {
                 node.name = name;
+                node.parent = parent;
                 self.setBinding(reference, node);
+                self.reusedNodes = true;
+                node.id
             }
         }
     }
@@ -1874,22 +1881,26 @@ impl<'a> BinaryBuilder<'a> {
         let fileEndOffset = self.readOffset()?;
         let flags = self.readUInt30()?;
         let name = self.readName()?;
-        match existing {
+        let nodeId = match existing {
             None => {
                 // `new Field(...)` points all its references at itself.
                 let id = self.bindNode(fieldReference, NamedNodeKind::Field, name.text, parent);
-                let node = self.component.bindings.nodes[fieldReference as usize].unwrap();
-                debug_assert_eq!(node.id, id);
-                self.setBinding(getterReference, node);
-                if let Some(setter) = setterReference {
-                    self.setBinding(setter, node);
+                if let Some(node) = self.component.bindings.nodes.get(fieldReference as usize).copied().flatten() {
+                    self.setBinding(getterReference, node);
+                    if let Some(setter) = setterReference {
+                        self.setBinding(setter, node);
+                    }
                 }
+                id
             }
             Some(mut node) => {
                 node.name = name.text;
+                node.parent = parent;
                 self.setBinding(fieldReference, node);
+                self.reusedNodes = true;
+                node.id
             }
-        }
+        };
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let annotations = self.readAnnotationList()?;
         let r#type = self.readDartType()?;
@@ -1902,6 +1913,7 @@ impl<'a> BinaryBuilder<'a> {
         let initializer = self.readExpressionOption()?.map(Box::new);
         let scope = self.readOptionalScope(scopeSize)?;
         Ok(Field {
+            nodeId,
             fieldReference,
             getterReference,
             setterReference,
@@ -1930,7 +1942,7 @@ impl<'a> BinaryBuilder<'a> {
         let name = self.readName()?;
         let annotations = self.readAnnotationList()?;
         let (function, preAllocatedContexts) = self.readFunctionNode(false, -1)?;
-        self.bindOrRename(reference, existing, NamedNodeKind::Constructor, name.text, parent);
+        let nodeId = self.bindOrRename(reference, existing, NamedNodeKind::Constructor, name.text, parent);
         if let Some(this) = &function.thisVariable {
             self.variableStack.push(this.id);
         }
@@ -1951,6 +1963,7 @@ impl<'a> BinaryBuilder<'a> {
         self.variableContextStack.truncate(savedVariableContextStackSize);
         self.variableStack.clear();
         Ok(Constructor {
+            nodeId,
             reference,
             fileUri,
             startFileOffset,
@@ -1995,8 +2008,9 @@ impl<'a> BinaryBuilder<'a> {
             return self.castFailure(self.dartTypeRuntimeType(t), "FunctionType?");
         }
         let (function, _) = self.readFunctionNode(!readFunctionNodeNow, endOffset)?;
-        self.bindOrRename(reference, existing, NamedNodeKind::Procedure, name.text, parent);
+        let nodeId = self.bindOrRename(reference, existing, NamedNodeKind::Procedure, name.text, parent);
         Ok(Procedure {
+            nodeId,
             reference,
             fileUri,
             fileStartOffset,
@@ -5003,4 +5017,100 @@ pub fn formatExceptionToString(message: &str, source: &[u16], offset: Option<usi
     }
     let markOffset = offset - start + prefix.len();
     format!("{report}{prefix}{}{postfix}\n{}^\n", text(&source[start..end]), " ".repeat(markOffset))
+}
+
+/// Upstream reads a member whose reference already points at a member of
+/// its kind into that node (`reference.node as Procedure?`, then sets its
+/// fields): the node is in both places, with what was read last. A
+/// procedure keeps the kind it was made with, a field its getter and
+/// setter references.
+#[cold]
+#[inline(never)]
+fn shareReusedMembers(component: &mut Component) {
+    use std::collections::HashMap;
+    fn eachMember(component: &Component, mut visit: impl FnMut(Member<'_>)) {
+        for library in &component.libraries {
+            for c in &library.classes {
+                c.fields.iter().for_each(|f| visit(Member::Field(f)));
+                c.constructors.iter().for_each(|k| visit(Member::Constructor(k)));
+                c.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+            }
+            for e in &library.extensionTypeDeclarations {
+                e.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+            }
+            library.fields.iter().for_each(|f| visit(Member::Field(f)));
+            library.procedures.iter().for_each(|p| visit(Member::Procedure(p)));
+        }
+    }
+    enum Member<'a> {
+        Field(&'a Field),
+        Constructor(&'a Constructor),
+        Procedure(&'a Procedure),
+    }
+    let mut counts: HashMap<u32, u32> = HashMap::new();
+    eachMember(component, |m| {
+        let id = match m {
+            Member::Field(f) => f.nodeId,
+            Member::Constructor(k) => k.nodeId,
+            Member::Procedure(p) => p.nodeId,
+        };
+        *counts.entry(id).or_default() += 1;
+    });
+    let mut fields: HashMap<u32, Field> = HashMap::new();
+    let mut constructors: HashMap<u32, Constructor> = HashMap::new();
+    let mut procedures: HashMap<u32, Procedure> = HashMap::new();
+    eachMember(component, |m| match m {
+        Member::Field(f) if counts[&f.nodeId] > 1 => match fields.get_mut(&f.nodeId) {
+            None => {
+                fields.insert(f.nodeId, f.clone());
+            }
+            Some(shared) => {
+                let (getter, setter) = (shared.getterReference, shared.setterReference);
+                *shared = f.clone();
+                shared.getterReference = getter;
+                shared.setterReference = setter;
+            }
+        },
+        Member::Constructor(k) if counts[&k.nodeId] > 1 => {
+            constructors.insert(k.nodeId, k.clone());
+        }
+        Member::Procedure(p) if counts[&p.nodeId] > 1 => match procedures.get_mut(&p.nodeId) {
+            None => {
+                procedures.insert(p.nodeId, p.clone());
+            }
+            Some(shared) => {
+                let kind = shared.kind;
+                *shared = p.clone();
+                shared.kind = kind;
+            }
+        },
+        _ => {}
+    });
+    let replaceField = |f: &mut Field| {
+        if let Some(shared) = fields.get(&f.nodeId) {
+            *f = shared.clone();
+        }
+    };
+    let replaceConstructor = |k: &mut Constructor| {
+        if let Some(shared) = constructors.get(&k.nodeId) {
+            *k = shared.clone();
+        }
+    };
+    let replaceProcedure = |p: &mut Procedure| {
+        if let Some(shared) = procedures.get(&p.nodeId) {
+            *p = shared.clone();
+        }
+    };
+    for library in &mut component.libraries {
+        for c in &mut library.classes {
+            c.fields.iter_mut().for_each(replaceField);
+            c.constructors.iter_mut().for_each(replaceConstructor);
+            c.procedures.iter_mut().for_each(replaceProcedure);
+        }
+        for e in &mut library.extensionTypeDeclarations {
+            e.procedures.iter_mut().for_each(replaceProcedure);
+        }
+        library.fields.iter_mut().for_each(replaceField);
+        library.procedures.iter_mut().for_each(replaceProcedure);
+    }
 }

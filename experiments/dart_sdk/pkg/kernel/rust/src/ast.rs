@@ -360,6 +360,9 @@ pub struct ExtensionTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
+    /// The node's identity ([BoundNode::id]): upstream reuses the node a
+    /// reference points at, so one read twice is one node in two places.
+    pub nodeId: u32,
     pub fieldReference: CnId,
     pub getterReference: CnId,
     pub setterReference: Ref,
@@ -377,6 +380,8 @@ pub struct Field {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Constructor {
+    /// See [Field::nodeId].
+    pub nodeId: u32,
     pub reference: CnId,
     pub fileUri: UriId,
     pub startFileOffset: Offset,
@@ -411,6 +416,8 @@ pub mod ProcedureStubKind {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Procedure {
+    /// See [Field::nodeId].
+    pub nodeId: u32,
     pub reference: CnId,
     pub fileUri: UriId,
     pub fileStartOffset: Offset,
