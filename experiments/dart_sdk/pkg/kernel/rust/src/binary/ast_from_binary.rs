@@ -96,6 +96,15 @@ impl<'a> BinaryBuilder<'a> {
         length.min(self.bytes.len().saturating_sub(self.byteOffset))
     }
 
+    /// Refuses a count of items that are each at least a byte long when it
+    /// is beyond the bytes left in the input.
+    fn boundedByInput(&self, count: u32, what: &str) -> Result<()> {
+        if count as usize > self.bytes.len().saturating_sub(self.byteOffset) {
+            return self.fail(format!("{what} {count} exceeds the input"));
+        }
+        Ok(())
+    }
+
     fn fail<T>(&self, message: impl Into<String>) -> Result<T> {
         Err(ParseError {
             message: message.into(),
@@ -701,6 +710,11 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readScopeSizeAndAllocateContexts(&mut self) -> Result<u32> {
         let scopeSize = self.readUInt30()?;
+        // The scope's contexts are written later, two bytes or more each,
+        // so a size beyond the bytes left is damage. Upstream allocates them
+        // all first and runs out of memory; refusing here keeps the
+        // allocation bounded by the input.
+        self.boundedByInput(scopeSize, "scope size")?;
         for _ in 0..scopeSize {
             let id = self.component.nextContext;
             self.component.nextContext += 1;
@@ -1606,8 +1620,15 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readAndPushParameters(&mut self, keepAnnotations: bool) -> Result<Vec<TypeParameter>> {
         let length = self.readUInt30()?;
+        // Each parameter is five bytes or more, read after the ids are
+        // pushed: a count beyond the bytes left is damage (upstream
+        // allocates them all first).
+        self.boundedByInput(length, "type parameter count")?;
         let first = self.component.nextTypeParam;
-        self.component.nextTypeParam += length;
+        self.component.nextTypeParam = match first.checked_add(length) {
+            Some(next) => next,
+            None => return self.fail("too many type parameters"),
+        };
         for i in 0..length {
             self.typeParameterStack.push(first + i);
         }
@@ -2802,10 +2823,16 @@ impl<'a> BinaryBuilder<'a> {
         Ok(Box::new(self.readStatement()?))
     }
 
-    fn newSwitchCaseIds(&mut self, count: u32) -> Vec<SwitchCaseId> {
+    /// Ids for the [count] cases of a switch, made before the cases are read
+    /// (two bytes or more each): a count beyond the bytes left is damage.
+    fn newSwitchCaseIds(&mut self, count: u32) -> Result<Vec<SwitchCaseId>> {
+        self.boundedByInput(count, "switch case count")?;
         let first = self.component.nextSwitchCase;
-        self.component.nextSwitchCase += count;
-        (first..first + count).collect()
+        self.component.nextSwitchCase = match first.checked_add(count) {
+            Some(next) => next,
+            None => return self.fail("too many switch cases"),
+        };
+        Ok((first..first + count).collect())
     }
 
     fn readStatement(&mut self) -> Result<Statement> {
@@ -2966,7 +2993,7 @@ impl<'a> BinaryBuilder<'a> {
                 let expression = self.boxed()?;
                 let expressionType = self.readDartTypeOption()?;
                 let count = self.readUInt30()?;
-                let ids = self.newSwitchCaseIds(count);
+                let ids = self.newSwitchCaseIds(count)?;
                 self.switchCaseStack.extend(&ids);
                 let mut cases = Vec::with_capacity(self.cap(count as usize));
                 for id in ids {
@@ -3088,7 +3115,7 @@ impl<'a> BinaryBuilder<'a> {
                 let expression = self.boxed()?;
                 let expressionType = self.readDartTypeOption()?;
                 let count = self.readUInt30()?;
-                let ids = self.newSwitchCaseIds(count);
+                let ids = self.newSwitchCaseIds(count)?;
                 self.switchCaseStack.extend(&ids);
                 let mut cases = Vec::with_capacity(self.cap(count as usize));
                 for id in ids {
