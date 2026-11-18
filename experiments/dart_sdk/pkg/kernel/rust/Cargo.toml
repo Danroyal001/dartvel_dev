@@ -1,0 +1,26 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Rust port of pkg/kernel, file by file."
+license = "BSD-3-Clause"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "kernel_roundtrip"
+path = "src/bin/kernel_roundtrip.rs"
+
+[[test]]
+name = "roundtrip_oracle"
+path = "tests/roundtrip_oracle.rs"
+
+[[test]]
+name = "malformed_input"
+path = "tests/malformed_input.rs"
+
+[[test]]
+name = "small_components"
+path = "tests/small_components.rs"
