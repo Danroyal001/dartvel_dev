@@ -115,6 +115,41 @@ Future<void> main(List<String> arguments) async {
       ], allowFailure: true);
     }
   }
+
+  // Concatenated files, which upstream's readComponent merges into one
+  // component: programs compiled without the platform, after the platform
+  // and after each other (separate libraries), and a whole program twice
+  // (every library read a second time).
+  for (final String name in ['hello', 'json_roundtrip']) {
+    final String output = '${out.path}/$name-unlinked.part';
+    if (File(output).existsSync()) continue;
+    await run(genKernel ?? dart, [
+      if (genKernel == null) ...[
+        '--packages=${packageConfig.path}',
+        '$sdk/pkg/vm/bin/gen_kernel.dart',
+      ],
+      '--platform=$platform',
+      '--no-link-platform',
+      '--output=$output',
+      '$sdk/pkg/kernel/rust/tests/kernel_corpus/$name.dart',
+    ]);
+  }
+  final Map<String, List<String>> concatenations = {
+    'concat-platform-hello.dill': ['vm_platform.dill', 'hello-unlinked.part'],
+    'concat-platform-hello-json.dill': [
+      'vm_platform.dill',
+      'hello-unlinked.part',
+      'json_roundtrip-unlinked.part',
+    ],
+    'concat-hello-twice.dill': ['hello.dill', 'hello.dill'],
+  };
+  for (final MapEntry<String, List<String>> entry in concatenations.entries) {
+    final BytesBuilder bytes = new BytesBuilder(copy: false);
+    for (final String part in entry.value) {
+      bytes.add(File('${out.path}/$part').readAsBytesSync());
+    }
+    File('${out.path}/${entry.key}').writeAsBytesSync(bytes.takeBytes());
+  }
 }
 
 List<File> dartFiles(String directory) {
