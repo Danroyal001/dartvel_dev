@@ -142,16 +142,20 @@ class NativeWebSocketChannel(
   Timer? _ping;
   late final StreamController<Object?> _controller = StreamController<Object?>(
     sync: true,
+    // Drained just after these callbacks rather than inside them: frames
+    // added while the controller is still inside listen() or resume() are
+    // held and handed on one microtask apiece, so a burst that was waiting
+    // went out a frame -- a pump and a write -- at a time.
     onListen: () {
       _listening = true;
-      _drain();
+      scheduleMicrotask(_drain);
     },
     onPause: () {
       _paused = true;
     },
     onResume: () {
       _paused = false;
-      _drain();
+      scheduleMicrotask(_drain);
     },
     onCancel: () {
       dispose();

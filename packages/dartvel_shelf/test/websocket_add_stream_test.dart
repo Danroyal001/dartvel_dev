@@ -8,11 +8,65 @@
 // queued; and an error in the source ending addStream with that error.
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'package:dartvel_shelf/web_socket.dart';
 import 'package:test/test.dart';
+
+const int _burst = 1000;
+
+/// A raw WebSocket peer: upgrades, writes [_burst] masked frames in one
+/// write, says 'written' once they are flushed to the operating system,
+/// then reads every echo and says 'in order' or what was wrong.
+Future<void> _burstPeer((int, SendPort) args) async {
+  final (int port, SendPort report) = args;
+  final socket = await Socket.connect('127.0.0.1', port);
+  socket.write('GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n'
+      'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+      'Sec-WebSocket-Version: 13\r\n\r\n');
+  final burst = BytesBuilder();
+  for (var i = 0; i < _burst; i++) {
+    final payload = 'm${i.toString().padLeft(5, '0')}'.codeUnits; // 6 bytes
+    burst.add(<int>[0x81, 0x80 | payload.length, 0, 0, 0, 0, ...payload]);
+  }
+  final received = BytesBuilder();
+  var upgraded = false;
+  final done = Completer<void>();
+  socket.listen((data) {
+    received.add(data);
+    final bytes = received.toBytes();
+    if (!upgraded) {
+      final text = String.fromCharCodes(bytes);
+      final end = text.indexOf('\r\n\r\n');
+      if (end < 0) return;
+      upgraded = true;
+      received.clear();
+      received.add(bytes.sublist(end + 4));
+      socket.add(burst.takeBytes());
+      // Flushed to the operating system: on loopback the bytes are then in
+      // the server's receive buffer.
+      socket.flush().then((_) => report.send('written'));
+      return;
+    }
+    if (bytes.length >= _burst * 8 && !done.isCompleted) done.complete();
+  });
+  await done.future.timeout(const Duration(seconds: 20));
+  final echoes = received.toBytes();
+  String result = 'in order';
+  for (var i = 0; i < _burst; i++) {
+    final frame = echoes.sublist(i * 8, i * 8 + 8);
+    final expected = 'm${i.toString().padLeft(5, '0')}';
+    if (frame[0] != 0x81 || frame[1] != 6 ||
+        String.fromCharCodes(frame.sublist(2)) != expected) {
+      result = 'frame $i was ${frame.toList()}, expected $expected';
+      break;
+    }
+  }
+  socket.destroy();
+  report.send(result);
+}
 
 void main() {
   test('a burst echoed through addStream is flushed a few times, in order',
@@ -31,51 +85,23 @@ void main() {
       port: 0,
     );
     addTearDown(server.stop);
-    // A raw client writing 1,000 masked frames in one write.
-    final socket = await Socket.connect('127.0.0.1', server.port);
-    addTearDown(socket.destroy);
-    socket.write('GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n'
-        'Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
-        'Sec-WebSocket-Version: 13\r\n\r\n');
-    const count = 1000;
-    final burst = BytesBuilder();
-    for (var i = 0; i < count; i++) {
-      final payload = 'm${i.toString().padLeft(5, '0')}'.codeUnits; // 6 bytes
-      burst.add(<int>[0x81, 0x80 | payload.length, 0, 0, 0, 0, ...payload]);
-    }
-    final received = BytesBuilder();
-    var upgraded = false;
-    final done = Completer<void>();
-    socket.listen((data) {
-      received.add(data);
-      final bytes = received.toBytes();
-      if (!upgraded) {
-        final text = String.fromCharCodes(bytes);
-        final end = text.indexOf('\r\n\r\n');
-        if (end < 0) return;
-        upgraded = true;
-        received.clear();
-        received.add(bytes.sublist(end + 4));
-        socket.add(burst.takeBytes());
-        // Flushed to the operating system: on loopback the bytes are then in
-        // the server's receive buffer.
-        socket.flush().then((_) => burstWritten.complete());
-        return;
-      }
-      if (bytes.length >= count * 8 && !done.isCompleted) done.complete();
-    });
-    await done.future.timeout(const Duration(seconds: 20));
-    final echoes = received.toBytes();
-    for (var i = 0; i < count; i++) {
-      final frame = echoes.sublist(i * 8, i * 8 + 8);
-      expect(frame[0], 0x81);
-      expect(frame[1], 6);
-      expect(String.fromCharCodes(frame.sublist(2)),
-          'm${i.toString().padLeft(5, '0')}');
-    }
+    // The peer runs in an isolate of its own and reads the echoes as they
+    // come, as a real peer does. Run in this isolate it read them only when
+    // the server's turns let it, so on a loaded machine the echoes backed up
+    // in the socket and the server wrote a few at a time because it had to.
+    final events = ReceivePort();
+    final messages = StreamIterator<Object?>(events);
+    await Isolate.spawn(_burstPeer, (server.port, events.sendPort));
+    expect(await messages.moveNext(), isTrue);
+    expect(messages.current, 'written');
+    burstWritten.complete();
+    expect(await messages.moveNext(), isTrue);
+    final Object? result = messages.current;
+    await messages.cancel();
+    expect(result, 'in order', reason: '$result');
     final channel = await channelReady.future;
     // One write per frame (1,000 here) is what awaiting each frame cost.
-    expect(channel.flushCount, lessThan(count ~/ 10),
+    expect(channel.flushCount, lessThan(_burst ~/ 10),
         reason: 'frames that arrived together go out together');
   });
 
