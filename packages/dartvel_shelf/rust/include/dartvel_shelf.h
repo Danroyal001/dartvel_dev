@@ -199,6 +199,12 @@ const char *aw_source_revision(void);
  */
 int32_t aw_configure_default_headers(const uint8_t *hdrs, size_t len);
 
+/**
+ * Present when a queued request's bytes are kept by the queue until the
+ * next take: Dart then has no aw_request_received to call for one.
+ */
+int32_t aw_queue_holds_requests(void);
+
 void aw_register_handler(DartReqHandler cb);
 
 void aw_register_cancel_handler(DartStreamCancelHandler cb);

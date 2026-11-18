@@ -35,12 +35,12 @@ use axum::http::{header, HeaderValue, Request, Response, StatusCode};
 use bytes::{Bytes, BytesMut};
 use http_body_util::BodyExt as _;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::sync::{oneshot, watch};
+use tokio::sync::watch;
 
 use super::{
     abandon_stream, aw_ws_dispose, canonical_peer, closing_response, plain_response,
-    response_from_dart, retain_request_parts, safe_lock, FfiBuf, FfiRequest, FfiRespOwned,
-    FfiStr, RequestParts, ServerContext, ServerRequestQueue, NEXT_ID, PENDING_RESPONSES,
+    response_from_dart, safe_lock, FfiBuf, FfiRequest, FfiRespOwned,
+    FfiStr, Reply, RequestParts, ServerContext, ServerRequestQueue, NEXT_ID, PENDING_RESPONSES,
     WS_PENDING,
 };
 
@@ -142,6 +142,8 @@ pub(crate) fn classify(buf: &[u8]) -> Classified {
 /// What a lean server needs besides its listener.
 pub(crate) struct Lean {
     pub context: ServerContext,
+    /// The context's default fields, rendered once for write_whole.
+    pub defaults: RenderedDefaults,
     /// The server's full axum service, for the connections handed to hyper.
     pub app: axum::Router,
     pub compression: bool,
@@ -190,43 +192,298 @@ fn stopping(shutdown: &watch::Receiver<bool>) -> bool {
     *shutdown.borrow()
 }
 
-async fn connection(mut stream: tokio::net::TcpStream, peer: std::net::SocketAddr, lean: Arc<Lean>) {
+/// One lean connection's socket and the answer it waits for, shared between
+/// its task and aw_complete.
+///
+/// A whole answer used to cross to the connection's task: aw_complete copied
+/// it into owned buffers, sent it down a oneshot channel, and the task was
+/// woken, polled, wrote it, and went back to reading. Under load that wakeup
+/// was most of the native cost of a request. Now aw_complete writes the
+/// answer to the socket itself, from Dart's buffer, and the task is woken only
+/// when there is something left for it: the rest of an answer the socket
+/// would not take, a connection to close, or an answer of the kind the
+/// generic path writes (streamed, compressed, an upgrade). The task meanwhile
+/// waits for the client's next request, which is the one wakeup left.
+pub(crate) struct DirectConn {
+    write: tokio::net::tcp::OwnedWriteHalf,
+    lean: Arc<Lean>,
+    state: std::sync::Mutex<DirectState>,
+    /// Wakes the task for an answer it has to act on.
+    act: tokio::sync::Notify,
+}
+
+struct DirectState {
+    /// What aw_complete writes from: an answer's bytes, kept between answers
+    /// so none allocates, and what the socket did not take of the last one.
+    out: Vec<u8>,
+    phase: Phase,
+    /// The task is waiting for this answer, so aw_complete wakes it however
+    /// the answer went.
+    task_waits: bool,
+}
+
+enum Phase {
+    /// No request of this connection's is with Dart.
+    Idle,
+    /// Dart has the request; [direct] when its answer may be written from
+    /// aw_complete (not when it has to be compressed).
+    Waiting { direct: bool },
+    /// The answer is written, at [at]: the next head is timed from then.
+    Written { keep_alive: bool, at: tokio::time::Instant },
+    /// The answer is in `out`, and the socket took it only up to [from].
+    Partial { from: usize, keep_alive: bool },
+    /// An answer the generic path writes.
+    Answer(FfiRespOwned),
+    /// An answer that cannot be sent as given: the task answers 500.
+    Refused,
+    /// The socket failed.
+    Broken,
+}
+
+/// The request a connection has with Dart. Dropped unanswered -- the task
+/// aborted when the server stops past its grace period -- it takes the
+/// connection out of the table aw_complete looks in, so the socket closes
+/// with the task rather than when Dart answers.
+struct Flight {
+    req_id: u64,
+    accept_encoding: Option<HeaderValue>,
+    landed: bool,
+}
+
+impl Drop for Flight {
+    fn drop(&mut self) {
+        if !self.landed {
+            if let Some(pending) = PENDING_RESPONSES.get() {
+                safe_lock(pending).remove(&self.req_id);
+            }
+        }
+    }
+}
+
+/// Writes a whole answer for [conn]'s request from aw_complete, from the
+/// bytes Dart gave. False when this answer is not one written here (the
+/// caller hands it over owned, with [answer_owned]).
+pub(crate) fn answer_direct(conn: &DirectConn, status: u16, headers: &[u8], body: &[u8]) -> bool {
+    let mut guard = safe_lock(&conn.state);
+    // 101 is an upgrade, which the task checks against the request.
+    if status == 101 || !matches!(guard.phase, Phase::Waiting { direct: true }) {
+        return false;
+    }
+    let state = &mut *guard;
+    let (second, date) = http_now();
+    let written = HEADS.with(|cache| {
+        cache.borrow_mut().write(&mut state.out, status, headers, body, &conn.lean.defaults, second, &date)
+    });
+    state.phase = match written {
+        Err(why) => {
+            eprintln!("dartvel: a handler's response {why}; answered 500");
+            Phase::Refused
+        }
+        Ok(keep_alive) => {
+            let socket: &tokio::net::TcpStream = conn.write.as_ref();
+            let mut from = 0;
+            loop {
+                match socket.try_write(&state.out[from..]) {
+                    Ok(0) => break Phase::Broken,
+                    Ok(written) => {
+                        from += written;
+                        if from == state.out.len() {
+                            break Phase::Written { keep_alive, at: tokio::time::Instant::now() };
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        break Phase::Partial { from, keep_alive }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                    Err(_) => break Phase::Broken,
+                }
+            }
+        }
+    };
+    // The one case the task need not hear about: written whole, and the
+    // connection stays open. It finds out when it next looks.
+    let wake = state.task_waits || !matches!(state.phase, Phase::Written { keep_alive: true, .. });
+    if wake {
+        state.task_waits = false;
+        drop(guard);
+        conn.act.notify_one();
+    }
+    true
+}
+
+/// Hands [conn]'s task an answer the generic path writes.
+pub(crate) fn answer_owned(conn: &DirectConn, answer: FfiRespOwned) {
+    {
+        let mut state = safe_lock(&conn.state);
+        state.phase = Phase::Answer(answer);
+        state.task_waits = false;
+    }
+    conn.act.notify_one();
+}
+
+/// Tells [conn]'s task its answer could not be read: it answers 500.
+pub(crate) fn answer_refused(conn: &DirectConn) {
+    {
+        let mut state = safe_lock(&conn.state);
+        state.phase = Phase::Refused;
+        state.task_waits = false;
+    }
+    conn.act.notify_one();
+}
+
+/// What became of the connection's answer, taken; None while Dart still has
+/// the request (and, with [wait], the task is then woken when it has not).
+fn settled(conn: &DirectConn, wait: bool) -> Option<Phase> {
+    let mut state = safe_lock(&conn.state);
+    if matches!(state.phase, Phase::Waiting { .. }) {
+        if wait {
+            state.task_waits = true;
+        }
+        return None;
+    }
+    Some(std::mem::replace(&mut state.phase, Phase::Idle))
+}
+
+/// A connection's socket for the task's own writes, which aw_complete never
+/// overlaps: it writes only while the task waits for it to.
+struct SharedWrite<'a>(&'a tokio::net::TcpStream);
+
+impl AsyncWrite for SharedWrite<'_> {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+        loop {
+            match self.0.poll_write_ready(cx) {
+                Poll::Ready(Ok(())) => {}
+                Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+                Poll::Pending => return Poll::Pending,
+            }
+            match self.0.try_write(buf) {
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
+                result => return Poll::Ready(result),
+            }
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+/// The connection's stream whole again, for hyper: once no answer holds the
+/// shared half. Only an aw_complete that has just settled the answer on the
+/// helper thread can still hold it, for as long as it takes to return.
+async fn reclaim(mut conn: Arc<DirectConn>, read: tokio::net::tcp::OwnedReadHalf) -> Option<tokio::net::TcpStream> {
+    loop {
+        match Arc::try_unwrap(conn) {
+            Ok(owned) => return read.reunite(owned.write).ok(),
+            Err(shared) => {
+                conn = shared;
+                tokio::task::yield_now().await;
+            }
+        }
+    }
+}
+
+async fn connection(stream: tokio::net::TcpStream, peer: std::net::SocketAddr, lean: Arc<Lean>) {
     use tokio::io::AsyncReadExt as _;
     let _ = stream.set_nodelay(true);
     let peer_text = Bytes::from(canonical_peer(peer).to_string());
     let mut buf = BytesMut::with_capacity(8 * 1024);
-    let mut out = Vec::with_capacity(4 * 1024);
+    let mut out = Vec::new();
     let mut shutdown = lean.shutdown.clone();
+    let mut head_deadline = LazyDeadline::new();
+    let mut answer_deadline = LazyDeadline::new();
+    let (mut read, write) = stream.into_split();
+    let conn = Arc::new(DirectConn {
+        write,
+        lean: lean.clone(),
+        state: std::sync::Mutex::new(DirectState {
+            out: Vec::with_capacity(4 * 1024),
+            phase: Phase::Idle,
+            task_waits: false,
+        }),
+        act: tokio::sync::Notify::new(),
+    });
+    let mut flight: Option<Flight> = None;
+    // The whole head within the header timeout, as hyper bounds it; a
+    // connection that sends part of one and stops is closed. Timed from when
+    // the connection is ready for it: its first byte here, the answer before
+    // it on a kept-alive connection.
+    head_deadline.set(tokio::time::Instant::now() + lean.header_timeout);
     loop {
-        // The whole head within the header timeout, as hyper bounds it; a
-        // connection that sends part of one and stops is closed.
-        let deadline = tokio::time::Instant::now() + lean.header_timeout;
         let head = loop {
             if !buf.is_empty() {
                 match classify(&buf) {
                     Classified::Partial => {}
                     other => break other,
                 }
-            } else if stopping(&shutdown) {
+            } else if flight.is_none() && stopping(&shutdown) {
                 return;
             }
             if buf.capacity() - buf.len() < 1024 {
                 buf.reserve(8 * 1024);
             }
             tokio::select! {
-                read = tokio::time::timeout_at(deadline, stream.read_buf(&mut buf)) => match read {
-                    Ok(Ok(0)) | Ok(Err(_)) | Err(_) => return,
-                    Ok(Ok(_)) => {}
+                biased;
+                // The answer needs the task, or its deadline passed.
+                () = conn.act.notified(), if flight.is_some() => {
+                    match land(&conn, &mut flight, &mut answer_deadline, &mut out).await {
+                        Some(at) => head_deadline.set(at + lean.header_timeout),
+                        None => return,
+                    }
+                }
+                () = answer_deadline.passed(), if flight.is_some() => {
+                    match land(&conn, &mut flight, &mut answer_deadline, &mut out).await {
+                        Some(at) => head_deadline.set(at + lean.header_timeout),
+                        None => return,
+                    }
+                }
+                read = read.read_buf(&mut buf) => match read {
+                    Ok(0) | Err(_) => {
+                        // The client is gone; an answer Dart still owes it is
+                        // waited for, as before, so its request is cleaned up.
+                        if flight.is_some() {
+                            land(&conn, &mut flight, &mut answer_deadline, &mut out).await;
+                        }
+                        return;
+                    }
+                    Ok(_) => {}
                 },
+                () = head_deadline.passed() => {
+                    if flight.is_some() {
+                        // Timed from the answer, which may have gone since.
+                        match settled(&conn, false) {
+                            None => head_deadline.set(tokio::time::Instant::now() + lean.header_timeout),
+                            Some(phase) => match finish(&conn, phase, &mut flight, &mut out).await {
+                                Some(at) => head_deadline.set(at + lean.header_timeout),
+                                None => return,
+                            },
+                        }
+                    } else {
+                        return;
+                    }
+                }
                 // An idle keep-alive connection closes when the server stops;
                 // one partway through a head is finished first.
-                _ = shutdown.changed(), if buf.is_empty() => return,
+                _ = shutdown.changed(), if buf.is_empty() && flight.is_none() => return,
             }
         };
+        // Answers go out in order: the one before this head first.
+        if flight.is_some() {
+            match land(&conn, &mut flight, &mut answer_deadline, &mut out).await {
+                Some(at) => head_deadline.set(at + lean.header_timeout),
+                None => return,
+            }
+        }
         let fast = match head {
             Classified::Fast(fast) if served_here(&buf, &fast, &lean.context) => fast,
             _ => {
-                if asks_for_upgrade(&buf) {
+                let upgrade = asks_for_upgrade(&buf);
+                let Some(stream) = reclaim(conn, read).await else { return };
+                if upgrade {
                     // A WebSocket streams frames both ways: the kernel
                     // coalescing small writes is worth more there than the
                     // latency no-delay saves a request and its answer, so an
@@ -237,10 +494,151 @@ async fn connection(mut stream: tokio::net::TcpStream, peer: std::net::SocketAdd
             }
         };
         let head_bytes = buf.split_to(fast.head_len).freeze();
-        let keep_alive = serve_fast(&mut stream, &mut out, head_bytes, fast, &peer_text, &lean).await;
-        if !keep_alive {
-            let _ = stream.shutdown().await;
-            return;
+        match send_fast(&conn, &mut out, head_bytes, fast, &peer_text, &mut answer_deadline).await {
+            Some(sent) => flight = Some(sent),
+            None => return,
+        }
+        // Until the answer says when it went.
+        head_deadline.set(tokio::time::Instant::now() + lean.header_timeout);
+    }
+}
+
+/// Waits for [flight]'s answer, or its deadline, and finishes it: when the
+/// answer went and the connection stays open, or None to close it.
+async fn land(
+    conn: &DirectConn,
+    flight: &mut Option<Flight>,
+    answer_deadline: &mut LazyDeadline,
+    out: &mut Vec<u8>,
+) -> Option<tokio::time::Instant> {
+    loop {
+        if let Some(phase) = settled(conn, true) {
+            return finish(conn, phase, flight, out).await;
+        }
+        tokio::select! {
+            biased;
+            () = conn.act.notified() => {}
+            () = answer_deadline.passed() => {
+                let req_id = flight.as_ref().map(|flight| flight.req_id)?;
+                let ours = PENDING_RESPONSES
+                    .get()
+                    .and_then(|pending| safe_lock(pending).remove(&req_id))
+                    .is_some();
+                if !ours {
+                    // aw_complete has the answer: it settles it in a moment.
+                    continue;
+                }
+                if let Some(flight) = flight.as_mut() {
+                    flight.landed = true;
+                }
+                *flight = None;
+                safe_lock(&conn.state).phase = Phase::Idle;
+                aw_ws_dispose(req_id);
+                let ServerContext(context) = &conn.lean.context;
+                abandon_stream(req_id, Some(context.id));
+                let _ = write_response(&mut SharedWrite(conn.write.as_ref()), out, closing_response(StatusCode::GATEWAY_TIMEOUT)).await;
+                return None;
+            }
+        }
+    }
+}
+
+/// Writes what is left of [flight]'s answer, given how it [phase]d.
+async fn finish(
+    conn: &DirectConn,
+    phase: Phase,
+    flight: &mut Option<Flight>,
+    out: &mut Vec<u8>,
+) -> Option<tokio::time::Instant> {
+    let Some(mut done) = flight.take() else { return None };
+    done.landed = true;
+    let lean = &*conn.lean;
+    let ServerContext(context) = &lean.context;
+    let socket: &tokio::net::TcpStream = conn.write.as_ref();
+    let kept = |keep_alive: bool| keep_alive.then(tokio::time::Instant::now);
+    let response = match phase {
+        Phase::Written { keep_alive, at } => return keep_alive.then_some(at),
+        Phase::Idle | Phase::Waiting { .. } | Phase::Broken => return None,
+        Phase::Partial { from, keep_alive } => {
+            let rest = std::mem::take(&mut safe_lock(&conn.state).out);
+            let written = SharedWrite(socket).write_all(&rest[from..]).await.is_ok();
+            safe_lock(&conn.state).out = rest;
+            return kept(written && keep_alive);
+        }
+        Phase::Refused => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
+        Phase::Answer(answer) => {
+            let pending_upgrade = WS_PENDING
+                .get()
+                .and_then(|pending| safe_lock(pending).remove(&done.req_id));
+            if pending_upgrade.is_some() {
+                // An upgrade answer to a request that asked for none.
+                aw_ws_dispose(done.req_id);
+                plain_response(StatusCode::BAD_REQUEST)
+            } else if answer.is_stream == 0 && done.accept_encoding.is_none() {
+                match write_whole(out, answer.status, &answer.headers, &answer.body, &lean.defaults, &http_date()) {
+                    Ok(keep_alive) => {
+                        let written = SharedWrite(socket).write_all(out).await.is_ok();
+                        return kept(written && keep_alive);
+                    }
+                    Err(why) => {
+                        eprintln!("dartvel: a handler's response {why}; answered 500");
+                        plain_response(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                }
+            } else {
+                response_from_dart(answer, done.req_id, Some(context.id), None, context.defaults.as_ref())
+            }
+        }
+    };
+    let response = match done.accept_encoding.take() {
+        Some(accepted) => compressed(response, accepted).await,
+        None => response,
+    };
+    kept(write_response(&mut SharedWrite(socket), out, response).await.unwrap_or(false))
+}
+
+/// One connection's deadline of one kind (its next head, or Dart's next
+/// answer), on one timer that is armed again only when it rings early.
+///
+/// A tokio timeout per read and per answer put a timer into the wheel and
+/// took it out again for every request, a large share of the native cost of
+/// one. These deadlines only move forward, so the timer set for an earlier
+/// one rings first; it then checks the deadline now in force and, when that
+/// has not passed, sleeps on until it. A deadline still passes exactly when
+/// it is due.
+pub(crate) struct LazyDeadline {
+    timer: std::pin::Pin<Box<tokio::time::Sleep>>,
+    /// When the timer rings; None before the first deadline.
+    armed: Option<tokio::time::Instant>,
+    deadline: tokio::time::Instant,
+}
+
+impl LazyDeadline {
+    pub(crate) fn new() -> LazyDeadline {
+        let now = tokio::time::Instant::now();
+        // Not in the wheel until first polled, and armed before that.
+        LazyDeadline { timer: Box::pin(tokio::time::sleep_until(now)), armed: None, deadline: now }
+    }
+
+    /// Makes [deadline] the one in force.
+    pub(crate) fn set(&mut self, deadline: tokio::time::Instant) {
+        self.deadline = deadline;
+        // A timer set for later than the new deadline would ring too late.
+        if self.armed.is_none_or(|armed| armed > deadline) {
+            self.timer.as_mut().reset(deadline);
+            self.armed = Some(deadline);
+        }
+    }
+
+    /// Completes when the deadline in force passes. Cancel-safe.
+    pub(crate) async fn passed(&mut self) {
+        loop {
+            self.timer.as_mut().await;
+            if tokio::time::Instant::now() >= self.deadline {
+                return;
+            }
+            self.timer.as_mut().reset(self.deadline);
+            self.armed = Some(self.deadline);
         }
     }
 }
@@ -283,24 +681,27 @@ fn ffi_str(bytes: &[u8]) -> FfiStr {
     FfiStr { ptr: bytes.as_ptr(), len: bytes.len() }
 }
 
-/// Answers one fast request; false when the connection closes after it.
-async fn serve_fast<W: AsyncWrite + Unpin>(
-    stream: &mut W,
+/// Hands one fast request to the isolate's queue. None when it could not be
+/// (answered 500 already; the connection closes).
+async fn send_fast(
+    conn: &Arc<DirectConn>,
     out: &mut Vec<u8>,
     head: Bytes,
     fast: FastHead,
     peer: &Bytes,
-    lean: &Lean,
-) -> bool {
+    answer_deadline: &mut LazyDeadline,
+) -> Option<Flight> {
+    let lean = &*conn.lean;
     let ServerContext(context) = &lean.context;
+    let socket: &tokio::net::TcpStream = conn.write.as_ref();
     let Some(ServerRequestQueue(queue)) = &context.queue else {
         // Lean servers are driven, and a driven server has a queue.
-        let _ = write_response(stream, out, plain_response(StatusCode::INTERNAL_SERVER_ERROR)).await;
-        return false;
+        let _ = write_response(&mut SharedWrite(socket), out, plain_response(StatusCode::INTERNAL_SERVER_ERROR)).await;
+        return None;
     };
     let Some(req_id) = NEXT_ID.get().map(|id| id.fetch_add(1, Ordering::Relaxed)) else {
-        let _ = write_response(stream, out, plain_response(StatusCode::INTERNAL_SERVER_ERROR)).await;
-        return false;
+        let _ = write_response(&mut SharedWrite(socket), out, plain_response(StatusCode::INTERNAL_SERVER_ERROR)).await;
+        return None;
     };
     // The same NUL-separated form the hyper path hands Dart.
     let mut flat = Vec::with_capacity(head.len());
@@ -327,14 +728,16 @@ async fn serve_fast<W: AsyncWrite + Unpin>(
     } else {
         None
     };
-    let (response_tx, response_rx) = oneshot::channel::<FfiRespOwned>();
+    safe_lock(&conn.state).phase = Phase::Waiting { direct: accept_encoding.is_none() };
     if let Some(pending) = PENDING_RESPONSES.get() {
-        safe_lock(pending).insert(req_id, (response_tx, queue.driven.clone()));
+        safe_lock(pending).insert(req_id, Reply::Direct(conn.clone()));
     }
+    answer_deadline.set(tokio::time::Instant::now() + context.timeout);
     // Moving the Vec and the Bytes moves their handles, not their bytes: the
-    // pointers above stay valid until Dart has read them.
-    retain_request_parts(
-        req_id,
+    // pointers above stay valid while the queue holds them, until Dart has
+    // read them.
+    queue.push(
+        request,
         RequestParts {
             _method: Vec::new(),
             _target: Vec::new(),
@@ -345,50 +748,7 @@ async fn serve_fast<W: AsyncWrite + Unpin>(
             _peer_bytes: Some(peer.clone()),
         },
     );
-    queue.push(request);
-
-    let deadline = tokio::time::Instant::now() + context.timeout;
-    let response = match tokio::time::timeout_at(deadline, response_rx).await {
-        Ok(Ok(answer)) => {
-            let pending_upgrade = WS_PENDING
-                .get()
-                .and_then(|pending| safe_lock(pending).remove(&req_id));
-            if pending_upgrade.is_some() {
-                // An upgrade answer to a request that asked for none.
-                aw_ws_dispose(req_id);
-                plain_response(StatusCode::BAD_REQUEST)
-            } else if answer.is_stream == 0 && accept_encoding.is_none() {
-                // A whole answer that needs no encoding: written straight
-                // from the bytes Dart gave, in one write.
-                let defaults = context.defaults.as_ref().map(|super::DefaultHeaders(map)| &**map);
-                match write_whole(out, &answer, defaults, &http_date()) {
-                    Ok(keep_alive) => {
-                        return stream.write_all(out).await.is_ok() && keep_alive;
-                    }
-                    Err(why) => {
-                        eprintln!("dartvel: a handler's response {why}; answered 500");
-                        plain_response(StatusCode::INTERNAL_SERVER_ERROR)
-                    }
-                }
-            } else {
-                response_from_dart(answer, req_id, Some(context.id), None, context.defaults.as_ref())
-            }
-        }
-        Ok(Err(_)) => plain_response(StatusCode::INTERNAL_SERVER_ERROR),
-        Err(_) => {
-            aw_ws_dispose(req_id);
-            if let Some(pending) = PENDING_RESPONSES.get() {
-                safe_lock(pending).remove(&req_id);
-            }
-            abandon_stream(req_id, Some(context.id));
-            closing_response(StatusCode::GATEWAY_TIMEOUT)
-        }
-    };
-    let response = match accept_encoding {
-        Some(accepted) => compressed(response, accepted).await,
-        None => response,
-    };
-    write_response(stream, out, response).await.unwrap_or(false)
+    Some(Flight { req_id, accept_encoding, landed: false })
 }
 
 /// [response] through the same compression layer the axum router applies,
@@ -413,22 +773,179 @@ async fn compressed(response: Response<Body>, accepted: HeaderValue) -> Response
 }
 
 thread_local! {
-    static DATE: std::cell::RefCell<(u64, String)> = const { std::cell::RefCell::new((0, String::new())) };
+    static DATE: std::cell::Cell<(u64, [u8; 29])> = const { std::cell::Cell::new((0, [0; 29])) };
 }
 
-/// The `Date` header's value for now, formatted once a second per thread.
-fn http_date() -> String {
+/// [n] in decimal, appended to [out] without allocating.
+fn write_decimal(out: &mut Vec<u8>, mut n: usize) {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    out.extend_from_slice(&digits[at..]);
+}
+
+/// The server's default fields (serve()'s securityHeaders), rendered once
+/// as response lines: an answer that sets none of them gets the whole block
+/// in one copy, where each was compared with each of the answer's fields
+/// and written out on every response.
+pub(crate) struct RenderedDefaults {
+    /// Which server's defaults these are, for HeadCache: never reused.
+    id: u64,
+    block: Vec<u8>,
+    /// Each default's lowercase name and where its line lies in [block].
+    lines: Vec<(Vec<u8>, std::ops::Range<usize>)>,
+}
+
+impl RenderedDefaults {
+    pub(crate) fn new(defaults: Option<&axum::http::HeaderMap>) -> RenderedDefaults {
+        let mut block = Vec::new();
+        let mut lines = Vec::new();
+        if let Some(defaults) = defaults {
+            for (name, value) in defaults.iter() {
+                let start = block.len();
+                block.extend_from_slice(name.as_str().as_bytes());
+                block.extend_from_slice(b": ");
+                block.extend_from_slice(value.as_bytes());
+                block.extend_from_slice(b"\r\n");
+                lines.push((name.as_str().as_bytes().to_vec(), start..block.len()));
+            }
+        }
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        RenderedDefaults { id: NEXT.fetch_add(1, Ordering::Relaxed), block, lines }
+    }
+
+    /// Which of the first 64 defaults [name] stands for, as bits of a mask:
+    /// a default whose bit is set is not written.
+    fn matching(&self, name: &[u8]) -> u64 {
+        let mut mask = 0u64;
+        for (index, (default, _)) in self.lines.iter().take(64).enumerate() {
+            if default.len() == name.len() && default.eq_ignore_ascii_case(name) {
+                mask |= 1u64 << index;
+            }
+        }
+        mask
+    }
+
+    /// Writes every default the answer ([headers], NUL-separated pairs) did
+    /// not set itself: the first 64 by [overridden], any further ones by
+    /// looking for them among [headers].
+    fn write_except(&self, out: &mut Vec<u8>, overridden: u64, headers: &[u8]) {
+        if overridden == 0 && self.lines.len() <= 64 {
+            out.extend_from_slice(&self.block);
+            return;
+        }
+        for (index, (name, line)) in self.lines.iter().enumerate() {
+            let given = if index < 64 {
+                overridden & (1u64 << index) != 0
+            } else {
+                headers.split(|&b| b == 0).step_by(2).any(|given| given.eq_ignore_ascii_case(name))
+            };
+            if !given {
+                out.extend_from_slice(&self.block[line.clone()]);
+            }
+        }
+    }
+}
+
+thread_local! {
+    static HEADS: std::cell::RefCell<HeadCache> = std::cell::RefCell::new(HeadCache::default());
+}
+
+/// The head of the last whole answer this thread wrote, and what it was
+/// written from.
+///
+/// A route answers with the same status, the same fields and a body of the
+/// same length request after request, so within one second (the Date) its
+/// head is the same bytes every time. Checking and formatting it again was
+/// most of what writing an answer cost; now an answer whose head is the
+/// last one's costs a comparison of its fields and a copy.
+#[derive(Default)]
+pub(crate) struct HeadCache {
+    /// RenderedDefaults::id; 0 before the first answer.
+    defaults: u64,
+    status: u16,
+    headers: Vec<u8>,
+    body_len: usize,
+    second: u64,
+    head: Vec<u8>,
+    keep_alive: bool,
+    bodiless: bool,
+}
+
+impl HeadCache {
+    /// [write_whole], from the last head when it is this answer's.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn write(
+        &mut self,
+        out: &mut Vec<u8>,
+        status: u16,
+        headers: &[u8],
+        body: &[u8],
+        defaults: &RenderedDefaults,
+        second: u64,
+        date: &[u8],
+    ) -> Result<bool, &'static str> {
+        if self.defaults == defaults.id
+            && self.status == status
+            && self.body_len == body.len()
+            && self.second == second
+            && self.headers == headers
+        {
+            out.clear();
+            out.extend_from_slice(&self.head);
+            if !self.bodiless {
+                out.extend_from_slice(body);
+            }
+            return Ok(self.keep_alive);
+        }
+        let keep_alive = write_whole(out, status, headers, body, defaults, date)?;
+        let bodiless = (100..200).contains(&status) || status == 204 || status == 304;
+        let head_len = out.len() - if bodiless { 0 } else { body.len() };
+        self.defaults = defaults.id;
+        self.status = status;
+        self.body_len = body.len();
+        self.second = second;
+        self.headers.clear();
+        self.headers.extend_from_slice(headers);
+        self.head.clear();
+        self.head.extend_from_slice(&out[..head_len]);
+        self.keep_alive = keep_alive;
+        self.bodiless = bodiless;
+        Ok(keep_alive)
+    }
+}
+
+/// The `Date` header's value for now, formatted once a second per thread
+/// (an HTTP date is always 29 bytes).
+fn http_date() -> [u8; 29] {
+    http_now().1
+}
+
+/// The current second, and [http_date] for it.
+fn http_now() -> (u64, [u8; 29]) {
     let now = std::time::SystemTime::now();
     let second = now
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_secs())
         .unwrap_or(0);
     DATE.with(|cell| {
-        let mut cached = cell.borrow_mut();
-        if cached.0 != second || cached.1.is_empty() {
-            *cached = (second, httpdate::fmt_http_date(now));
+        let (cached_second, cached) = cell.get();
+        if cached_second == second && cached[0] != 0 {
+            return (second, cached);
         }
-        cached.1.clone()
+        let mut bytes = [0u8; 29];
+        let text = httpdate::fmt_http_date(now);
+        let len = text.len().min(29);
+        bytes[..len].copy_from_slice(&text.as_bytes()[..len]);
+        cell.set((second, bytes));
+        (second, bytes)
     })
 }
 
@@ -475,7 +992,7 @@ pub(crate) async fn write_response<W: AsyncWrite + Unpin>(
     }
     if !headers.contains_key(header::DATE) {
         out.extend_from_slice(b"date: ");
-        out.extend_from_slice(http_date().as_bytes());
+        out.extend_from_slice(&http_date());
         out.extend_from_slice(b"\r\n");
     }
     let given_length = headers.contains_key(header::CONTENT_LENGTH);
@@ -533,12 +1050,31 @@ pub(crate) async fn write_response<W: AsyncWrite + Unpin>(
 }
 
 /// A field name HTTP allows: one or more token characters (RFC 9110 5.6.2).
+#[cfg(test)]
 fn is_token(name: &[u8]) -> bool {
     !name.is_empty()
         && name.iter().all(|&b| {
             b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b)
         })
 }
+
+/// Each byte's lowercase form where a field name may hold it (a token
+/// character, RFC 9110 5.6.2), and 0 where it may not: the check and the
+/// lowercasing of a name in one lookup a byte.
+static TOKEN_LOWER: [u8; 256] = {
+    let mut table = [0u8; 256];
+    let mut index = 0;
+    while index < 256 {
+        let byte = index as u8;
+        if byte.is_ascii_alphanumeric()
+            || matches!(byte, b'!' | b'#' | b'$' | b'%' | b'&' | b'\'' | b'*' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~')
+        {
+            table[index] = byte.to_ascii_lowercase();
+        }
+        index += 1;
+    }
+    table
+};
 
 /// A field value HTTP allows: no control characters but tab, no DEL
 /// (RFC 9110 5.5) -- what `HeaderValue::from_bytes` accepts.
@@ -555,11 +1091,13 @@ fn is_field_value(value: &[u8]) -> bool {
 /// goes with 1xx, 204 or 304, and a `Content-Length` the answer gave is kept.
 pub(crate) fn write_whole(
     out: &mut Vec<u8>,
-    answer: &FfiRespOwned,
-    defaults: Option<&axum::http::HeaderMap>,
-    date: &str,
+    status: u16,
+    headers: &[u8],
+    body: &[u8],
+    defaults: &RenderedDefaults,
+    date: &[u8],
 ) -> Result<bool, &'static str> {
-    let Ok(status) = StatusCode::from_u16(answer.status) else {
+    let Ok(status) = StatusCode::from_u16(status) else {
         return Err("has a status that is not an HTTP status");
     };
     let bodiless = status.is_informational()
@@ -571,19 +1109,18 @@ pub(crate) fn write_whole(
     out.push(b' ');
     out.extend_from_slice(status.canonical_reason().unwrap_or("").as_bytes());
     out.extend_from_slice(b"\r\n");
-    let mut names: [&[u8]; 32] = [b""; 32];
-    let mut named = 0;
-    let mut overflow = false;
+    // Which of the server's default fields this answer sets itself.
+    let mut overridden: u64 = 0;
     let mut has_date = false;
     let mut has_length = false;
     let mut close = false;
-    let mut fields = answer.headers.split(|&b| b == 0);
+    let mut fields = headers.split(|&b| b == 0);
     while let Some(name) = fields.next() {
         let value = fields.next().unwrap_or_default();
         if name.is_empty() {
             continue;
         }
-        if !is_token(name) {
+        if !name.iter().all(|&b| TOKEN_LOWER[b as usize] != 0) {
             return Err("has a header name HTTP does not allow");
         }
         if !is_field_value(value) {
@@ -602,46 +1139,26 @@ pub(crate) fn write_whole(
         } else if name.eq_ignore_ascii_case(b"connection") && value.eq_ignore_ascii_case(b"close") {
             close = true;
         }
-        if named < names.len() {
-            names[named] = name;
-            named += 1;
-        } else {
-            overflow = true;
-        }
-        for &b in name {
-            out.push(b.to_ascii_lowercase());
-        }
+        overridden |= defaults.matching(name);
+        out.extend(name.iter().map(|&b| TOKEN_LOWER[b as usize]));
         out.extend_from_slice(b": ");
         out.extend_from_slice(value);
         out.extend_from_slice(b"\r\n");
     }
-    if let Some(defaults) = defaults {
-        for (name, value) in defaults.iter() {
-            let key = name.as_str().as_bytes();
-            let given = names[..named].iter().any(|n| n.eq_ignore_ascii_case(key))
-                || (overflow && answer.headers.split(|&b| b == 0).step_by(2).any(|n| n.eq_ignore_ascii_case(key)));
-            if given {
-                continue;
-            }
-            out.extend_from_slice(key);
-            out.extend_from_slice(b": ");
-            out.extend_from_slice(value.as_bytes());
-            out.extend_from_slice(b"\r\n");
-        }
-    }
+    defaults.write_except(out, overridden, headers);
     if !has_date {
         out.extend_from_slice(b"date: ");
-        out.extend_from_slice(date.as_bytes());
+        out.extend_from_slice(date);
         out.extend_from_slice(b"\r\n");
     }
     if !bodiless && !has_length {
         out.extend_from_slice(b"content-length: ");
-        out.extend_from_slice(answer.body.len().to_string().as_bytes());
+        write_decimal(out, body.len());
         out.extend_from_slice(b"\r\n");
     }
     out.extend_from_slice(b"\r\n");
     if !bodiless {
-        out.extend_from_slice(&answer.body);
+        out.extend_from_slice(body);
     }
     Ok(!close)
 }
@@ -897,7 +1414,7 @@ mod tests {
 
     fn whole(answer: &FfiRespOwned, defaults: Option<&axum::http::HeaderMap>) -> Result<(String, bool), &'static str> {
         let mut out = Vec::new();
-        write_whole(&mut out, answer, defaults, "Tue, 18 Nov 2026 05:00:00 GMT")
+        write_whole(&mut out, answer.status, &answer.headers, &answer.body, &RenderedDefaults::new(defaults), b"Tue, 18 Nov 2026 05:00:00 GMT")
             .map(|keep| (String::from_utf8(out).unwrap(), keep))
     }
 
@@ -944,6 +1461,92 @@ mod tests {
         assert!(!keep);
         let (text, _) = whole(&answer(200, b"date\0yesterday\0", b""), None).unwrap();
         assert_eq!(text.matches("date: ").count(), 1);
+    }
+
+    fn cached(
+        cache: &mut HeadCache,
+        status: u16,
+        headers: &[u8],
+        body: &[u8],
+        defaults: &RenderedDefaults,
+        second: u64,
+    ) -> (String, bool) {
+        let date: &[u8; 29] = if second % 2 == 0 { b"Tue, 18 Nov 2026 05:00:00 GMT" } else { b"Tue, 18 Nov 2026 05:00:01 GMT" };
+        let mut out = Vec::new();
+        let keep = cache.write(&mut out, status, headers, body, defaults, second, date).unwrap();
+        (String::from_utf8(out).unwrap(), keep)
+    }
+
+    #[test]
+    fn a_cached_head_is_the_head_write_whole_writes() {
+        let mut map = axum::http::HeaderMap::new();
+        map.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
+        let defaults = RenderedDefaults::new(Some(&map));
+        let other_defaults = RenderedDefaults::new(None);
+        let mut cache = HeadCache::default();
+        let plain = b"content-type\0text/plain\0";
+        let fresh = |status: u16, headers: &[u8], body: &[u8], defaults: &RenderedDefaults, second: u64| {
+            let date: &[u8; 29] = if second % 2 == 0 { b"Tue, 18 Nov 2026 05:00:00 GMT" } else { b"Tue, 18 Nov 2026 05:00:01 GMT" };
+            let mut out = Vec::new();
+            let keep = write_whole(&mut out, status, headers, body, defaults, date).unwrap();
+            (String::from_utf8(out).unwrap(), keep)
+        };
+        // The same answer twice: the second from the cache, byte for byte.
+        let first = cached(&mut cache, 200, plain, b"hello", &defaults, 0);
+        assert_eq!(first, fresh(200, plain, b"hello", &defaults, 0));
+        assert_eq!(cached(&mut cache, 200, plain, b"world", &defaults, 0), fresh(200, plain, b"world", &defaults, 0));
+        // Anything the head depends on, changed: never the old head.
+        assert_eq!(cached(&mut cache, 201, plain, b"world", &defaults, 0), fresh(201, plain, b"world", &defaults, 0));
+        assert_eq!(cached(&mut cache, 201, b"content-type\0text/html\0", b"world", &defaults, 0), fresh(201, b"content-type\0text/html\0", b"world", &defaults, 0));
+        assert_eq!(cached(&mut cache, 201, plain, b"a longer body", &defaults, 0), fresh(201, plain, b"a longer body", &defaults, 0));
+        assert_eq!(cached(&mut cache, 201, plain, b"a longer body", &other_defaults, 0), fresh(201, plain, b"a longer body", &other_defaults, 0));
+        assert_eq!(cached(&mut cache, 201, plain, b"a longer body", &other_defaults, 1), fresh(201, plain, b"a longer body", &other_defaults, 1));
+        // No body for a 304, and Connection: close still closes.
+        assert_eq!(cached(&mut cache, 304, plain, b"", &defaults, 1), fresh(304, plain, b"", &defaults, 1));
+        let closing = b"connection\0close\0";
+        assert!(!cached(&mut cache, 200, closing, b"x", &defaults, 1).1);
+        assert!(!cached(&mut cache, 200, closing, b"x", &defaults, 1).1);
+    }
+
+    #[test]
+    fn an_answer_that_cannot_be_sent_is_refused_from_the_cache_too() {
+        let defaults = RenderedDefaults::new(None);
+        let mut cache = HeadCache::default();
+        let bad = b"x-bad\0line\r\nsplit\0";
+        let mut out = Vec::new();
+        assert!(cache.write(&mut out, 200, bad, b"", &defaults, 0, b"Tue, 18 Nov 2026 05:00:00 GMT").is_err());
+        assert!(cache.write(&mut out, 200, bad, b"", &defaults, 0, b"Tue, 18 Nov 2026 05:00:00 GMT").is_err());
+    }
+
+    #[test]
+    fn the_name_table_agrees_with_is_token_on_every_byte() {
+        for byte in 0..=255u8 {
+            let in_table = TOKEN_LOWER[byte as usize] != 0;
+            assert_eq!(in_table, is_token(&[byte]), "byte {byte}");
+            if in_table {
+                assert_eq!(TOKEN_LOWER[byte as usize], byte.to_ascii_lowercase(), "byte {byte}");
+            }
+        }
+    }
+
+    #[test]
+    fn more_than_sixty_four_defaults_suppress_only_the_ones_set() {
+        let mut defaults = axum::http::HeaderMap::new();
+        for index in 0..70 {
+            defaults.insert(
+                axum::http::HeaderName::from_bytes(format!("x-default-{index}").as_bytes()).unwrap(),
+                HeaderValue::from_static("d"),
+            );
+        }
+        // Setting the first and the 66th leaves every other default in place.
+        let (text, _) = whole(&answer(200, b"x-default-0\0mine\0x-default-65\0mine\0", b""), Some(&defaults)).unwrap();
+        for index in 0..70 {
+            let line = format!("x-default-{index}: ");
+            let count = text.matches(&format!("\r\n{line}")).count();
+            assert_eq!(count, 1, "{line} once in {text}");
+            let expected = if index == 0 || index == 65 { "mine" } else { "d" };
+            assert!(text.contains(&format!("\r\n{line}{expected}\r\n")), "{line}{expected} in {text}");
+        }
     }
 
     #[test]
@@ -1055,7 +1658,7 @@ mod tests {
             }
             let given = answer(status, &flat, &body);
             let mut out = Vec::new();
-            if write_whole(&mut out, &given, None, "d").is_ok() {
+            if write_whole(&mut out, given.status, &given.headers, &given.body, &RenderedDefaults::new(None), b"d").is_ok() {
                 let head_end = out.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
                 let head = &out[..head_end];
                 // Every line but the last two is "name: value" with no bare
@@ -1076,5 +1679,53 @@ mod tests {
             let cut = cut.min(bytes.len() - 1);
             prop_assert_eq!(classify(&bytes[..cut]), Classified::Partial);
         }
+    }
+}
+
+#[cfg(test)]
+mod cost {
+    use super::*;
+
+    /// `cargo test --release cost -- --ignored`, under `perf stat`: the
+    /// instructions one typical whole answer costs to serialise.
+    #[test]
+    #[ignore]
+    fn write_whole_a_million_times() {
+        let mut defaults = axum::http::HeaderMap::new();
+        defaults.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+        defaults.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
+        defaults.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
+        let rendered = RenderedDefaults::new(Some(&defaults));
+        let headers = b"content-type\0text/plain; charset=utf-8\0";
+        let mut out = Vec::with_capacity(4096);
+        let mut total = 0usize;
+        for _ in 0..1_000_000 {
+            let date = http_date();
+            let _ = std::hint::black_box(write_whole(&mut out, 200, std::hint::black_box(headers), b"Hello, World!", &rendered, &date));
+            total += out.len();
+        }
+        assert!(total > 0);
+    }
+
+    /// The same, from the head cache, as aw_complete writes it.
+    #[test]
+    #[ignore]
+    fn cached_whole_answer_a_million_times() {
+        let mut defaults = axum::http::HeaderMap::new();
+        defaults.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
+        defaults.insert("x-frame-options", HeaderValue::from_static("SAMEORIGIN"));
+        defaults.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
+        let rendered = RenderedDefaults::new(Some(&defaults));
+        let headers = b"content-type\0text/plain; charset=utf-8\0";
+        let mut out = Vec::with_capacity(4096);
+        let mut total = 0usize;
+        for _ in 0..1_000_000 {
+            let (second, date) = http_now();
+            let _ = std::hint::black_box(HEADS.with(|cache| {
+                cache.borrow_mut().write(&mut out, 200, std::hint::black_box(headers), b"Hello, World!", &rendered, second, &date)
+            }));
+            total += out.len();
+        }
+        assert!(total > 0);
     }
 }

@@ -37,8 +37,8 @@ final class Exchange {
 
   /// The status of the first response, or null when none arrived.
   int? get status {
-    final RegExpMatch? match =
-        RegExp(r'^HTTP/1\.[01] (\d{3})').firstMatch(text);
+    final RegExpMatch? match = RegExp(r'^HTTP/1\.[01] (\d{3})')
+        .firstMatch(text);
     return match == null ? null : int.parse(match.group(1)!);
   }
 
@@ -49,8 +49,11 @@ final class Exchange {
 }
 
 /// Writes [request] and reads until the server closes or [within] passes.
-Future<Exchange> exchange(int port, List<int> request,
-    {Duration within = bound}) async {
+Future<Exchange> exchange(
+  int port,
+  List<int> request, {
+  Duration within = bound,
+}) async {
   final Stopwatch clock = Stopwatch()..start();
   final Socket socket = await Socket.connect('127.0.0.1', port);
   final List<int> received = <int>[];
@@ -67,21 +70,28 @@ Future<Exchange> exchange(int port, List<int> request,
   // A server that refuses the request can close while it is still being
   // written. That write then fails with a broken pipe on socket.done, which
   // is the connection closing, not the test failing, so it counts as closed.
-  socket.done.then((_) {}, onError: (Object _) {
-    if (!closed.isCompleted) closed.complete(true);
-  });
+  socket.done.then(
+    (_) {},
+    onError: (Object _) {
+      if (!closed.isCompleted) closed.complete(true);
+    },
+  );
   socket.add(request);
-  final bool wasClosed = await closed.future
-      .timeout(within, onTimeout: () => false);
+  final bool wasClosed = await closed.future.timeout(
+    within,
+    onTimeout: () => false,
+  );
   clock.stop();
   socket.destroy();
   return Exchange(received, wasClosed, clock.elapsed);
 }
 
 List<int> get(String target, {List<String> headers = const <String>[]}) =>
-    ascii.encode('GET $target HTTP/1.1\r\nHost: localhost\r\n'
-        '${headers.map((String h) => '$h\r\n').join()}'
-        'Connection: close\r\n\r\n');
+    ascii.encode(
+      'GET $target HTTP/1.1\r\nHost: localhost\r\n'
+      '${headers.map((String h) => '$h\r\n').join()}'
+      'Connection: close\r\n\r\n',
+    );
 
 void main() {
   late ServerHandle server;
@@ -94,8 +104,10 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
         throw StateError('handler $marker');
       })
-      ..get('/segments', (Request req) async =>
-          Response.text(req.url.pathSegments.join('|')));
+      ..get(
+        '/segments',
+        (Request req) async => Response.text(req.url.pathSegments.join('|')),
+      );
     server = await serve(router.call, host: '127.0.0.1', port: 0);
   });
 
@@ -103,14 +115,21 @@ void main() {
 
   Future<void> stillServes() async {
     final Exchange next = await exchange(server.port, get('/ok'));
-    expect(next.status, 200, reason: 'the server answers the next request: $next');
+    expect(
+      next.status,
+      200,
+      reason: 'the server answers the next request: $next',
+    );
   }
 
   void answered(Exchange result, int status) {
     expect(result.status, status, reason: '$result');
     expect(result.elapsed, lessThan(bound), reason: '$result');
-    expect(result.text, isNot(contains(marker)),
-        reason: 'an error answer repeats nothing the request carried');
+    expect(
+      result.text,
+      isNot(contains(marker)),
+      reason: 'an error answer repeats nothing the request carried',
+    );
   }
 
   List<DVLogRecord> logsSince(int count) =>
@@ -118,50 +137,69 @@ void main() {
 
   group('a request that cannot be read', () {
     test('a garbled request line is answered 400', () async {
-      answered(await exchange(server.port, ascii.encode('GARBAGE $marker\r\n\r\n')), 400);
+      answered(
+        await exchange(server.port, ascii.encode('GARBAGE $marker\r\n\r\n')),
+        400,
+      );
       await stillServes();
     });
 
-    test('an absolute-form target is served as its path, not a crash',
-        () async {
-      // RFC 9112 3.2.2: a server accepts the absolute form. Its port is not
-      // this server's, and pasting it after the authority made a URL
-      // Uri.parse refused -- unhandled, in the callback, ending the process.
-      final Exchange result =
-          await exchange(server.port, get('http://elsewhere.example:99/ok'));
-      answered(result, 200);
-      expect(result.text, endsWith('ok\r\n0\r\n\r\n'));
-      await stillServes();
-    });
-
-    test('an asterisk-form target is answered 400 and the server lives',
-        () async {
-      final int before = DV.ObservabilityAndLogging.recentLogs.length;
-      final Exchange result = await exchange(
+    test(
+      'an absolute-form target is served as its path, not a crash',
+      () async {
+        // RFC 9112 3.2.2: a server accepts the absolute form. Its port is not
+        // this server's, and pasting it after the authority made a URL
+        // Uri.parse refused -- unhandled, in the callback, ending the process.
+        final Exchange result = await exchange(
           server.port,
-          ascii.encode('OPTIONS * HTTP/1.1\r\nHost: localhost\r\n'
-              'Connection: close\r\n\r\n'));
-      answered(result, 400);
-      final List<DVLogRecord> logged = logsSince(before);
-      expect(logged, isNotEmpty, reason: 'a refused request is logged');
-      await stillServes();
-    });
+          get('http://elsewhere.example:99/ok'),
+        );
+        answered(result, 200);
+        expect(result.text, endsWith('ok\r\n0\r\n\r\n'));
+        await stillServes();
+      },
+    );
 
-    test('invalid percent-encoding is answered 400, not handed to a route',
-        () async {
-      // Handed on, it throws in whichever handler first decodes the path --
-      // a 500 for the client's mistake, or a 404 that hides it.
-      final int before = DV.ObservabilityAndLogging.recentLogs.length;
-      final Exchange result =
-          await exchange(server.port, get('/segments/$marker%zz'));
-      answered(result, 400);
-      for (final DVLogRecord record in logsSince(before)) {
-        expect(jsonEncode(record.toJson()), isNot(contains(marker)),
-            reason: 'the log names the failure, not the request');
-      }
-      expect(logsSince(before), isNotEmpty);
-      await stillServes();
-    });
+    test(
+      'an asterisk-form target is answered 400 and the server lives',
+      () async {
+        final int before = DV.ObservabilityAndLogging.recentLogs.length;
+        final Exchange result = await exchange(
+          server.port,
+          ascii.encode(
+            'OPTIONS * HTTP/1.1\r\nHost: localhost\r\n'
+            'Connection: close\r\n\r\n',
+          ),
+        );
+        answered(result, 400);
+        final List<DVLogRecord> logged = logsSince(before);
+        expect(logged, isNotEmpty, reason: 'a refused request is logged');
+        await stillServes();
+      },
+    );
+
+    test(
+      'invalid percent-encoding is answered 400, not handed to a route',
+      () async {
+        // Handed on, it throws in whichever handler first decodes the path --
+        // a 500 for the client's mistake, or a 404 that hides it.
+        final int before = DV.ObservabilityAndLogging.recentLogs.length;
+        final Exchange result = await exchange(
+          server.port,
+          get('/segments/$marker%zz'),
+        );
+        answered(result, 400);
+        for (final DVLogRecord record in logsSince(before)) {
+          expect(
+            jsonEncode(record.toJson()),
+            isNot(contains(marker)),
+            reason: 'the log names the failure, not the request',
+          );
+        }
+        expect(logsSince(before), isNotEmpty);
+        await stillServes();
+      },
+    );
 
     test('a truncated percent escape is answered 400', () async {
       answered(await exchange(server.port, get('/segments/a%4')), 400);
@@ -179,16 +217,21 @@ void main() {
 
     test('a header line with no colon is answered 400', () async {
       answered(
-          await exchange(server.port,
-              get('/ok', headers: <String>['nocolon$marker'])),
-          400);
+        await exchange(
+          server.port,
+          get('/ok', headers: <String>['nocolon$marker']),
+        ),
+        400,
+      );
       await stillServes();
     });
 
     test('a header value that is not UTF-8 is still answered', () async {
       final List<int> request = <int>[
         ...ascii.encode('GET /ok HTTP/1.1\r\nHost: localhost\r\nX-Garbled: '),
-        0xff, 0xfe, 0xc3,
+        0xff,
+        0xfe,
+        0xc3,
         ...ascii.encode('\r\nConnection: close\r\n\r\n'),
       ];
       answered(await exchange(server.port, request), 200);
@@ -198,8 +241,10 @@ void main() {
       // hyper refuses them with 431 and closes while the client is still
       // writing, so the reset can discard the 431 before it is read. What
       // must hold is that the connection does not stay open.
-      final Exchange result = await exchange(server.port,
-          get('/ok', headers: <String>['X-Big: $marker${'a' * 1000000}']));
+      final Exchange result = await exchange(
+        server.port,
+        get('/ok', headers: <String>['X-Big: $marker${'a' * 1000000}']),
+      );
       expect(result.closed, isTrue, reason: '$result');
       expect(result.status, anyOf(isNull, 431), reason: '$result');
       expect(result.text, isNot(contains(marker)));
@@ -208,11 +253,15 @@ void main() {
 
     test('too many headers are answered 431', () async {
       answered(
-          await exchange(server.port,
-              get('/ok', headers: <String>[
-                for (int i = 0; i < 500; i++) 'X-$i: $marker',
-              ])),
-          431);
+        await exchange(
+          server.port,
+          get(
+            '/ok',
+            headers: <String>[for (int i = 0; i < 500; i++) 'X-$i: $marker'],
+          ),
+        ),
+        431,
+      );
       await stillServes();
     });
   });
@@ -229,18 +278,27 @@ void main() {
     final Completer<void> never = Completer<void>();
 
     setUp(() async {
-      slow = await serve((Request req) async {
-        switch (req.url.path) {
-          case '/never':
-            await never.future;
-          case '/bad-header':
-            return Response(200,
-                headers: Headers()..set('x-broken', 'line\r\nsplit: $marker'));
-          case '/bad-status':
-            return Response(42);
-        }
-        return Response.text('ok');
-      }, host: '127.0.0.1', port: 0, requestTimeout: const Duration(seconds: 1));
+      slow = await serve(
+        (Request req) async {
+          switch (req.url.path) {
+            case '/never':
+              await never.future;
+            case '/late':
+              await Future<void>.delayed(const Duration(milliseconds: 700));
+            case '/bad-header':
+              return Response(
+                200,
+                headers: Headers()..set('x-broken', 'line\r\nsplit: $marker'),
+              );
+            case '/bad-status':
+              return Response(42);
+          }
+          return Response.text('ok');
+        },
+        host: '127.0.0.1',
+        port: 0,
+        requestTimeout: const Duration(seconds: 1),
+      );
     });
 
     tearDown(() => slow.stop());
@@ -252,44 +310,118 @@ void main() {
       expect(result.closed, isTrue, reason: '$result');
     });
 
-    test('headers that never finish are closed at the request timeout',
-        () async {
-      final Exchange result = await exchange(
-          slow.port, ascii.encode('GET /ok HTTP/1.1\r\nHost: localhost\r\n'));
-      expect(result.closed, isTrue,
-          reason: 'one stalled connection per slot is the whole attack: '
-              '$result');
-      expect(result.elapsed, lessThan(bound));
+    // The timeout is per request, not per connection: a keep-alive
+    // connection's second request is given the whole second again, however
+    // the native side keeps its timer.
+    test(
+      'a request on a reused connection gets its own full timeout',
+      () async {
+        final _Reused connection = await _Reused.open(slow.port);
+        try {
+          expect(await connection.ask('/ok'), startsWith('HTTP/1.1 200'));
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          // Answered 700 ms after it was sent: 1.3 s after the first request,
+          // inside its own second.
+          expect(await connection.ask('/late'), startsWith('HTTP/1.1 200'));
+        } finally {
+          connection.close();
+        }
+      },
+    );
+
+    test('a request on a reused connection that is never answered is '
+        'answered 504 a full timeout after it was sent', () async {
+      final _Reused connection = await _Reused.open(slow.port);
+      try {
+        expect(await connection.ask('/ok'), startsWith('HTTP/1.1 200'));
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        final Stopwatch clock = Stopwatch()..start();
+        expect(await connection.ask('/never'), startsWith('HTTP/1.1 504'));
+        expect(
+          clock.elapsedMilliseconds,
+          greaterThanOrEqualTo(950),
+          reason: 'answered at the first request\'s deadline, not its own',
+        );
+      } finally {
+        connection.close();
+      }
     });
+
+    // The header timeout runs from when the connection is ready for the next
+    // head, so a slow answer does not use up the time the next request has.
+    test('the next head on a connection is timed from the answer, not from '
+        'the request before it', () async {
+      final _Reused connection = await _Reused.open(slow.port);
+      try {
+        // Answered 700 ms in; the next request comes 500 ms after that,
+        // 1.2 s after the first was sent and well within a second of its
+        // answer.
+        expect(await connection.ask('/late'), startsWith('HTTP/1.1 200'));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        expect(await connection.ask('/ok'), startsWith('HTTP/1.1 200'));
+      } finally {
+        connection.close();
+      }
+    });
+
+    test(
+      'headers that never finish are closed at the request timeout',
+      () async {
+        final Exchange result = await exchange(
+          slow.port,
+          ascii.encode('GET /ok HTTP/1.1\r\nHost: localhost\r\n'),
+        );
+        expect(
+          result.closed,
+          isTrue,
+          reason:
+              'one stalled connection per slot is the whole attack: '
+              '$result',
+        );
+        expect(result.elapsed, lessThan(bound));
+      },
+    );
 
     test('a body that never arrives is answered 408 and closed', () async {
       final Exchange result = await exchange(
-          slow.port,
-          ascii.encode('POST /ok HTTP/1.1\r\nHost: localhost\r\n'
-              'Content-Length: 100\r\n\r\npartial'));
+        slow.port,
+        ascii.encode(
+          'POST /ok HTTP/1.1\r\nHost: localhost\r\n'
+          'Content-Length: 100\r\n\r\npartial',
+        ),
+      );
       answered(result, 408);
       expect(result.closed, isTrue, reason: '$result');
     });
 
-    test('a response header the native side cannot send is answered 500',
-        () async {
-      // It panicked on unwrap: the connection dropped with no answer.
-      final Exchange result = await exchange(slow.port, get('/bad-header'));
-      answered(result, 500);
-      final Exchange next = await exchange(slow.port, get('/ok'));
-      expect(next.status, 200, reason: '$next');
-    });
+    test(
+      'a response header the native side cannot send is answered 500',
+      () async {
+        // It panicked on unwrap: the connection dropped with no answer.
+        final Exchange result = await exchange(slow.port, get('/bad-header'));
+        answered(result, 500);
+        final Exchange next = await exchange(slow.port, get('/ok'));
+        expect(next.status, 200, reason: '$next');
+      },
+    );
 
-    test('a status that is not an HTTP status is answered 500, not 200',
-        () async {
-      answered(await exchange(slow.port, get('/bad-status')), 500);
-    });
+    test(
+      'a status that is not an HTTP status is answered 500, not 200',
+      () async {
+        answered(await exchange(slow.port, get('/bad-status')), 500);
+      },
+    );
 
     test('a request timeout that is not positive is refused', () async {
       await expectLater(
-          serve((Request req) async => Response.text('ok'),
-              host: '127.0.0.1', port: 0, requestTimeout: .zero),
-          throwsArgumentError);
+        serve(
+          (Request req) async => Response.text('ok'),
+          host: '127.0.0.1',
+          port: 0,
+          requestTimeout: .zero,
+        ),
+        throwsArgumentError,
+      );
     });
   });
 
@@ -297,13 +429,17 @@ void main() {
     late ServerHandle bare;
 
     setUp(() async {
-      bare = await serve((Request req) {
-        if (req.url.path == '/throws') throw StateError('handler failed');
-        return Future<Response>(() async {
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-          throw StateError('handler failed later');
-        });
-      }, host: '127.0.0.1', port: 0);
+      bare = await serve(
+        (Request req) {
+          if (req.url.path == '/throws') throw StateError('handler failed');
+          return Future<Response>(() async {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+            throw StateError('handler failed later');
+          });
+        },
+        host: '127.0.0.1',
+        port: 0,
+      );
     });
 
     tearDown(() => bare.stop());
@@ -312,15 +448,22 @@ void main() {
         'request', () async {
       final int before = DV.ObservabilityAndLogging.recentLogs.length;
       answered(
-          await exchange(bare.port,
-              get('/throws?q=$marker', headers: <String>['X-Token: $marker'])),
-          500);
+        await exchange(
+          bare.port,
+          get('/throws?q=$marker', headers: <String>['X-Token: $marker']),
+        ),
+        500,
+      );
       final List<DVLogRecord> logged = logsSince(before);
       expect(logged, isNotEmpty, reason: 'a failed request is logged');
       for (final DVLogRecord record in logged) {
-        expect(jsonEncode(record.toJson()), isNot(contains(marker)),
-            reason: 'neither the target, a header nor the error message -- '
-                'which quoted the request -- is logged');
+        expect(
+          jsonEncode(record.toJson()),
+          isNot(contains(marker)),
+          reason:
+              'neither the target, a header nor the error message -- '
+              'which quoted the request -- is logged',
+        );
       }
       await stillServes();
     });
@@ -335,4 +478,48 @@ void main() {
       await stillServes();
     });
   });
+}
+
+/// One keep-alive connection that asks one bodiless GET at a time.
+final class _Reused {
+  _Reused._(this._socket) {
+    _socket.listen((List<int> bytes) {
+      _received.addAll(bytes);
+      _check();
+    }, onDone: () => _waiting?.completeError(StateError('closed: $_text')));
+  }
+
+  static Future<_Reused> open(int port) async =>
+      _Reused._(await Socket.connect('127.0.0.1', port));
+
+  final Socket _socket;
+  final List<int> _received = <int>[];
+  Completer<String>? _waiting;
+
+  String get _text => latin1.decode(_received);
+
+  /// The next whole response: its head and the Content-Length bytes after.
+  Future<String> ask(String path) {
+    _received.clear();
+    final Completer<String> waiting = _waiting = Completer<String>();
+    _socket.add(ascii.encode('GET $path HTTP/1.1\r\nHost: localhost\r\n\r\n'));
+    return waiting.future.timeout(bound);
+  }
+
+  void _check() {
+    final String text = _text;
+    final int headEnd = text.indexOf('\r\n\r\n');
+    if (headEnd < 0) return;
+    final RegExpMatch? length = RegExp(
+      r'content-length: (\d+)',
+      caseSensitive: false,
+    ).firstMatch(text.substring(0, headEnd));
+    final int bodyLength = length == null ? 0 : int.parse(length.group(1)!);
+    if (text.length < headEnd + 4 + bodyLength) return;
+    final Completer<String>? waiting = _waiting;
+    _waiting = null;
+    waiting?.complete(text);
+  }
+
+  void close() => _socket.destroy();
 }

@@ -176,7 +176,7 @@ final class _ResponseScratch {
     _bytes = _kept;
     _view = _kept.asTypedList(_keptCapacity);
     _length = 0;
-    headers.forEachValue(_writeHeader);
+    headers.forEachValue(_headerWriter);
     final int headersLength = _length;
     if (body != null && body.isNotEmpty) {
       _reserve(body.length);
@@ -211,6 +211,9 @@ final class _ResponseScratch {
     pkgffi.malloc.free(_kept);
     pkgffi.calloc.free(_resp);
   }
+
+  // Torn off once: a tear-off made at each call is an allocation each time.
+  late final void Function(String, String) _headerWriter = _writeHeader;
 
   void _writeHeader(String name, String value) {
     _write(name);
@@ -539,7 +542,7 @@ Future<ServerHandle> serve(
   ];
   final bool nativeDefaults =
       dylib.providesSymbol('aw_configure_default_headers');
-  Future<Response> routed(Request request) async {
+  Future<Response> routedFully(Request request) async {
     final Response response = await dispatched(request);
     if (response is WebSocketResponse) return response;
     // A library that takes the defaults adds them to every response itself.
@@ -555,6 +558,13 @@ Future<ServerHandle> serve(
     }
     return _withPagePolicy(response, pagePolicy, shellScripts);
   }
+  // With the defaults added by the library and no page policy to add, there
+  // is nothing to do to a response after the handler: its future is the
+  // answer, without one more async function around it per request.
+  final Future<Response> Function(Request) routed =
+      nativeDefaults && pageContentSecurityPolicy == null
+          ? dispatched
+          : routedFully;
   // The preview's gate goes outermost, around the site's files and assembled
   // pages as well as the router: installed on the router alone, a link-only
   // preview's whole web build would be readable by anybody and every file
@@ -577,8 +587,261 @@ Future<ServerHandle> serve(
   final activeWebSockets = <int, NativeWebSocketChannel>{};
 
   final _ResponseScratch scratch = _ResponseScratch();
+  final _RequestUrls urls = _RequestUrls();
 
-  void handleRequest(
+  void upgrade(int reqId, WebSocketResponse resp) {
+    if (!dylib.providesSymbol('aw_ws_prepare')) {
+      throw StateError('Rebuild the native library for WebSocket support');
+    }
+    final protocolBytes = utf8.encode(resp.protocol ?? '');
+    final ptr = pkgffi.malloc<ffi.Uint8>(protocolBytes.isEmpty ? 1 : protocolBytes.length);
+    ptr.asTypedList(protocolBytes.length).setAll(0, protocolBytes);
+    final protocol = pkgffi.calloc<gen.FfiStr>();
+    protocol.ref..ptr = ptr..len = protocolBytes.length;
+    final prepared = api.aw_ws_prepare(reqId, resp.max, protocol.ref);
+    pkgffi.malloc.free(ptr); pkgffi.calloc.free(protocol);
+    if (prepared != 0) throw StateError('WebSocket preparation refused');
+    final out = pkgffi.calloc<gen.FfiResp>();
+    out.ref.status = 101;
+    final accepted = api.aw_complete(reqId, out.ref);
+    pkgffi.calloc.free(out);
+    if (accepted != 0) { api.aw_ws_dispose(reqId); return; }
+    NativeWebSocketChannel.readerBusyKnown =
+        dylib.providesSymbol('aw_ws_reader_busy');
+    final channel = NativeWebSocketChannel(reqId, api, resp.protocol, resp.max, resp.pingInterval);
+    webSockets.add(channel);
+    activeWebSockets[reqId] = channel;
+    channel.sink.done.whenComplete(() {
+      webSockets.remove(channel);
+      activeWebSockets.remove(reqId);
+    });
+    channel.start(resp.pingInterval);
+    try { resp.callback(channel, resp.protocol); }
+    catch (_) { channel.dispose(); }
+    return;
+  }
+
+  // The body of [resp] when it is already whole in memory and small enough
+  // to go as one copy: the first case sendBody tests, and the only one it
+  // sends without reading anything.
+  Uint8List? wholeBody(Response resp) {
+    if (resp.isStream) return null;
+    final Uint8List? held = resp.bufferedBytes;
+    if (held == null) return null;
+    if (resp.headers.get('content-type')?.contains('text/event-stream') ==
+        true) {
+      return null;
+    }
+    final String? declared = resp.headers.get('content-length');
+    final int? declaredLength =
+        declared == null ? null : int.tryParse(declared);
+    final int wholeCap = declaredLength != null &&
+            declaredLength >= 0 &&
+            declaredLength < _bufferedResponseBytes
+        ? declaredLength
+        : _bufferedResponseBytes;
+    return held.length <= wholeCap ? held : null;
+  }
+
+  Future<void> sendBody(int reqId, Response resp) async {
+    // A body the handler marked as a stream is sent as one. So is any body
+    // that turns out not to be small: the client gets each piece as the
+    // handler produces it rather than waiting for the last one, which is
+    // the whole difference for a report that builds itself, a generated
+    // file, or a page assembled from a generator. Only a body that is
+    // already whole goes as one copy -- reading a small one costs what
+    // producing it costs, and the client gets a length rather than framing
+    // it has to reassemble.
+    final bool marked = resp.isStream ||
+        resp.headers.get('content-type')?.contains('text/event-stream') ==
+            true;
+    Uint8List buffered = Uint8List(0);
+    Stream<List<int>>? source;
+    final Uint8List? held = marked ? null : resp.bufferedBytes;
+    // The same bound the stream below is read to: a declared length
+    // under the cap, or the cap.
+    final int? declaredLength = held == null
+        ? null
+        : int.tryParse(resp.headers.get('content-length') ?? '');
+    final int wholeCap = declaredLength != null &&
+            declaredLength >= 0 &&
+            declaredLength < _bufferedResponseBytes
+        ? declaredLength
+        : _bufferedResponseBytes;
+    final Uint8List? whole =
+        held != null && held.length <= wholeCap ? held : null;
+    if (whole != null) {
+      // Already in memory as one small piece: nothing to listen to. A
+      // large one is streamed below as it always was, so it is not
+      // copied whole twice more on its way out.
+      buffered = whole;
+    } else if (resp.body != null && !marked) {
+      final int? declared =
+          int.tryParse(resp.headers.get('content-length') ?? '');
+      // A declared length is the handler's own answer for how big this is,
+      // so it is the bound to keep to. Failing that, a body no larger than
+      // [_bufferedResponseBytes] is read whole and one past that is sent
+      // as a stream from the piece that crossed the line.
+      final int cap = declared != null &&
+              declared >= 0 &&
+              declared < _bufferedResponseBytes
+          ? declared
+          : _bufferedResponseBytes;
+      final StreamIterator<List<int>> parts =
+          StreamIterator<List<int>>(resp.body!.stream);
+      final BytesBuilder prefix = BytesBuilder(copy: false);
+      bool whole = false;
+      // A piece still being produced when this turn of the event loop is
+      // over. A body is only "small" if it is already in hand: waiting
+      // for a slow one to reach the cap would hold its first bytes back.
+      Future<bool>? pending;
+      while (true) {
+        final Future<bool> next = parts.moveNext();
+        final int ready = await Future.any(<Future<int>>[
+          next.then<int>((bool more) => more ? 1 : 0,
+              onError: (Object _) => 2),
+          Future<int>(() => -1),
+        ]);
+        if (ready == -1) {
+          pending = next;
+          break;
+        }
+        if (ready == 2) await next; // rethrows the body's own error
+        if (ready == 0) {
+          whole = true;
+          break;
+        }
+        prefix.add(parts.current);
+        if (prefix.length > cap) break;
+      }
+      buffered = whole ? prefix.takeBytes() : buffered;
+      // Not whole: the part already read goes first, and the rest is
+      // taken from the same iterator as it is produced.
+      if (!whole) source = _restOfBody(prefix.takeBytes(), parts, pending);
+    }
+
+    final bool streamed =
+        (marked || source != null) && resp.body != null;
+    // The status, headers and body go across in this server's one
+    // reusable buffer: aw_complete copies them before it returns, and
+    // nothing else runs on this isolate in between.
+    final ffi.Pointer<gen.FfiResp> out = scratch.fill(
+        resp.status, resp.headers,
+        streamed ? null : buffered);
+
+    if (streamed) {
+      final int accepted = api.aw_complete(reqId, out.ref);
+      scratch.done();
+      // The native side gave up on this request -- it timed out, or the
+      // server stopped -- so nothing would read the stream. Not listened
+      // to, rather than produced into a channel that is gone.
+      if (accepted != 0) return;
+
+      late StreamSubscription<List<int>> subscription;
+      late _StreamResponseState streamState;
+      const maxInFlight = 32;
+      subscription = (source ?? resp.body!.stream).listen(
+        (chunk) {
+          final int status;
+          if (chunk.length <= _StreamResponseState.scratchSize) {
+            if (chunk.isNotEmpty) {
+              streamState.scratchPtr
+                  .asTypedList(chunk.length)
+                  .setAll(0, chunk);
+            }
+            streamState.scratchBuf.ref
+              ..ptr = streamState.scratchPtr
+              ..len = chunk.length;
+            status =
+                api.aw_stream_send_chunk(reqId, streamState.scratchBuf.ref);
+          } else {
+            final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
+              ..asTypedList(chunk.length).setAll(0, chunk);
+            final chunkBuf = pkgffi.calloc<gen.FfiBuf>();
+            chunkBuf.ref.ptr = chunkNative.cast();
+            chunkBuf.ref.len = chunk.length;
+
+            status = api.aw_stream_send_chunk(reqId, chunkBuf.ref);
+
+            pkgffi.calloc.free(chunkBuf);
+            pkgffi.malloc.free(chunkNative);
+          }
+
+          if (status == 2) {
+            activeSubscriptions.remove(reqId);
+            activeStreamStates.remove(reqId)?.dispose();
+            subscription.cancel();
+            return;
+          }
+
+          streamState.inFlight++;
+          if (streamState.inFlight >= maxInFlight || status == 1) {
+            subscription.pause();
+          }
+        },
+        onDone: () {
+          activeSubscriptions.remove(reqId);
+          activeStreamStates.remove(reqId)?.dispose();
+          api.aw_stream_complete(reqId);
+        },
+        onError: (Object e) {
+          activeSubscriptions.remove(reqId);
+          activeStreamStates.remove(reqId)?.dispose();
+          api.aw_stream_complete(reqId);
+        },
+        cancelOnError: true,
+      );
+      streamState = _StreamResponseState(subscription);
+      activeSubscriptions[reqId] = subscription;
+      activeStreamStates[reqId] = streamState;
+
+    } else {
+      api.aw_complete(reqId, out.ref);
+      scratch.done();
+    }
+  }
+
+  // The handler's answer, sent. Kept small: an async function's whole
+  // frame is saved at each await and restored after it, and this one
+  // carried every local of the upgrade and streaming paths through the
+  // await every request makes. Those are functions of their own now.
+  Future<void> respond(int reqId, Request req) async {
+    try {
+      final resp = await effective(req);
+      if (resp is WebSocketResponse) {
+        upgrade(reqId, resp);
+        return;
+      }
+      // Already whole in memory, the common answer: sent from here.
+      final Uint8List? whole = wholeBody(resp);
+      if (whole != null) {
+        final ffi.Pointer<gen.FfiResp> out =
+            scratch.fill(resp.status, resp.headers, whole);
+        api.aw_complete(reqId, out.ref);
+        scratch.done();
+        return;
+      }
+      await sendBody(reqId, resp);
+    } catch (error, stack) {
+      // By type alone: an error's message is free to quote the request
+      // that caused it. A Router catches its routes' errors and logs them
+      // itself; this is a handler serve() was given directly, or a failure
+      // turning a response into bytes.
+      _logRefused(500, 'failed (${error.runtimeType})', stack);
+      // Already answered is harmless: the native side answers a request
+      // once and refuses the second.
+      _answerError(api, reqId, 500);
+    } finally {
+      // Nobody is left to pull this request's body: its answer is what
+      // told the native side so, and a chunk that arrives after it is
+      // dropped rather than waiting for a pull nobody will make.
+      bodies.remove(reqId);
+      scratch.leave();
+    }
+  }
+
+  void readRequest(
+      bool acknowledge,
       int reqId,
       gen.FfiStr method,
       gen.FfiStr target,
@@ -614,6 +877,7 @@ Future<ServerHandle> serve(
         peer: peer,
         authority: authority,
         port: urlPort,
+        urls: urls,
       );
       // Only once the request exists, so a chunk that arrives before this has
       // nowhere to go and the body is read as soon as the handler pulls.
@@ -621,7 +885,7 @@ Future<ServerHandle> serve(
       // Copied out, so the native side may free what it passed. Until this
       // it keeps them, because a listener runs when the isolate gets to it,
       // which can be after the native side has stopped waiting.
-      if (acknowledgesRequests) api.aw_request_received(reqId);
+      if (acknowledge) api.aw_request_received(reqId);
     } on _MalformedRequest catch (refusal) {
       _logRefused(400, 'refused before any route saw it: ${refusal.reason}');
       _answerError(api, reqId, 400);
@@ -638,213 +902,26 @@ Future<ServerHandle> serve(
     // `Future(...)`, which is a timer: every request waited for one more
     // trip around the event loop before its handler ran.
     scratch.enter();
-    unawaited(() async {
-      try {
-        final resp = await effective(req);
-        if (resp is WebSocketResponse) {
-          if (!dylib.providesSymbol('aw_ws_prepare')) {
-            throw StateError('Rebuild the native library for WebSocket support');
-          }
-          final protocolBytes = utf8.encode(resp.protocol ?? '');
-          final ptr = pkgffi.malloc<ffi.Uint8>(protocolBytes.isEmpty ? 1 : protocolBytes.length);
-          ptr.asTypedList(protocolBytes.length).setAll(0, protocolBytes);
-          final protocol = pkgffi.calloc<gen.FfiStr>();
-          protocol.ref..ptr = ptr..len = protocolBytes.length;
-          final prepared = api.aw_ws_prepare(reqId, resp.max, protocol.ref);
-          pkgffi.malloc.free(ptr); pkgffi.calloc.free(protocol);
-          if (prepared != 0) throw StateError('WebSocket preparation refused');
-          final out = pkgffi.calloc<gen.FfiResp>();
-          out.ref.status = 101;
-          final accepted = api.aw_complete(reqId, out.ref);
-          pkgffi.calloc.free(out);
-          if (accepted != 0) { api.aw_ws_dispose(reqId); return; }
-          NativeWebSocketChannel.readerBusyKnown =
-              dylib.providesSymbol('aw_ws_reader_busy');
-          final channel = NativeWebSocketChannel(reqId, api, resp.protocol, resp.max, resp.pingInterval);
-          webSockets.add(channel);
-          activeWebSockets[reqId] = channel;
-          channel.sink.done.whenComplete(() {
-            webSockets.remove(channel);
-            activeWebSockets.remove(reqId);
-          });
-          channel.start(resp.pingInterval);
-          try { resp.callback(channel, resp.protocol); }
-          catch (_) { channel.dispose(); }
-          return;
-        }
-        // A body the handler marked as a stream is sent as one. So is any body
-        // that turns out not to be small: the client gets each piece as the
-        // handler produces it rather than waiting for the last one, which is
-        // the whole difference for a report that builds itself, a generated
-        // file, or a page assembled from a generator. Only a body that is
-        // already whole goes as one copy -- reading a small one costs what
-        // producing it costs, and the client gets a length rather than framing
-        // it has to reassemble.
-        final bool marked = resp.isStream ||
-            resp.headers.get('content-type')?.contains('text/event-stream') ==
-                true;
-        Uint8List buffered = Uint8List(0);
-        Stream<List<int>>? source;
-        final Uint8List? held = marked ? null : resp.bufferedBytes;
-        // The same bound the stream below is read to: a declared length
-        // under the cap, or the cap.
-        final int? declaredLength = held == null
-            ? null
-            : int.tryParse(resp.headers.get('content-length') ?? '');
-        final int wholeCap = declaredLength != null &&
-                declaredLength >= 0 &&
-                declaredLength < _bufferedResponseBytes
-            ? declaredLength
-            : _bufferedResponseBytes;
-        final Uint8List? whole =
-            held != null && held.length <= wholeCap ? held : null;
-        if (whole != null) {
-          // Already in memory as one small piece: nothing to listen to. A
-          // large one is streamed below as it always was, so it is not
-          // copied whole twice more on its way out.
-          buffered = whole;
-        } else if (resp.body != null && !marked) {
-          final int? declared =
-              int.tryParse(resp.headers.get('content-length') ?? '');
-          // A declared length is the handler's own answer for how big this is,
-          // so it is the bound to keep to. Failing that, a body no larger than
-          // [_bufferedResponseBytes] is read whole and one past that is sent
-          // as a stream from the piece that crossed the line.
-          final int cap = declared != null &&
-                  declared >= 0 &&
-                  declared < _bufferedResponseBytes
-              ? declared
-              : _bufferedResponseBytes;
-          final StreamIterator<List<int>> parts =
-              StreamIterator<List<int>>(resp.body!.stream);
-          final BytesBuilder prefix = BytesBuilder(copy: false);
-          bool whole = false;
-          // A piece still being produced when this turn of the event loop is
-          // over. A body is only "small" if it is already in hand: waiting
-          // for a slow one to reach the cap would hold its first bytes back.
-          Future<bool>? pending;
-          while (true) {
-            final Future<bool> next = parts.moveNext();
-            final int ready = await Future.any(<Future<int>>[
-              next.then<int>((bool more) => more ? 1 : 0,
-                  onError: (Object _) => 2),
-              Future<int>(() => -1),
-            ]);
-            if (ready == -1) {
-              pending = next;
-              break;
-            }
-            if (ready == 2) await next; // rethrows the body's own error
-            if (ready == 0) {
-              whole = true;
-              break;
-            }
-            prefix.add(parts.current);
-            if (prefix.length > cap) break;
-          }
-          buffered = whole ? prefix.takeBytes() : buffered;
-          // Not whole: the part already read goes first, and the rest is
-          // taken from the same iterator as it is produced.
-          if (!whole) source = _restOfBody(prefix.takeBytes(), parts, pending);
-        }
-
-        final bool streamed =
-            (marked || source != null) && resp.body != null;
-        // The status, headers and body go across in this server's one
-        // reusable buffer: aw_complete copies them before it returns, and
-        // nothing else runs on this isolate in between.
-        final ffi.Pointer<gen.FfiResp> out = scratch.fill(
-            resp.status, resp.headers,
-            streamed ? null : buffered);
-
-        if (streamed) {
-          final int accepted = api.aw_complete(reqId, out.ref);
-          scratch.done();
-          // The native side gave up on this request -- it timed out, or the
-          // server stopped -- so nothing would read the stream. Not listened
-          // to, rather than produced into a channel that is gone.
-          if (accepted != 0) return;
-
-          late StreamSubscription<List<int>> subscription;
-          late _StreamResponseState streamState;
-          const maxInFlight = 32;
-          subscription = (source ?? resp.body!.stream).listen(
-            (chunk) {
-              final int status;
-              if (chunk.length <= _StreamResponseState.scratchSize) {
-                if (chunk.isNotEmpty) {
-                  streamState.scratchPtr
-                      .asTypedList(chunk.length)
-                      .setAll(0, chunk);
-                }
-                streamState.scratchBuf.ref
-                  ..ptr = streamState.scratchPtr
-                  ..len = chunk.length;
-                status =
-                    api.aw_stream_send_chunk(reqId, streamState.scratchBuf.ref);
-              } else {
-                final chunkNative = pkgffi.malloc<ffi.Uint8>(chunk.length)
-                  ..asTypedList(chunk.length).setAll(0, chunk);
-                final chunkBuf = pkgffi.calloc<gen.FfiBuf>();
-                chunkBuf.ref.ptr = chunkNative.cast();
-                chunkBuf.ref.len = chunk.length;
-
-                status = api.aw_stream_send_chunk(reqId, chunkBuf.ref);
-
-                pkgffi.calloc.free(chunkBuf);
-                pkgffi.malloc.free(chunkNative);
-              }
-
-              if (status == 2) {
-                activeSubscriptions.remove(reqId);
-                activeStreamStates.remove(reqId)?.dispose();
-                subscription.cancel();
-                return;
-              }
-
-              streamState.inFlight++;
-              if (streamState.inFlight >= maxInFlight || status == 1) {
-                subscription.pause();
-              }
-            },
-            onDone: () {
-              activeSubscriptions.remove(reqId);
-              activeStreamStates.remove(reqId)?.dispose();
-              api.aw_stream_complete(reqId);
-            },
-            onError: (Object e) {
-              activeSubscriptions.remove(reqId);
-              activeStreamStates.remove(reqId)?.dispose();
-              api.aw_stream_complete(reqId);
-            },
-            cancelOnError: true,
-          );
-          streamState = _StreamResponseState(subscription);
-          activeSubscriptions[reqId] = subscription;
-          activeStreamStates[reqId] = streamState;
-
-        } else {
-          api.aw_complete(reqId, out.ref);
-          scratch.done();
-        }
-      } catch (error, stack) {
-        // By type alone: an error's message is free to quote the request
-        // that caused it. A Router catches its routes' errors and logs them
-        // itself; this is a handler serve() was given directly, or a failure
-        // turning a response into bytes.
-        _logRefused(500, 'failed (${error.runtimeType})', stack);
-        // Already answered is harmless: the native side answers a request
-        // once and refuses the second.
-        _answerError(api, reqId, 500);
-      } finally {
-        // Nobody is left to pull this request's body: its answer is what
-        // told the native side so, and a chunk that arrives after it is
-        // dropped rather than waiting for a pull nobody will make.
-        bodies.remove(reqId);
-        scratch.leave();
-      }
-    }());
+    unawaited(respond(reqId, req));
   }
+
+  // A request handed to the listener is acknowledged once read, so the
+  // library may free its bytes. One taken from the queue need not be when
+  // the queue keeps the bytes of a batch until the next take, which comes
+  // only after every request of the batch is read: one native call fewer
+  // per request.
+  final bool queueHoldsRequests =
+      dylib.providesSymbol('aw_queue_holds_requests');
+  void handleRequest(int reqId, gen.FfiStr method, gen.FfiStr target,
+          ffi.Pointer<ffi.Uint8> hdrsPtr, int hdrsLen, gen.FfiBuf body,
+          gen.FfiStr peer) =>
+      readRequest(acknowledgesRequests, reqId, method, target, hdrsPtr,
+          hdrsLen, body, peer);
+  void handleQueuedRequest(int reqId, gen.FfiStr method, gen.FfiStr target,
+          ffi.Pointer<ffi.Uint8> hdrsPtr, int hdrsLen, gen.FfiBuf body,
+          gen.FfiStr peer) =>
+      readRequest(acknowledgesRequests && !queueHoldsRequests, reqId, method,
+          target, hdrsPtr, hdrsLen, body, peer);
 
   final dartRequestHandler =
       ffi.NativeCallable<_NativeCb>.listener(handleRequest);
@@ -852,7 +929,7 @@ Future<ServerHandle> serve(
   // Requests taken in batches on one wakeup, where the library can queue
   // them; the handler above stays registered for one that cannot.
   final RequestQueue? requestQueue = RequestQueue.of(dylib)
-    ?..register(handleRequest);
+    ?..register(handleQueuedRequest);
 
   final dartCancelHandler =
       ffi.NativeCallable<_NativeCancelCb>.listener((int reqId) {
@@ -1058,6 +1135,7 @@ Request _readRequest({
   required gen.FfiStr peer,
   required String authority,
   required int port,
+  _RequestUrls? urls,
 }) {
   // The accepted socket's address, from the native side and never from a
   // header. Empty, or anything that does not parse, is no peer at all
@@ -1086,7 +1164,9 @@ Request _readRequest({
           : _pulled(bodyStream);
   return Request(
     method: methodStr,
-    url: _requestUrl(targetStr, authority: authority, port: port),
+    url: urls == null
+        ? _requestUrl(targetStr, authority: authority, port: port)
+        : urls.of(targetStr, authority: authority, port: port),
     headers: Headers.decodedOnRead(() => decodeHeaders(headerBytes)),
     bodyStream: bodySource,
     peerAddressOf:
@@ -1104,6 +1184,41 @@ Stream<List<int>> _pulled(RequestBodyStream source) async* {
     final Uint8List? chunk = await source.pull();
     if (chunk == null) return;
     yield chunk;
+  }
+}
+
+/// One server's request URLs by request target, parsed once each.
+///
+/// Uri is immutable, so the requests for one target can share one. Every
+/// request built its URL again from the same bytes -- a concatenation and a
+/// whole parse -- which was the largest single cost of reading a request. A
+/// target that cannot be a URL is not kept: it is refused each time. Bounded,
+/// because targets are the client's: a long one is not kept, and a full table
+/// starts again.
+final class _RequestUrls {
+  static const int _most = 512;
+  static const int _longest = 256;
+
+  final Map<String, Uri> _byTarget = <String, Uri>{};
+  String _authority = '';
+  int _port = -1;
+
+  Uri of(String target, {required String authority, required int port}) {
+    // The port is the bound one from the first request on; a table kept for
+    // another would name the wrong server.
+    if (port != _port || authority != _authority) {
+      _byTarget.clear();
+      _port = port;
+      _authority = authority;
+    }
+    final Uri? known = _byTarget[target];
+    if (known != null) return known;
+    final Uri url = _requestUrl(target, authority: authority, port: port);
+    if (target.length <= _longest) {
+      if (_byTarget.length >= _most) _byTarget.clear();
+      _byTarget[target] = url;
+    }
+    return url;
   }
 }
 
