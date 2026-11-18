@@ -124,6 +124,21 @@ native queue has room and pauses only when full; the same burst costs a few
 writes (`test/websocket_add_stream_test.dart`, which failed with 1,000
 before the change). Order, completion and errors are as before.
 
+**Follow-up: a burst stays one batch on a loaded machine.** Under a loaded
+test run the same burst still cost 127 to 566 writes, for three reasons,
+each fixed: the native reader woke Dart at the first frame of a burst (now
+when it would block, or when Dart's queue is full); a Dart drain stopped
+whenever it caught up with the reader mid-burst (it now keeps taking while
+the reader reports it is partway through one -- `aw_ws_reader_busy`, only
+when another thread runs the reader); and addStream paused at 256 waiting
+frames even when they were only waiting for the pump that runs right after
+the drain, which made the rest arrive a microtask, a pump and a write at a
+time (it now pauses only when the native queue is full). The test starts
+its echo once the whole burst is in the server's socket, so it measures the
+server's batching and not the machine's load, and holds the bound it had,
+fewer than 100 writes for 1,000 frames: it passed every one of the loaded
+runs (`-j 4` beside the other server tests) it had failed before.
+
 **What was tried and not kept** (measured, then reverted):
 
 - Receiving many frames per native call (`aw_ws_receive_batch`): fewer calls

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- A WebSocket burst reaches Dart whole on a loaded machine too: the native reader wakes the isolate when it would block or the queue is full rather than at a burst's first frame, a drain keeps taking while the reader is partway through a burst, and `sink.addStream` pauses only when the native queue is full.
+
 - WebSocket `sink.addStream` takes frames from its source while the native queue has room and pauses only when it is full; it awaited each frame, so every frame was drained, queued and written on its own (a burst of 1,000 cost 1,000 writes, now a few). Same order, same completion, same errors.
 
 - Plain HTTP/1.1 `GET` requests without a body are read and answered by the library's own HTTP/1 path (`rust/src/h1.rs`, no unsafe code) rather than by hyper and axum. Every other request -- a body, an upgrade or WebSocket, HTTP/1.0, `Connection: close`, `Expect`, the built-in health routes, static files, TLS, CORS -- hands its connection, with the bytes already read, to hyper, which serves the rest of that connection as before. Answers held whole in memory are written in one go from the bytes Dart gave. Property tests cover the head classifier and the answer writer, including request-smuggling heads (conflicting `Content-Length`, any `Transfer-Encoding`, line folds), which always go to hyper.
