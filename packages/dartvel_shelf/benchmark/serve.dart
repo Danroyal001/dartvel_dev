@@ -48,7 +48,9 @@ Future<void> main(List<String> args) async {
     final nativeLibrary =
         Platform.environment['DARTVEL_SHELF_LIBRARY'] ??
         'lib/native/linux-x64/libdartvel_shelf.so';
-    final library = await File(nativeLibrary).readAsBytes();
+    // Opened as a web-server binary opens the copy it carries: from a file,
+    // by offset and length, with no copy of it held in the Dart heap.
+    final library = (nativeLibrary, File(nativeLibrary).lengthSync());
     final server = await _serveDartvel((library, staticDir, 0, isolates > 1));
     for (var i = 1; i < isolates; i++) {
       final ready = ReceivePort();
@@ -133,16 +135,20 @@ String? _cookie(String? header, String name) {
 }
 
 Future<void> _serveDartvelIsolate(
-  (List<int>, String, int, SendPort) args,
+  ((String, int), String, int, SendPort) args,
 ) async {
   final (library, staticDir, port, ready) = args;
   await _serveDartvel((library, staticDir, port, true));
   ready.send(null);
 }
 
-Future<dv.ServerHandle> _serveDartvel((List<int>, String, int, bool) args) {
+Future<dv.ServerHandle> _serveDartvel(((String, int), String, int, bool) args) {
   final (library, staticDir, port, shared) = args;
-  dv.embedNativeServerLibrary(library);
+  // DARTVEL_BENCH_FROM_PACKAGE=1 under the JIT: opened from lib/native by
+  // its path, as `dart run` does, so a profiler can name its symbols.
+  if (Platform.environment['DARTVEL_BENCH_FROM_PACKAGE'] != '1') {
+    dv.embedNativeServerLibraryAt(library.$1, offset: 0, length: library.$2);
+  }
   final random = Random(1);
   final ws = native_ws.webSocketHandler((channel, _) {
     channel.sink.addStream(channel.stream).then((_) => channel.sink.close());

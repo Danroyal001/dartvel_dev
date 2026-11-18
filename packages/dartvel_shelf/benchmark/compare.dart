@@ -8,12 +8,16 @@
 //   ~/heavy.sh dart run benchmark/compare.dart [options]
 //
 // Options (all optional):
-//   --engines=shelf,relic_io,relic_native,relic_native4,dartvel
+//   --engines=shelf,relic_io,relic_native,relic_native4,dartvel,dartvel4
+//            (and dartvel_before: --serve-before's binary on
+//            --before-library, an older dartvel_shelf to compare with)
 //   --scenarios=plaintext,json,headers,static,many,startup,websocket,
 //               websocket_pipelined,upload,download
 //   --trials=3 --seconds=5 --connections=64 --many=1024
 //   --serve=build/benchmark/serve
 //   --relic=benchmark/relic/build/cli/linux_x64/bundle/bin/serve
+//   --serve-before=<serve built from an older checkout>
+//   --before-library=<that checkout's lib/native/linux-x64/libdartvel_shelf.so>
 //
 // The HTTP scenarios are driven by oha (https://github.com/hatoo/oha), the
 // load tool Relic's own http_load.dart uses, in a closed loop: `connections`
@@ -40,6 +44,7 @@ const allEngines = [
   'relic_native',
   'relic_native4',
   'dartvel',
+  'dartvel4',
 ];
 const allScenarios = [
   'plaintext',
@@ -103,6 +108,8 @@ Future<void> main(List<String> args) async {
   final serveBin = options['serve'] ?? 'build/benchmark/serve';
   final relicBin = options['relic'] ??
       'benchmark/relic/build/cli/linux_x64/bundle/bin/serve';
+  final beforeBin = options['serve-before'];
+  final beforeLibrary = options['before-library'];
 
   final staticDir = Directory.systemTemp.createTempSync('compare_static');
   File('${staticDir.path}/file-4k.txt')
@@ -114,7 +121,13 @@ Future<void> main(List<String> args) async {
           final row = await _measure(
             engine: engine,
             scenario: scenario,
-            command: _command(engine, serveBin, relicBin, staticDir.path),
+            command: engine == 'dartvel_before'
+                ? [beforeBin!, 'dartvel', staticDir.path]
+                : _command(engine, serveBin, relicBin, staticDir.path),
+            environment: {
+              if (engine == 'dartvel_before' && beforeLibrary != null)
+                'DARTVEL_SHELF_LIBRARY': beforeLibrary,
+            },
             seconds: seconds,
             connections: scenario == 'many' ? many : connections,
           );
@@ -146,12 +159,17 @@ Future<Map<String, Object?>> _measure({
   required String engine,
   required String scenario,
   required List<String> command,
+  Map<String, String> environment = const {},
   required int seconds,
   required int connections,
 }) async {
   final load = File('/proc/loadavg').readAsStringSync().split(' ').first;
   final spawned = Stopwatch()..start();
-  final server = await Process.start(command.first, command.skip(1).toList());
+  final server = await Process.start(
+    command.first,
+    command.skip(1).toList(),
+    environment: environment,
+  );
   final stderrText = StringBuffer();
   server.stderr.transform(utf8.decoder).listen(stderrText.write);
   final lines = server.stdout.transform(utf8.decoder).transform(
