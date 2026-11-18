@@ -104,6 +104,7 @@ import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
 import 'src/widgets/password_reveal.dart';
 import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
+import 'src/widgets/page_safe_box.dart' show DVPageSafeBox, dvMeasurePageOuterBox;
 import 'src/widgets/page_viewport.dart' show DVPageViewport, DVLayoutSlots;
 import 'src/windowing/window.dart';
 
@@ -11827,7 +11828,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     }
     final Widget page = Theme(
       data: dvWithPageScrollbars(Theme.of(context)),
-      child: DVHostFrame(child: Builder(builder: _buildPage)),
+      // The whole box, before the scaffold, its bars and the safe area take
+      // their share, for DVPageSafeBox.
+      child: dvMeasurePageOuterBox(DVHostFrame(child: Builder(builder: _buildPage))),
     );
     if (current != null && current.size.isEmpty && _mediaQuery != null) {
       return MediaQuery(data: _mediaQuery!, child: page);
@@ -12023,8 +12026,12 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
           ),
           )
         : reachable;
-    final Widget safe =
-        spec.safeArea ? SafeArea(child: selectionWrapped) : selectionWrapped;
+    // Inside the safe area, the page's screen is the safe box. See
+    // DVPageSafeBox: a page that sized itself from the screen ran under the
+    // navigation bar by exactly the insets the SafeArea had taken away.
+    final Widget safe = spec.safeArea
+        ? SafeArea(child: DVPageSafeBox(child: selectionWrapped))
+        : selectionWrapped;
     // The consent banner, over the page and outside its scroll view and its
     // layouts, so it sits at the bottom of the screen whatever the page is.
     // It was placed inside the page, where a layout's scroll view sized it to
@@ -12041,7 +12048,19 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
       fit: StackFit.passthrough,
       children: <Widget>[
         asked,
-        const Positioned(top: 0, left: 0, right: 0, child: DVTrackedProgress()),
+        // Below the status bar or the notch, where it can be seen, on every
+        // page: under the bar it was drawn where nobody could see it.
+        const Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            left: false,
+            right: false,
+            child: DVTrackedProgress(),
+          ),
+        ),
       ],
     );
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {

@@ -1224,6 +1224,22 @@ widget the app nests its page in. The generated class (or the class's element)
 puts the framework's frame round what it builds; a page under 400 px of
 scrolling shows no button.
 
+Every page keeps its content inside the safe area with nothing added: clear of
+the status bar, a notch or camera cutout, the navigation or gesture bar and,
+on the web, the browser's `env(safe-area-inset-*)` (every page document asks
+for `viewport-fit=cover`, and `DV.run` hands the browser's insets to the app, since Flutter's web engine
+reports none). The page's background still paints edge to edge; its text,
+lists, side indexes, footers and the loading bar stay inside. Inside a page,
+`MediaQuery.sizeOf` and `context.screen.size` are the page's safe box, with
+no padding left to subtract, so a page that sizes itself from the screen (a
+letter index of equal cells, a hero as tall as the screen) fits without
+reading an inset; the whole window is still `DV.Platform.screen.size` and
+`DV.Platform.screen.safeAreaBounds`. Sheets and dialogs the app opens over a
+page see the same insets. `@DVPage(safeArea: false)` opts one page out, for
+intentional full-bleed content such as a camera view or a map: it is laid out
+from the top-left of the window and reads the real insets from `MediaQuery`.
+A page needs no `SafeArea` of its own; one left in does nothing more.
+
 Every page scrolls with nothing added. The page shell is the page's scroll view:
 a page taller than the screen scrolls by mouse wheel, trackpad, touch (with the
 platform's physics), keyboard (Page Up/Down, Space and Shift+Space, Home/End,

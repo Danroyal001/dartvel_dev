@@ -243,6 +243,16 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
           'left out on phones, tablets and touch screens.',
         ),
         DocsText(
+          'Every page also stays inside the safe area with nothing added: '
+          'clear of the status bar, a notch, the navigation bar and, in a '
+          'browser, the notch and home indicator a phone reports. The '
+          'background still reaches the edges. Inside a page the screen size '
+          'is the safe part of the screen, so a layout sized from it fits '
+          'without subtracting anything. A page needs no SafeArea of its own. '
+          'Write @DVPage(safeArea: false) for a page meant to fill the whole '
+          'screen, such as a camera view.',
+        ),
+        DocsText(
           'A long page can have a round "To the bottom / Back to top" '
           'button at its bottom right: write @DVFunctionalWidget(pageScrollToTop: '
           'true), or pass pageScrollToTop: true to a DVClassWidget or a '
