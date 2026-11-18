@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.6 — 2026-11-18
 
 - A redirect whose target has its own query now keeps the request's query too: the target's parameters are defaults, a parameter the request also names takes the request's value, and the request's others follow (`dvRedirectLocation`). A tagged short link such as `/w/store: /product/store?utm_source=whatsapp` used to drop an ad's `utm_*` and `fbclid`.
 

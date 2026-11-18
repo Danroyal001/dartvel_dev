@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.6 — 2026-11-18
 
 - A request with no body (most GETs) is marked so by the native side (`AW_BODY_NONE`) and gets no body stream, pull object or table entry in Dart; common method names are not allocated per request. About 5% fewer instructions per plaintext request.
 

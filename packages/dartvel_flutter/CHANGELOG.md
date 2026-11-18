@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.6 — 2026-11-18
 
 - Every page keeps its content inside the safe area, including content sized from the screen: inside a page shell `MediaQuery.sizeOf` (and `context.screen.size`) is now the page's safe box, not the whole window, so a letter index or a full-height layout no longer runs under the navigation bar (the Dev Launcher's drawer put Z behind it). The loading bar sits below the status bar. On the web, `DV.run` reads the browser's `env(safe-area-inset-*)` into `MediaQuery` padding (Flutter's web engine reports none), so pages, sheets and dialogs keep clear of a notch and the home indicator. `@DVPage(safeArea: false)` still opts a page out for full-bleed content.
 - The page opens where its server-rendered document was scrolled, and back and forward put a page back, even when the page arrives late (a deferred library, its data): the shell waits up to ten seconds, not sixty frames. The long-page button follows its page into a new scroll view, which on the web happened on every page, so dartvel.dev had lost it.

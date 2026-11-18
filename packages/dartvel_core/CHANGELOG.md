@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.6 — 2026-11-18
 
 - `Router.measure` takes a path without closures, a label map or a telemetry scope when neither spans nor semantic metrics are read.
 
