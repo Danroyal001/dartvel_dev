@@ -133,6 +133,34 @@ void main() {
         <String>['line 7', 'line 8', 'line 9'],
       );
     });
+
+    // Kept as a ring: a full buffer used to shift every record it held to
+    // make room for each new one, which was most of what an access line cost.
+    test('exactly full, cleared, and filled again, it keeps order', () {
+      final DVMemoryLogSink sink = DVMemoryLogSink(capacity: 3);
+      final DVLogger logger = DVLogger(sinks: <DVLogSink>[sink]);
+      List<String> messages() =>
+          sink.records.map((DVLogRecord r) => r.message).toList();
+
+      for (int i = 0; i < 3; i += 1) {
+        logger.info('a$i');
+      }
+      expect(messages(), <String>['a0', 'a1', 'a2']);
+      logger.info('a3');
+      final List<DVLogRecord> before = sink.records;
+      sink.clear();
+      expect(sink.records, isEmpty);
+      expect(before.map((DVLogRecord r) => r.message), <String>['a1', 'a2', 'a3'],
+          reason: 'a snapshot does not change with the buffer');
+      logger.info('b0');
+      logger.info('b1');
+      expect(messages(), <String>['b0', 'b1']);
+      for (int i = 2; i < 8; i += 1) {
+        logger.info('b$i');
+      }
+      expect(messages(), <String>['b5', 'b6', 'b7']);
+      expect(() => sink.records.add(sink.records.first), throwsUnsupportedError);
+    });
   });
 
   group('DVJsonLinesSink', () {
