@@ -20,3 +20,7 @@ path = "tests/roundtrip_oracle.rs"
 [[test]]
 name = "malformed_input"
 path = "tests/malformed_input.rs"
+
+[[test]]
+name = "small_components"
+path = "tests/small_components.rs"
