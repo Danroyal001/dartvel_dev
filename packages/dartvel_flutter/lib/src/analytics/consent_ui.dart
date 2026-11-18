@@ -12,7 +12,8 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DVBox, DVModifier, DVText;
+import '../../dartvel_flutter.dart'
+    show DVBox, DVModifier, DVNavLink, DVRouteTarget, DVText;
 import 'app_tracking_transparency.dart';
 
 /// Records [answers] as a choice made through [prompt], and returns whether
@@ -76,19 +77,32 @@ Future<bool> dvRecordConsentChoice(
 DVAnalyticsRuntime? _configured(DVAnalyticsRuntime? given) =>
     given ?? (DVAnalyticsRuntime.isConfigured ? DVAnalyticsRuntime.current : null);
 
-Widget _action(String key, String label, VoidCallback? onPressed) =>
-    KeyedSubtree(
-      key: ValueKey<String>(key),
-      child: DVText(label).modifier(
-        const DVModifier()
-            .padding(10)
-            .rounded(8)
-            .backgroundColor(
-                onPressed == null ? const Color(0xFF9CA3AF) : const Color(0xFF111827))
-            .color(Colors.white)
-            .onPressed(onPressed ?? () {}),
-      ),
-    );
+/// A banner or settings action. Every one is drawn the same, in the app
+/// theme's primary colours: rejecting has to be as easy to see and reach as
+/// accepting, which a grey "Reject" beside a bold "Accept" is not. The words
+/// are the control's name -- its tooltip and its screen-reader label.
+Widget _action(BuildContext context, String key, String label,
+    VoidCallback? onPressed) {
+  final ColorScheme scheme = Theme.of(context).colorScheme;
+  return KeyedSubtree(
+    key: ValueKey<String>(key),
+    child: DVText(label).modifier(
+      const DVModifier()
+          .paddingSymmetric(horizontal: 12, vertical: 8)
+          .minimumTapTarget(width: 44, height: 44)
+          .rounded(8)
+          .backgroundColor(onPressed == null
+              ? scheme.onSurface.withValues(alpha: 0.12)
+              : scheme.primary)
+          .color(onPressed == null
+              ? scheme.onSurface.withValues(alpha: 0.38)
+              : scheme.onPrimary)
+          .fontWeight(.w600)
+          .tooltip(label)
+          .onPressed(onPressed ?? () {}),
+    ),
+  );
+}
 
 String _label(String name) => name.isEmpty
     ? name
@@ -202,57 +216,136 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
 
   Widget _banner(
       BuildContext context, DVAnalyticsRuntime runtime, DVConsent consent) {
+    final DVConsentBannerText text = consent.policy.banner;
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     final List<String> asked = <String>[
       for (final DVConsentDeclaration d in consent.policy.askable)
         _label(d.category.name),
     ];
-    return Material(
-      elevation: 6,
-      color: const Color(0xFFFFFFFF),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const .all(16),
-          child: DVBox.list(<Widget>[
-            const DVText('Your privacy choices'),
-            DVText('This application would like your permission for: '
-                '${asked.join(', ')}. Nothing is collected for these until '
-                'you choose.'),
-            if (_notSaved)
-              const KeyedSubtree(
-                key: ValueKey<String>('dv-consent-not-saved'),
-                child: DVText('Your choice could not be saved, so nothing '
-                    'was turned on. Please try again.'),
-              ),
-            DVBox.wrapLine(
-              <Widget>[
-                _action('dv-consent-accept-all', 'Accept all',
-                    _saving ? null : () => unawaited(_answer(runtime, consent, grant: true))),
-                _action('dv-consent-reject-all', 'Reject all',
-                    _saving ? null : () => unawaited(_answer(runtime, consent, grant: false))),
-                _action('dv-consent-choose', 'Choose', () {
-                  unawaited(Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (BuildContext _) => Scaffold(
-                      appBar: AppBar(title: const Text('Privacy choices')),
-                      body: DVConsentSettingsPage(analytics: runtime),
+    final String body = text.body ??
+        'This application would like your permission for: '
+            '${asked.join(', ')}. Nothing is collected for these until you '
+            'choose.';
+    final String? privacy = text.privacyUrl;
+    final Widget? link = privacy == null
+        ? null
+        : privacy.startsWith('/')
+            ? DVNavLink(
+                // The application's own page, given as data in pubspec.yaml.
+                to: DVRouteTarget(privacy),
+                padding: .zero,
+                child: _linkText(text.privacyLabel, scheme),
+              )
+            : DVNavLink.external(
+                privacy,
+                padding: .zero,
+                child: _linkText(text.privacyLabel, scheme),
+              );
+    // A compact sheet at the bottom of the page, as wide as a phone and no
+    // wider: on a desktop a full-width bar is a long line nobody reads, and
+    // on a phone the page's own call to action stays above it.
+    return SafeArea(
+      top: false,
+      child: DVBox(
+        DVBox(
+          DVBox.list(
+            <Widget>[
+              DVBox.row(
+                <Widget>[
+                  DVText(text.title).modifier(const DVModifier()
+                      .fontWeight(.w700)
+                      .fontSize(15)
+                      .color(scheme.onSurface)
+                      .heading(2)),
+                  KeyedSubtree(
+                    key: const ValueKey<String>('dv-consent-dismiss'),
+                    child: DVBox(
+                      Icon(Icons.close, size: 20, color: scheme.onSurface),
+                      const DVModifier()
+                          .tooltip('Close')
+                          .minimumTapTarget(width: 44, height: 44)
+                          .onPressed(() {
+                        // Closed, not answered: nothing is recorded and every
+                        // category stays at its declared default.
+                        DVConsentBanner._closed[runtime] = true;
+                        setState(() {});
+                      }),
                     ),
-                  )).then((_) {
-                    if (mounted) setState(() {});
-                  }));
-                }),
-                _action('dv-consent-dismiss', 'Not now', () {
-                  // Closed, not answered: nothing is recorded and every
-                  // category stays at its declared default.
-                  DVConsentBanner._closed[runtime] = true;
-                  setState(() {});
-                }),
-              ],
-            ),
-          ]),
+                  ),
+                ],
+                align: .spaceBetween,
+                crossAlign: .center,
+              ),
+              DVText(body).modifier(const DVModifier()
+                  .fontSize(13)
+                  .lineHeight(1.4)
+                  .color(scheme.onSurfaceVariant)),
+              ?link,
+              if (_notSaved)
+                KeyedSubtree(
+                  key: const ValueKey<String>('dv-consent-not-saved'),
+                  child: const DVText('Your choice could not be saved, so nothing '
+                          'was turned on. Please try again.')
+                      .modifier(const DVModifier().color(scheme.error)),
+                ),
+              DVBox.wrapLine(
+                <Widget>[
+                  _action(
+                      context,
+                      'dv-consent-accept-all',
+                      text.acceptLabel,
+                      _saving
+                          ? null
+                          : () =>
+                              unawaited(_answer(runtime, consent, grant: true))),
+                  _action(
+                      context,
+                      'dv-consent-reject-all',
+                      text.rejectLabel,
+                      _saving
+                          ? null
+                          : () => unawaited(
+                              _answer(runtime, consent, grant: false))),
+                  _action(context, 'dv-consent-choose', text.settingsLabel, () {
+                    unawaited(Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (BuildContext _) => Scaffold(
+                        appBar: AppBar(title: DVText(text.title)),
+                        body: DVConsentSettingsPage(analytics: runtime),
+                      ),
+                    )).then((_) {
+                      if (mounted) setState(() {});
+                    }));
+                  }),
+                ],
+              ),
+            ],
+            spacing: 8,
+          ),
+          const DVModifier()
+              .paddingSymmetric(horizontal: 16, vertical: 12)
+              .maxWidth(560),
         ),
+        const DVModifier()
+            .backgroundColor(scheme.surface)
+            .radius(const BorderRadius.vertical(top: Radius.circular(16)))
+            .border(Border(top: BorderSide(color: scheme.outlineVariant)))
+            .shadow(<BoxShadow>[
+              BoxShadow(
+                color: scheme.shadow.withValues(alpha: 0.18),
+                blurRadius: 16,
+                offset: const Offset(0, -2),
+              ),
+            ])
+            .align(Alignment.topCenter),
       ),
     );
   }
+
+  static Widget _linkText(String label, ColorScheme scheme) =>
+      DVText(label).modifier(const DVModifier()
+          .fontSize(14)
+          .color(scheme.primary)
+          .decoration(TextDecoration.underline));
 }
 
 /// Every declared category with a switch, and a save.
@@ -371,7 +464,7 @@ class _DVConsentSettingsPageState extends State<DVConsentSettingsPage> {
                 key: ValueKey<String>('dv-consent-saved'),
                 child: DVText('Saved.'),
               ),
-            _action('dv-consent-save', 'Save',
+            _action(context, 'dv-consent-save', 'Save',
                 _saving ? null : () => unawaited(_save(runtime, consent))),
           ]),
         ],

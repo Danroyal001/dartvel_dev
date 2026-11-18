@@ -39,7 +39,23 @@ client, so `accessToken:` there is refused by name.
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `PageView`.
-  The page shell reports them; no page calls anything.
+  The page shell reports them; no page calls anything. The landing page's
+  view carries the `utm_*` parameters it arrived with as event data.
+- **The framework's standard events.** `DV.Analytics.track(...)` with a
+  `DVStandardEvent` is sent as Meta's standard event the moment it is
+  tracked, browser and Conversions API with one event id: `DVViewItem` is
+  `ViewContent`, `DVAddToCart` `AddToCart`, `DVBeginCheckout`
+  `InitiateCheckout` (with `num_items`), `DVSignUp` `CompleteRegistration`,
+  `DVGenerateLead` `Lead` (its lead source as `content_name`) and
+  `DVPurchase` `Purchase` with the event id `purchase.<transaction id>`,
+  the one a store's server-side purchase uses. Items become `content_ids`
+  and `contents`. `DVLogin` has no Meta event and sends nothing.
+- **The click id survives the page.** The `fbclid` a visit landed with is
+  kept on the device (`DV.Analytics.attribution`), so an event on a later
+  page, or a pixel loaded only after the visitor accepted the banner on the
+  second page, still carries it: the module writes the `_fbc` cookie in
+  Meta's format (`fb.1.<time>.<fbclid>`, 90 days) when the pixel loads and
+  there is none, and sends it as `fbc` to the Conversions API.
 - **Purchases**, when a store module such as `dartvel_woocommerce` is
   mounted: the store publishes a purchase when the payment is confirmed, and
   this module reports `Purchase` from the backend, and from the buyer's

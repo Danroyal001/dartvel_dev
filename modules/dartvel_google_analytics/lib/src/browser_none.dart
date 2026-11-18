@@ -20,6 +20,9 @@ final class _NoBrowser implements GoogleAnalyticsBrowser {
   void consent({required bool granted}) {}
 
   @override
+  void consentDefaults() {}
+
+  @override
   String? get clientId => null;
 
   @override

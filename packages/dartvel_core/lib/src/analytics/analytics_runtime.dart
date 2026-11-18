@@ -13,11 +13,14 @@ import 'dart:convert';
 
 import '../../dartvel.dart' show DVQueues;
 import '../database/adapter.dart';
+import '../modules/modules.dart' show dvModuleRegistry;
 import '../observability/observability.dart';
 import '../privacy/privacy.dart';
 import '../scheduling/scheduler.dart';
+import 'attribution.dart';
 import 'consent.dart';
 import 'product_analytics.dart';
+import 'standard_events.dart';
 
 /// `dartvel.analytics` from pubspec.yaml, checked.
 final class DVAnalyticsSettings {
@@ -188,6 +191,9 @@ class DVAnalyticsRuntime {
     List<DVAnalyticsProvider> providers = const <DVAnalyticsProvider>[],
     Set<String> sensitiveFields = const <String>{},
   }) {
+    // In a browser, the address the visitor landed on, before the first
+    // route change takes its campaign out. Nothing anywhere else.
+    DVAttribution.captureLanding();
     final DVAnalyticsRuntime runtime =
         DVAnalyticsRuntime._(settings, providers, sensitiveFields);
     _current = runtime;
@@ -277,7 +283,24 @@ class DVAnalyticsRuntime {
   ///
   /// Never records anything a pipeline that could not start was asked to:
   /// the event is dropped and the result says why.
+  ///
+  /// A [DVStandardEvent] is also published on [DVStandardEvent.topic] as
+  /// this is called, before anything is awaited, so every mounted analytics
+  /// module sends it at once under its own consent category. It is kept in
+  /// the application's own store only when its category is declared.
   Future<DVTrackResult> track(DVAnalyticsEvent event) async {
+    if (event is DVStandardEvent) {
+      unawaited(dvModuleRegistry.publish(DVStandardEvent.topic, event.toPayload(),
+          onError: (Object error, StackTrace _) => DVObservability.log(
+              'an analytics module failed on "${event.name}": $error',
+              level: DVLogLevel.warn)));
+      if (settings.consent.declaration(event.category) == null) {
+        return DVTrackResult.refused(
+            reason: '"${event.name}" was sent to the analytics modules and '
+                'not kept: the consent policy declares no '
+                '"${event.category.name}" category');
+      }
+    }
     final DVAnalytics analytics;
     try {
       analytics = await pipeline;
@@ -286,6 +309,10 @@ class DVAnalyticsRuntime {
     }
     return analytics.track(event);
   }
+
+  /// Where this visitor came from: `{firstTouch: {...}, lastTouch: {...}}`,
+  /// plain data to send with a contact form or an order. See [DVAttribution].
+  Map<String, Object?> get attribution => DVAttribution.current.toJson();
 
   /// Sets who later events belong to. See [DVAnalytics.identify].
   Future<void> identify(String? userId) async =>

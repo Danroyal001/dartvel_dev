@@ -93,10 +93,17 @@ final class GoogleAnalyticsEvent {
   ];
 
   /// A page shown to a visitor. [location] is a full URL.
-  factory GoogleAnalyticsEvent.pageView({String? location, String? title}) =>
+  factory GoogleAnalyticsEvent.pageView({
+    String? location,
+    String? path,
+    String? title,
+    Map<String, Object?> campaign = const <String, Object?>{},
+  }) =>
       GoogleAnalyticsEvent('page_view', params: <String, Object?>{
         'page_location': ?location,
+        'page_path': ?path,
         'page_title': ?title,
+        ...campaign,
       });
 
   /// Somebody left their details, or got in touch.

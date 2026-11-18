@@ -30,6 +30,9 @@ abstract interface class MetaPixelBrowser {
   /// The value of the cookie [name], or null.
   String? cookie(String name);
 
+  /// Sets the first-party cookie [name] on this site for [maxAge].
+  void setCookie(String name, String value, {required Duration maxAge});
+
   /// The value of [name] in the page's address, or null.
   String? queryParameter(String name);
 
