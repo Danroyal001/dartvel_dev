@@ -173,6 +173,9 @@ pub struct BoundNode {
     /// [Bindings::classes]: upstream makes the member only when it loads
     /// the class's members (lazily); [noRegion] otherwise.
     pub region: u32,
+    /// For a class whose members upstream reads lazily, their index in
+    /// [Bindings::classes] (its `lazyBuilder`); [noRegion] otherwise.
+    pub members: u32,
 }
 
 /// A class whose members upstream reads lazily (`Class.lazyBuilder`).

@@ -323,6 +323,16 @@ impl<'a> BinaryBuilder<'a> {
         Ok(())
     }
 
+    #[cold]
+    #[inline(never)]
+    fn recordVariableKind(&mut self, id: VarId, kind: u32) {
+        let slot = id as usize;
+        if self.variableKinds.len() <= slot {
+            self.variableKinds.resize(slot + 1, 0);
+        }
+        self.variableKinds[slot] = kind as u8;
+    }
+
     /// `variable as Type` for the variable [id], which must have a tag
     /// [ok] accepts.
     fn castVariable(&self, id: VarId, ok: impl Fn(u32) -> bool, expected: &str) -> Result<()> {
@@ -404,19 +414,14 @@ impl<'a> BinaryBuilder<'a> {
             if let Some(Some(node)) = self.component.bindings.nodes.get(owner as usize).copied()
                 && node.kind == NamedNodeKind::Class
                 && (node.region == noRegion || self.regionLoaded(node.region))
-                && let Some(region) = self.classRegionOf(owner)
-                && !self.regionLoaded(region)
+                && node.members != noRegion
+                && !self.regionLoaded(node.members)
             {
-                self.loadRegion(region)?;
+                self.loadRegion(node.members)?;
             }
         }
         let bound = self.component.bindings.nodes.get(name as usize).copied().flatten();
         Ok(bound.filter(|node| node.region == noRegion || self.regionLoaded(node.region)))
-    }
-
-    /// The lazily read members of the class named [name], if they are.
-    fn classRegionOf(&self, name: CnId) -> Option<u32> {
-        self.component.bindings.classes.iter().rposition(|c| c.reference == name).map(|i| i as u32)
     }
 
     fn regionLoaded(&self, region: u32) -> bool {
@@ -468,6 +473,7 @@ impl<'a> BinaryBuilder<'a> {
             parent,
             cn: name,
             region: self.currentRegion,
+            members: noRegion,
         });
         id
     }
@@ -1650,6 +1656,12 @@ impl<'a> BinaryBuilder<'a> {
                 loaded: false,
                 loadedLater: false,
             });
+            if let Some(Some(node)) = self.component.bindings.nodes.get_mut(reference as usize)
+                && node.kind == NamedNodeKind::Class
+            {
+                // `node.lazyBuilder = ...`.
+                node.members = region;
+            }
             let saved = self.saveStacks();
             let (savedMark, savedRegion) = (self.referenceMark, self.currentRegion);
             self.referenceMark = 2;
@@ -2285,11 +2297,12 @@ impl<'a> BinaryBuilder<'a> {
         }
         let id = self.component.nextVar;
         self.component.nextVar += 1;
-        let slot = id as usize;
-        if self.variableKinds.len() <= slot {
-            self.variableKinds.resize(slot + 1, 0);
+        // Ids are handed out in order, so this is a push.
+        if self.variableKinds.len() == id as usize {
+            self.variableKinds.push(kind as u8);
+        } else {
+            self.recordVariableKind(id, kind);
         }
-        self.variableKinds[slot] = kind as u8;
         Ok(Box::new(Variable {
             id,
             kind,

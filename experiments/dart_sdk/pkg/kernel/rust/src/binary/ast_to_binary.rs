@@ -181,8 +181,9 @@ pub struct BinaryPrinter<'c> {
     members: HashMap<CnId, MemberInfo>,
     /// Which entries of [Bindings::classes] upstream has loaded.
     loadedClasses: Vec<bool>,
-    /// `"${library.importUri}"` by the library's canonical name.
-    importUris: HashMap<CnId, Vec<u8>>,
+    /// The last library whose `"${library.importUri}"` the binding pass
+    /// needed, and that URI.
+    lastImportUri: Option<(CnId, Vec<u8>)>,
     /// `includeSources`, `includeSourceBytes`, `includeOffsets`.
     pub includeSources: bool,
     pub includeSourceBytes: bool,
@@ -257,7 +258,7 @@ impl<'c> BinaryPrinter<'c> {
             knownCanonicalNameNonRootTops: vec![false; component.names.len()],
             members: HashMap::new(),
             loadedClasses: component.bindings.classes.iter().map(|c| c.loaded || c.loadedLater).collect(),
-            importUris: HashMap::new(),
+            lastImportUri: None,
             includeSources: true,
             includeSourceBytes: true,
             includeOffsets: true,
@@ -601,9 +602,9 @@ impl<'c> BinaryPrinter<'c> {
             && let Some(owner) = names.parent(at)
             && let Some(node) = self.visibleNode(owner)
             && node.kind == NamedNodeKind::Class
-            && let Some(region) = self.component.bindings.classes.iter().rposition(|c| c.reference == owner)
+            && node.members != noRegion
         {
-            self.loadClass(region as u32)?;
+            self.loadClass(node.members)?;
         }
         Ok(self.visibleNode(name))
     }
@@ -763,13 +764,15 @@ impl<'c> BinaryPrinter<'c> {
             None => return error(nullCheckError),
         };
         let node = self.asNode(library, NamedNodeKind::Library, "Library", "A library was expected")?;
-        if !self.importUris.contains_key(&node.cn) {
+        // Private names are nearly always their own library's: the last
+        // URI is kept.
+        if self.lastImportUri.as_ref().is_none_or(|(name, _)| *name != node.cn) {
             match self.importUriOf(node.cn) {
-                Ok(uri) => self.importUris.insert(node.cn, uri),
+                Ok(uri) => self.lastImportUri = Some((node.cn, uri)),
                 Err(thrown) => return error(thrown),
-            };
+            }
         }
-        let uri = &self.importUris[&node.cn];
+        let uri = &self.lastImportUri.as_ref().unwrap().1;
         self.bindPath(parent, &[qualifier, uri, text], read)
     }
 
