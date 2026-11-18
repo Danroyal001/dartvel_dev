@@ -3,6 +3,8 @@ import 'dart:collection';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart' show visibleForTesting;
+
 import 'generated/bindings.dart' as gen;
 
 /// `aw_body_next_chunk` recorded the ask, or answered it.
@@ -17,7 +19,14 @@ const int bodyPullTaken = gen.AW_BODY_PULL_TAKEN;
 /// has come back for more, so it would run ahead and hold a whole upload in
 /// this isolate's memory -- which is what this replaces.
 final class RequestBodyStream {
-  RequestBodyStream(this.reqId, this._api);
+  RequestBodyStream(this.reqId, this._api) {
+    created++;
+  }
+
+  /// How many have been made in this isolate. For tests: a request without
+  /// a body should make none.
+  @visibleForTesting
+  static int created = 0;
 
   final int reqId;
   final gen.DartvelShelfBindings _api;

@@ -43,6 +43,27 @@ typedef _NativeBodyChunkCb = gen.DartBodyChunkHandlerFunction;
 /// rust/src/lib.rs. 2 added the peer address.
 const int _nativeAbiVersion = 2;
 
+/// [bytes] as a method name: the common ones as the same constant every
+/// time, rather than a new string per request; anything else decoded.
+String _methodName(Uint8List bytes) {
+  switch (bytes.length) {
+    case 3:
+      if (bytes[0] == 0x47 && bytes[1] == 0x45 && bytes[2] == 0x54) return 'GET';
+      if (bytes[0] == 0x50 && bytes[1] == 0x55 && bytes[2] == 0x54) return 'PUT';
+    case 4:
+      if (bytes[0] == 0x50 && bytes[1] == 0x4f && bytes[2] == 0x53 && bytes[3] == 0x54) {
+        return 'POST';
+      }
+      if (bytes[0] == 0x48 && bytes[1] == 0x45 && bytes[2] == 0x41 && bytes[3] == 0x44) {
+        return 'HEAD';
+      }
+  }
+  return String.fromCharCodes(bytes);
+}
+
+/// AW_BODY_NONE in rust/src/lib.rs: a body address meaning "no body".
+const int _awBodyNone = 2;
+
 /// AW_FLAG_SHARED in rust/src/lib.rs: listen with SO_REUSEPORT.
 const int _awFlagShared = 0x02;
 
@@ -574,8 +595,13 @@ Future<ServerHandle> serve(
     final Request req;
     // A body this side can pull, or null for a request whose body the native
     // side read whole -- a library that cannot stream one.
-    final RequestBodyStream? bodyStream =
-        streamsRequestBodies ? RequestBodyStream(reqId, api) : null;
+    // A request the native side marks as having no body (AW_BODY_NONE) gets
+    // no body stream at all: most requests are GETs, and the pull object,
+    // its generator and its entry in [bodies] were built for every one.
+    final bool bodiless = body.len == 0 && body.ptr.address == _awBodyNone;
+    final RequestBodyStream? bodyStream = streamsRequestBodies && !bodiless
+        ? RequestBodyStream(reqId, api)
+        : null;
     try {
       req = _readRequest(
         method: method,
@@ -583,6 +609,7 @@ Future<ServerHandle> serve(
         hdrsPtr: hdrsPtr,
         hdrsLen: hdrsLen,
         body: body,
+        bodiless: bodiless,
         bodyStream: bodyStream,
         peer: peer,
         authority: authority,
@@ -1026,6 +1053,7 @@ Request _readRequest({
   required ffi.Pointer<ffi.Uint8> hdrsPtr,
   required int hdrsLen,
   required gen.FfiBuf body,
+  bool bodiless = false,
   required RequestBodyStream? bodyStream,
   required gen.FfiStr peer,
   required String authority,
@@ -1039,8 +1067,8 @@ Request _readRequest({
   final String? peerText = peer.len == 0
       ? null
       : String.fromCharCodes(peer.ptr.cast<ffi.Uint8>().asTypedList(peer.len));
-  final methodStr = String.fromCharCodes(
-      method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
+  final methodStr =
+      _methodName(method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
   final targetStr = String.fromCharCodes(
       target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
   // Copied now, because the native side frees them once the request is
@@ -1050,10 +1078,12 @@ Request _readRequest({
       Uint8List.fromList(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
   // A body the native side streamed is pulled one chunk at a time as the
   // handler reads it; one it read whole arrives here and is already in memory.
-  final Stream<List<int>> bodySource = bodyStream == null
-      ? Stream<List<int>>.value(
-          Uint8List.fromList(body.ptr.cast<ffi.Uint8>().asTypedList(body.len)))
-      : _pulled(bodyStream);
+  final Stream<List<int>> bodySource = bodiless
+      ? const Stream<List<int>>.empty()
+      : bodyStream == null
+          ? Stream<List<int>>.value(Uint8List.fromList(
+              body.ptr.cast<ffi.Uint8>().asTypedList(body.len)))
+          : _pulled(bodyStream);
   return Request(
     method: methodStr,
     url: _requestUrl(targetStr, authority: authority, port: port),

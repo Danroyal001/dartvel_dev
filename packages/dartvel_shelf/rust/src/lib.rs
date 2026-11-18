@@ -844,6 +844,13 @@ pub const AW_FLAG_SHARED: u32 = 0x02;
 /// reaches the socket, with no thread hand-off at all under load.
 pub const AW_FLAG_DRIVEN: u32 = 0x04;
 
+/// The address a request's body buffer carries, with length 0, when the
+/// request has no body at all: Dart then makes no body stream for it. Never
+/// read from. Not 1: that is the address an empty byte buffer carries (the
+/// alignment of a byte), which is what a streamed body passes. No real
+/// buffer lies below 4096. An older Dart reads it as an empty body.
+pub const AW_BODY_NONE: usize = 2;
+
 fn stream_ack(req_id: u64, server_id: Option<u64>) {
     let cb = server_id
         .and_then(|id| {
@@ -2287,9 +2294,10 @@ async fn dart_proxy_with_fallback(
         ptr: target.as_ptr(),
         len: target.len(),
     };
-    let body_ffi = FfiBuf {
-        ptr: bytes.as_ptr(),
-        len: bytes.len(),
+    let body_ffi = if bodiless {
+        FfiBuf { ptr: AW_BODY_NONE as *const u8, len: 0 }
+    } else {
+        FfiBuf { ptr: bytes.as_ptr(), len: bytes.len() }
     };
     let peer_ffi = FfiStr {
         ptr: peer.as_ptr(),
