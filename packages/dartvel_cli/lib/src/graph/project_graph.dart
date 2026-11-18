@@ -12,6 +12,8 @@ import '../adoption/adoption_build_checks.dart' show dvGeneratedPageRoutes;
 import '../generators/route_utils.dart';
 import '../generators/primary_constructors.dart';
 import 'module_mounts.dart';
+import '../config/dartvel_section.dart' show DVDartvelSection, dvDartvelSection;
+import 'package:dartvel_core/config.dart' show dvHtmlSnippetDirectory, dvWebFileProblem;
 
 /// A versioned description of what an application is made of.
 ///
@@ -30,13 +32,15 @@ class DartvelProjectGraph {
     required this.functions,
     required this.jobs,
     this.modules = const <DVGraphModule>[],
+    this.platforms = const <String, Object?>{},
   });
 
   /// The shape version. See the class doc: this is a contract, not a stamp.
   ///
   /// Version 2 added the modules key. A consumer that understood version 1
   /// can tell that this file carries a key it has never seen.
-  int get graphVersion => 2;
+  /// Version 3 added the platforms key.
+  int get graphVersion => 3;
 
   /// Application nodes only. The backend generator also registers framework
   /// built-ins -- `/health`, `/openapi.json`, `/graphql` and its two siblings
@@ -53,6 +57,12 @@ class DartvelProjectGraph {
   /// somewhere an operator looks; leaving it out is how an application ships
   /// without a section and nobody finds out until a customer does.
   final List<DVGraphModule> modules;
+
+  /// `dartvel.platforms`, for Studio's Platforms screen: where the settings
+  /// are written (`source`: `pubspec` or the Dart config file), the web
+  /// document settings (`web`), the text of each snippet file they name
+  /// (`files`), and every HTML file under html/ one could name (`webFiles`).
+  final Map<String, Object?> platforms;
 
   /// Scans [root] and answers what it is made of.
   static Future<DartvelProjectGraph> build({
@@ -96,6 +106,7 @@ class DartvelProjectGraph {
       functions: functions,
       jobs: jobs,
       modules: modules,
+      platforms: dvGraphPlatforms(root),
     );
   }
 
@@ -106,6 +117,7 @@ class DartvelProjectGraph {
         'functions': functions.map((DVGraphFunction f) => f.toJson()).toList(),
         'jobs': jobs.map((DVGraphJob j) => j.toJson()).toList(),
         'modules': modules.map((DVGraphModule m) => m.toJson()).toList(),
+        'platforms': platforms,
       };
 
   static List<File> _dartFiles(String root) {
@@ -846,4 +858,40 @@ class DVGraphModulePin {
         resolvedFrom: pin.resolvedFrom,
         targets: pin.targets,
       );
+}
+
+/// The graph's `platforms` value for the project at [root].
+Map<String, Object?> dvGraphPlatforms(String root) {
+  final DVDartvelSection section = dvDartvelSection(root);
+  final Object? platforms = section.values['platforms'];
+  final Object? web = platforms is Map ? platforms['web'] : null;
+  final Object? document = web is Map ? web['document'] : null;
+  final Map<String, Object?> plain = document is Map
+      ? (jsonDecode(jsonEncode(document)) as Map).cast<String, Object?>()
+      : const <String, Object?>{};
+  final Map<String, Object?> files = <String, Object?>{};
+  for (final Object? slot in plain.values) {
+    for (final Object? entry in slot is List ? slot : const <Object?>[]) {
+      final Object? path = entry is Map ? entry['file'] : null;
+      if (path is! String || dvWebFileProblem(path) != null) continue;
+      final File file = File(p.join(root, path));
+      if (file.existsSync()) files[path] = file.readAsStringSync();
+    }
+  }
+  final Directory htmlDirectory = Directory(p.join(root, dvHtmlSnippetDirectory));
+  final List<String> webFiles = !htmlDirectory.existsSync()
+      ? <String>[]
+      : (htmlDirectory
+              .listSync(recursive: true)
+              .whereType<File>()
+              .map((File file) => p.relative(file.path, from: root).replaceAll(r'\', '/'))
+              .where((String path) => path.endsWith('.html'))
+              .toList()
+            ..sort());
+  return <String, Object?>{
+    'source': section.fromDartConfig ?? 'pubspec',
+    if (plain.isNotEmpty) 'web': <String, Object?>{'document': plain},
+    if (files.isNotEmpty) 'files': files,
+    'webFiles': webFiles,
+  };
 }

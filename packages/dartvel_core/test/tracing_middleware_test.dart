@@ -99,16 +99,20 @@ void main() {
     expect(child.parentSpanId, root.spanId);
   });
 
-  test('the span records the route and the status', () async {
+  // The OpenTelemetry semantic-convention names, typed as the conventions
+  // type them. The earlier http.method / http.path / http.status were
+  // Dartvel's own spellings, which no tracing backend recognises.
+  test('the span records the method, the path and the status', () async {
     await dvTraced(
       tracer,
       get('/orders'),
       (Request req) async => Response.text('ok', status: 201),
     );
 
-    expect(exporter.spans.single.attributes['http.method'], 'GET');
-    expect(exporter.spans.single.attributes['http.path'], '/orders');
-    expect(exporter.spans.single.attributes['http.status'], '201');
+    expect(exporter.spans.single.attributes['http.request.method'], 'GET');
+    expect(exporter.spans.single.attributes['url.path'], '/orders');
+    expect(exporter.spans.single.attributes['http.response.status_code'], 201);
+    expect(exporter.spans.single.kind, DVSpanKind.server);
   });
 
   test('a 5xx marks the span as an error', () async {

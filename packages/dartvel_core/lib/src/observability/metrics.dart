@@ -15,7 +15,9 @@ library dartvel.observability.metrics;
 /// metrics and the framework's never collide in one registry.
 const String dvMetricPrefix = 'dartvel_';
 
-enum _DVMetricKind { counter, gauge, histogram }
+/// What a metric is: a count that only rises, a value that goes up and down,
+/// or a bucketed distribution.
+enum DVMetricKind { counter, gauge, histogram }
 
 /// A monotonically increasing count.
 class DVCounter {
@@ -80,11 +82,11 @@ class DVHistogram {
 
 class _DVSeries {
   _DVSeries(this.kind, this.labels)
-      : buckets = kind == _DVMetricKind.histogram
+      : buckets = kind == DVMetricKind.histogram
             ? List<double>.filled(DVHistogram.defaultBuckets.length, 0)
             : null;
 
-  final _DVMetricKind kind;
+  final DVMetricKind kind;
   final Map<String, String> labels;
   double value = 0;
   double count = 0;
@@ -93,7 +95,7 @@ class _DVSeries {
 
 /// A registry of metrics, rendered on demand.
 class DVMetrics {
-  final Map<String, _DVMetricKind> _kinds = <String, _DVMetricKind>{};
+  final Map<String, DVMetricKind> _kinds = <String, DVMetricKind>{};
   final Map<String, String> _help = <String, String>{};
   final Map<String, Map<String, _DVSeries>> _series =
       <String, Map<String, _DVSeries>>{};
@@ -111,21 +113,21 @@ class DVMetrics {
     Map<String, String> labels = const <String, String>{},
     String? help,
   ]) =>
-      DVCounter._(_seriesFor(name, _DVMetricKind.counter, labels, help));
+      DVCounter._(_seriesFor(name, DVMetricKind.counter, labels, help));
 
   DVGauge gauge(
     String name, [
     Map<String, String> labels = const <String, String>{},
     String? help,
   ]) =>
-      DVGauge._(_seriesFor(name, _DVMetricKind.gauge, labels, help));
+      DVGauge._(_seriesFor(name, DVMetricKind.gauge, labels, help));
 
   DVHistogram histogram(
     String name, [
     Map<String, String> labels = const <String, String>{},
     String? help,
   ]) =>
-      DVHistogram._(_seriesFor(name, _DVMetricKind.histogram, labels, help));
+      DVHistogram._(_seriesFor(name, DVMetricKind.histogram, labels, help));
 
   /// `counter`, `gauge` or `histogram`, or null when nothing registered
   /// [name].
@@ -141,7 +143,7 @@ class DVMetrics {
     String name, [
     Map<String, String> labels = const <String, String>{},
   ]) {
-    if (_kinds[name] == _DVMetricKind.histogram) return null;
+    if (_kinds[name] == DVMetricKind.histogram) return null;
     return _series[name]?[_key(labels)]?.value;
   }
 
@@ -150,16 +152,54 @@ class DVMetrics {
     _generation += 1;
     _kinds.clear();
     _help.clear();
+    _units.clear();
     _series.clear();
+    _startedAt = DateTime.now();
   }
+
+  final Map<String, String> _units = <String, String>{};
+
+  /// When counting began, which a cumulative OTLP point names as its start:
+  /// a backend computes a rate from the count and this, and a start that
+  /// moved would read as a reset.
+  DateTime get startedAt => _startedAt;
+  DateTime _startedAt = DateTime.now();
+
+  /// Declares the unit [name] is measured in, in UCUM as OpenTelemetry
+  /// writes units: `s`, `By`, `{request}`.
+  void setUnit(String name, String unit) => _units[name] = unit;
+
+  /// The unit [name] is measured in, or null when none was declared.
+  String? unitOf(String name) => _units[name];
+
+  /// Every series as it stands now, for an exporter. Histogram buckets are
+  /// cumulative, as they are kept; [DVMetricPoint.bucketCounts] gives them
+  /// per bucket, as OTLP carries them.
+  List<DVMetricPoint> collect() => <DVMetricPoint>[
+        for (final MapEntry<String, Map<String, _DVSeries>> metric
+            in _series.entries)
+          for (final _DVSeries series in metric.value.values)
+            DVMetricPoint._(
+              name: metric.key,
+              kind: series.kind,
+              help: _help[metric.key],
+              unit: _units[metric.key],
+              labels: series.labels,
+              value: series.value,
+              count: series.count,
+              cumulativeBuckets: series.buckets == null
+                  ? null
+                  : List<double>.unmodifiable(series.buckets!),
+            ),
+      ];
 
   _DVSeries _seriesFor(
     String name,
-    _DVMetricKind kind,
+    DVMetricKind kind,
     Map<String, String> labels,
     String? help,
   ) {
-    final _DVMetricKind? existing = _kinds[name];
+    final DVMetricKind? existing = _kinds[name];
     if (existing != null && existing != kind) {
       // Two kinds under one name renders two TYPE lines for it, which is a
       // parse error that takes out the whole scrape rather than one metric.
@@ -195,8 +235,13 @@ class DVMetrics {
     for (final String name in names) {
       final Map<String, _DVSeries> byLabels = _series[name]!;
       if (byLabels.isEmpty) continue;
-      final String full = '$dvMetricPrefix$name';
-      final _DVMetricKind kind = _kinds[name]!;
+      // An OpenTelemetry name is dotted (http.server.request.duration), and a
+      // dot in a Prometheus metric name fails the whole scrape. Any character
+      // the exposition format refuses becomes an underscore, as the
+      // OpenTelemetry Prometheus exporters spell it.
+      final String full =
+          '$dvMetricPrefix${name.replaceAll(RegExp(r'[^a-zA-Z0-9_:]'), '_')}';
+      final DVMetricKind kind = _kinds[name]!;
 
       // Once per name, however many label series it has: a repeated HELP or
       // TYPE is a parse error.
@@ -207,7 +252,7 @@ class DVMetrics {
       final List<String> keys = byLabels.keys.toList()..sort();
       for (final String key in keys) {
         final _DVSeries series = byLabels[key]!;
-        if (kind == _DVMetricKind.histogram) {
+        if (kind == DVMetricKind.histogram) {
           double cumulative = 0;
           for (int i = 0; i < DVHistogram.defaultBuckets.length; i += 1) {
             cumulative = series.buckets![i];
@@ -232,7 +277,9 @@ class DVMetrics {
   static String _labels(Map<String, String> labels, {String? le}) {
     final List<String> parts = <String>[
       for (final String key in labels.keys.toList()..sort())
-        '$key="${_escapeLabel(labels[key]!)}"',
+        // A dotted label name (http.route) is refused like a dotted
+        // metric name.
+        '${key.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_')}="${_escapeLabel(labels[key]!)}"',
       if (le != null) 'le="$le"',
     ];
     return parts.isEmpty ? '' : '{${parts.join(',')}}';
@@ -260,5 +307,51 @@ class DVMetrics {
     text = text.replaceFirst(RegExp(r'0+$'), '');
     if (text.endsWith('.')) text = text.substring(0, text.length - 1);
     return text;
+  }
+}
+
+/// One series of a [DVMetrics] registry at the moment it was collected.
+class DVMetricPoint {
+  DVMetricPoint._({
+    required this.name,
+    required this.kind,
+    required this.help,
+    required this.unit,
+    required this.labels,
+    required this.value,
+    required this.count,
+    required List<double>? cumulativeBuckets,
+  }) : _cumulative = cumulativeBuckets;
+
+  final String name;
+  final DVMetricKind kind;
+  final String? help;
+  final String? unit;
+  final Map<String, String> labels;
+
+  /// A counter's or gauge's value; a histogram's sum.
+  final double value;
+
+  /// How many values a histogram observed; zero for the other kinds.
+  final double count;
+
+  final List<double>? _cumulative;
+
+  /// The histogram's bucket upper bounds, without the implicit +Inf.
+  List<double> get bucketBounds => DVHistogram.defaultBuckets;
+
+  /// How many observations fell in each bucket, not at-or-below it: one per
+  /// bound plus the overflow, adding up to [count]. Empty for a non-histogram.
+  List<int> get bucketCounts {
+    final List<double>? cumulative = _cumulative;
+    if (cumulative == null) return const <int>[];
+    final List<int> out = <int>[];
+    double below = 0;
+    for (final double atOrBelow in cumulative) {
+      out.add((atOrBelow - below).round());
+      below = atOrBelow;
+    }
+    out.add((count - below).round());
+    return out;
   }
 }

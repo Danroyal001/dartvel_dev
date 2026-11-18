@@ -62,6 +62,17 @@ dartvel:
   apiBasePath: /api
   envFiles: [.env, .env.local]
 
+  # docs:start yaml-platforms-web
+  platforms:
+    web:
+      document:
+        head: # inside <head>
+          - html: <meta name="google-site-verification" content="your-code">
+          - file: html/analytics.html
+        bodyEnd: # right before </body> closes
+          - html: <script src="https://cdn.example.com/chat.js" async></script>
+  # docs:end
+
   # docs:start yaml-file-associations
   fileAssociations:
     - mimeType: application/x-shop-order
@@ -117,7 +128,21 @@ dartvel:
     cleartextHosts: [printer.local]   # plain HTTP only to these
   # docs:end
 
+  # docs:start yaml-opentelemetry
+  # Traces, metrics and logs to any OpenTelemetry collector, over OTLP/HTTP.
+  # OTEL_EXPORTER_OTLP_ENDPOINT and the other OTEL_* variables on the
+  # deployment win over everything here.
+  openTelemetry:
+    enabled: true
+    endpoint: http://localhost:4318      # the collector's OTLP/HTTP port
+    secretHeaders:                       # header: the DV.Secrets entry holding it
+      x-honeycomb-team: HONEYCOMB_API_KEY
+    sampler: parentbased_traceidratio
+    ratio: 0.25                          # keep a quarter of new traces
+  # docs:end
+
   # docs:start yaml-cache
+
   cache:
     store: redis        # memory (default), database, redis or memcached
     url: ${REDIS_URL}   # read from the environment when the server starts

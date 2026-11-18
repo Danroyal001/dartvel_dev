@@ -998,6 +998,17 @@ List<DVStudioSection> dvStudioServerSections(DVStudioClient client) =>
         icon: Icons.bolt_outlined,
         build: (BuildContext context) => _DVStudioCacheSection(client: client),
       ),
+      DVStudioSection.opening(
+        id: 'platforms',
+        label: 'Platforms',
+        icon: Icons.devices_outlined,
+        build: (BuildContext context, DVStudioSelection selection) =>
+            DVStudioPlatformsSection(
+          client: client,
+          platform: selection.object,
+          onSelect: (String id) => selection.select?.call(id),
+        ),
+      ),
       DVStudioSection(
         id: 'repository',
         label: 'GitHub',

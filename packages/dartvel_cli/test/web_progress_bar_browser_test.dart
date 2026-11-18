@@ -112,6 +112,25 @@ void main() {
     await page.close();
   });
 
+  test('a font that arrives before the renderer does not jump the bar', () async {
+    // Every page preloads its fonts now, and a small font beats the
+    // renderer's megabytes: the bar must not say 85 % while the renderer is
+    // still on its way.
+    final Page page = await _open(reduced: true);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final num afterApp = await _value(page);
+    await page.evaluate<void>(
+        '() => fetch("/assets/fonts/Inter.woff2").then(r => r.text())');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(await _value(page), afterApp);
+    await page.evaluate<void>(
+        '() => fetch("/canvaskit/canvaskit.wasm").then(r => r.text())');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    // The renderer, and the font already in: both milestones count now.
+    expect(await _value(page), greaterThanOrEqualTo(85));
+    await page.close();
+  });
+
   test('between arrivals it creeps rather than standing still', () async {
     final Page page = await _open();
     final num first = await _value(page);

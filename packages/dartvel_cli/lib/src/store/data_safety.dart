@@ -11,6 +11,7 @@ library;
 
 import 'dart:convert';
 
+import 'package:dartvel_core/config.dart' show dvWithPlatforms;
 import 'package:dartvel_core/dartvel.dart'
     show
         DVCrashBuildMode,
@@ -158,8 +159,9 @@ final class DVDataSafetyInputs {
   /// Reads a parsed `pubspec.yaml`.
   factory DVDataSafetyInputs.fromPubspec(Map<Object?, Object?> pubspec) {
     final Object? section = pubspec['dartvel'];
+    // Platform settings at either home, platforms.<name> or <name>.
     final Map<Object?, Object?> dartvel =
-        section is Map ? section : const <Object?, Object?>{};
+        section is Map ? dvWithPlatforms(section.cast<Object?, Object?>()) : const <Object?, Object?>{};
     final Object? deps = pubspec['dependencies'];
     final Object? crashes = dartvel['crashes'];
     final Object? analytics = dartvel['analytics'];

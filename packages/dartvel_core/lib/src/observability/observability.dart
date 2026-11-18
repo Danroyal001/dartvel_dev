@@ -11,6 +11,7 @@ import 'logging.dart';
 import 'metrics.dart';
 import 'tracing.dart';
 
+export 'database_telemetry.dart';
 export 'health.dart';
 export 'log.dart';
 export 'log_config.dart';
@@ -18,6 +19,9 @@ export 'log_file.dart';
 export 'log_shipping.dart';
 export 'logging.dart';
 export 'metrics.dart';
+export 'open_telemetry.dart';
+export 'open_telemetry_config.dart';
+export 'otlp.dart';
 export 'runtime_config.dart';
 export 'tracing.dart';
 export 'tracing_middleware.dart';
@@ -59,7 +63,24 @@ class DVObservability {
     sampler: DVTraceSampler.always(),
   );
 
-  /// Points tracing at [exporter], sampling [ratio] of traces.
+  /// Whether every request served gets a server span, and every query,
+  /// outbound call, job and schedule run inside one gets its own.
+  ///
+  /// Off until something will read the spans -- [useTracing], OpenTelemetry
+  /// export, or the diagnostics endpoints -- so that a process nobody traces
+  /// pays one field read per request for not tracing, and nothing else.
+  static bool get requestTracing => _requestTracing || diagnosticsEndpoints;
+  static bool _requestTracing = false;
+
+  /// Whether the OpenTelemetry semantic-convention metrics are recorded per
+  /// request: `http.server.request.duration`, `http.server.active_requests`
+  /// and `db.client.operation.duration`. On while OpenTelemetry exports
+  /// metrics; the Prometheus series under their own names are recorded
+  /// either way.
+  static bool semanticMetrics = false;
+
+  /// Points tracing at [exporter], sampling [ratio] of traces, or as
+  /// [sampler] decides when one is given.
   ///
   /// The recent-span buffer stays in the chain. An application that configures
   /// a collector still has spans to read on the machine in front of it, which
@@ -67,20 +88,36 @@ class DVObservability {
   static void useTracing({
     required DVTraceExporter exporter,
     double ratio = 1,
+    DVTraceSampler? sampler,
   }) {
     tracer = DVTracer(
       exporter: DVFanoutTraceExporter(<DVTraceExporter>[_spans, exporter]),
-      sampler: ratio >= 1
-          ? DVTraceSampler.always()
-          : DVTraceSampler.ratio(ratio),
+      sampler: sampler ??
+          (ratio >= 1 ? DVTraceSampler.always() : DVTraceSampler.ratio(ratio)),
     );
+    _requestTracing = true;
   }
 
   /// Back to the default: sample everything, keep the last [spanCapacity]
-  /// spans, export nowhere else.
+  /// spans, export nowhere else, and open no span per request.
   static void resetTracing({int spanCapacity = 200}) {
     _spans = DVRecentSpansExporter(capacity: spanCapacity);
     tracer = DVTracer(exporter: _spans, sampler: DVTraceSampler.always());
+    _requestTracing = false;
+  }
+
+  /// The OpenTelemetry log destination, kept through [useLogging] the way the
+  /// device log file is: replacing the console sink must not be what stops
+  /// records reaching the collector.
+  static DVLogSink? _otelLogs;
+
+  /// Sends every record that passes the level to [sink] as well, or stops
+  /// when [sink] is null. [DVOpenTelemetry.install] calls this.
+  static void useOpenTelemetryLogs(DVLogSink? sink) {
+    final DVLogSink? previous = _otelLogs;
+    if (previous != null) logger.sinks.remove(previous);
+    _otelLogs = sink;
+    if (sink != null) logger.sinks.add(sink);
   }
 
   /// Where recent records are kept for `GET /_dartvel/logs` and
@@ -135,6 +172,8 @@ class DVObservability {
       <DVLogSink>[
         if (keepBuffer) _buffer,
         if (_file != null) _file!,
+        if (_otelLogs != null) _otelLogs!,
+
         ...sinks,
       ],
       level: level,
@@ -165,6 +204,7 @@ class DVObservability {
   static void resetLogging() {
     _file?.close();
     _file = null;
+    _otelLogs = null;
     _buffer = DVMemoryLogSink();
     logger = _newLogger(<DVLogSink>[_buffer]);
   }

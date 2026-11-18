@@ -13,6 +13,7 @@ library;
 
 import 'dart:convert';
 
+import 'document_slots.dart' show dvBodyEndInsertionPoint;
 import 'document_fields.dart' show dvRevealNoscriptCss;
 import 'find_in_page.dart';
 
@@ -219,7 +220,7 @@ String dvApplyPageText(String html, List<String> lines, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (lines.isEmpty) return cleaned;
 
-  final at = cleaned.indexOf('</body>');
+  final at = dvBodyEndInsertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;
@@ -259,7 +260,7 @@ String dvApplyPageHtml(String html, String content, {String? path}) {
       html.replaceAll(RegExp('$_open.*?$_close\n?', dotAll: true), '');
   if (content.trim().isEmpty) return cleaned;
 
-  final at = cleaned.indexOf('</body>');
+  final at = dvBodyEndInsertionPoint(cleaned);
   // No body to put it in. Unchanged beats inventing structure around
   // someone's template.
   if (at < 0) return cleaned;

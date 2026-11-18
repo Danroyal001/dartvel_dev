@@ -929,6 +929,7 @@ export 'src/studio/studio_host.dart';
 export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
 export 'src/studio/studio_repository_section.dart';
+export 'src/studio/studio_platforms_section.dart';
 export 'src/studio/studio_routes.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_server.dart';
@@ -10657,6 +10658,22 @@ class DVRust {
 
 class DVObservabilityAndLogging {
   const DVObservabilityAndLogging();
+
+  /// Exports this app's traces, metrics and logs over OTLP as [config] says
+  /// -- on a phone, a desktop, a TV or in a browser, through the same
+  /// exporter a server uses. Returns the configuration in force.
+  ///
+  /// Point a client at a collector that accepts it: a browser needs the
+  /// collector to answer CORS, and a header with a write key in it ships
+  /// inside every copy of the app, so prefer a collector endpoint that takes
+  /// no secret, or your own backend in front of one.
+  DVOpenTelemetryConfig useOpenTelemetry(DVOpenTelemetryConfig config) =>
+      DVOpenTelemetry.install(config);
+
+  /// Sends everything queued for the collector now: before the app is put
+  /// in the background, for instance.
+  Future<void> flushTelemetry() => DVOpenTelemetry.forceFlush();
+
 
   /// One record, the same as `DV.log(...)`. It used to print the message
   /// and send the whole record to product analytics as an event -- logs in a

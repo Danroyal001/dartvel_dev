@@ -665,7 +665,7 @@ const String dvRoutePreloadsFile = 'dartvel_prefetch.json';
 /// does not know (an image's laid-out slot, say) is ignored, because a
 /// preload list is an optimisation and a mangled one must not stop a page.
 class DVRoutePreloads {
-  const DVRoutePreloads._(this._routes);
+  const DVRoutePreloads._(this._routes, [this._wasm = const <String, List<String>>{}]);
 
   /// No manifest, or nothing in it.
   static const DVRoutePreloads none =
@@ -673,6 +673,10 @@ class DVRoutePreloads {
 
   /// Each pattern's links, as (address, `as`).
   final Map<String, List<(String, String)>> _routes;
+
+  /// Each pattern's deferred wasm modules, named only to a browser that will
+  /// run the wasm app ([dvWasmModulePreloads]).
+  final Map<String, List<String>> _wasm;
 
   static DVRoutePreloads parse(String? json) {
     if (json == null || json.isEmpty) return none;
@@ -687,10 +691,19 @@ class DVRoutePreloads {
     if (routes is! Map) return none;
     final Map<String, List<(String, String)>> out =
         <String, List<(String, String)>>{};
+    final Map<String, List<String>> wasmOut = <String, List<String>>{};
     for (final MapEntry<Object?, Object?> route in routes.entries) {
       final Object? pattern = route.key;
       final Object? entry = route.value;
       if (pattern is! String || entry is! Map) continue;
+      final Object? wasm = entry['wasm'];
+      if (wasm is List) {
+        final List<String> modules = <String>[
+          for (final Object? module in wasm)
+            if (module is String && module.isNotEmpty) module,
+        ];
+        if (modules.isNotEmpty) wasmOut[pattern] = modules;
+      }
       final Object? scripts = entry['scripts'];
       final Object? images = entry['images'];
       final List<(String, String)> links = <(String, String)>[
@@ -710,10 +723,10 @@ class DVRoutePreloads {
       ];
       if (links.isNotEmpty) out[pattern] = links;
     }
-    return DVRoutePreloads._(out);
+    return DVRoutePreloads._(out, wasmOut);
   }
 
-  bool get isEmpty => _routes.isEmpty;
+  bool get isEmpty => _routes.isEmpty && _wasm.isEmpty;
 
   /// The `<link rel="preload">` elements for [pattern], one per line, leaving
   /// out anything [shell] already names -- the browser finds those while it
@@ -726,8 +739,9 @@ class DVRoutePreloads {
   /// for an `<img>`. A preload asked for any other way than the request it
   /// is meant to answer is not reused, and the file downloads twice.
   String linksFor(String pattern, {String shell = ''}) {
-    final List<(String, String)>? links = _routes[pattern];
-    if (links == null) return '';
+    final List<(String, String)> links = _routes[pattern] ?? const <(String, String)>[];
+    final List<String> wasm = _wasm[pattern] ?? const <String>[];
+    if (links.isEmpty && wasm.isEmpty) return '';
     final Set<String> named = _namedBy(shell);
     final Set<String> seen = <String>{};
     final StringBuffer out = StringBuffer();
@@ -735,8 +749,74 @@ class DVRoutePreloads {
       if (named.contains(href) || !seen.add(href)) continue;
       out.writeln(_preloadLink(href, kind));
     }
+    final String modules = dvWasmModulePreloads(wasm);
+    if (modules.isNotEmpty) out.writeln(modules);
     return out.toString();
   }
+}
+
+/// The app's own download, as a resource URL: main.dart.wasm or main.dart.js,
+/// with or without the build's `?v=`. Not main.dart.mjs, a few KB that
+/// arrives long before the app.
+const String dvBootAppPattern = r'main\.dart\.(wasm|js)(\?|$)';
+
+/// The renderer's download: skwasm, skwasm_heavy or either CanvasKit.
+const String dvBootRendererPattern = r'(canvaskit|skwasm)[^/]*\.wasm(\?|$)';
+
+/// A JavaScript function `dvAfterBoot(go)` that calls `go` once, when the
+/// page has downloaded both the app ([dvBootAppPattern]) and its renderer
+/// ([dvBootRendererPattern]).
+///
+/// What the first frame needs besides those two -- the fonts, the manifests,
+/// a route's deferred modules -- is asked for early so it is there when the
+/// app wants it, but not before them: on a slow network every byte competes,
+/// and preloads sharing the line with main.dart.wasm delayed it by 10 s on
+/// Slow 3G (sigmadev.digital, HTTP/1.1). Where the browser cannot report
+/// downloads, `go` never runs and the app fetches everything itself, as it
+/// always did.
+const String dvAfterBootDownloadsDetector = 'function dvAfterBoot(go){'
+    'var m=0,r=0,done=0;'
+    'function seen(n){if(/$dvBootAppPattern/.test(n))m=1;'
+    'if(/$dvBootRendererPattern/.test(n))r=1;'
+    'if(m&&r&&!done){done=1;go()}}'
+    'try{performance.getEntriesByType("resource").forEach(function(e){seen(e.name)});'
+    'new PerformanceObserver(function(l){l.getEntries().forEach(function(e){seen(e.name)})})'
+    '.observe({type:"resource",buffered:true})}catch(e){}}';
+
+/// JavaScript statements that append a `<link rel="preload" as="fetch"
+/// crossorigin="anonymous">` for each of [hrefs] once the app and its
+/// renderer have downloaded ([dvAfterBootDownloadsDetector]). [guard], when
+/// given, is an expression that must be true for anything to happen.
+String dvAfterBootPreloadsBody(List<String> hrefs, {String? guard}) {
+  // JSON in a script: `<` escaped so a name cannot close the element.
+  final String names = jsonEncode(hrefs).replaceAll('<', '\\u003c');
+  return '$dvAfterBootDownloadsDetector'
+      '${guard == null ? '' : 'if(!($guard))return;'}'
+      'dvAfterBoot(function(){var d=document;$names.forEach(function(h){'
+      'var l=d.createElement("link");l.rel="preload";l.as="fetch";'
+      'l.crossOrigin="anonymous";l.href=h;d.head.appendChild(l)})});';
+}
+
+/// A script that preloads [modules] -- a route's deferred
+/// `main.dart_module<N>.wasm` files -- in a browser that will run the
+/// WebAssembly app, and does nothing in any other. Empty for no modules.
+///
+/// The decision is the one the splash makes for main.dart.wasm (Blink with
+/// WasmGC, flutter.js's own detector bytes): a browser running dart2js would
+/// download every module for nothing. Each is fetched as the module loader
+/// fetches it -- fetch(), anonymous CORS -- or the browser would not hand the
+/// preload over and download it twice; and only once main.dart.wasm and the
+/// renderer are in ([dvAfterBootDownloadsDetector]), so they keep the network
+/// first. Without this a route's modules were asked for only once
+/// main.dart.wasm had run, in waves of round trips.
+String dvWasmModulePreloads(List<String> modules) {
+  if (modules.isEmpty) return '';
+  return '<script>(function(){var n=navigator,w=false;'
+      'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
+      '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
+      'catch(e){}'
+      '${dvAfterBootPreloadsBody(modules, guard: 'w')}'
+      '})();</script>';
 }
 
 String _preloadLink(String href, String as) {
@@ -1317,7 +1397,14 @@ DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
 }
 
 /// Where a redirect answered for a request with [query] sends it: [to], with
-/// the request's query carried over when [to] has none of its own.
+/// the request's query carried over.
+///
+/// When [to] has a query of its own, its parameters are defaults: one the
+/// request also names takes the request's value in place, and the request's
+/// other parameters follow. A short link that tags its target
+/// (`/w/store` -> `/product/store?utm_source=whatsapp`) so keeps an ad's own
+/// `utm_*` and `fbclid` when the ad links to it. Values pass through as they
+/// were encoded, and a fragment on [to] stays last.
 ///
 /// One rule for every redirect a Dartvel server answers -- `dartvel.redirects`
 /// and the `dartvel.hosts` entries that only redirect -- in the deployed
@@ -1325,5 +1412,40 @@ DVConfiguredRedirect? dvConfiguredRedirect(Object? redirects, String rawPath) {
 /// it out inline, and the preview's dartvel.redirects did not carry the query
 /// at all: `/old?ref=mail` reached `/new?ref=mail` in production and `/new`
 /// in the preview.
-String dvRedirectLocation(String to, String query) =>
-    query.isEmpty || to.contains('?') ? to : '$to?$query';
+String dvRedirectLocation(String to, String query) {
+  if (query.isEmpty) return to;
+  final int hashAt = to.indexOf('#');
+  final String fragment = hashAt < 0 ? '' : to.substring(hashAt);
+  final String withoutFragment = hashAt < 0 ? to : to.substring(0, hashAt);
+  final int questionAt = withoutFragment.indexOf('?');
+  if (questionAt < 0) return '$withoutFragment?$query$fragment';
+  final String path = withoutFragment.substring(0, questionAt);
+  final List<String> targetPairs = _queryPairs(withoutFragment.substring(questionAt + 1));
+  final List<String> requestPairs = _queryPairs(query);
+  final Map<String, String> requestByName = <String, String>{
+    for (final String pair in requestPairs) _queryPairName(pair): pair,
+  };
+  final Set<String> placed = <String>{};
+  final List<String> merged = <String>[];
+  for (final String pair in targetPairs) {
+    final String name = _queryPairName(pair);
+    final String? fromRequest = requestByName[name];
+    if (fromRequest == null) {
+      merged.add(pair);
+    } else if (placed.add(name)) {
+      merged.add(fromRequest);
+    }
+  }
+  for (final String pair in requestPairs) {
+    if (!placed.contains(_queryPairName(pair))) merged.add(pair);
+  }
+  return '$path?${merged.join('&')}$fragment';
+}
+
+List<String> _queryPairs(String query) =>
+    query.split('&').where((String pair) => pair.isNotEmpty).toList();
+
+String _queryPairName(String pair) {
+  final int equalsAt = pair.indexOf('=');
+  return equalsAt < 0 ? pair : pair.substring(0, equalsAt);
+}

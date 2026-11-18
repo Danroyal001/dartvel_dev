@@ -1,0 +1,147 @@
+/// `dartvel.platforms.web.document` at build time: the project's own HTML
+/// written into the shell (`build/web/index.html`) that every page is made
+/// from, the files it names checked, the Content-Security-Policy told what the
+/// snippets load, and a typed `DVWebFile` value for each file a Dart config
+/// class can name.
+///
+/// Into the shell, once, rather than at each place a page is rendered: the
+/// static build's prerendered pages, the web server's pages rendered on
+/// request, its not-found and offline pages and Studio's screens are all
+/// made from that shell by the same functions, so writing it there is what
+/// puts the snippets on every page by one path.
+library;
+
+import 'dart:io';
+
+import 'package:dartvel_core/config.dart';
+import 'package:path/path.dart' as p;
+
+import '../config/dartvel_section.dart' show dvDartvelSection;
+import '../generators/assets_generator.dart' show dvAssetName;
+
+/// What writing the snippets did.
+class DVDocumentSlotsWrite {
+  const DVDocumentSlotsWrite({this.snippets = 0, this.problems = const <String>[]});
+
+  /// How many snippets the shell now carries.
+  final int snippets;
+
+  /// Why the snippets were refused. The build stops while any stand, and the
+  /// shell is left as it was.
+  final List<String> problems;
+}
+
+/// The project's snippets, each file read and checked. [problems] receives
+/// every reason a snippet is refused.
+({DVWebDocumentSlots slots, Map<String, String> files}) dvReadDocumentSlots(
+  String root,
+  Map<Object?, Object?> section,
+  List<String> problems,
+) {
+  final DVPlatformSettingsRead read = DVPlatformSettings.fromPubspec(dvWithPlatforms(section)['platforms']);
+  problems.addAll(read.problems);
+  final DVWebDocumentSlots slots = read.settings.web.document;
+  final Map<String, String> files = <String, String>{};
+  for (final DVDocumentSlot slot in DVDocumentSlot.values) {
+    for (final DVHtmlSnippet snippet in slots.of(slot)) {
+      final DVWebFileRef? file = snippet.file;
+      if (file == null) continue;
+      final File source = File(p.join(root, file.path));
+      if (!source.existsSync()) {
+        problems.add('dartvel.platforms.web.document.${slot.key}: ${file.path} is not there.');
+        continue;
+      }
+      final String text = source.readAsStringSync();
+      final List<String> wrong = dvHtmlSnippetProblems(text, slot: slot);
+      if (wrong.isNotEmpty) {
+        problems.addAll(<String>[for (final String problem in wrong) '${file.path} (${slot.key}): $problem']);
+        continue;
+      }
+      files[file.path] = text.trimRight();
+    }
+  }
+  return (slots: slots, files: files);
+}
+
+/// Writes [section]'s snippets into the project's built shell.
+DVDocumentSlotsWrite dvWriteDocumentSlots(String root, Map<Object?, Object?> section) {
+  final List<String> problems = <String>[];
+  final (:DVWebDocumentSlots slots, :Map<String, String> files) = dvReadDocumentSlots(root, section, problems);
+  if (problems.isNotEmpty) return DVDocumentSlotsWrite(problems: problems);
+  final File index = File(p.join(root, 'build', 'web', 'index.html'));
+  if (!index.existsSync()) return const DVDocumentSlotsWrite();
+  final String before = index.readAsStringSync();
+  final String after = dvApplyDocumentSlots(before, slots, readFile: (String path) => files[path]!);
+  if (after != before) index.writeAsStringSync(after);
+  return DVDocumentSlotsWrite(
+    snippets: slots.head.length + slots.bodyStart.length + slots.bodyEnd.length,
+  );
+}
+
+/// [policy] allowing what the project's snippets load: their third-party
+/// hosts, and their inline scripts' hashes when the policy has no
+/// `'inline-scripts'` source to work them out per page. A snippet that is
+/// refused adds nothing; the build reports it.
+String dvPageCspWithProjectSlots(String root, String policy, {Map<Object?, Object?>? section}) {
+  final List<String> problems = <String>[];
+  final (:DVWebDocumentSlots slots, :Map<String, String> files) =
+      dvReadDocumentSlots(root, section ?? dvDartvelSection(root).values, problems);
+  if (problems.isNotEmpty || slots.isEmpty) return policy;
+  return dvPageCspWithDocumentSlots(policy, slots, readFile: (String path) => files[path]!);
+}
+
+/// `lib/dartvel_client/web_files.g.dart`: a `DVWebFile` value per HTML file
+/// under `html/`, for a Dart config class to name.
+String dvWebFileRefsSource(String root) {
+  final Directory html = Directory(p.join(root, dvHtmlSnippetDirectory));
+  final List<String> paths = !html.existsSync()
+      ? <String>[]
+      : (html
+              .listSync(recursive: true)
+              .whereType<File>()
+              .map((File file) => p.relative(file.path, from: root).replaceAll(r'\', '/'))
+              .where((String path) => path.endsWith('.html'))
+              .toList()
+            ..sort());
+  final Set<String> used = <String>{};
+  final StringBuffer out = StringBuffer()
+    ..writeln('// GENERATED by dartvel routes -- do not edit.')
+    ..writeln('//')
+    ..writeln('// Every HTML file under html/, for dartvel.platforms.web.document in a')
+    ..writeln('// Dart config class: DVHtmlSnippet.file(DVWebFile.head). A renamed or')
+    ..writeln('// deleted file is then a compile error rather than a missing snippet.')
+    ..writeln("import 'package:dartvel_core/config.dart';")
+    ..writeln()
+    ..writeln('enum DVWebFile implements DVWebFileRef {');
+  if (paths.isEmpty) {
+    out
+      ..writeln('  /// This project has no HTML files under html/ yet.')
+      ..writeln("  none('');");
+  } else {
+    for (int i = 0; i < paths.length; i++) {
+      final String path = paths[i];
+      String name = dvAssetName(p.withoutExtension(path.substring('$dvHtmlSnippetDirectory/'.length)));
+      while (!used.add(name)) {
+        name = '${name}File';
+      }
+      out.writeln("  $name('$path')${i == paths.length - 1 ? ';' : ','}");
+    }
+  }
+  out
+    ..writeln()
+    ..writeln('  const DVWebFile(this.path);')
+    ..writeln()
+    ..writeln('  @override')
+    ..writeln('  final String path;')
+    ..writeln('}');
+  return out.toString();
+}
+
+/// Writes [dvWebFileRefsSource] to the client, when it changed.
+void dvWriteWebFileRefs(String root) {
+  final File file = File(p.join(root, 'lib', 'dartvel_client', 'web_files.g.dart'));
+  final String source = dvWebFileRefsSource(root);
+  if (file.existsSync() && file.readAsStringSync() == source) return;
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(source);
+}

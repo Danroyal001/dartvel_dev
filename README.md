@@ -122,7 +122,8 @@ captured page with each request's own text in it, instead of the build's.
 | **OTA Updates** | `dartvel updates release`, `patch` and `rollback` over Shorebird, or into a patch source your own web-server binary hosts. Patches apply on Android; iOS is not proven | ⚠️ Partial |
 | **Crash Reporting** | Crashes written by the handler and sent on the next launch, breadcrumbs, fingerprints, release health. Android: a JVM handler, and release symbols (R8 mapping, `--split-debug-info`) collected at build, uploaded with `dartvel symbols upload` and used to read each report. No native signal handler, iOS dSYMs or web source maps yet | ⚠️ Partial |
 | **Usage Metering** | Per-tenant counters and gauges with limits, billing periods and reporting to a billing provider. No `@DVMeter` generation or CLI yet | ⚠️ Partial |
-| **Observability** | `DV.log`: one structured stream on every target, mirrored to logcat, the Apple unified log, journald and the browser console over FFI, a capped rotating log file on each device with export and share, sensitive fields and secrets redacted, opt-in shipping to your own backend. Prometheus metrics on `/metrics` (private to the host, private networks and `DARTVEL_METRICS_TOKEN`), real health checks on `/health`, W3C Trace Context. No OTLP exporter, and native code cannot log into the stream yet | ⚠️ Partial |
+| **Observability** | `DV.log`: one structured stream on every target, mirrored to logcat, the Apple unified log, journald and the browser console over FFI, a capped rotating log file on each device with export and share, sensitive fields and secrets redacted, opt-in shipping to your own backend. Prometheus metrics on `/metrics` (private to the host, private networks and `DARTVEL_METRICS_TOKEN`), real health checks on `/health`, W3C Trace Context. OpenTelemetry: traces, metrics and logs over OTLP/HTTP (protobuf or JSON) to any collector from `dartvel.openTelemetry` or the standard `OTEL_*` variables, with spans for every request, database statement, outbound call, job, schedule and page render by the semantic conventions. No gRPC export or job-to-request trace links, and native code cannot log into the stream yet | ⚠️ Partial |
+
 | **Sensitive Fields** | `@DVModel.sensitiveField()` keeps fields out of public serialization, logs and AI context; `encrypted: true` adds AES-256-GCM at rest on the generated model's own read and write path | ⚠️ Partial |
 | **Lifecycle Signals** | Read-only enum signals: `DV.lifecycle.app`/`.build`, `context.lifecycle.page`/`.request`/`.transaction`. Some states are not emitted yet | ⚠️ Partial |
 | **Modules** | `DV.Modules.<id>` with modules mounted at build time, their pages, backend functions, cron and tables merged into the parent | ⚠️ Partial |
@@ -657,6 +658,58 @@ dartvel admin grant user_123 --database dartvel_data/data.db
 dartvel admin list --database dartvel_data/data.db
 dartvel admin revoke user_123 --database dartvel_data/data.db
 ```
+
+### Your own HTML on every page
+
+Analytics, a tag manager, site verification or a chat widget usually arrives
+as HTML to paste into every page. Dartvel takes it in three places, under
+`dartvel.platforms.web.document`: `head` (inside `<head>`), `bodyStart`
+(right after `<body>` opens) and `bodyEnd` (right before `</body>` closes,
+after the page itself). Each entry is inline `html:` or a `file:` under `html/`:
+
+```yaml
+dartvel:
+  platforms:
+    web:
+      document:
+        head:
+          - html: <meta name="google-site-verification" content="your-code">
+          - file: html/analytics.html
+        bodyEnd:
+          - html: <script src="https://cdn.example.com/chat.js" async></script>
+```
+
+A Dart config class sets the same thing as `DartvelConfig.platforms`
+(`DVPlatformSettings` → `DVWebSettings` → `DVWebDocumentSlots` of
+`DVHtmlSnippet.html(...)` and `DVHtmlSnippet.file(DVWebFile.analytics)`;
+`DVWebFile` is generated for each HTML file under `html/`, so a renamed file is
+a compile error). Studio's **Platforms** screen (`/__studio/platforms/web`)
+edits the same setting: on `dartvel dev` it saves into `pubspec.yaml`, on a
+deployed app the GitHub screen sends it as a `pubspec.yaml` change.
+
+The build writes the snippets into the shell every page is made from, so
+prerendered pages, pages the web server renders on request, the not-found and
+offline pages and Studio all carry them, in the server-rendered document; the
+app taking over does not run them again. They are copied as written (the
+minifier leaves them alone). HTML that would break the page fails the build,
+naming the entry: an element left open, a stray closing tag, page structure,
+an element a head cannot hold, or a `<title>`/description, which each page
+sets. With `dartvel.security.pageCsp`, the policy gains the hosts the snippets
+load from, and their inline scripts' hashes (per page with `'inline-scripts'`,
+from the snippet otherwise).
+
+The HTML runs with the page's full authority: only add HTML from a source you
+trust. In Studio only the app's owner may change it (the `Studio.editPlatforms`
+action; an app names its own editors with
+`registerAction(dvStudioEditPlatformsAction, ...)`).
+
+Platform settings now group under `dartvel.platforms.<platform>`. The older
+homes, such as `dartvel.web.fonts` or `dartvel.android.permissions`, keep
+working; where both set the same key, `platforms` wins. The map's keys are the
+platforms the project builds for, so the list `dartvel create` writes
+(`platforms: [web, android, ...]`) is the same declaration with nothing set
+yet; it keeps working, and Studio turns it into the map, every target kept,
+when it first saves a setting.
 
 dartvel.dev itself runs this way: one binary behind nginx, with Studio
 enabled and granted to its owner. `sites/dartvel_site/README.md` has the

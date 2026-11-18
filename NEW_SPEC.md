@@ -577,6 +577,59 @@ The table is the contract. Each row says which entries a target has, what
   engine, entering as `embedded`; `DV.run` is called once per engine, not per
   element.
 
+#### The project's own HTML on every page
+
+`dartvel.platforms` groups each platform's settings under its name; the older
+top-level keys (`web`, `android`, `ios`, `macos`, `windows`, `linux`) are read
+as the same objects, the `platforms` home winning key by key, and the build
+notes an old key's new home. The map's keys are the platforms the project builds for;
+the older list of targets (`platforms: [web, android]`) is the same declaration
+with nothing set, still accepted, and read by `dvPlatformTargets` either way. `platforms.web.document` takes three lists,
+`head` (inside `<head>`, after the shell's tags), `bodyStart` (right after
+`<body>` opens) and `bodyEnd` (right before `</body>` closes, after the page's
+own document), of entries that are exactly one of `html:` (inline) or
+`file:` (a file under `html/`; not `web/`, which is generated build output and ignored by git). The Dart config class
+field is `DartvelConfig.platforms` (`DVPlatformSettings`, `DVWebSettings`,
+`DVWebDocumentSlots`, `DVHtmlSnippet.html` / `.file`), round-tripping with the
+YAML through one parser; a file is a `DVWebFileRef`, and `dartvel routes`
+generates `DVWebFile` (`lib/dartvel_client/web_files.g.dart`) with a value per
+HTML file under `html/`.
+
+- **One render path.** The build writes the snippets into `build/web/index.html`
+  after the capture and the versioning, between `<!-- dartvel:head -->`,
+  `<!-- dartvel:body-start -->` and `<!-- dartvel:body-end -->` markers. Every
+  page — prerendered, rendered on request, not-found, offline, Studio — is made
+  from that shell, so each carries them in its server-rendered document, and
+  the takeover neither removes nor re-runs them. Content Dartvel puts at the
+  end of the body goes before the body-end region; the minifier copies the
+  regions verbatim.
+- **Refused HTML.** A snippet that would break the page fails the build before
+  Flutter compiles, naming the entry or file: an element left open (a raw-text
+  element or comment swallows the page; a div in `bodyStart` takes the app
+  inside it), a closing tag with nothing open, `<html>`/`<head>`/`<body>`, an
+  element a head cannot hold, a `<title>` or `<meta name="description">`
+  (each page's own). Studio applies the same checks as the HTML is typed.
+- **Content-Security-Policy.** With `dartvel.security.pageCsp`, the generated
+  policy gains each snippet's third-party https origins by directive
+  (`script-src`, `style-src`, `frame-src`, `img-src`, `media-src`). Inline
+  scripts are covered per page when the policy has `'inline-scripts'`; without
+  it each inline snippet script's hash is added to `script-src`, unless
+  `script-src` relies on `'unsafe-inline'`, which a hash would switch off.
+- **Studio.** The Platforms screen (`<mount>/platforms`, Web at
+  `<mount>/platforms/web`) reads and writes the same object through
+  `GET /api/platforms` and `PUT /api/platforms/web/document`: into
+  `pubspec.yaml` at once on a development server (every other line kept, the
+  old `dartvel.web.document` moved), otherwise held until the GitHub screen
+  sends it as a `pubspec.yaml` change. Editing is the `Studio.editPlatforms`
+  action, the first-run owner by default; a project configured in Dart is
+  shown read-only with where to change it. The screen previews the edges of
+  every page as the next build writes them.
+- **Escape hatch.** The HTML runs with the page's full authority; the docs say
+  so and Studio says so above the editor.
+- **Not yet:** per-route additions (a route pattern with extra snippets), and
+  Studio editing of the other platforms' settings.
+
+
 ### Browser extensions and VS Code
 
 - Popup, options and side-panel pages are `app` entries with their own route.
@@ -6483,17 +6536,43 @@ trace without a negotiation.
 
 ```yaml
 dartvel:
-  tracing:
-    ratio: 0.1
-    exporter: otlp                # otlp | none
+  openTelemetry:
+    enabled: true                 # off unless this or OTEL_EXPORTER_OTLP_ENDPOINT
     endpoint: https://collector.internal:4318
+    protocol: http/protobuf       # http/protobuf | http/json
+    secretHeaders:                # header: the DV.Secrets entry holding its value
+      x-honeycomb-team: HONEYCOMB_API_KEY
+    serviceName: shop             # default: the package name
+    resource: {deployment.environment.name: production}
+    traces: true
+    metrics: true
+    logs: true
+    sampler: parentbased_traceidratio
+    ratio: 0.1
     queue: 2048
-    maxSpanDuration: 5m
+    batch: 512
 ```
+
+The section is the Dart `DartvelConfig.openTelemetry` getter's
+`DVOpenTelemetryConfig` written as YAML, with the same names and defaults in
+both. The standard OpenTelemetry environment variables win over it --
+`OTEL_EXPORTER_OTLP_ENDPOINT` (which turns export on by itself), the
+per-signal endpoints, `OTEL_EXPORTER_OTLP_HEADERS`, `_PROTOCOL`, `_TIMEOUT`,
+`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_TRACES_SAMPLER` and its
+argument, `OTEL_<SIGNAL>_EXPORTER=none`, the `OTEL_BSP_*` queue settings,
+`OTEL_METRIC_EXPORT_INTERVAL` and `OTEL_SDK_DISABLED` -- because that is how
+every OpenTelemetry SDK is configured. The pubspec is read strictly at build
+time; a variable that cannot be read is ignored with `DV-TRACE-011`, never a
+failed boot. A literal `headers` key is refused: a header carries a key, and a
+key in pubspec.yaml is published with the repository.
 
 OTLP over HTTP is the exporter, because Jaeger, Tempo, Honeycomb, Datadog and
 the rest all accept it, and an adapter per vendor would be five copies of one
-protocol.
+protocol. Traces, metrics and logs share it: the semantic-convention metrics
+(`http.server.request.duration`, `http.server.active_requests`,
+`db.client.operation.duration`, `process.memory.usage`) and every series the
+Prometheus endpoint serves go out as cumulative OTLP metrics, and every
+`DV.log` record goes out as an OTLP log record carrying its trace and span.
 
 Export is batched on a bounded queue and **never blocks a request**. A full
 queue drops spans and counts them (`DV-TRACE-002`); a collector that cannot be
@@ -6521,6 +6600,7 @@ not something to discover later.
 | `DV-TRACE-008` | a client span was refused: client ingest is not enabled on this deployment | `warning` |
 | `DV-TRACE-009` | a span passed its maximum duration and was closed as incomplete | `warning` |
 | `DV-TRACE-010` | a span reached its attribute limit; further attributes were dropped | `warning` |
+| `DV-TRACE-011` | an `OTEL_*` environment variable could not be read; it was ignored | `warning` |
 
 ## What is built, and what is not
 
@@ -6531,14 +6611,34 @@ that starts a span per request and propagates context, the trace id on every
 log line, and `/_dartvel/traces` serving the ring buffer when diagnostics
 endpoints are on.
 
-Not built: the OTLP exporter, so nothing reaches a collector; spans for
-database queries, outbound HTTP, queue publish and consume, transactions and
-AI calls, so the only span most requests have is the request itself; trace
-context in the job envelope and the links that follow from it; client spans
-and their ingest; span attribute and duration limits; and `dartvel traces`
-reading anything but the local buffer. The diagnostics above are registered
-meanings, not emitted signals: nothing raises one yet, and a code that is
-emitted for the wrong situation is worse than one that is not emitted at all.
+Built since: OTLP/HTTP export of traces, metrics and logs (protobuf and JSON,
+hand-encoded in `dartvel_core` so it runs on every target, the web included),
+on bounded batch queues that drop newest with a count
+(`dartvel_otel_dropped_total`, `DV-TRACE-002`) and retry 429/502/503/504 and
+unanswered sends with growing backoff before dropping (`DV-TRACE-003`);
+installed with no code by every generated web, worker and cron process from
+`dartvel.openTelemetry` and the environment, and flushed when the process
+stops; a server span per request in the router, named by its route template,
+off (a few field reads) until something reads spans; client spans for every
+SQL statement with literals stripped and no bound values, and for every
+`DV.Http` call; producer and consumer spans for jobs; a span per scheduled
+run; a render span for a server-rendered page; Studio requests named by
+screen or action; span kinds, typed attributes, exception events, the
+attribute limit with a dropped count, and redaction of attributes named after
+a sensitive field or a credential.
+
+Not built: gRPC export; spans for transactions and AI calls beyond the
+existing AI feature span; trace context in the job envelope and the links
+that follow from it (a job starts its own trace); client spans through the
+deployment's own backend and their ingest, so a client exports only when its
+code calls `useOpenTelemetry`; an in-process bridge for code written against
+another Dart OpenTelemetry API; span duration limits; garbage collection and
+database pool metrics; and `dartvel traces` reading anything but the local
+buffer. Of the diagnostics above, `DV-TRACE-002`, `-003` and `-011` are
+emitted; the rest are registered meanings, not emitted signals: a code that
+is emitted for the wrong situation is worse than one that is not emitted at
+all.
+
 
 ## Deliberately absent
 

@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../observability/database_telemetry.dart';
 import '../schema/schema_change.dart';
 import 'adapter.dart';
 import 'postgres_socket_unsupported.dart'
@@ -211,7 +212,10 @@ class DVPostgresDatabaseAdapter
   // --- public adapter surface -----------------------------------------------
 
   @override
-  Future<List<Map<String, Object?>>> query(
+  Future<List<Map<String, Object?>>> query(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('postgresql', sql, () => _queryNow(sql, params));
+
+  Future<List<Map<String, Object?>>> _queryNow(
     String sql, [
     List<Object?>? params,
   ]) async {
@@ -220,7 +224,10 @@ class DVPostgresDatabaseAdapter
   }
 
   @override
-  Future<int> execute(String sql, [List<Object?>? params]) async {
+  Future<int> execute(String sql, [List<Object?>? params]) =>
+      dvTracedDatabaseCall('postgresql', sql, () => _executeNow(sql, params));
+
+  Future<int> _executeNow(String sql, [List<Object?>? params]) async {
     final reply = await _run(sql, params ?? const <Object?>[]);
     return reply.affected;
   }

@@ -24,12 +24,15 @@ import '../auth/session_authentication.dart';
 import '../database/adapter.dart';
 import '../http/wintercg.dart';
 import '../middleware/middleware.dart' show dvWithRequestTenant;
+import '../observability/observability.dart'
+    show DVSpan, dvCurrentSpan, dvRecordHttpRoute;
 import '../web/asset_source.dart';
 import '../web/route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'studio_access.dart';
 import 'studio_api.dart';
 import 'studio_dev_grant.dart';
 import 'studio_document.dart';
+import 'studio_platforms.dart' show dvStudioPendingPlatforms;
 
 /// One of the application's own auth endpoints, as the mount answers it.
 typedef DVAdminAuthEndpoint = Future<Response> Function(Request);
@@ -517,6 +520,16 @@ class DVAdminServer {
       final Response? signIn = await _signIn(request, path, readable, login);
       if (signIn != null) return signIn;
     }
+    // The Studio app's own guard asks this before it shows any screen. With a
+    // development grant there is no sign-in to answer it, so it is answered
+    // here, for the browser holding the grant; anybody else is told nothing.
+    if (devGrant != null && readable && path == '${apiPrefix}access' && await _authenticated(request)) {
+      return Response(
+        200,
+        headers: Headers(_json),
+        body: Stream<List<int>>.value(utf8.encode(jsonEncode(<String, Object?>{'granted': true}))),
+      );
+    }
     // Only asked on the mount, so no other route pays for a session lookup.
     final DVAdminRequest decision = dvAdminFor(
       path,
@@ -545,7 +558,24 @@ class DVAdminServer {
       );
     }
     if (decision != DVAdminRequest.serve) return null;
+    // Studio's own request names its span and metrics after what it is --
+    // the screen or the API action -- never after the record ids deeper in
+    // the path.
+    final String section = path
+        .substring(mount.path.length)
+        .split('/')
+        .where((String part) => part.isNotEmpty)
+        .skip(isApi ? 1 : 0)
+        .firstOrNull ?? '';
+    dvRecordHttpRoute(
+        '${mount.path}${isApi ? '/api' : ''}${section.isEmpty ? '' : '/$section'}');
+    final DVSpan? span = dvCurrentSpan;
+    if (span != null) {
+      span.setAttribute('dartvel.studio.${isApi ? 'action' : 'screen'}',
+          isApi ? '${request.method} $section' : section);
+    }
     if (path.startsWith(apiPrefix)) {
+
       // On the request's tenant, as every route of the application is, so a
       // tenant-scoped model shows this tenant's records and nobody else's.
       return dvWithRequestTenant(
@@ -599,7 +629,22 @@ class DVAdminServer {
   /// request rather than kept.
   Future<DVStudioProjectData> _projectData() async {
     final DVStudioProjectData graph = DVStudioProjectData.fromGraph(root);
+    // The platform settings as the Platforms screen shows them: a change
+    // saved in Studio and not yet sent, over what the build used.
+    final DVDatabaseAdapter? database = _database;
+    final Map<String, Object?>? pending = database == null ? null : await dvStudioPendingPlatforms(database);
+    final Object? builtWeb = graph.platforms['web'];
+    final Map<String, Object?> platforms = pending == null
+        ? graph.platforms
+        : <String, Object?>{
+            ...graph.platforms,
+            'web': <String, Object?>{
+              if (builtWeb is Map) ...builtWeb.cast<String, Object?>(),
+              'document': pending,
+            },
+          };
     return DVStudioProjectData(
+      platforms: platforms,
       compiled: graph.compiled,
       pages: await api.sitePages(compiled: graph.compiled),
       models: models,

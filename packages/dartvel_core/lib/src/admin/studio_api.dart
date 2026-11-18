@@ -22,8 +22,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:yaml/yaml.dart' show loadYaml;
+
 import '../../dartvel.dart'
-    show DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
+    show DVAuthAuthorization, DVCacheTags, DVJobEnvelope, DVJobPayload, DVQueues;
 import '../annotations/model_access.dart';
 import '../auth/auth.dart'
     show AuthUser, DVAccountDirectory, DVAccountLookup;
@@ -42,6 +44,10 @@ import '../tenancy/tenants.dart';
 import 'studio_access.dart';
 import 'studio_model_schema.dart';
 import 'studio_repository.dart';
+import 'studio_platforms.dart';
+import '../auth/first_run_owner.dart' show DVFirstRunOwner;
+import '../config/platforms.dart' show dvWithPlatforms;
+import '../web/document_slots.dart' show DVDocumentSlot;
 import 'studio_source_files.dart';
 import 'studio_site.dart';
 import '../web/asset_source.dart';
@@ -553,6 +559,8 @@ class DVStudioApi {
             if (segments.length == 1) return await _me(request, method);
           case 'repository':
             return await _repositoryAt(request, method, segments.sublist(1));
+          case 'platforms':
+            return await _platformsAt(request, method, segments.sublist(1));
         }
         throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
       });
@@ -1764,6 +1772,142 @@ class DVStudioApi {
     return _reply(graph is Map
         ? graph.cast<String, Object?>()
         : const <String, Object?>{});
+  }
+
+  // ---- platforms ---------------------------------------------------------
+
+  /// What the build wrote about `dartvel.platforms` into its graph: the
+  /// settings, where they are written, the snippet files' text and every
+  /// HTML file under html/. Empty when the build wrote none.
+  Map<String, Object?> _builtPlatforms() {
+    final String? directory = root;
+    if (directory == null) return const <String, Object?>{};
+    try {
+      final DVAssetFile? file = DVAssetSources.at(directory).file('graph.json');
+      final Object? graph = file == null ? null : jsonDecode(utf8.decode(file.bytes()));
+      final Object? platforms = graph is Map ? graph['platforms'] : null;
+      return platforms is Map ? platforms.cast<String, Object?>() : const <String, Object?>{};
+    } on FormatException {
+      return const <String, Object?>{};
+    }
+  }
+
+  /// The project's file at [path] on a development server, or null.
+  String? _projectFile(String path) {
+    final String? source = sourceRoot;
+    if (source == null) return null;
+    final File file = File('$source${Platform.pathSeparator}${path.replaceAll('/', Platform.pathSeparator)}');
+    return file.existsSync() ? file.readAsStringSync() : null;
+  }
+
+  /// The settings as the development server's pubspec.yaml has them now,
+  /// with each snippet file's text: what a rebuild would use.
+  ({Map<String, Object?> document, Map<String, Object?> files, String source})? _sourcePlatforms() {
+    final String? pubspec = _projectFile('pubspec.yaml');
+    if (pubspec == null) return null;
+    final Object? root = loadYaml(pubspec);
+    final Object? dartvel = root is Map ? root['dartvel'] : null;
+    if (dartvel is String) return (document: const <String, Object?>{}, files: const <String, Object?>{}, source: dartvel);
+    final Map<Object?, Object?> section =
+        dvWithPlatforms(dartvel is Map ? dartvel.cast<Object?, Object?>() : const <Object?, Object?>{});
+    final Object? platforms = section['platforms'];
+    final Object? web = platforms is Map ? platforms['web'] : null;
+    final Object? document = web is Map ? web['document'] : null;
+    final Map<String, Object?> plain = document is Map
+        ? (jsonDecode(jsonEncode(document)) as Map).cast<String, Object?>()
+        : const <String, Object?>{};
+    final Map<String, Object?> files = <String, Object?>{};
+    for (final Object? slot in plain.values) {
+      for (final Object? entry in slot is List ? slot : const <Object?>[]) {
+        final Object? path = entry is Map ? entry['file'] : null;
+        if (path is String) files[path] = _projectFile(path);
+      }
+    }
+    return (document: plain, files: files, source: 'pubspec');
+  }
+
+  /// Whether the caller may change the HTML every page carries.
+  Future<bool> _mayEditPlatforms(Request request) async {
+    final String? userId = await _caller(request);
+    final DVDatabaseAdapter? db = database;
+    const DVAuthAuthorization authorization = DVAuthAuthorization();
+    // The framework's answer, asked only where the application gave none.
+    authorization.registerDeclaredAction(
+      dvStudioEditPlatformsAction,
+      (Object? caller, Object? _) => DVFirstRunOwner.mayActAsOwner(caller is String ? caller : null, database: db),
+    );
+    return authorization.canAction(userId, dvStudioEditPlatformsAction);
+  }
+
+  Future<Response> _platformsAt(Request request, String method, List<String> path) async {
+    if (path.isEmpty) {
+      if (method != 'GET' && method != 'HEAD') _notAllowed();
+      final Map<String, Object?> built = _builtPlatforms();
+      final Object? builtWeb = built['web'];
+      final Object? builtDocument = builtWeb is Map ? builtWeb['document'] : null;
+      final ({Map<String, Object?> document, Map<String, Object?> files, String source})? local = _sourcePlatforms();
+      final Map<String, Object?>? pending = local == null ? await dvStudioPendingPlatforms(_database) : null;
+      final Map<String, Object?> files = <String, Object?>{
+        if (built['files'] is Map) ...(built['files']! as Map).cast<String, Object?>(),
+        ...?local?.files,
+      };
+      final Map<String, Object?> document = local?.document ??
+          pending ??
+          (builtDocument is Map ? builtDocument.cast<String, Object?>() : const <String, Object?>{});
+      final String source = local?.source ?? '${built['source'] ?? 'pubspec'}';
+      final Map<DVDocumentSlot, String> edges = dvStudioEffectiveEdges(document, files);
+      return _reply(<String, Object?>{
+        'web': <String, Object?>{'document': document},
+        'pending': pending != null,
+        'development': local != null,
+        'source': source,
+        'canEdit': source == 'pubspec' && await _mayEditPlatforms(request),
+        'effective': <String, Object?>{for (final DVDocumentSlot slot in DVDocumentSlot.values) slot.key: edges[slot]},
+        'files': files,
+        'webFiles': built['webFiles'] ?? const <Object?>[],
+      });
+    }
+    if (path.length == 2 && path[0] == 'web' && path[1] == 'document') {
+      if (method != 'PUT') _notAllowed();
+      if (!await _mayEditPlatforms(request)) {
+        throw _StudioRefusal(403, 'forbidden',
+            'Only the application\'s owner may change the HTML every page carries.');
+      }
+      final Map<String, Object?> body = await _body(request);
+      final Object? document = body['document'];
+      final Map<String, Object?> built = _builtPlatforms();
+      final Set<String> known = <String>{
+        for (final Object? file in (built['webFiles'] as List?) ?? const <Object?>[]) '$file',
+      };
+      final Map<Object?, Object?> builtFiles = built['files'] is Map ? built['files']! as Map : const <Object?, Object?>{};
+      final List<String> problems = dvStudioPlatformsProblems(
+        document,
+        (String file) => sourceRoot != null
+            ? _projectFile(file)
+            : (builtFiles[file] as String?) ?? (known.contains(file) ? '' : null),
+      );
+      if (problems.isNotEmpty) {
+        return _reply(<String, Object?>{
+          'error': 'invalid',
+          'message': 'This HTML would break the page.',
+          'problems': problems,
+        }, status: 422);
+      }
+      final Map<String, Object?> value = (document! as Map).cast<String, Object?>();
+      final String? source = sourceRoot;
+      if (source != null) {
+        final File pubspec = File('$source${Platform.pathSeparator}pubspec.yaml');
+        try {
+          pubspec.writeAsStringSync(dvStudioPubspecWithPlatforms(pubspec.readAsStringSync(), value));
+        } on DVStudioPlatformsRefusal catch (refusal) {
+          throw _StudioRefusal(refusal.status, refusal.code, refusal.message);
+        }
+        return _reply(<String, Object?>{'saved': true, 'written': 'pubspec.yaml'});
+      }
+      await dvStudioSavePendingPlatforms(_database, value);
+      return _reply(<String, Object?>{'saved': true});
+    }
+    throw _StudioRefusal(404, 'not_found', 'No such Studio endpoint.');
   }
 
   // ---- cache -------------------------------------------------------------

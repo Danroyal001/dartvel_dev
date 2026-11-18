@@ -82,7 +82,8 @@ const posted = [];
 const loads = [];
 globalThis._flutter = { loader: { load: () => {} } };
 globalThis.document = { baseURI: 'https://app.test/' };
-globalThis.addEventListener = (type, fn) => { if (type === 'load') loads.push(fn); };
+// The page loads and the app draws: registration waits for both.
+globalThis.addEventListener = (type, fn) => { if (type === 'load' || type === 'flutter-first-frame') loads.push(fn); };
 globalThis.setTimeout = (fn) => fn();
 globalThis.performance = { getEntriesByType: () => [
   { name: 'https://app.test/main.dart.js?v=b7' },
@@ -156,6 +157,44 @@ console.log(JSON.stringify({ afterLoad, afterFrame: registered.length }));
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(jsonDecode('${result.stdout}'.trim()),
         <String, Object?>{'afterLoad': 0, 'afterFrame': 1});
+  });
+
+  test('a first frame slower than thirty seconds is still waited for', () {
+    // On Slow 3G the first frame comes after a minute or more. A fallback
+    // that registered thirty seconds after load started the worker's install
+    // -- every boot file, 25 pages and their parts -- while the app was still
+    // downloading, on the same slow line.
+    final Directory dir = Directory.systemTemp.createTempSync('dv_sw_slow_frame');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final File script = File('${dir.path}/page.mjs')
+      ..writeAsStringSync('''
+const registered = [];
+const handlers = {};
+globalThis._flutter = { loader: { load: () => {} } };
+globalThis.document = { baseURI: 'https://app.test/' };
+globalThis.addEventListener = (type, fn) => { (handlers[type] = handlers[type] || []).push(fn); };
+globalThis.setTimeout = (fn) => fn(); // every timer, however long, has run
+Object.defineProperty(globalThis, 'navigator', { value: { serviceWorker: {
+  register: async (url) => { registered.push(url); return {}; },
+  ready: new Promise(() => {}),
+} } });
+${dvBootstrapRegisteringServiceWorker(bootstrap)}
+const fire = (type) => (handlers[type] || []).forEach((fn) => fn());
+fire('load');
+const beforeFrame = registered.length;
+fire('flutter-first-frame');
+console.log(JSON.stringify({ beforeFrame, afterFrame: registered.length }));
+''');
+    ProcessResult result;
+    try {
+      result = Process.runSync('node', <String>[script.path]);
+    } on ProcessException {
+      markTestSkipped('node is not on PATH');
+      return;
+    }
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(jsonDecode('${result.stdout}'.trim()),
+        <String, Object?>{'beforeFrame': 0, 'afterFrame': 1});
   });
 
   test('the registered text is valid JavaScript', () {

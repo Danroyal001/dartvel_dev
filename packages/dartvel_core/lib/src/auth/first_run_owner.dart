@@ -176,6 +176,25 @@ class DVFirstRunOwner {
     }
   }
 
+  /// Whether [userId] may act as this application's owner: it is the
+  /// account the first run minted, or the application never had a first run
+  /// (its accounts predate it, and the operators it granted Studio to are its
+  /// owners). Where there is a first-run owner, anybody else is refused, and so
+  /// is every caller when the record cannot be read.
+  static Future<bool> mayActAsOwner(String? userId, {DVDatabaseAdapter? database}) async {
+    try {
+      final DVRecordAdapter records = database == null
+          ? const DVDatabase().records
+          : DVRecordAdapter.over(database);
+      await records.ensure(_shape);
+      final List<Map<String, Object?>> rows = await records.find(table);
+      if (rows.isEmpty) return true;
+      return userId != null && rows.any((Map<String, Object?> row) => row['user_id'] == userId);
+    } on Object {
+      return false;
+    }
+  }
+
   /// Records that the owner turned on a second factor.
   static Future<void> secondFactorEnrolled(String userId,
       {DVDatabaseAdapter? database}) async {
