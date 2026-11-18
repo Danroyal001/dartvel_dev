@@ -41,11 +41,49 @@ Inputs go to `target/tfa_oracle` (or `TFA_ORACLE`); the test builds them
 when they are missing. Each run writes the port's text to
 `<name>.rust.txt` beside the `.dill`.
 
+## The types oracle
+
+Upstream's `test/transformations/type_flow/types_test.dart` calls
+`types.dart` directly (union, intersection, `fromStaticType`, equality and
+hash codes), so its oracle runs the test itself:
+
+- `oracle/build_types_inputs.dart` copies the test unchanged except for its
+  `package:test` import, which it points at `oracle/types_test_shim.dart`
+  (`test`, `expect`, `equals`, `isTrue`, `isFalse`). That `expect` prints
+  `<ok|FAIL> | <test> | <reason> | <actual> | <expected>` instead of
+  stopping. Upstream prints 446 lines, all `ok`.
+- `tests/types_test.rs` (`upstream_types_test`) is the same test, statement
+  for statement, run on the port through the same shim. The 446 lines must
+  be identical. Upstream builds the test's classes in memory; here they are
+  the classes with the same names and libraries in `types.dill`: the mock
+  SDK the test uses, its `library dummy:` classes, and its parentless C1
+  and C2<E>, which print as bare names.
+- `oracle/types_lattice.dart` widens the coverage. It sets up eleven classes
+  whose ids are not in declaration order, three record shapes and a pool of
+  66 types: empty, any, nullable, concrete, concrete with constant
+  attributes, with type arguments and as records, cones, wide cones, sets,
+  records nested to the depth limit, runtime and unknown types. It then
+  writes every `union`, `intersection`, `==`, `specialize`,
+  `hasEmptySpecialization`, `isSubtypeOf`, `nullable`, hash code and
+  chained union/intersection that upstream's `types.dart` gives: 51,005
+  lines. `lattice_cases` replays them on the port.
+
+```sh
+DART=/path/to/dart cargo test -p vm --test types_test -- --nocapture
+```
+
+`DART` has to compile this checkout's `pkg/front_end`, so it needs Dart
+3.15.0-dev; 3.13 stable fails. Four deliberate mutations of the port (the
+wide-cone approximation, attribute identity, a hash seed, record depth)
+each fail `lattice_cases`, and one in `union` fails both tests.
+
 ## Pass count
 
-| Test | Testcases | Identical to `.expect` |
+| Test | Testcases | Identical |
 |---|---|---|
 | `summary_collector_test` | 12 | **12** |
+| `types_test`, upstream's expectations | 446 lines | **446** |
+| `types_test`, generated lattice | 51,005 lines | **51,005** |
 
 The directory holds 13 `.expect` files: `class_generics.dart.expect` has no
 `.dart` beside it, so upstream's test never runs it (it prints statements,
@@ -57,7 +95,7 @@ On a stub (first commit) the oracle passed 0 of 12.
 
 | Dart (`../lib/...`) | Rust (`src/...`) | Extent |
 |---|---|---|
-| `transformations/type_flow/types.dart` | same path `.rs` | types, equality, text, `fromStaticType`, constant/closure/record types; not `union`, `intersection`, `specialize` |
+| `transformations/type_flow/types.dart` | same path `.rs` | the lattice: types, equality (attribute identity as upstream), hash codes, text, `union`, `intersection`, `specialize`, `hasEmptySpecialization`, `isSubtypeOf`, `fromStaticType`, constant/closure/record types; not `isSubtypeOfRuntimeType`, `RuntimeType.representedType`, `Closure.createCallMethod` |
 | `transformations/type_flow/calls.dart` | same | selectors, `Args` |
 | `transformations/type_flow/summary.dart` | same | statements (in an arena, by index), text, `Summary`; `simplify` is beside the normalizer; not `apply` |
 | `transformations/type_flow/summary_collector.dart` | same | `SummaryCollector`, `_SummaryNormalizer`, `_VariablesInfoCollector`, `RuntimeTypeTranslatorImpl`, `ConstantAllocationCollector`; not native procedures, protobuf handler, field guards, `UsedFieldsCollector`, the side tables the transformer reads |
@@ -78,9 +116,7 @@ print) are approximations or panics, and say so.
 
 ## What is next
 
-1. `types_test.dart`: union, intersection and specialization of types,
-   against upstream's own test.
-2. `transformer_test.dart` is the real gate: the whole analysis
+1. `transformer_test.dart` is the real gate: the whole analysis
    (`analysis.dart`, `transformer.dart`, `signature_shaking.dart`,
    `table_selector_assigner.dart`, `unboxing_info.dart`, `rta.dart`,
    `native_code.dart`), kernel in and kernel out, compared with upstream's
@@ -91,5 +127,5 @@ print) are approximations or panics, and say so.
    types, call-site attributes, table selectors and unboxing info as
    metadata) and kernel's text printer (`ast_to_text.dart`), which the
    transformer test compares.
-3. Then the stage in `gen_kernel --aot` itself, checked by byte-identical
+2. Then the stage in `gen_kernel --aot` itself, checked by byte-identical
    `.dill` output over the kernel corpus.

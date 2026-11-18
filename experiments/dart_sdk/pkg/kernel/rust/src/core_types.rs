@@ -10,6 +10,10 @@ pub mod Nullability {
     pub const nonNullable: u8 = 2;
 }
 
+/// What [CoreTypes::newLenient] gives for a class or member the component
+/// does not have.
+pub const MISSING: CnId = CnId::MAX;
+
 pub struct CoreTypes<'a> {
     pub index: &'a NodeIndex<'a>,
     pub objectClass: CnId,
@@ -36,7 +40,28 @@ pub struct CoreTypes<'a> {
 
 impl<'a> CoreTypes<'a> {
     pub fn new(index: &'a NodeIndex<'a>) -> Self {
-        let class = |uri: &str, name: &str| getClass(index, uri, name).unwrap_or_else(|| panic!("no class {uri}::{name}"));
+        Self::build(index, false)
+    }
+
+    /// Upstream looks each class and member up on first use, so a
+    /// component without some of them (`createMockSdkComponent`) still has
+    /// core types; here the missing ones are [MISSING], which no lookup
+    /// finds.
+    pub fn newLenient(index: &'a NodeIndex<'a>) -> Self {
+        Self::build(index, true)
+    }
+
+    fn build(index: &'a NodeIndex<'a>, lenient: bool) -> Self {
+        let class = |uri: &str, name: &str| match getClass(index, uri, name) {
+            Some(c) => c,
+            None if lenient => MISSING,
+            None => panic!("no class {uri}::{name}"),
+        };
+        let member = |found: Option<CnId>, what: &str| match found {
+            Some(m) => m,
+            None if lenient => MISSING,
+            None => panic!("no member {what}"),
+        };
         CoreTypes {
             index,
             objectClass: class("dart:core", "Object"),
@@ -57,8 +82,8 @@ impl<'a> CoreTypes<'a> {
             setClass: class("dart:core", "Set"),
             mapClass: class("dart:core", "Map"),
             iterableClass: class("dart:core", "Iterable"),
-            objectEquals: getMember(index, "dart:core", Some("Object"), "==").expect("Object.=="),
-            identicalProcedure: getMember(index, "dart:core", None, "identical").expect("identical"),
+            objectEquals: member(getMember(index, "dart:core", Some("Object"), "=="), "Object.=="),
+            identicalProcedure: member(getMember(index, "dart:core", None, "identical"), "identical"),
         }
     }
 

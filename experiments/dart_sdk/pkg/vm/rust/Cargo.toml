@@ -13,5 +13,9 @@ path = "src/lib.rs"
 name = "summary_collector_test"
 path = "tests/summary_collector_test.rs"
 
+[[test]]
+name = "types_test"
+path = "tests/types_test.rs"
+
 [dependencies]
 kernel = { path = "../../kernel/rust" }

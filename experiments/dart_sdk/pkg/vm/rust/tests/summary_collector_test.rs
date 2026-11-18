@@ -106,7 +106,7 @@ impl TypesBuilder for FakeTypesBuilder<'_> {
             return cls.clone();
         }
         *self.classIdCounter.borrow_mut() += 1;
-        let cls = Rc::new(TFClass { id: *self.classIdCounter.borrow(), classNode: c, recordShape: None });
+        let cls = Rc::new(TFClass::fromEnv(*self.classIdCounter.borrow(), c, [], None, self.env));
         self.classes.borrow_mut().insert(c, cls.clone());
         cls
     }
@@ -117,7 +117,7 @@ impl TypesBuilder for FakeTypesBuilder<'_> {
         }
         *self.classIdCounter.borrow_mut() += 1;
         let record = VmTarget::new(self.env.index).getRecordImplementationClass();
-        let cls = Rc::new(TFClass { id: *self.classIdCounter.borrow(), classNode: record, recordShape: Some(shape.clone()) });
+        let cls = Rc::new(TFClass::fromEnv(*self.classIdCounter.borrow(), record, [], Some(shape.clone()), self.env));
         self.recordClasses.borrow_mut().push((shape.clone(), cls.clone()));
         cls
     }
