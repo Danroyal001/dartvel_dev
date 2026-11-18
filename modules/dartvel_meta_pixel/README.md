@@ -24,7 +24,16 @@ dartvel:
       backendPolicy: public
       config:
         pixelId: "1234567890"
+      grant:
+        secrets: [META_PIXEL_ID, META_CONVERSIONS_API_TOKEN]
+        egress: [graph.facebook.com]
 ```
+
+The `grant:` is what the module's code reaches past it, and `dartvel add`
+writes it. The build reads the same list from the code and refuses a mount
+whose grant differs (DV-MODULE-001, DV-MODULE-003). No pin is needed: the
+module is released with the framework, and resolved from the same checkout
+or release as `dartvel_core` it carries the framework's identity.
 
 and, for the Conversions API, the access token in the **server's**
 environment (`.env` in development, your host's secrets in production):
@@ -167,7 +176,6 @@ Under `dartvel.modules.metaPixel.config`, or as `MetaPixelConfig` passed to
 | `pixelId` | none | The pixel's id. Without it the module does nothing. The server also reads `META_PIXEL_ID`. |
 | `consent` | `marketing` | The consent category to wait for. |
 | `serverEvents` | `true` | Send a client's events through the backend to the Conversions API. |
-| `accessTokenSecret` | `META_CONVERSIONS_API_TOKEN` | The name of the environment variable holding the token. |
 | `apiVersion` | `v27.0` | The Graph API version. |
 | `testEventCode` | none | Events Manager's test code; unset it in production. |
 | `excludePaths` | `[/__studio]` | Paths that are not page views. |
