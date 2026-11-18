@@ -66,6 +66,9 @@ pub fn castError(actual: &str, expected: &str) -> String {
     format!("type '{actual}' is not a subtype of type '{expected}' in type cast")
 }
 
+/// The longest list the VM makes (`List.length` past it is a RangeError).
+pub const maxListLength: i64 = 576460752303423487;
+
 /// `value!` on null.
 pub const nullCheckError: &str = "Null check operator used on a null value";
 
@@ -150,6 +153,8 @@ pub struct BinaryBuilder<'a> {
     /// `_cachedSimpleInterfaceTypes`: by link table index, which
     /// nullabilities (bits) have been read.
     simpleInterfaceTypes: Vec<u8>,
+    /// Each variable's tag, by id (for upstream's casts of variables).
+    variableKinds: Vec<u8>,
     /// Where the stack was when reading began, and how much of it the
     /// reader may use on the caller's thread (None on [withDeepStack]'s).
     stackBase: usize,
@@ -187,6 +192,7 @@ impl<'a> BinaryBuilder<'a> {
             lastDeferred: None,
             structuralRanges: Vec::new(),
             simpleInterfaceTypes: Vec::new(),
+            variableKinds: Vec::new(),
             stackBase: stackAddress(),
             stackBudget: Some(callerStackBudget),
         }
@@ -298,6 +304,25 @@ impl<'a> BinaryBuilder<'a> {
     /// The `runtimeType` of [t].
     fn dartTypeRuntimeType(&self, t: &DartType) -> &'static str {
         dartTypeRuntimeType(t, |id| self.structuralRanges.iter().any(|&(first, count)| id >= first && id - first < count))
+    }
+
+    /// `type as RecordType` and the like: [ok] when [t] is one.
+    #[inline(always)]
+    fn castType(&self, t: &DartType, ok: bool, expected: &str) -> Result<()> {
+        if !ok {
+            return self.castFailure(self.dartTypeRuntimeType(t), expected);
+        }
+        Ok(())
+    }
+
+    /// `variable as Type` for the variable [id], which must have a tag
+    /// [ok] accepts.
+    fn castVariable(&self, id: VarId, ok: impl Fn(u32) -> bool, expected: &str) -> Result<()> {
+        let kind = self.variableKinds.get(id as usize).copied().unwrap_or(0) as u32;
+        if !ok(kind) {
+            return self.castFailure(variableRuntimeType(kind), expected);
+        }
+        Ok(())
     }
 
     /// `Enum.values[index]` for an enum of [count] values.
@@ -1122,7 +1147,7 @@ impl<'a> BinaryBuilder<'a> {
             ConstantTag::BoolConstant => Constant::Bool(self.readByte()? == 1),
             ConstantTag::IntConstant => match self.readExpression()? {
                 Expression::IntLiteral { value, .. } => Constant::Int(value),
-                _ => return self.fail("IntConstant without an integer literal"),
+                other => return self.castFailure(expressionRuntimeType(&other), "IntLiteral"),
             },
             ConstantTag::DoubleConstant => Constant::Double(self.readDouble()?),
             ConstantTag::StringConstant => Constant::String(self.readStringReference()?),
@@ -1187,7 +1212,7 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             ConstantTag::InstanceConstant => {
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let classReference = self.readNonNullClassReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let fieldValueCount = self.readUInt30()?;
                 let mut fieldValues: Vec<(CnId, ConstId)> =
@@ -1217,6 +1242,13 @@ impl<'a> BinaryBuilder<'a> {
                 let height = self.typeParameterStack.len();
                 let parameters = self.readAndPushStructuralParameterList()?;
                 let tearOffConstant = self.readConstantReference()?;
+                if !matches!(
+                    self.component.constants[tearOffConstant as usize],
+                    Constant::StaticTearOff { .. } | Constant::ConstructorTearOff { .. } | Constant::RedirectingFactoryTearOff { .. }
+                ) {
+                    let actual = constantRuntimeType(&self.component.constants[tearOffConstant as usize]);
+                    return self.castFailure(actual, "TearOffConstant");
+                }
                 let types = self.readDartTypeList()?;
                 self.typeParameterStack.truncate(height);
                 Constant::TypedefTearOff {
@@ -1270,33 +1302,34 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     fn readScope(&mut self, scopeSize: u32) -> Result<Scope> {
+        // Upstream only asserts that the count is the scope size.
         let contextCount = self.readUInt30()?;
-        if contextCount != scopeSize {
-            return self.fail("scope size disagrees with its context count");
-        }
+        self.dartList(contextCount as u64)?;
         let mut contexts = Vec::with_capacity(self.cap(contextCount as usize));
         for variableContextIndex in 0..contextCount {
-            let captureKind = self.readByte()? as u8;
+            let captureKind = self.readByte()?;
+            let captureKind = self.enumValue(captureKind, 3)?;
             let variableCount = self.readUInt30()?;
             self.dartList(variableCount as u64)?;
             let mut variables = Vec::with_capacity(self.cap(variableCount as usize));
             for _ in 0..variableCount {
                 variables.push(self.readVariableReference()?);
             }
-            let position = (self.variableContextStack.len() + variableContextIndex as usize)
-                .checked_sub(scopeSize as usize);
-            let id = match position.and_then(|p| self.variableContextStack.get(p)) {
-                Some(&id) => id,
-                None => return self.fail("variable context out of range"),
-            };
+            // `variableContextStack[length - scopeSize + index]`.
+            let position = self.variableContextStack.len() as i64 - scopeSize as i64 + variableContextIndex as i64;
+            let id = self.index(&self.variableContextStack, position)?;
             contexts.push(VariableContext {
                 id,
                 captureKind,
                 variables,
             });
         }
-        let length = self.variableContextStack.len().saturating_sub(scopeSize as usize);
-        self.variableContextStack.truncate(length);
+        // `variableContextStack.length -= scopeSize`.
+        let length = self.variableContextStack.len() as i64 - scopeSize as i64;
+        if length < 0 {
+            return self.thrown(rangeErrorRange("length", length, 0, maxListLength));
+        }
+        self.variableContextStack.truncate(length as usize);
         Ok(Scope { contexts })
     }
 
@@ -1304,7 +1337,10 @@ impl<'a> BinaryBuilder<'a> {
         let index = self.readUInt30()? as usize;
         match self.variableContextStack.get(index) {
             Some(&id) => Ok(id),
-            None => self.fail(format!("Unexpected variable context index: {index}.")),
+            None => self.fail(format!(
+                "Unexpected variable context index: {index}. Current variable context count: {}.",
+                self.variableContextStack.len()
+            )),
         }
     }
 
@@ -1963,7 +1999,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FieldInitializer => {
                 let fileOffset = self.readOffset()?;
                 let isSynthetic = self.readByte()? == 1;
-                let fieldReference = self.readNonNullCanonicalNameReference()?;
+                let fieldReference = self.readNonNullMemberReference()?;
                 Initializer::Field {
                     fileOffset,
                     isSynthetic,
@@ -1974,7 +2010,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::SuperInitializer => {
                 let fileOffset = self.readOffset()?;
                 let isSynthetic = self.readByte()? == 1;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Initializer::Super {
                     fileOffset,
                     isSynthetic,
@@ -1984,9 +2020,13 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::AssertInitializer => {
                 let fileOffset = self.readOffset()?;
+                let statement = self.readStatement()?;
+                if !matches!(statement, Statement::Assert { .. }) {
+                    return self.castFailure(statementRuntimeType(&statement), "AssertStatement");
+                }
                 Initializer::Assert {
                     fileOffset,
-                    statement: Box::new(self.readStatement()?),
+                    statement: Box::new(statement),
                 }
             }
             Tag::InvalidInitializer => {
@@ -2000,7 +2040,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::RedirectingInitializer => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Initializer::Redirecting {
                     fileOffset,
                     targetReference,
@@ -2009,10 +2049,15 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::LocalInitializer => {
                 let fileOffset = self.readOffset()?;
-                Initializer::Local {
-                    fileOffset,
-                    variable: self.readAndPushVariable()?,
+                let variable = self.readAndPushVariable()?;
+                if variable.kind != Tag::SyntheticVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "SyntheticVariable");
                 }
+                // `variable.initializer!`.
+                if variable.initializer.is_none() {
+                    return self.nullCheckFailure();
+                }
+                Initializer::Local { fileOffset, variable }
             }
             _ => return self.fail(format!("unexpected initializer tag: {tag}")),
         })
@@ -2180,19 +2225,28 @@ impl<'a> BinaryBuilder<'a> {
         let r#type = self.readDartType()?;
         let initializer = self.readExpressionOption()?.map(Box::new);
         match kind {
+            // `name!` (`readStringOrNullIfEmpty`).
             Tag::LocalVariable
             | Tag::LateVariable
             | Tag::LocalFunctionVariable
             | Tag::ConstVariable
-            | Tag::SyntheticVariable
             | Tag::CatchVariable
             | Tag::PositionalParameter
-            | Tag::NamedParameter
-            | Tag::ThisVariable => {}
-            _ => return self.fail(format!("Unexpected variable tag {kind}")),
+            | Tag::NamedParameter => {
+                if self.component.strings.get(name).is_empty() {
+                    return self.nullCheckFailure();
+                }
+            }
+            Tag::SyntheticVariable | Tag::ThisVariable => {}
+            _ => return self.thrown(format!("Unsupported operation: Unexpected variable tag {kind}")),
         }
         let id = self.component.nextVar;
         self.component.nextVar += 1;
+        let slot = id as usize;
+        if self.variableKinds.len() <= slot {
+            self.variableKinds.resize(slot + 1, 0);
+        }
+        self.variableKinds[slot] = kind as u8;
         Ok(Box::new(Variable {
             id,
             kind,
@@ -2225,6 +2279,9 @@ impl<'a> BinaryBuilder<'a> {
         let fileOffset = self.readOffset()?;
         let capturedContexts = self.readOptionalCapturedContexts()?;
         let variable = self.readVariable()?;
+        if !isDeclaredVariable(variable.kind) {
+            return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+        }
         // Popped by the enclosing scope.
         self.variableStack.push(variable.id);
         Ok(VariableDeclaration {
@@ -2650,7 +2707,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceGet | Tag::InstanceTearOff => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2677,7 +2735,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicGet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 Expression::DynamicGet {
@@ -2691,6 +2750,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let receiverType = self.readDartType()?;
+                self.castType(&receiverType, matches!(receiverType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordIndexGet {
                     fileOffset,
                     receiver,
@@ -2702,6 +2762,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let receiverType = self.readDartType()?;
+                self.castType(&receiverType, matches!(receiverType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordNameGet {
                     fileOffset,
                     receiver,
@@ -2710,7 +2771,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceSet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2725,7 +2787,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicSet => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
@@ -2767,14 +2830,14 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 Expression::StaticGet {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::ConstructorTearOff => {
                 let fileOffset = self.readOffset()?;
                 Expression::ConstructorTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::TypedefTearOff => {
@@ -2795,19 +2858,19 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 Expression::RedirectingFactoryTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::StaticTearOff => {
                 let fileOffset = self.readOffset()?;
                 Expression::StaticTearOff {
                     fileOffset,
-                    targetReference: self.readNonNullCanonicalNameReference()?,
+                    targetReference: self.readNonNullMemberReference()?,
                 }
             }
             Tag::StaticSet => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::StaticSet {
                     fileOffset,
                     targetReference,
@@ -2815,13 +2878,15 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let name = self.readName()?;
                 let arguments = self.readArguments()?;
                 let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 let resultType = self.readDartType()?;
                 Expression::InstanceInvocation {
                     kind,
@@ -2836,7 +2901,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InstanceGetterInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
@@ -2855,7 +2921,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::DynamicInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let flags = self.readByte()? as u8;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
@@ -2870,7 +2937,8 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::FunctionInvocation => {
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 4)?;
                 let fileOffset = self.readOffset()?;
                 let receiver = self.boxed()?;
                 let arguments = self.readArguments()?;
@@ -2892,12 +2960,15 @@ impl<'a> BinaryBuilder<'a> {
             Tag::LocalFunctionInvocation => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariableReference()?;
+                self.castVariable(variable, |k| k == Tag::LocalFunctionVariable, "LocalFunctionVariable")?;
                 let arguments = self.readArguments()?;
+                let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 Expression::LocalFunctionInvocation {
                     fileOffset,
                     variable,
                     arguments: Box::new(arguments),
-                    functionType: Box::new(self.readDartType()?),
+                    functionType: Box::new(functionType),
                 }
             }
             Tag::EqualsNull => {
@@ -2912,6 +2983,7 @@ impl<'a> BinaryBuilder<'a> {
                 let left = self.boxed()?;
                 let right = self.boxed()?;
                 let functionType = self.readDartType()?;
+                self.castType(&functionType, matches!(functionType, DartType::Function(_)), "FunctionType")?;
                 Expression::EqualsCall {
                     fileOffset,
                     left,
@@ -2936,7 +3008,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::StaticInvocation | Tag::ConstStaticInvocation => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::StaticInvocation {
                     isConst: tag == Tag::ConstStaticInvocation,
                     fileOffset,
@@ -2946,7 +3018,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::ConstructorInvocation | Tag::ConstConstructorInvocation => {
                 let fileOffset = self.readOffset()?;
-                let targetReference = self.readNonNullCanonicalNameReference()?;
+                let targetReference = self.readNonNullMemberReference()?;
                 Expression::ConstructorInvocation {
                     isConst: tag == Tag::ConstConstructorInvocation,
                     fileOffset,
@@ -2956,11 +3028,15 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::RedirectingFactoryInvocation => {
                 let fileOffset = self.readOffset()?;
-                let redirectingFactoryTargetReference = self.readNonNullCanonicalNameReference()?;
+                let redirectingFactoryTargetReference = self.readNonNullMemberReference()?;
+                let expression = self.boxed()?;
+                if !isInvocationExpression(&expression) {
+                    return self.castFailure(expressionRuntimeType(&expression), "InvocationExpression");
+                }
                 Expression::RedirectingFactoryInvocation {
                     fileOffset,
                     redirectingFactoryTargetReference,
-                    expression: self.boxed()?,
+                    expression,
                 }
             }
             Tag::Not => {
@@ -3001,7 +3077,11 @@ impl<'a> BinaryBuilder<'a> {
                     condition,
                     then,
                     otherwise,
-                    staticType: self.readDartTypeOption()?.map(Box::new),
+                    // `readDartTypeOption()!`.
+                    staticType: match self.readDartTypeOption()? {
+                        Some(t) => Some(Box::new(t)),
+                        None => return self.nullCheckFailure(),
+                    },
                 }
             }
             Tag::StringConcatenation => {
@@ -3042,7 +3122,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::InstanceCreation => {
                 let fileOffset = self.readOffset()?;
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let classReference = self.readNonNullClassReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let fieldValueCount = self.readUInt30()?;
                 let mut fieldValues: Vec<(CnId, Expression)> =
@@ -3059,7 +3139,11 @@ impl<'a> BinaryBuilder<'a> {
                 self.dartList(assertCount as u64)?;
                 let mut asserts = Vec::with_capacity(self.cap(assertCount as usize));
                 for _ in 0..assertCount {
-                    asserts.push(self.readStatement()?);
+                    let statement = self.readStatement()?;
+                    if !matches!(statement, Statement::Assert { .. }) {
+                        return self.castFailure(statementRuntimeType(&statement), "AssertStatement");
+                    }
+                    asserts.push(statement);
                 }
                 let unusedArguments = self.readExpressionList()?;
                 Expression::InstanceCreation {
@@ -3224,12 +3308,14 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let positional = self.readExpressionList()?;
                 let named = self.readNamedExpressionList()?;
+                let recordType = self.readDartType()?;
+                self.castType(&recordType, matches!(recordType, DartType::Record(_)), "RecordType")?;
                 Expression::RecordLiteral {
                     isConst: tag == Tag::ConstRecordLiteral,
                     fileOffset,
                     positional,
                     named,
-                    recordType: Box::new(self.readDartType()?),
+                    recordType: Box::new(recordType),
                 }
             }
             Tag::AwaitExpression => {
@@ -3254,10 +3340,17 @@ impl<'a> BinaryBuilder<'a> {
             Tag::Let => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariable()?;
+                if variable.kind != Tag::SyntheticVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "SyntheticVariable");
+                }
                 let stackHeight = self.variableStack.len();
                 self.variableStack.push(variable.id);
                 let body = self.boxed()?;
                 self.variableStack.truncate(stackHeight);
+                // `variable.initializer!`.
+                if variable.initializer.is_none() {
+                    return self.nullCheckFailure();
+                }
                 Expression::Let {
                     fileOffset,
                     variable,
@@ -3376,10 +3469,16 @@ impl<'a> BinaryBuilder<'a> {
         let name = self.readStringReference()?;
         let pattern = Box::new(self.readPattern()?);
         let fieldName = self.readName()?;
-        let accessKind = self.readByte()? as u8;
+        let accessKind = self.readByte()?;
+        let accessKind = self.enumValue(accessKind, 12)?;
         let targetReference = self.readNullableCanonicalNameReference()?;
         let resultType = self.readDartTypeOption()?;
         let recordType = self.readDartTypeOption()?;
+        if let Some(t) = &recordType
+            && !matches!(t, DartType::Record(_))
+        {
+            return self.castFailure(self.dartTypeRuntimeType(t), "RecordType?");
+        }
         let recordFieldIndex = self.readUInt30()?;
         let typeArguments = if self.readAndCheckOptionTag()? {
             Some(self.readDartTypeList()?)
@@ -3449,13 +3548,15 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let expression = self.boxed()?;
                 let expressionType = self.readDartType()?;
-                let equalsTargetReference = self.readNonNullCanonicalNameReference()?;
+                let equalsTargetReference = self.readNonNullMemberReference()?;
+                let equalsType = self.readDartType()?;
+                self.castType(&equalsType, matches!(equalsType, DartType::Function(_)), "FunctionType")?;
                 Pattern::Constant {
                     fileOffset,
                     expression,
                     expressionType,
                     equalsTargetReference,
-                    equalsType: self.readDartType()?,
+                    equalsType,
                 }
             }
             Tag::InvalidPattern => {
@@ -3465,7 +3566,12 @@ impl<'a> BinaryBuilder<'a> {
                 self.dartList(length as u64)?;
                 let mut declaredVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
-                    declaredVariables.push(*self.readAndPushVariable()?);
+                    let variable = self.readVariable()?;
+                    if !isDeclaredVariable(variable.kind) {
+                        return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                    }
+                    self.variableStack.push(variable.id);
+                    declaredVariables.push(*variable);
                 }
                 Pattern::Invalid {
                     fileOffset,
@@ -3481,16 +3587,20 @@ impl<'a> BinaryBuilder<'a> {
                 let matchedValueType = self.readDartType()?;
                 let flags = self.readByte()? as u8;
                 let lookupType = self.readDartType()?;
-                let lengthTargetReference = self.readNonNullCanonicalNameReference()?;
+                let lengthTargetReference = self.readNonNullMemberReference()?;
                 let lengthType = self.readDartType()?;
-                let lengthCheckTargetReference = self.readNonNullCanonicalNameReference()?;
+                let lengthCheckTargetReference = self.readNonNullMemberReference()?;
                 let lengthCheckType = self.readDartType()?;
-                let sublistTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&lengthCheckType, matches!(lengthCheckType, DartType::Function(_)), "FunctionType")?;
+                let sublistTargetReference = self.readNonNullMemberReference()?;
                 let sublistType = self.readDartType()?;
-                let minusTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&sublistType, matches!(sublistType, DartType::Function(_)), "FunctionType")?;
+                let minusTargetReference = self.readNonNullMemberReference()?;
                 let minusType = self.readDartType()?;
-                let indexGetTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&minusType, matches!(minusType, DartType::Function(_)), "FunctionType")?;
+                let indexGetTargetReference = self.readNonNullMemberReference()?;
                 let indexGetType = self.readDartType()?;
+                self.castType(&indexGetType, matches!(indexGetType, DartType::Function(_)), "FunctionType")?;
                 Pattern::List {
                     fileOffset,
                     typeArgument,
@@ -3542,10 +3652,12 @@ impl<'a> BinaryBuilder<'a> {
                 let matchedValueType = self.readDartType()?;
                 let flags = self.readByte()? as u8;
                 let lookupType = self.readDartType()?;
-                let containsKeyTargetReference = self.readNonNullCanonicalNameReference()?;
+                let containsKeyTargetReference = self.readNonNullMemberReference()?;
                 let containsKeyType = self.readDartType()?;
-                let indexGetTargetReference = self.readNonNullCanonicalNameReference()?;
+                self.castType(&containsKeyType, matches!(containsKeyType, DartType::Function(_)), "FunctionType")?;
+                let indexGetTargetReference = self.readNonNullMemberReference()?;
                 let indexGetType = self.readDartType()?;
+                self.castType(&indexGetType, matches!(indexGetType, DartType::Function(_)), "FunctionType")?;
                 Pattern::Map {
                     fileOffset,
                     keyType,
@@ -3586,7 +3698,7 @@ impl<'a> BinaryBuilder<'a> {
                 for _ in 0..length {
                     match self.readPattern()? {
                         Pattern::Named(named) => fields.push(named),
-                        _ => return self.fail("an object pattern field is not a named pattern"),
+                        other => return self.castFailure(patternRuntimeType(&other), "NamedPattern"),
                     }
                 }
                 let matchedValueType = self.readDartType()?;
@@ -3606,7 +3718,9 @@ impl<'a> BinaryBuilder<'a> {
                 self.dartList(length as u64)?;
                 let mut orPatternJointVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
-                    orPatternJointVariables.push(self.readVariableReference()?);
+                    let variable = self.readVariableReference()?;
+                    self.castVariable(variable, isDeclaredVariable, "DeclaredVariable")?;
+                    orPatternJointVariables.push(variable);
                 }
                 Pattern::Or {
                     fileOffset,
@@ -3619,24 +3733,29 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let patterns = self.readPatternList()?;
                 let requiredType = self.readDartType()?;
+                self.castType(&requiredType, matches!(requiredType, DartType::Record(_)), "RecordType")?;
                 let matchedValueType = self.readDartType()?;
                 let needsCheck = self.readByte()? == 1;
+                let lookupType = self.readDartType()?;
+                self.castType(&lookupType, matches!(lookupType, DartType::Record(_)), "RecordType")?;
                 Pattern::Record {
                     fileOffset,
                     patterns,
                     requiredType,
                     matchedValueType,
                     needsCheck,
-                    lookupType: self.readDartType()?,
+                    lookupType,
                 }
             }
             Tag::RelationalPattern => {
                 let fileOffset = self.readOffset()?;
-                let kind = self.readByte()? as u8;
+                let kind = self.readByte()?;
+                let kind = self.enumValue(kind, 6)?;
                 let expression = self.boxed()?;
                 let expressionType = self.readDartType()?;
                 let matchedValueType = self.readDartType()?;
-                let accessKind = self.readByte()? as u8;
+                let accessKind = self.readByte()?;
+                let accessKind = self.enumValue(accessKind, 5)?;
                 let name = self.readName()?;
                 let targetReference = self.readNullableCanonicalNameReference()?;
                 let typeArguments = if self.readAndCheckOptionTag()? {
@@ -3654,7 +3773,13 @@ impl<'a> BinaryBuilder<'a> {
                     name,
                     targetReference,
                     typeArguments,
-                    functionType: self.readDartTypeOption()?,
+                    functionType: {
+                        let functionType = self.readDartTypeOption()?;
+                        if let Some(t) = &functionType {
+                            self.castType(t, matches!(t, DartType::Function(_)), "FunctionType?")?;
+                        }
+                        functionType
+                    },
                 }
             }
             Tag::RestPattern => {
@@ -3673,6 +3798,9 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let r#type = self.readDartTypeOption()?;
                 let variable = self.readVariable()?;
+                if !isDeclaredVariable(variable.kind) {
+                    return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                }
                 Pattern::Variable {
                     fileOffset,
                     r#type,
@@ -3873,7 +4001,12 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let bodyOffset = self.readOffset()?;
                 let scopeSize = self.readScopeSizeAndAllocateContexts()?;
-                let variable = self.readAndPushVariable()?;
+                // `readAndPushDeclaredVariable`.
+                let variable = self.readVariable()?;
+                if !isDeclaredVariable(variable.kind) {
+                    return self.castFailure(variableRuntimeType(variable.kind), "DeclaredVariable");
+                }
+                self.variableStack.push(variable.id);
                 let iterable = self.boxed()?;
                 let body = self.boxedStatement()?;
                 let scope = self.readOptionalScope(scopeSize)?;
@@ -3974,6 +4107,9 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FunctionDeclaration => {
                 let fileOffset = self.readOffset()?;
                 let variable = self.readVariable()?;
+                if variable.kind != Tag::LocalFunctionVariable {
+                    return self.castFailure(variableRuntimeType(variable.kind), "LocalFunctionVariable");
+                }
                 // Popped by the enclosing scope.
                 self.variableStack.push(variable.id);
                 let id = self.readUInt30()?;
@@ -4059,13 +4195,23 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
+    /// `as CatchVariable?`.
+    fn castCatchVariable(&self, variable: &Option<Box<Variable>>) -> Result<()> {
+        match variable {
+            Some(v) if v.kind != Tag::CatchVariable => self.castFailure(variableRuntimeType(v.kind), "CatchVariable?"),
+            _ => Ok(()),
+        }
+    }
+
     fn readCatch(&mut self) -> Result<Catch> {
         let variableStackHeight = self.variableStack.len();
         let fileOffset = self.readOffset()?;
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let guard = self.readDartType()?;
         let exception = self.readAndPushVariableOption()?;
+        self.castCatchVariable(&exception)?;
         let stackTrace = self.readAndPushVariableOption()?;
+        self.castCatchVariable(&stackTrace)?;
         let body = self.boxedStatement()?;
         let scope = self.readOptionalScope(scopeSize)?;
         self.variableStack.truncate(variableStackHeight);
@@ -4457,5 +4603,170 @@ pub fn wtf8ToString(bytes: &[u8]) -> String {
             Ok(units) => String::from_utf16_lossy(&units),
             Err(_) => String::from_utf8_lossy(bytes).into_owned(),
         },
+    }
+}
+
+/// The `runtimeType` of an expression.
+pub fn expressionRuntimeType(e: &Expression) -> &'static str {
+    match e {
+        Expression::Invalid { .. } => "InvalidExpression",
+        Expression::SuperPropertyGet { isAbstract: true, .. } => "AbstractSuperPropertyGet",
+        Expression::SuperPropertySet { isAbstract: true, .. } => "AbstractSuperPropertySet",
+        Expression::SuperMethodInvocation { isAbstract: true, .. } => "AbstractSuperMethodInvocation",
+        Expression::VariableGet { .. } => "VariableGet",
+        Expression::VariableSet { .. } => "VariableSet",
+        Expression::SuperPropertyGet { .. } => "SuperPropertyGet",
+        Expression::SuperPropertySet { .. } => "SuperPropertySet",
+        Expression::InstanceGet { .. } => "InstanceGet",
+        Expression::RecordIndexGet { .. } => "RecordIndexGet",
+        Expression::RecordNameGet { .. } => "RecordNameGet",
+        Expression::InstanceSet { .. } => "InstanceSet",
+        Expression::InstanceTearOff { .. } => "InstanceTearOff",
+        Expression::DynamicGet { .. } => "DynamicGet",
+        Expression::DynamicSet { .. } => "DynamicSet",
+        Expression::StaticGet { .. } => "StaticGet",
+        Expression::StaticTearOff { .. } => "StaticTearOff",
+        Expression::ConstructorTearOff { .. } => "ConstructorTearOff",
+        Expression::RedirectingFactoryTearOff { .. } => "RedirectingFactoryTearOff",
+        Expression::TypedefTearOff { .. } => "TypedefTearOff",
+        Expression::StaticSet { .. } => "StaticSet",
+        Expression::InstanceInvocation { .. } => "InstanceInvocation",
+        Expression::InstanceGetterInvocation { .. } => "InstanceGetterInvocation",
+        Expression::DynamicInvocation { .. } => "DynamicInvocation",
+        Expression::FunctionInvocation { .. } => "FunctionInvocation",
+        Expression::FunctionTearOff { .. } => "FunctionTearOff",
+        Expression::LocalFunctionInvocation { .. } => "LocalFunctionInvocation",
+        Expression::EqualsNull { .. } => "EqualsNull",
+        Expression::EqualsCall { .. } => "EqualsCall",
+        Expression::SuperMethodInvocation { .. } => "SuperMethodInvocation",
+        Expression::StaticInvocation { .. } => "StaticInvocation",
+        Expression::ConstructorInvocation { .. } => "ConstructorInvocation",
+        Expression::RedirectingFactoryInvocation { .. } => "RedirectingFactoryInvocation",
+        Expression::Not { .. } => "Not",
+        Expression::NullCheck { .. } => "NullCheck",
+        Expression::LogicalExpression { .. } => "LogicalExpression",
+        Expression::ConditionalExpression { .. } => "ConditionalExpression",
+        Expression::StringConcatenation { .. } => "StringConcatenation",
+        Expression::ListConcatenation { .. } => "ListConcatenation",
+        Expression::SetConcatenation { .. } => "SetConcatenation",
+        Expression::MapConcatenation { .. } => "MapConcatenation",
+        Expression::InstanceCreation { .. } => "InstanceCreation",
+        Expression::FileUriExpression { .. } => "FileUriExpression",
+        Expression::IsExpression { .. } => "IsExpression",
+        Expression::AsExpression { .. } => "AsExpression",
+        Expression::StringLiteral { .. } => "StringLiteral",
+        Expression::IntLiteral { .. } => "IntLiteral",
+        Expression::DoubleLiteral { .. } => "DoubleLiteral",
+        Expression::BoolLiteral { .. } => "BoolLiteral",
+        Expression::NullLiteral { .. } => "NullLiteral",
+        Expression::SymbolLiteral { .. } => "SymbolLiteral",
+        Expression::TypeLiteral { .. } => "TypeLiteral",
+        Expression::ThisExpression { .. } => "ThisExpression",
+        Expression::Rethrow { .. } => "Rethrow",
+        Expression::Throw { .. } => "Throw",
+        Expression::ListLiteral { .. } => "ListLiteral",
+        Expression::SetLiteral { .. } => "SetLiteral",
+        Expression::MapLiteral { .. } => "MapLiteral",
+        Expression::RecordLiteral { .. } => "RecordLiteral",
+        Expression::AwaitExpression { .. } => "AwaitExpression",
+        Expression::FunctionExpression { .. } => "FunctionExpression",
+        Expression::Let { .. } => "Let",
+        Expression::BlockExpression { .. } => "BlockExpression",
+        Expression::Instantiation { .. } => "Instantiation",
+        Expression::LoadLibrary { .. } => "LoadLibrary",
+        Expression::CheckLibraryIsLoaded { .. } => "CheckLibraryIsLoaded",
+        Expression::ConstantExpression { .. } => "ConstantExpression",
+        Expression::FileUriConstantExpression { .. } => "FileUriConstantExpression",
+        Expression::SwitchExpression { .. } => "SwitchExpression",
+        Expression::PatternAssignment { .. } => "PatternAssignment",
+    }
+}
+
+/// Upstream's `InvocationExpression` classes.
+pub fn isInvocationExpression(e: &Expression) -> bool {
+    matches!(e, Expression::InstanceInvocation { .. } | Expression::InstanceGetterInvocation { .. } | Expression::DynamicInvocation { .. } | Expression::FunctionInvocation { .. } | Expression::LocalFunctionInvocation { .. } | Expression::SuperMethodInvocation { .. } | Expression::StaticInvocation { .. } | Expression::ConstructorInvocation { .. })
+}
+
+/// The `runtimeType` of a statement.
+pub fn statementRuntimeType(s: &Statement) -> &'static str {
+    match s {
+        Statement::Expression { .. } => "ExpressionStatement",
+        Statement::Block { .. } => "Block",
+        Statement::AssertBlock { .. } => "AssertBlock",
+        Statement::Empty { .. } => "EmptyStatement",
+        Statement::Assert { .. } => "AssertStatement",
+        Statement::Labeled { .. } => "LabeledStatement",
+        Statement::Break { .. } => "BreakStatement",
+        Statement::While { .. } => "WhileStatement",
+        Statement::Do { .. } => "DoStatement",
+        Statement::For { .. } => "ForStatement",
+        Statement::ForIn { .. } => "ForInStatement",
+        Statement::Switch { .. } => "SwitchStatement",
+        Statement::ContinueSwitch { .. } => "ContinueSwitchStatement",
+        Statement::If { .. } => "IfStatement",
+        Statement::Return { .. } => "ReturnStatement",
+        Statement::TryCatch { .. } => "TryCatch",
+        Statement::TryFinally { .. } => "TryFinally",
+        Statement::Yield { .. } => "YieldStatement",
+        Statement::VariableStatement { .. } => "VariableStatement",
+        Statement::FunctionDeclaration { .. } => "FunctionDeclaration",
+        Statement::IfCase { .. } => "IfCaseStatement",
+        Statement::PatternVariableDeclaration { .. } => "PatternVariableDeclaration",
+        Statement::PatternSwitch { .. } => "PatternSwitchStatement",
+    }
+}
+
+/// The `runtimeType` of a pattern.
+pub fn patternRuntimeType(p: &Pattern) -> &'static str {
+    match p {
+        Pattern::And { .. } => "AndPattern",
+        Pattern::AssignedVariable { .. } => "AssignedVariablePattern",
+        Pattern::Cast { .. } => "CastPattern",
+        Pattern::Constant { .. } => "ConstantPattern",
+        Pattern::Invalid { .. } => "InvalidPattern",
+        Pattern::List { .. } => "ListPattern",
+        Pattern::Map { .. } => "MapPattern",
+        Pattern::Named { .. } => "NamedPattern",
+        Pattern::NullAssert { .. } => "NullAssertPattern",
+        Pattern::NullCheck { .. } => "NullCheckPattern",
+        Pattern::Object { .. } => "ObjectPattern",
+        Pattern::Or { .. } => "OrPattern",
+        Pattern::Record { .. } => "RecordPattern",
+        Pattern::Relational { .. } => "RelationalPattern",
+        Pattern::Rest { .. } => "RestPattern",
+        Pattern::Variable { .. } => "VariablePattern",
+        Pattern::Wildcard { .. } => "WildcardPattern",
+    }
+}
+
+/// Upstream's `DeclaredVariable` classes, by tag.
+pub fn isDeclaredVariable(kind: u32) -> bool {
+    matches!(
+        kind,
+        Tag::LocalVariable | Tag::LateVariable | Tag::LocalFunctionVariable | Tag::ConstVariable | Tag::SyntheticVariable
+    )
+}
+
+/// The `runtimeType` of a constant.
+pub fn constantRuntimeType(c: &Constant) -> &'static str {
+    match c {
+        Constant::Null { .. } => "NullConstant",
+        Constant::Bool { .. } => "BoolConstant",
+        Constant::Int { .. } => "IntConstant",
+        Constant::Double { .. } => "DoubleConstant",
+        Constant::String { .. } => "StringConstant",
+        Constant::Symbol { .. } => "SymbolConstant",
+        Constant::Map { .. } => "MapConstant",
+        Constant::List { .. } => "ListConstant",
+        Constant::Set { .. } => "SetConstant",
+        Constant::Record { .. } => "RecordConstant",
+        Constant::Instance { .. } => "InstanceConstant",
+        Constant::Instantiation { .. } => "InstantiationConstant",
+        Constant::StaticTearOff { .. } => "StaticTearOffConstant",
+        Constant::ConstructorTearOff { .. } => "ConstructorTearOffConstant",
+        Constant::RedirectingFactoryTearOff { .. } => "RedirectingFactoryTearOffConstant",
+        Constant::TypeLiteral { .. } => "TypeLiteralConstant",
+        Constant::Unevaluated { .. } => "UnevaluatedConstant",
+        Constant::TypedefTearOff { .. } => "TypedefTearOffConstant",
     }
 }
