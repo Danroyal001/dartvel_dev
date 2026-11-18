@@ -164,8 +164,10 @@ void main() {
           contains("import 'package:http_probe/dartvel_client/http.g.dart' "
               'show configureDartvelHttp;'));
       // startBackend, the worker and the cron process each start from their
-      // own crash installation; the hosts go in right behind it in all three.
-      final List<int> crashes = RegExp(r'_dartvelInstallServerCrashes\((processConfiguration\.role|process\.role)\);\n(?:\s*//[^\n]*\n)*\s*configureDartvelHttp\(\);')
+      // own crash installation; the hosts go in right behind it in all three
+      // (after OpenTelemetry's install, which sends with its own client and
+      // does none of the app's work).
+      final List<int> crashes = RegExp(r'_dartvelInstallServerCrashes\((processConfiguration\.role|process\.role)\);\n(?:\s*//[^\n]*\n)*(?:\s*_dartvelInstallOpenTelemetry\(\);\n)?(?:\s*//[^\n]*\n)*\s*configureDartvelHttp\(\);')
           .allMatches(server)
           .map((Match m) => m.start)
           .toList();
