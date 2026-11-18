@@ -46,10 +46,21 @@ GA4_API_SECRET=...
 The secret is never a setting. A mount's `config:` is compiled into the
 client, so `apiSecret:` there is refused by name.
 
-**One setting in Google Analytics itself.** The module sends a `page_view`
-for each route change. Turn off *Page changes based on browser history
-events* under the web stream's Enhanced Measurement, or each route change is
-counted twice. Or set `pageViews: automatic` and let Google's tag count them.
+**Two settings in Google Analytics itself.** The module sends the page views
+itself, so Google's tag must not send its own:
+
+- Turn off *Page changes based on browser history events* under the web
+  stream's Enhanced Measurement, or each route change is counted twice.
+- Turn off *Ignore duplicate instances of on-page configuration* under the
+  web stream's *Configure tag settings > Settings*. With it on, Google's tag
+  applies its own configuration when it loads and ignores the module's
+  `send_page_view: false`, so the landing page is counted twice: once by the
+  tag, without consent state (no `gcs`) or the campaign parameters, and once
+  by the module. The setting is in the tag Google serves
+  (`ignoreDupeGtagConfigCalls` in `gtag/js?id=G-...`), not in anything the
+  application sends, so no code can turn it off.
+
+Or set `pageViews: automatic` and let Google's tag count them.
 
 ## What it does without being called
 
