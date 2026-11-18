@@ -302,7 +302,21 @@ int32_t aw_ws_closed(uint64_t id);
 
 /**
  * Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+ * 1 while [id]'s reader is partway through a burst -- it has more to parse
+ * before it would wait on the socket -- on a thread other than the
+ * caller's; 0 otherwise, and for a connection that is gone. A Dart drain
+ * that finds the queue empty keeps taking while it is 1. On a server whose
+ * isolate drives the runtime itself the reader only runs when that isolate
+ * does, so it is 0 there: waiting for it would wait for ever.
  */
+int32_t aw_ws_reader_busy(uint64_t id);
+
+/**
+ * 1 when a frame is waiting for Dart on [id] (or held from a batch), 0
+ * otherwise: a cheap look that takes nothing.
+ */
+int32_t aw_ws_pending(uint64_t id);
+
 uint64_t aw_ws_pong_count(uint64_t id);
 
 /**

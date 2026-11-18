@@ -202,6 +202,11 @@ class NativeWebSocketChannel(
       if ((!_listening || _paused) && _api.aw_ws_closed(id) == 0) return;
       final frame = _api.aw_ws_receive(id);
       if (frame.kind == 0) {
+        // The native reader is partway through a burst on another thread:
+        // its next frame is moments away, and taking it in this drain lets
+        // the whole burst be answered in one pass and a few writes, rather
+        // than in as many as there were times this drain caught up with it.
+        if (_awaitBurst()) continue;
         if (_api.aw_ws_closed(id) != 0) {
           closeCode ??= 1006;
           dispose();
@@ -275,6 +280,26 @@ class NativeWebSocketChannel(
   }
 
   int _flushes = 0;
+
+  /// The native reader has more of a burst to parse; false for a library
+  /// without aw_ws_reader_busy.
+  bool _readerBusy() => readerBusyKnown && _api.aw_ws_reader_busy(id) == 1;
+
+  /// Waits, at most a millisecond, while the native reader is partway
+  /// through a burst and has queued nothing new; true when it queued
+  /// something (take it), false when it finished or the wait ran out.
+  bool _awaitBurst() {
+    if (!_readerBusy()) return false;
+    final Stopwatch waited = Stopwatch()..start();
+    while (waited.elapsedMicroseconds < 1000) {
+      if (_api.aw_ws_pending(id) != 0) return true;
+      if (!_readerBusy()) return _api.aw_ws_pending(id) != 0;
+    }
+    return false;
+  }
+
+  /// Whether the loaded library has aw_ws_reader_busy; serve() sets it.
+  static bool readerBusyKnown = false;
 
   /// How many times this channel has asked the native side to write what it
   /// queued. For tests: a burst should cost a few writes, not one per frame.
@@ -400,9 +425,15 @@ class _NativeSink implements WebSocketSink {
     channel.dispose();
   }
 
-  /// Frames waiting here, not yet queued natively, past which addStream
-  /// stops taking more from its source until they are.
-  static const int _addStreamHighWater = 256;
+  /// addStream stops taking frames from its source when the native queue is
+  /// full and this many are waiting here, or when this many more are,
+  /// whatever the native queue says.
+  static const int _addStreamHighWater = 64;
+  static const int _addStreamHardLimit = 4096;
+
+  /// The last pump stopped because the native queue was full: the peer is
+  /// slower than the source. Cleared when a pump empties [_outgoing].
+  bool _nativeFull = false;
 
   /// Called when [_outgoing] is empty again (or the channel is gone).
   final List<void Function()> _onOutgoingEmpty = <void Function()>[];
@@ -439,7 +470,14 @@ class _NativeSink implements WebSocketSink {
           fail(error, stack);
           return;
         }
-        if (_outgoing.length >= _addStreamHighWater && !subscription.isPaused) {
+        // Paused only for real backpressure. Frames taken in one drain wait
+        // here for the pump that runs right after it; pausing for those
+        // made the rest of the drain arrive one microtask at a time, each
+        // with a pump -- and a write -- of its own.
+        final bool backpressured =
+            (_nativeFull && _outgoing.length >= _addStreamHighWater) ||
+                _outgoing.length >= _addStreamHardLimit;
+        if (backpressured && !subscription.isPaused) {
           subscription.pause();
           whenEmpty(() {
             if (channel._closed) {
@@ -563,6 +601,7 @@ class _NativeSink implements WebSocketSink {
           msg.completer?.complete();
         } else if (result == 1) {
           // Native queue full; its writer wakes this side when there is room.
+          _nativeFull = true;
           break;
         } else {
           _outgoing.removeFirst();
@@ -573,10 +612,18 @@ class _NativeSink implements WebSocketSink {
           return;
         }
       }
+      // Written now unless the reader is partway through a burst: then the
+      // answers stay queued, and the wakeup it posts once the burst is read
+      // writes them together. A full native queue was flushed above.
       if (queued && channel._flush() < 0) {
         channel.dispose();
       }
-      if (_outgoing.isEmpty) _notifyOutgoingEmpty();
+      if (_outgoing.isEmpty) {
+        _nativeFull = false;
+        // After this pass, not inside it: a resumed source delivers into a
+        // pump that is not still running.
+        scheduleMicrotask(_notifyOutgoingEmpty);
+      }
     } catch (e, st) {
       if (_outgoing.isNotEmpty) {
         final msg = _outgoing.removeFirst();

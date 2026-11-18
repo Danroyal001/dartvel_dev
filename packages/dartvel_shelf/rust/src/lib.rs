@@ -2416,6 +2416,7 @@ async fn dart_proxy_with_fallback(
                             bridge.server = server_id;
                         }
                         pending.server = server_id;
+                        *safe_lock(&pending.shared.server) = server_id;
                         let upgrade = upgrade.max_message_size(pending.max).max_frame_size(pending.max);
                         let upgrade = if pending.protocol.is_empty() { upgrade } else {
                             upgrade.protocols([pending.protocol.clone()])
@@ -3434,6 +3435,13 @@ struct WsShared {
     backpressure: AtomicBool,
     /// A wakeup has been posted to Dart that it has not drained yet.
     wake_pending: AtomicBool,
+    /// The reader has more of a burst to parse before it would wait on the
+    /// socket: Dart leaves its answers queued rather than writing each few,
+    /// and the reader wakes it when the burst is read.
+    reader_busy: AtomicBool,
+    /// The server this connection belongs to, once bound: aw_ws_reader_busy
+    /// asks whether another thread drives its runtime.
+    server: Mutex<Option<u64>>,
     pongs: AtomicU64,
 }
 
@@ -3526,6 +3534,8 @@ pub extern "C" fn aw_ws_prepare(id: u64, max: usize, protocol: FfiStr) -> i32 {
         disposed: AtomicBool::new(false),
         backpressure: AtomicBool::new(false),
         wake_pending: AtomicBool::new(false),
+        reader_busy: AtomicBool::new(false),
+        server: Mutex::new(None),
         pongs: AtomicU64::new(0),
     });
     let (in_tx, in_rx) = mpsc::channel(64);
@@ -3545,6 +3555,34 @@ pub extern "C" fn aw_ws_closed(id: u64) -> i32 {
 }
 
 /// Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+/// 1 while [id]'s reader is partway through a burst -- it has more to parse
+/// before it would wait on the socket -- on a thread other than the
+/// caller's; 0 otherwise, and for a connection that is gone. A Dart drain
+/// that finds the queue empty keeps taking while it is 1. On a server whose
+/// isolate drives the runtime itself the reader only runs when that isolate
+/// does, so it is 0 there: waiting for it would wait for ever.
+#[no_mangle]
+pub extern "C" fn aw_ws_reader_busy(id: u64) -> i32 {
+    let Some((shared, _)) = ws_shared(id) else { return 0 };
+    if shared.ended.load(Ordering::Acquire) || !shared.reader_busy.load(Ordering::SeqCst) {
+        return 0;
+    }
+    let server = *safe_lock(&shared.server);
+    match server.and_then(driven_server) {
+        Some(driven) if !driven.helper_drives() => 0,
+        _ => 1,
+    }
+}
+
+/// 1 when a frame is waiting for Dart on [id] (or held from a batch), 0
+/// otherwise: a cheap look that takes nothing.
+#[no_mangle]
+pub extern "C" fn aw_ws_pending(id: u64) -> i32 {
+    let bridges = safe_lock(WS_BRIDGES.get_or_init(Default::default));
+    let Some(bridge) = bridges.get(&id) else { return 0 };
+    if safe_lock(&bridge.incoming).is_empty() { 0 } else { 1 }
+}
+
 #[no_mangle]
 pub extern "C" fn aw_ws_pong_count(id: u64) -> u64 {
     ws_shared(id).map_or(0, |(shared, _)| shared.pongs.load(Ordering::Relaxed))
@@ -3695,8 +3733,34 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
     let (sink, mut stream) = socket.split();
     safe_lock(&shared.out).sink = Some(sink);
     // A blocked incoming queue must not prevent outgoing traffic (or closure).
+    // Dart is woken when the reader has nothing more to read right now (the
+    // socket would block) or Dart's queue is full -- not at the first frame
+    // of a burst. Woken at the first frame, the isolate drained whatever the
+    // reader had got to by then, which on a loaded machine was a few frames,
+    // and answered each few in a write of its own. A lone frame (a
+    // conversation) still wakes it at once: the reader would block right
+    // after it.
     let read = async {
-        while let Some(message) = stream.next().await {
+        use futures_util::FutureExt as _;
+        // Frames queued that Dart has not been woken for.
+        let mut owed = false;
+        loop {
+            let item = match stream.next().now_or_never() {
+                Some(item) => {
+                    shared.reader_busy.store(true, Ordering::SeqCst);
+                    item
+                }
+                None => {
+                    // Read to the end of what has arrived: not busy, and
+                    // Dart is woken for what it has not been yet.
+                    shared.reader_busy.store(false, Ordering::SeqCst);
+                    if std::mem::take(&mut owed) && !shared.wake_pending.swap(true, Ordering::SeqCst) {
+                        ws_wakeup(req_id, server_id);
+                    }
+                    stream.next().await
+                }
+            };
+            let Some(message) = item else { break };
             let message = match message {
                 Ok(message) => message,
                 Err(error) => {
@@ -3715,15 +3779,28 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
             }
             let closed = matches!(message, Message::Close(_));
             // Tungstenite queues automatic pong/close replies when reading.
-            if pending.incoming.send(message).await.is_err() || closed {
+            match pending.incoming.try_send(message) {
+                Ok(()) => {}
+                Err(mpsc::error::TrySendError::Full(message)) => {
+                    // Dart's queue is full: wake it to take them before
+                    // waiting for room.
+                    if !shared.wake_pending.swap(true, Ordering::SeqCst) {
+                        ws_wakeup(req_id, server_id);
+                    }
+                    if pending.incoming.send(message).await.is_err() {
+                        break;
+                    }
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => break,
+            }
+            if closed {
                 break;
             }
             // One wakeup until Dart drains: frames that arrive meanwhile are
             // read in the same pass rather than each posting its own.
-            if !shared.wake_pending.swap(true, Ordering::SeqCst) {
-                ws_wakeup(req_id, server_id);
-            }
+            owed = true;
         }
+        // Frames still owed a wakeup get it as the task ends (`ended`).
         None
     };
     let write = async {
@@ -3767,6 +3844,21 @@ async fn run_websocket(socket: WebSocket, pending: WsPending) {
 #[cfg(test)]
 mod ws_bridge_tests {
     use super::*;
+
+    #[test]
+    fn the_reader_says_when_it_is_partway_through_a_burst() {
+        let id = 9_100_020;
+        assert_eq!(aw_ws_prepare(id, 1024, FfiStr { ptr: std::ptr::null(), len: 0 }), 0);
+        assert_eq!(aw_ws_reader_busy(id), 0);
+        let (shared, _) = ws_shared(id).unwrap();
+        shared.reader_busy.store(true, Ordering::Release);
+        assert_eq!(aw_ws_reader_busy(id), 1);
+        shared.reader_busy.store(false, Ordering::SeqCst);
+        assert_eq!(aw_ws_reader_busy(id), 0);
+        aw_ws_dispose(id);
+        // Gone: not busy, so nothing waits on it.
+        assert_eq!(aw_ws_reader_busy(id), 0);
+    }
 
     fn buf(bytes: &[u8]) -> FfiBuf { FfiBuf { ptr: bytes.as_ptr(), len: bytes.len() } }
 

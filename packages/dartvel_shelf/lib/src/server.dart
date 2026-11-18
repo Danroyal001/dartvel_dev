@@ -631,6 +631,8 @@ Future<ServerHandle> serve(
           final accepted = api.aw_complete(reqId, out.ref);
           pkgffi.calloc.free(out);
           if (accepted != 0) { api.aw_ws_dispose(reqId); return; }
+          NativeWebSocketChannel.readerBusyKnown =
+              dylib.providesSymbol('aw_ws_reader_busy');
           final channel = NativeWebSocketChannel(reqId, api, resp.protocol, resp.max, resp.pingInterval);
           webSockets.add(channel);
           activeWebSockets[reqId] = channel;
