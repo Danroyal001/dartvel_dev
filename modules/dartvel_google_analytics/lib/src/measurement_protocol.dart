@@ -175,10 +175,12 @@ final class GoogleAnalyticsMeasurementProtocol {
       return const GoogleAnalyticsResult.notSent(
           'no measurement id is configured');
     }
-    final String? secret = const DVSecrets().maybeGet(config.apiSecretName);
+    final String? secret = const DVSecrets()
+        .maybeGet(GoogleAnalyticsConfig.defaultApiSecretName);
     if (secret == null) {
-      return GoogleAnalyticsResult.notSent(
-          '${config.apiSecretName} is not set in the server\'s environment');
+      return const GoogleAnalyticsResult.notSent(
+          '${GoogleAnalyticsConfig.defaultApiSecretName} is not set in the '
+          'server\'s environment');
     }
     if (clientId.trim().isEmpty) {
       return const GoogleAnalyticsResult.notSent('no client id was given');

@@ -39,6 +39,14 @@ flutter:
 dartvel:
   module:
     id: googleAnalytics
+    # What the code reaches past the module, read by the build and compared
+    # with the grant an application writes under dartvel.modules.<id>.grant:
+    # the server's measurement id (used when the mount gives none) and
+    # Measurement Protocol API secret, and the Measurement Protocol's global
+    # and EU hosts.
+    capabilities:
+      secrets: [GA4_MEASUREMENT_ID, GA4_API_SECRET]
+      egress: [www.google-analytics.com, region1.google-analytics.com]
     name: Google Analytics
     surface: GoogleAnalytics
     # Run once the module is registered, in the client and in the server:

@@ -22,6 +22,37 @@ class DartvelShelfBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
+  /// The wakeup for the next server this thread starts. A server started with
+  /// one queues its requests for `aw_take_requests` rather than calling the
+  /// request handler with each.
+  void aw_register_request_wakeup_handler(DartRequestWakeup cb) {
+    return _aw_register_request_wakeup_handler(cb);
+  }
+
+  late final _aw_register_request_wakeup_handlerPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(DartRequestWakeup)>>(
+        'aw_register_request_wakeup_handler',
+      );
+  late final _aw_register_request_wakeup_handler =
+      _aw_register_request_wakeup_handlerPtr
+          .asFunction<void Function(DartRequestWakeup)>();
+
+  /// Moves up to [max] of [server_id]'s queued requests into [out] and returns
+  /// how many. Fewer than [max] means the queue is empty, and the next request
+  /// wakes the isolate again.
+  int aw_take_requests(int server_id, ffi.Pointer<FfiRequest> out, int max) {
+    return _aw_take_requests(server_id, out, max);
+  }
+
+  late final _aw_take_requestsPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Size Function(ffi.Uint64, ffi.Pointer<FfiRequest>, ffi.Size)
+        >
+      >('aw_take_requests');
+  late final _aw_take_requests = _aw_take_requestsPtr
+      .asFunction<int Function(int, ffi.Pointer<FfiRequest>, int)>();
+
   int aw_abi_version() {
     return _aw_abi_version();
   }
@@ -29,6 +60,31 @@ class DartvelShelfBindings {
   late final _aw_abi_versionPtr =
       _lookup<ffi.NativeFunction<ffi.Uint32 Function()>>('aw_abi_version');
   late final _aw_abi_version = _aw_abi_versionPtr.asFunction<int Function()>();
+
+  ffi.Pointer<ffi.Char> aw_source_revision() {
+    return _aw_source_revision();
+  }
+
+  late final _aw_source_revisionPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Char> Function()>>(
+        'aw_source_revision',
+      );
+  late final _aw_source_revision = _aw_source_revisionPtr
+      .asFunction<ffi.Pointer<ffi.Char> Function()>();
+
+  /// The default headers for the next server this thread starts, as NUL-
+  /// separated name and value pairs. 1 when a name or value is not one HTTP
+  /// allows, and nothing is kept.
+  int aw_configure_default_headers(ffi.Pointer<ffi.Uint8> hdrs, int len) {
+    return _aw_configure_default_headers(hdrs, len);
+  }
+
+  late final _aw_configure_default_headersPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int32 Function(ffi.Pointer<ffi.Uint8>, ffi.Size)>
+      >('aw_configure_default_headers');
+  late final _aw_configure_default_headers = _aw_configure_default_headersPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Uint8>, int)>();
 
   void aw_register_handler(DartReqHandler cb) {
     return _aw_register_handler(cb);
@@ -237,8 +293,8 @@ class DartvelShelfBindings {
   late final _aw_configure_route_body_limit = _aw_configure_route_body_limitPtr
       .asFunction<int Function(FfiStr, FfiStr, int)>();
 
-  int aw_start(FfiStr host, int port, int _flags) {
-    return _aw_start(host, port, _flags);
+  int aw_start(FfiStr host, int port, int flags) {
+    return _aw_start(host, port, flags);
   }
 
   late final _aw_startPtr =
@@ -409,7 +465,230 @@ class DartvelShelfBindings {
       );
   late final _aw_ws_dispose = _aw_ws_disposePtr
       .asFunction<void Function(int)>();
+
+  /// One turn of [server_id]'s runtime on the calling thread, which must be
+  /// the isolate that started it: what is ready runs, the sockets are polled
+  /// without waiting, and what that made ready runs. Requests it read are
+  /// queued for aw_take_requests.
+  ///
+  /// 0 after a turn; 1 when the helper drives (or the server is stopping) and
+  /// nothing was run; -1 for a server that is not driven.
+  int aw_drive(int server_id) {
+    return _aw_drive(server_id);
+  }
+
+  late final _aw_drivePtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>('aw_drive');
+  late final _aw_drive = _aw_drivePtr.asFunction<int Function(int)>();
+
+  /// Gives [server_id]'s runtime to its helper thread, for an isolate with
+  /// nothing left to take: the helper waits for the next request and wakes the
+  /// isolate for it. 0, or -1 for a server that is not driven.
+  int aw_park(int server_id) {
+    return _aw_park(server_id);
+  }
+
+  late final _aw_parkPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>('aw_park');
+  late final _aw_park = _aw_parkPtr.asFunction<int Function(int)>();
+
+  /// Turns [server_id]'s runtime on the calling thread, which must be the
+  /// isolate that drives it, until a request is queued or [micros] have passed.
+  ///
+  /// For an isolate whose last turn found nothing: the next request on a busy
+  /// server is usually that close, and waiting for it in the kernel here costs
+  /// less than parking -- handing the runtime to the helper, which wakes this
+  /// isolate with a message when it comes. The isolate's event loop is held for
+  /// at most [micros], which is how late a timer can be while it waits.
+  ///
+  /// 0 a request was queued; 2 none came; 1 the helper drives or the server is
+  /// stopping; -1 a server that is not driven.
+  int aw_linger(int server_id, int micros) {
+    return _aw_linger(server_id, micros);
+  }
+
+  late final _aw_lingerPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64, ffi.Uint32)>>(
+        'aw_linger',
+      );
+  late final _aw_linger = _aw_lingerPtr.asFunction<int Function(int, int)>();
+
+  /// Compresses `input_len` bytes at `input` with `codec` at `level` into the
+  /// `out_cap` bytes at `out`. Returns the length written, or a negative
+  /// `AW_CODEC_*`.
+  ///
+  /// # Safety
+  /// `input` must be valid for `input_len` bytes and `out` for `out_cap`.
+  int aw_codec_encode(
+    int codec,
+    int level,
+    ffi.Pointer<ffi.Uint8> input,
+    int input_len,
+    ffi.Pointer<ffi.Uint8> out,
+    int out_cap,
+  ) {
+    return _aw_codec_encode(codec, level, input, input_len, out, out_cap);
+  }
+
+  late final _aw_codec_encodePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int64 Function(
+            ffi.Int32,
+            ffi.Int32,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+          )
+        >
+      >('aw_codec_encode');
+  late final _aw_codec_encode = _aw_codec_encodePtr
+      .asFunction<
+        int Function(
+          int,
+          int,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
+  /// Decompresses `input_len` bytes at `input`, encoded with `codec`, into
+  /// exactly the `out_len` bytes at `out`. Returns `out_len`, or a negative
+  /// `AW_CODEC_*` -- a stream that decodes to any other length is corrupt.
+  ///
+  /// # Safety
+  /// `input` must be valid for `input_len` bytes and `out` for `out_len`.
+  int aw_codec_decode(
+    int codec,
+    ffi.Pointer<ffi.Uint8> input,
+    int input_len,
+    ffi.Pointer<ffi.Uint8> out,
+    int out_len,
+  ) {
+    return _aw_codec_decode(codec, input, input_len, out, out_len);
+  }
+
+  late final _aw_codec_decodePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int64 Function(
+            ffi.Int32,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+          )
+        >
+      >('aw_codec_decode');
+  late final _aw_codec_decode = _aw_codec_decodePtr
+      .asFunction<
+        int Function(
+          int,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
+  /// Whether this process's runtime exports what loading a unit takes.
+  int aw_units_supported() {
+    return _aw_units_supported();
+  }
+
+  late final _aw_units_supportedPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function()>>('aw_units_supported');
+  late final _aw_units_supported = _aw_units_supportedPtr
+      .asFunction<int Function()>();
+
+  /// Records that unit `id` is the ELF at `offset` in the file `path` (UTF-8,
+  /// `path_len` bytes). Returns 0, or 1 for a path that is not a C string.
+  ///
+  /// # Safety
+  /// `path` must be valid for `path_len` bytes.
+  int aw_units_register(
+    int id,
+    ffi.Pointer<ffi.Uint8> path,
+    int path_len,
+    int offset,
+  ) {
+    return _aw_units_register(id, path, path_len, offset);
+  }
+
+  late final _aw_units_registerPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int32 Function(
+            ptrdiff_t,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Size,
+            ffi.Uint64,
+          )
+        >
+      >('aw_units_register');
+  late final _aw_units_register = _aw_units_registerPtr
+      .asFunction<int Function(int, ffi.Pointer<ffi.Uint8>, int, int)>();
+
+  /// How many units have been mapped so far.
+  int aw_units_loaded() {
+    return _aw_units_loaded();
+  }
+
+  late final _aw_units_loadedPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function()>>('aw_units_loaded');
+  late final _aw_units_loaded = _aw_units_loadedPtr
+      .asFunction<int Function()>();
+
+  /// The VM's deferred-load handler: maps unit `id` from the executable the
+  /// first time any isolate asks, and completes that isolate's load with it.
+  ///
+  /// Another isolate of the same group that asks later is also sent here --
+  /// the VM keeps whether a prefix is loaded per isolate, and whether a unit
+  /// is loaded per group -- and the VM refuses to take the same unit twice
+  /// ("Unit already loaded"). The group already has the code, so that isolate
+  /// only needs its own pending `loadLibrary()` completed: this calls its
+  /// `dart:core` `_completeLoads(id, null, false)`, which is what the VM
+  /// itself calls after taking a unit.
+  ///
+  /// Serialized: an isolate asking while another is still taking the unit
+  /// waits until it has, rather than running code the group does not yet have.
+  ///
+  /// # Safety
+  /// Called by the VM, on the isolate that asked, with that isolate entered
+  /// and an API scope open.
+  DartHandle aw_units_load(int id) {
+    return _aw_units_load(id);
+  }
+
+  late final _aw_units_loadPtr =
+      _lookup<ffi.NativeFunction<DartHandle Function(ptrdiff_t)>>(
+        'aw_units_load',
+      );
+  late final _aw_units_load = _aw_units_loadPtr
+      .asFunction<DartHandle Function(int)>();
+
+  /// Whether unit `id` has been taken by the VM.
+  int aw_units_completed(int id) {
+    return _aw_units_completed(id);
+  }
+
+  late final _aw_units_completedPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ptrdiff_t)>>(
+        'aw_units_completed',
+      );
+  late final _aw_units_completed = _aw_units_completedPtr
+      .asFunction<int Function(int)>();
 }
+
+typedef DartRequestWakeupFunction = ffi.Void Function();
+typedef DartDartRequestWakeupFunction = void Function();
+
+/// Wakes a server's isolate to take the requests queued for it.
+typedef DartRequestWakeup =
+    ffi.Pointer<ffi.NativeFunction<DartRequestWakeupFunction>>;
 
 final class FfiStr extends ffi.Struct {
   external ffi.Pointer<ffi.Uint8> ptr;
@@ -423,6 +702,27 @@ final class FfiBuf extends ffi.Struct {
 
   @ffi.Size()
   external int len;
+}
+
+/// One request as `aw_take_requests` hands it over: the arguments the
+/// request handler takes, in one struct. The bytes stay where they are,
+/// retained as they are for the handler, until Dart acknowledges or answers.
+final class FfiRequest extends ffi.Struct {
+  @ffi.Uint64()
+  external int id;
+
+  external FfiStr method;
+
+  external FfiStr target;
+
+  external ffi.Pointer<ffi.Uint8> hdrs;
+
+  @ffi.Size()
+  external int hdrs_len;
+
+  external FfiBuf body;
+
+  external FfiStr peer;
 }
 
 typedef DartReqHandlerFunction = ffi.Void Function(
@@ -494,9 +794,17 @@ final class FfiWsFrame extends ffi.Struct {
   external FfiBuf data;
 }
 
+typedef DartHandle = ffi.Pointer<ffi.Void>;
+typedef ptrdiff_t = ffi.Long;
+typedef Dartptrdiff_t = int;
+
 const int AW_ABI_VERSION = 2;
 
 const int AW_FLAG_H2C = 1;
+
+const int AW_FLAG_SHARED = 2;
+
+const int AW_FLAG_DRIVEN = 4;
 
 const int AW_BODY_CHUNK = 0;
 
@@ -509,3 +817,13 @@ const int AW_BODY_REFUSED = 3;
 const int AW_BODY_PULL_TAKEN = 0;
 
 const int AW_BODY_PULL_UNKNOWN = 1;
+
+const int AW_CODEC_BROTLI = 1;
+
+const int AW_CODEC_ZSTD = 2;
+
+const int AW_CODEC_TOO_LARGE = -2;
+
+const int AW_CODEC_BAD_ARGUMENT = -3;
+
+const int AW_CODEC_CORRUPT = -4;

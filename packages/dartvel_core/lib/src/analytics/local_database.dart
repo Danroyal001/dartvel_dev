@@ -9,15 +9,17 @@ import 'dart:async';
 
 import '../database/adapter.dart';
 import 'local_database_memory.dart'
-    if (dart.library.io) 'local_database_io.dart' as platform;
+    if (dart.library.io) 'local_database_io.dart'
+    if (dart.library.js_interop) 'local_database_web.dart' as platform;
 
 export 'analytics_directory.dart' show dvAnalyticsDirectoryFor;
 
 /// Opens this application's device-local analytics database.
 ///
 /// A SQLite file in [directory], or where [dvAnalyticsDirectoryFor] says for
-/// this platform, on platforms with `dart:io`. It is held in memory instead,
-/// writing nothing, on the web (no SQLite), when the platform gives no
+/// this platform, on platforms with `dart:io`. In a browser the consent records
+/// and the install id are kept in IndexedDB and the event outbox in memory.
+/// It is held in memory instead, writing nothing, when the platform gives no
 /// directory that survives a restart, and under `flutter test`, where an
 /// application's widget tests would otherwise write into the developer's own
 /// data directory. A database in memory loses the choice at exit, so the

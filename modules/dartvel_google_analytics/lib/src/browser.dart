@@ -10,6 +10,13 @@ abstract interface class GoogleAnalyticsBrowser {
   /// the backend.
   bool get available;
 
+  /// Consent Mode v2 defaults, made before the tag is configured when the
+  /// application declares a consent policy: `ad_storage`, `ad_user_data`,
+  /// `ad_personalization` and `analytics_storage` all `denied`, then
+  /// `analytics_storage` `granted` -- the tag is only loaded once the
+  /// visitor has granted the module's category. Called before [load].
+  void consentDefaults();
+
   /// Loads the tag for [measurementId]: the script at [scriptUrl] that
   /// defines `gtag`, then `gtag('config', ...)` with `send_page_view` set to
   /// [sendPageView], then Google's own script. Called once.

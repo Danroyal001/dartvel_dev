@@ -5,6 +5,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVAnalyticsConfigurationError,
         DVAnalyticsFinding,
         DVAnalyticsSettings,
+        DVConsentBannerText,
         DVConsentDeclaration,
         DVConsentPrompt,
         DVConsentTarget;
@@ -170,9 +171,31 @@ class AnalyticsGenerator {
       ];
       sb.writeln('      DVConsentDeclaration(${args.join(', ')}),');
     }
-    sb
-      ..writeln('    ],')
-      ..writeln('  ),');
+    sb.writeln('    ],');
+    // The banner's words, as `dartvel.analytics.consent.banner` gave them.
+    final DVConsentBannerText banner = settings.consent.banner;
+    const DVConsentBannerText defaults = DVConsentBannerText();
+    final List<String> words = <String>[
+      if (banner.title != defaults.title) 'title: ${_literal(banner.title)}',
+      if (banner.body != null) 'body: ${_literal(banner.body!)}',
+      if (banner.privacyUrl != null)
+        'privacyUrl: ${_literal(banner.privacyUrl!)}',
+      if (banner.privacyLabel != defaults.privacyLabel)
+        'privacyLabel: ${_literal(banner.privacyLabel)}',
+      if (banner.acceptLabel != defaults.acceptLabel)
+        'acceptLabel: ${_literal(banner.acceptLabel)}',
+      if (banner.rejectLabel != defaults.rejectLabel)
+        'rejectLabel: ${_literal(banner.rejectLabel)}',
+      if (banner.settingsLabel != defaults.settingsLabel)
+        'settingsLabel: ${_literal(banner.settingsLabel)}',
+    ];
+    if (words.isNotEmpty) {
+      sb
+        ..writeln('    banner: DVConsentBannerText(')
+        ..writeln(words.map((String w) => '      $w,').join('\n'))
+        ..writeln('    ),');
+    }
+    sb.writeln('  ),');
     if (settings.flagExposureCategory != null) {
       sb.writeln('  flagExposureCategory: '
           'ConsentCategories.${settings.flagExposureCategory!.name},');

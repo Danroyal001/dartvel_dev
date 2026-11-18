@@ -153,6 +153,98 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'conversions',
+      title: 'Conversions, attribution and the consent banner',
+      children: <Widget>[
+        DocsText(
+          'An ad click is only worth counting if the lead or sale it brought '
+          'is counted too. Track a conversion once, through DV.Analytics, and '
+          'every analytics module you mounted reports it at once: Google '
+          'Analytics as its recommended event, Meta Pixel as its standard '
+          'event.',
+        ),
+        DocsShell(<String>[
+          '// view_item / ViewContent',
+          "DV.Analytics.track(DVViewItem(currency: 'NGN', items: [",
+          "  DVAnalyticsItem(id: 'audit', name: 'Website audit', price: 45000),",
+          ']));',
+          '// add_to_cart / AddToCart, begin_checkout / InitiateCheckout',
+          "DV.Analytics.track(DVAddToCart(currency: 'NGN', items: items));",
+          "DV.Analytics.track(DVBeginCheckout(currency: 'NGN', items: items));",
+          '// generate_lead / Lead: a contact form, a booked call',
+          "DV.Analytics.track(DVGenerateLead(leadSource: 'contact form'));",
+          '// sign_up / CompleteRegistration, and login (Google only)',
+          "DV.Analytics.track(DVSignUp(method: 'email'));",
+          "DV.Analytics.track(DVLogin(method: 'google'));",
+          '// purchase / Purchase',
+          'DV.Analytics.track(DVPurchase(',
+          "    transactionId: order.id, value: 45000, currency: 'NGN'));",
+        ]),
+        Bullets(<String>[
+          'A value needs an ISO 4217 currency such as NGN or USD, and a '
+              'purchase a transaction id; a mistake Google Analytics would '
+              'swallow is refused when the event is made.',
+          'Each module waits for its own consent category. The event is kept '
+              'in your own analytics store too when its category (analytics, '
+              'unless it names another) is declared.',
+          'Page views are automatic: the first page and every route change '
+              'send page_view with page_location, page_path and page_title, '
+              'and PageView to Meta. The landing page view carries the '
+              'campaign it came with.',
+        ]),
+        DocsText(
+          'Where a visitor came from is kept on their device as they land: '
+          'utm_source, utm_medium, utm_campaign, utm_content, utm_term, '
+          'utm_id, fbclid, gclid, the referring site and the landing path. '
+          'The first touch stands for 90 days; the last touch is replaced by '
+          'any later campaign visit. Send it with a form or an order so your '
+          'backend knows which ad brought the lead.',
+        ),
+        DocsShell(<String>[
+          'await sendContactForm(form, attribution: DV.Analytics.attribution);',
+          "// {firstTouch: {utm_source: facebook, fbclid: ..., fbc: fb.1...,",
+          '//   landing_path: /services, at: ...}, lastTouch: {...}}',
+        ]),
+        DocsText(
+          'The consent banner is a compact sheet at the bottom of the page, in '
+          'your app theme, with three buttons of equal weight: Accept all, '
+          'Reject all and Settings. Its words and privacy link are yours. A '
+          'choice is remembered in the browser, so the banner asks once, and '
+          'withdrawing in Settings stops the modules.',
+        ),
+        DocsShell(<String>[
+          '# pubspec.yaml',
+          'dartvel:',
+          '  analytics:',
+          '    consent:',
+          '      version: "2026-11-18"',
+          '      categories:',
+          '        essential: { required: true }',
+          '        analytics: { default: denied }',
+          '        marketing: { default: denied, tracking: true }',
+          '      banner:',
+          '        title: We value your privacy',
+          '        body: We use cookies to see which ads bring visitors.',
+          '        privacyUrl: /privacy',
+          '  modules:',
+          '    googleAnalytics:',
+          '      package: dartvel_google_analytics',
+          '      backendPolicy: public',
+          '      config: { measurementId: G-XXXXXXXXXX, consent: analytics }',
+          '      grant:',
+          '        secrets: [GA4_MEASUREMENT_ID, GA4_API_SECRET]',
+          '        egress: [www.google-analytics.com, region1.google-analytics.com]',
+          '    metaPixel:',
+          '      package: dartvel_meta_pixel',
+          '      backendPolicy: public',
+          '      config: { pixelId: "1234567890" }',
+          '      grant:',
+          '        secrets: [META_PIXEL_ID, META_CONVERSIONS_API_TOKEN]',
+          '        egress: [graph.facebook.com]',
+        ]),
+      ],
+    ),
+    DocsSection(
       id: 'trust',
       title: 'Publish a signed module, and pin what you mount',
       children: <Widget>[

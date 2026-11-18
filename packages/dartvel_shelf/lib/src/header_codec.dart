@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+// Reads a range in place, where `utf8.decode(sublist)` copied it first.
+const Utf8Decoder _lenient = Utf8Decoder(allowMalformed: true);
+
 Map<String, List<String>> decodeHeaders(Uint8List flat) {
   final out = <String, List<String>>{};
   var i = 0;
@@ -10,12 +13,11 @@ Map<String, List<String>> decodeHeaders(Uint8List flat) {
     // Decoded as UTF-8 to match the way they are written. fromCharCodes
     // reads each byte as a code point, which turns a two-byte sequence into
     // two wrong characters.
-    final key = utf8.decode(flat.sublist(i, ke), allowMalformed: true)
-        .toLowerCase();
+    final key = _lenient.convert(flat, i, ke).toLowerCase();
     i = ke + 1;
     final ve = flat.indexOf(0, i);
     if (ve < 0) break;
-    final val = utf8.decode(flat.sublist(i, ve), allowMalformed: true);
+    final val = _lenient.convert(flat, i, ve);
     i = ve + 1;
     (out[key] ??= <String>[]).add(val);
   }

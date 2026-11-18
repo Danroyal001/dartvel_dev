@@ -51,7 +51,24 @@ dynamic _jsonDecode(String s) {
 }
 
 class Headers {
-  final Map<String, List<String>> _map = {};
+  Map<String, List<String>>? _decoded;
+  Map<String, List<String>> Function()? _decode;
+
+  // The headers, decoded the first time anything reads or changes them when
+  // they were built with [Headers.decodedOnRead].
+  Map<String, List<String>> get _map =>
+      _decoded ??= _decode?.call() ?? <String, List<String>>{};
+
+  /// Headers decoded by [decode] the first time anything reads or changes
+  /// them, rather than now.
+  ///
+  /// For a server building a request from the bytes the connection carried:
+  /// many handlers never read a header, and decoding a browser's twenty of
+  /// them was a cost every such request paid. [decode] is called at most
+  /// once, and must give every name in lowercase, as [Headers] keeps them.
+  Headers.decodedOnRead(Map<String, List<String>> Function() decode)
+      : _decode = decode;
+
   Headers([Map<String, dynamic>? init]) {
     if (init != null) {
       init.forEach((k, v) {
@@ -96,6 +113,19 @@ class Headers {
       };
 
   Map<String, List<String>> get multiValueMap => Map.unmodifiable(_map);
+
+  /// Calls [action] with each value of each header, names in lowercase, in
+  /// the order they were added.
+  ///
+  /// For writing headers out: [multiValueMap] copies the map, which is a
+  /// cost every response paid for nothing.
+  void forEachValue(void Function(String name, String value) action) {
+    _map.forEach((String name, List<String> values) {
+      for (final String value in values) {
+        action(name, value);
+      }
+    });
+  }
 }
 
 class Request {
@@ -130,15 +160,40 @@ class Request {
 class Response {
   final int status;
   final Headers headers;
-  final Stream<List<int>>? _body;
+  final Stream<List<int>>? _stream;
+  final Uint8List? _whole;
   final bool isStream;
-  Response(this.status, {Headers? headers, this._body, this.isStream = false})
-      : headers = headers ?? Headers();
+  Response(this.status,
+      {Headers? headers, Stream<List<int>>? body, this.isStream = false})
+      : headers = headers ?? Headers(),
+        _stream = body,
+        _whole = null;
 
-  // No `!` here: with the language version this package now declares, a
-  // private final field promotes after a null check, so the assertion is
-  // provably redundant rather than merely unfashionable.
-  Body? get body => _body == null ? null : Body(_body);
+  /// A response whose body is [bytes], already in memory.
+  ///
+  /// The same response as one built with `body: Stream.value(bytes)`, except
+  /// that [bufferedBytes] hands the bytes over directly, so a server sends
+  /// them as one copy rather than listening to a stream for them.
+  Response.bytes(this.status, Uint8List bytes, {Headers? headers})
+      : headers = headers ?? Headers(),
+        _stream = null,
+        _whole = bytes,
+        isStream = false;
+
+  /// The whole body when it is already in memory as one piece
+  /// ([Response.bytes], [Response.text], [Response.json]); null for a body
+  /// that is a stream, or for no body.
+  Uint8List? get bufferedBytes => _whole;
+
+  Stream<List<int>>? get _body {
+    final Uint8List? whole = _whole;
+    return whole == null ? _stream : Stream<List<int>>.value(whole);
+  }
+
+  Body? get body {
+    final Stream<List<int>>? stream = _body;
+    return stream == null ? null : Body(stream);
+  }
 
   static Response text(String s,
       {int status = 200, Headers? headers, Encoding encoding = utf8}) {
@@ -147,8 +202,9 @@ class Response {
       h.set('content-type', 'text/plain; charset=${encoding.name}');
     }
     final data = encoding.encode(s);
-    return Response(status,
-        headers: h, body: Stream<List<int>>.value(Uint8List.fromList(data)));
+    return Response.bytes(
+        status, data is Uint8List ? data : Uint8List.fromList(data),
+        headers: h);
   }
 
   static Response json(Object? data, {int status = 200, Headers? headers}) {
@@ -156,8 +212,7 @@ class Response {
     if (!h.has('content-type')) {
       h.set('content-type', 'application/json; charset=utf-8');
     }
-    final payload = Uint8List.fromList(utf8.encode(jsonEncode(data)));
-    return Response(status, headers: h, body: Stream<List<int>>.value(payload));
+    return Response.bytes(status, utf8.encode(jsonEncode(data)), headers: h);
   }
 
   static Response stream(void Function(StreamSink<List<int>>) fn,
@@ -177,6 +232,13 @@ class Response {
 class URLPattern {
   final RegExp _re;
   final List<String> _names;
+
+  /// The path itself, for a pattern with no parameter in it: every other
+  /// character is escaped before it is compiled, so such a pattern matches
+  /// that one path and nothing else, and is compared rather than run as a
+  /// regular expression on every request.
+  final String? _literal;
+
   URLPattern(String pattern) : this._internal(_normalize(pattern));
 
   URLPattern._internal(String normalized)
@@ -184,6 +246,7 @@ class URLPattern {
             .allMatches(normalized)
             .map((m) => m.group(1)!)
             .toList(),
+        _literal = normalized.contains(':') ? null : normalized,
         _re = _compile(normalized);
 
   static String _normalize(String pattern) {
@@ -215,6 +278,10 @@ class URLPattern {
   }
 
   ({Map<String, String> pathname})? exec(Uri url) {
+    final String? literal = _literal;
+    if (literal != null) {
+      return url.path == literal ? (pathname: <String, String>{}) : null;
+    }
     final match = _re.firstMatch(url.path);
     if (match == null) return null;
     final params = <String, String>{};

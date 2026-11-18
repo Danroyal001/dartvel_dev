@@ -118,6 +118,21 @@ final class _WebBrowser implements MetaPixelBrowser {
   }
 
   @override
+  void setCookie(String name, String value, {required Duration maxAge}) {
+    try {
+      final JSObject? location = _window['location'] as JSObject?;
+      final bool secure =
+          (location?['protocol'] as JSString?)?.toDart == 'https:';
+      _document?['cookie'] = '$name=${Uri.encodeComponent(value)}; '
+              'max-age=${maxAge.inSeconds}; path=/; SameSite=Lax'
+              '${secure ? '; Secure' : ''}'
+          .toJS;
+    } on Object {
+      // Cookies turned off, or a sandboxed frame: nothing kept.
+    }
+  }
+
+  @override
   String? queryParameter(String name) {
     final String? url = pageUrl;
     if (url == null) return null;

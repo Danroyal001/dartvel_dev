@@ -28,6 +28,7 @@ final class MetaPixelRuntime {
     MetaPixelBrowser? browser,
     MetaPixelRelay? relay,
     bool Function(String category)? consentGranted,
+    DVAttribution Function()? attribution,
     DVModuleEnvironment? environment,
     DateTime Function()? clock,
     String Function()? newEventId,
@@ -37,6 +38,7 @@ final class MetaPixelRuntime {
         // ignore: prefer_initializing_formals
         _relay = relay,
         _consentGranted = consentGranted ?? dvMetaPixelConsentGranted,
+        _attribution = attribution ?? (() => DVAttribution.current),
         environment = environment ?? DVModuleEnvironment.current,
         _clock = clock ?? DateTime.now,
         _newEventId = newEventId ?? _randomEventId;
@@ -67,6 +69,10 @@ final class MetaPixelRuntime {
 
   final MetaPixelRelay? _relay;
   final bool Function(String category) _consentGranted;
+  final DVAttribution Function() _attribution;
+
+  /// Whether this page load's campaign has gone out with a page view.
+  bool _campaignSent = false;
   final DateTime Function() _clock;
   final String Function() _newEventId;
 
@@ -105,7 +111,7 @@ final class MetaPixelRuntime {
     final DVPageView? page = _page;
     if (page == null || _pageSent || !_allowed) return;
     _pageSent = true;
-    await track(MetaPixelEvent.pageView());
+    await track(MetaPixelEvent('PageView', data: _campaign()));
   }
 
   /// The visitor's consent changed, or was read for the first time.
@@ -409,16 +415,120 @@ final class MetaPixelRuntime {
     if (_loaded) return;
     _loaded = true;
     browser.load(config.resolvedPixelId!, scriptUrl: scriptUrl);
+    _keepClickId();
   }
 
-  /// The `_fbc` cookie, or one made from the `fbclid` in the page's address
-  /// in the format Meta documents: `fb.1.<creation time>.<fbclid>`.
+  /// The `_fbc` cookie; or one made from the `fbclid` in the page's address
+  /// in the format Meta documents, `fb.1.<creation time>.<fbclid>`; or the
+  /// one kept from the visit's landing page, which a route change took out
+  /// of the address.
   String? _clickId() {
     final String? cookie = _guardedValue(() => browser.cookie('_fbc'));
     if (cookie != null && cookie.isNotEmpty) return cookie;
     final String? clickId = _guardedValue(() => browser.queryParameter('fbclid'));
-    if (clickId == null || clickId.isEmpty) return null;
-    return 'fb.1.${_clock().toUtc().millisecondsSinceEpoch}.$clickId';
+    if (clickId != null && clickId.isNotEmpty) {
+      return 'fb.1.${_clock().toUtc().millisecondsSinceEpoch}.$clickId';
+    }
+    return _guardedValue(() => _attribution().lastTouch?.fbc);
+  }
+
+  /// How long Meta keeps the `_fbc` cookie.
+  static const Duration clickIdLifetime = Duration(days: 90);
+
+  /// Writes the kept click id to the `_fbc` cookie as the pixel loads, when
+  /// there is none: the pixel itself makes one only from an `fbclid` in the
+  /// address it loads on, and in a single page application that is usually
+  /// not the landing address any more.
+  void _keepClickId() {
+    if (!browser.available) return;
+    final String? cookie = _guardedValue(() => browser.cookie('_fbc'));
+    if (cookie != null && cookie.isNotEmpty) return;
+    final String? kept = _guardedValue(() => _attribution().lastTouch?.fbc);
+    if (kept == null) return;
+    _guard(() => browser.setCookie('_fbc', kept, maxAge: clickIdLifetime));
+  }
+
+  /// The campaign this page load landed with, as `utm_*` data on its first
+  /// page view only.
+  Map<String, Object?> _campaign() {
+    if (_campaignSent) return const <String, Object?>{};
+    _campaignSent = true;
+    final DVTouch? visit = _guardedValue(() => _attribution().visit);
+    if (visit == null) return const <String, Object?>{};
+    return <String, Object?>{
+      'utm_source': ?visit.source,
+      'utm_medium': ?visit.medium,
+      'utm_campaign': ?visit.campaign,
+      'utm_content': ?visit.content,
+      'utm_term': ?visit.term,
+      'utm_id': ?visit.id,
+    };
+  }
+
+  /// Meta's standard event for each of the framework's standard events.
+  /// `login` has none.
+  static const Map<String, String> standardEventNames = <String, String>{
+    'view_item': 'ViewContent',
+    'add_to_cart': 'AddToCart',
+    'begin_checkout': 'InitiateCheckout',
+    'sign_up': 'CompleteRegistration',
+    'generate_lead': 'Lead',
+    'purchase': 'Purchase',
+  };
+
+  /// One of the framework's standard events (`DV.Analytics.track(DVPurchase(...))`),
+  /// the payload of [DVStandardEvent.topic] with Google's recommended names
+  /// and parameters, sent as the Meta standard event it corresponds to,
+  /// under this module's own consent category. A purchase carries the event
+  /// id `purchase.<transaction id>`, the one a store module's server-side
+  /// purchase carries, so Meta counts the two once.
+  Future<void> standardEvent(Object? payload) async {
+    if (payload is! Map) return;
+    final Object? name = payload['name'];
+    final Object? params = payload['params'] ?? const <String, Object?>{};
+    if (name is! String || params is! Map) return;
+    final String? meta = standardEventNames[name];
+    if (meta == null) return;
+    final List<Map<Object?, Object?>> items = <Map<Object?, Object?>>[
+      if (params['items'] is List)
+        for (final Object? item in params['items'] as List<Object?>)
+          if (item is Map) item,
+    ];
+    final List<String> ids = <String>[
+      for (final Map<Object?, Object?> item in items)
+        if (item['item_id'] != null) '${item['item_id']}',
+    ];
+    final Object? firstName = items.isEmpty ? null : items.first['item_name'];
+    final Map<String, Object?> data = <String, Object?>{
+      if (params['currency'] is String) 'currency': params['currency'],
+      if (params['value'] is num) 'value': params['value'],
+      if (ids.isNotEmpty) 'content_ids': ids,
+      if (ids.isNotEmpty)
+        'contents': <Object?>[
+          for (final Map<Object?, Object?> item in items)
+            if (item['item_id'] != null)
+              <String, Object?>{
+                'id': '${item['item_id']}',
+                'quantity': item['quantity'] is int ? item['quantity'] : 1,
+                if (item['price'] is num) 'item_price': item['price'],
+              },
+        ],
+      if (ids.isNotEmpty) 'content_type': 'product',
+      if (firstName is String) 'content_name': firstName,
+      if (params['lead_source'] is String) 'content_name': params['lead_source'],
+      if (meta == 'InitiateCheckout' && items.isNotEmpty)
+        'num_items': items.fold<int>(
+            0,
+            (int sum, Map<Object?, Object?> i) =>
+                sum + (i['quantity'] is int ? i['quantity'] as int : 1)),
+    };
+    final Object? transaction = params['transaction_id'];
+    await track(
+      MetaPixelEvent(meta, data: data),
+      eventId: meta == 'Purchase' && transaction != null
+          ? 'purchase.$transaction'
+          : null,
+    );
   }
 
   Future<void> _relayEvent(Map<String, Object?> event) async {

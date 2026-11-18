@@ -15,6 +15,8 @@ import '../../dartvel.dart' show DVCronEntry;
 import '../cache/adapters.dart' show DVAtomicCacheAdapter;
 import '../database/adapter.dart' show DVDatabaseAdapter;
 import '../database/framework_tables.dart';
+import '../observability/observability.dart'
+    show DVObservability, DVSpan, dvSpanZoneKey;
 import '../preview/preview_outbound.dart' show DVPreviewOutbound;
 import 'cron.dart';
 
@@ -323,7 +325,25 @@ class DVScheduler {
           if (lease != null && !await lease.claim(task.name, occurrence)) {
             continue;
           }
-          await task.handler();
+          // Each run its own trace when anything reads spans, so a slow
+          // nightly job is a span with its queries under it.
+          if (DVObservability.requestTracing) {
+            await runZoned(
+              () => DVObservability.tracer.trace(
+                'cron ${task.name}',
+                (DVSpan _) => task.handler(),
+                attributes: <String, Object>{
+                  'dartvel.schedule.name': task.name,
+                  'dartvel.schedule.occurrence':
+                      occurrence.toUtc().toIso8601String(),
+                },
+              ),
+              zoneValues: <Object, Object?>{dvSpanZoneKey: null},
+            );
+          } else {
+            await task.handler();
+          }
+
         } on Object catch (error, stack) {
           // Recorded, not rethrown: one bad job must not silence every other
           // schedule in the process, and the next occurrence is a fresh

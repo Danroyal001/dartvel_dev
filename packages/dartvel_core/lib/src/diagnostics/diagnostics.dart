@@ -1584,6 +1584,14 @@ final class DVDiagnostics {
       level: 'warning',
     ),
     DVDiagnostic(
+      code: 'DV-TRACE-011',
+      reason:
+          'an `OTEL_*` environment variable could not be read; it was '
+          'ignored',
+      level: 'warning',
+    ),
+
+    DVDiagnostic(
       code: 'DV-CONTENT-001',
       reason:
           'a preview link failed verification or had expired; the '

@@ -6576,17 +6576,43 @@ trace without a negotiation.
 
 ```yaml
 dartvel:
-  tracing:
-    ratio: 0.1
-    exporter: otlp                # otlp | none
+  openTelemetry:
+    enabled: true                 # off unless this or OTEL_EXPORTER_OTLP_ENDPOINT
     endpoint: https://collector.internal:4318
+    protocol: http/protobuf       # http/protobuf | http/json
+    secretHeaders:                # header: the DV.Secrets entry holding its value
+      x-honeycomb-team: HONEYCOMB_API_KEY
+    serviceName: shop             # default: the package name
+    resource: {deployment.environment.name: production}
+    traces: true
+    metrics: true
+    logs: true
+    sampler: parentbased_traceidratio
+    ratio: 0.1
     queue: 2048
-    maxSpanDuration: 5m
+    batch: 512
 ```
+
+The section is the Dart `DartvelConfig.openTelemetry` getter's
+`DVOpenTelemetryConfig` written as YAML, with the same names and defaults in
+both. The standard OpenTelemetry environment variables win over it --
+`OTEL_EXPORTER_OTLP_ENDPOINT` (which turns export on by itself), the
+per-signal endpoints, `OTEL_EXPORTER_OTLP_HEADERS`, `_PROTOCOL`, `_TIMEOUT`,
+`OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`, `OTEL_TRACES_SAMPLER` and its
+argument, `OTEL_<SIGNAL>_EXPORTER=none`, the `OTEL_BSP_*` queue settings,
+`OTEL_METRIC_EXPORT_INTERVAL` and `OTEL_SDK_DISABLED` -- because that is how
+every OpenTelemetry SDK is configured. The pubspec is read strictly at build
+time; a variable that cannot be read is ignored with `DV-TRACE-011`, never a
+failed boot. A literal `headers` key is refused: a header carries a key, and a
+key in pubspec.yaml is published with the repository.
 
 OTLP over HTTP is the exporter, because Jaeger, Tempo, Honeycomb, Datadog and
 the rest all accept it, and an adapter per vendor would be five copies of one
-protocol.
+protocol. Traces, metrics and logs share it: the semantic-convention metrics
+(`http.server.request.duration`, `http.server.active_requests`,
+`db.client.operation.duration`, `process.memory.usage`) and every series the
+Prometheus endpoint serves go out as cumulative OTLP metrics, and every
+`DV.log` record goes out as an OTLP log record carrying its trace and span.
 
 Export is batched on a bounded queue and **never blocks a request**. A full
 queue drops spans and counts them (`DV-TRACE-002`); a collector that cannot be
@@ -6614,6 +6640,7 @@ not something to discover later.
 | `DV-TRACE-008` | a client span was refused: client ingest is not enabled on this deployment | `warning` |
 | `DV-TRACE-009` | a span passed its maximum duration and was closed as incomplete | `warning` |
 | `DV-TRACE-010` | a span reached its attribute limit; further attributes were dropped | `warning` |
+| `DV-TRACE-011` | an `OTEL_*` environment variable could not be read; it was ignored | `warning` |
 
 ## What is built, and what is not
 
@@ -6624,14 +6651,34 @@ that starts a span per request and propagates context, the trace id on every
 log line, and `/_dartvel/traces` serving the ring buffer when diagnostics
 endpoints are on.
 
-Not built: the OTLP exporter, so nothing reaches a collector; spans for
-database queries, outbound HTTP, queue publish and consume, transactions and
-AI calls, so the only span most requests have is the request itself; trace
-context in the job envelope and the links that follow from it; client spans
-and their ingest; span attribute and duration limits; and `dartvel traces`
-reading anything but the local buffer. The diagnostics above are registered
-meanings, not emitted signals: nothing raises one yet, and a code that is
-emitted for the wrong situation is worse than one that is not emitted at all.
+Built since: OTLP/HTTP export of traces, metrics and logs (protobuf and JSON,
+hand-encoded in `dartvel_core` so it runs on every target, the web included),
+on bounded batch queues that drop newest with a count
+(`dartvel_otel_dropped_total`, `DV-TRACE-002`) and retry 429/502/503/504 and
+unanswered sends with growing backoff before dropping (`DV-TRACE-003`);
+installed with no code by every generated web, worker and cron process from
+`dartvel.openTelemetry` and the environment, and flushed when the process
+stops; a server span per request in the router, named by its route template,
+off (a few field reads) until something reads spans; client spans for every
+SQL statement with literals stripped and no bound values, and for every
+`DV.Http` call; producer and consumer spans for jobs; a span per scheduled
+run; a render span for a server-rendered page; Studio requests named by
+screen or action; span kinds, typed attributes, exception events, the
+attribute limit with a dropped count, and redaction of attributes named after
+a sensitive field or a credential.
+
+Not built: gRPC export; spans for transactions and AI calls beyond the
+existing AI feature span; trace context in the job envelope and the links
+that follow from it (a job starts its own trace); client spans through the
+deployment's own backend and their ingest, so a client exports only when its
+code calls `useOpenTelemetry`; an in-process bridge for code written against
+another Dart OpenTelemetry API; span duration limits; garbage collection and
+database pool metrics; and `dartvel traces` reading anything but the local
+buffer. Of the diagnostics above, `DV-TRACE-002`, `-003` and `-011` are
+emitted; the rest are registered meanings, not emitted signals: a code that
+is emitted for the wrong situation is worse than one that is not emitted at
+all.
+
 
 ## Deliberately absent
 

@@ -88,6 +88,17 @@ class DVObservabilityAndLogging {
 
   /// Back to the default sinks and an empty buffer. For tests.
   void resetLogging() => DVObservability.resetLogging();
+
+  /// Exports traces, metrics and logs over OTLP as [config] says, with the
+  /// standard `OTEL_*` environment variables applied over it. A generated
+  /// server already does this from `dartvel.openTelemetry`; call it to
+  /// configure export in code instead. Returns the configuration in force.
+  DVOpenTelemetryConfig useOpenTelemetry(DVOpenTelemetryConfig config) =>
+      DVOpenTelemetry.install(config);
+
+  /// Sends everything queued for the collector now.
+  Future<void> flushTelemetry() => DVOpenTelemetry.forceFlush();
+
 }
 
 /// The framework's namespace, on the server side of a Dartvel project.
