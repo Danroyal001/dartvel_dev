@@ -38,6 +38,13 @@ pub type Result<T> = std::result::Result<T, ParseError>;
 /// bisection, 247.6 to 249.5 MiB from run to run).
 pub const dartAllocationLimit: u64 = 248 << 20;
 
+/// How deeply upstream's oracle can nest expressions, statements, types and
+/// patterns before its stack runs out (`Stack Overflow`): measured by
+/// bisection on chains of `!` (see README.md). Upstream's real limit depends
+/// on the kinds of node nested and on how the VM compiled the reader, so
+/// this is approximate.
+pub const nestingLimit: u32 = 4205;
+
 /// `RangeError.range(value, start, end, name).toString()`.
 pub fn rangeErrorRange(name: &str, value: i64, start: i64, end: i64) -> String {
     if start > end {
@@ -109,6 +116,9 @@ pub struct BinaryBuilder<'a> {
     switchCaseStack: Vec<SwitchCaseId>,
     switchCaseStackBase: usize,
     variableContextStack: Vec<ContextId>,
+    /// How deeply the expression, statement, type and pattern being read
+    /// are nested (see [nestingLimit]).
+    nesting: u32,
 }
 
 impl<'a> BinaryBuilder<'a> {
@@ -134,6 +144,7 @@ impl<'a> BinaryBuilder<'a> {
             switchCaseStack: Vec::new(),
             switchCaseStackBase: 0,
             variableContextStack: Vec::new(),
+            nesting: 0,
         }
     }
 
@@ -173,6 +184,17 @@ impl<'a> BinaryBuilder<'a> {
     #[inline]
     fn readOffset(&mut self) -> Result<Offset> {
         Ok(self.readUInt30()? as Offset - 1)
+    }
+
+    /// One more level of nesting: past [nestingLimit], upstream's stack
+    /// runs out and it throws a `StackOverflowError`.
+    #[inline]
+    fn enterNesting(&mut self) -> Result<()> {
+        if self.nesting >= nestingLimit {
+            return self.thrown("Stack Overflow");
+        }
+        self.nesting += 1;
+        Ok(())
     }
 
     /// `throw fail(message)`: a `ParseError`.
@@ -1756,7 +1778,15 @@ impl<'a> BinaryBuilder<'a> {
         }
     }
 
+    /// `readDartType`, nested no deeper than upstream's stack allows.
     fn readDartType(&mut self) -> Result<DartType> {
+        self.enterNesting()?;
+        let result = self.readDartTypeUnnested();
+        self.nesting -= 1;
+        result
+    }
+
+    fn readDartTypeUnnested(&mut self) -> Result<DartType> {
         let tag = self.readByte()?;
         Ok(match tag {
             Tag::SimpleInterfaceType => {
@@ -1972,7 +2002,15 @@ impl<'a> BinaryBuilder<'a> {
         Ok(named)
     }
 
+    /// `readExpression`, nested no deeper than upstream's stack allows.
     fn readExpression(&mut self) -> Result<Expression> {
+        self.enterNesting()?;
+        let result = self.readExpressionUnnested();
+        self.nesting -= 1;
+        result
+    }
+
+    fn readExpressionUnnested(&mut self) -> Result<Expression> {
         let tagByte = self.readByte()?;
         let tag = if tagByte & Tag::SpecializedTagHighBits == Tag::SpecializedTagHighBits {
             tagByte & Tag::SpecializedTagMask
@@ -2790,7 +2828,15 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
+    /// `readPattern`, nested no deeper than upstream's stack allows.
     fn readPattern(&mut self) -> Result<Pattern> {
+        self.enterNesting()?;
+        let result = self.readPatternUnnested();
+        self.nesting -= 1;
+        result
+    }
+
+    fn readPatternUnnested(&mut self) -> Result<Pattern> {
         let tag = self.readByte()?;
         Ok(match tag {
             Tag::AndPattern => {
@@ -3104,7 +3150,15 @@ impl<'a> BinaryBuilder<'a> {
         Ok((first..first + count).collect())
     }
 
+    /// `readStatement`, nested no deeper than upstream's stack allows.
     fn readStatement(&mut self) -> Result<Statement> {
+        self.enterNesting()?;
+        let result = self.readStatementUnnested();
+        self.nesting -= 1;
+        result
+    }
+
+    fn readStatementUnnested(&mut self) -> Result<Statement> {
         let tag = self.readByte()?;
         Ok(match tag {
             Tag::ReturnStatement => {
@@ -3453,8 +3507,27 @@ fn parseDartInt(text: &[u8]) -> Option<i64> {
 
 /// Reads the component in [bytes].
 pub fn loadComponentFromBytes(bytes: &[u8]) -> Result<Component> {
-    BinaryBuilder::new(bytes).readComponent()
+    // On a thread with a stack deep enough for [nestingLimit] levels, so
+    // that the reader throws upstream's `Stack Overflow` instead of running
+    // out of its own stack.
+    withDeepStack(|| BinaryBuilder::new(bytes).readComponent())
 }
+
+/// Runs [work] on a thread whose stack holds [nestingLimit] levels of the
+/// reader or the writer (address space is reserved, not used).
+pub fn withDeepStack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(deepStackBytes)
+            .spawn_scoped(scope, work)
+            .expect("cannot start the reader's thread")
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+}
+
+/// The stack of [withDeepStack]'s thread.
+pub const deepStackBytes: usize = 512 << 20;
 
 
 /// Whether no string in [strings] is there twice.

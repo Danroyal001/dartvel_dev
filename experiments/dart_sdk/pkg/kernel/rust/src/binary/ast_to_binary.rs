@@ -178,9 +178,23 @@ pub struct BinaryPrinter<'c> {
     pub includeSources: bool,
     pub includeSourceBytes: bool,
     pub includeOffsets: bool,
+    /// How deeply the expression, statement, type and pattern being
+    /// written are nested (see `nestingLimit`).
+    nesting: u32,
 }
 
 impl<'c> BinaryPrinter<'c> {
+    /// One more level of nesting: past `nestingLimit`, upstream runs out of
+    /// stack and throws a `StackOverflowError`.
+    #[inline]
+    fn enterNesting(&mut self) -> Result<()> {
+        if self.nesting >= crate::binary::ast_from_binary::nestingLimit {
+            return error("Stack Overflow");
+        }
+        self.nesting += 1;
+        Ok(())
+    }
+
     pub fn new(component: &'c Component) -> Self {
         BinaryPrinter {
             component,
@@ -220,6 +234,7 @@ impl<'c> BinaryPrinter<'c> {
             includeSources: true,
             includeSourceBytes: true,
             includeOffsets: true,
+            nesting: 0,
         }
     }
 
@@ -1615,6 +1630,13 @@ impl<'c> BinaryPrinter<'c> {
     }
 
     fn writeDartType(&mut self, t: &DartType) -> Result<()> {
+        self.enterNesting()?;
+        let result = self.writeDartTypeUnnested(t);
+        self.nesting -= 1;
+        result
+    }
+
+    fn writeDartTypeUnnested(&mut self, t: &DartType) -> Result<()> {
         match t {
             DartType::Never { nullability } => {
                 self.writeByte(Tag::NeverType);
@@ -1769,6 +1791,13 @@ impl<'c> BinaryPrinter<'c> {
     }
 
     fn writeExpression(&mut self, node: &Expression) -> Result<()> {
+        self.enterNesting()?;
+        let result = self.writeExpressionUnnested(node);
+        self.nesting -= 1;
+        result
+    }
+
+    fn writeExpressionUnnested(&mut self, node: &Expression) -> Result<()> {
         match node {
             Expression::Invalid {
                 fileOffset,
@@ -2618,6 +2647,13 @@ impl<'c> BinaryPrinter<'c> {
     }
 
     fn writePattern(&mut self, node: &Pattern) -> Result<()> {
+        self.enterNesting()?;
+        let result = self.writePatternUnnested(node);
+        self.nesting -= 1;
+        result
+    }
+
+    fn writePatternUnnested(&mut self, node: &Pattern) -> Result<()> {
         match node {
             Pattern::And {
                 fileOffset,
@@ -2918,6 +2954,13 @@ impl<'c> BinaryPrinter<'c> {
     }
 
     fn writeStatement(&mut self, node: &Statement) -> Result<()> {
+        self.enterNesting()?;
+        let result = self.writeStatementUnnested(node);
+        self.nesting -= 1;
+        result
+    }
+
+    fn writeStatementUnnested(&mut self, node: &Statement) -> Result<()> {
         match node {
             Statement::Expression(expression) => {
                 self.writeByte(Tag::ExpressionStatement);
@@ -3264,5 +3307,5 @@ impl<'c> BinaryPrinter<'c> {
 /// Writes [component] in the binary format, as upstream's
 /// `BinaryPrinter(sink).writeComponentFile(component)` does.
 pub fn writeComponentToBytes(component: &Component) -> std::result::Result<Vec<u8>, WriteError> {
-    BinaryPrinter::new(component).writeComponentFile()
+    crate::binary::ast_from_binary::withDeepStack(|| BinaryPrinter::new(component).writeComponentFile())
 }
