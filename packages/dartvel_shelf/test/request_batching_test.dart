@@ -64,6 +64,17 @@ void main() {
   });
 
   test('timers still fire while requests keep arriving', () async {
+    // Warmed up first, on the same connections: the first requests of a
+    // process are compiled as they run, and a compiling isolate runs no
+    // timers either, whatever the server does.
+    for (var round = 0; round < 10; round++) {
+      await Future.wait(List.generate(32, (n) async {
+        final response = await (await client.getUrl(Uri.parse(
+                'http://127.0.0.1:${server.port}/echo/$n')))
+            .close();
+        await response.drain<void>();
+      }));
+    }
     var ticks = 0;
     final timer = Timer.periodic(
         const Duration(milliseconds: 10), (_) => ticks++);

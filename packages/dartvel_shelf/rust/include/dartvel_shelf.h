@@ -28,6 +28,14 @@
 #define AW_FLAG_SHARED 2
 
 /**
+ * The isolate drives the server's runtime itself, on its own thread, while
+ * it has requests to take (aw_drive), and a helper thread drives it while
+ * the isolate is idle (aw_park). A request then reaches Dart, and its answer
+ * reaches the socket, with no thread hand-off at all under load.
+ */
+#define AW_FLAG_DRIVEN 4
+
+/**
  * A chunk of the request body [req_id] is here.
  */
 #define AW_BODY_CHUNK 0
@@ -325,6 +333,39 @@ struct FfiWsFrame aw_ws_receive(uint64_t id);
 void aw_ws_free(struct FfiBuf data);
 
 void aw_ws_dispose(uint64_t id);
+
+/**
+ * One turn of [server_id]'s runtime on the calling thread, which must be
+ * the isolate that started it: what is ready runs, the sockets are polled
+ * without waiting, and what that made ready runs. Requests it read are
+ * queued for aw_take_requests.
+ *
+ * 0 after a turn; 1 when the helper drives (or the server is stopping) and
+ * nothing was run; -1 for a server that is not driven.
+ */
+int32_t aw_drive(uint64_t server_id);
+
+/**
+ * Gives [server_id]'s runtime to its helper thread, for an isolate with
+ * nothing left to take: the helper waits for the next request and wakes the
+ * isolate for it. 0, or -1 for a server that is not driven.
+ */
+int32_t aw_park(uint64_t server_id);
+
+/**
+ * Turns [server_id]'s runtime on the calling thread, which must be the
+ * isolate that drives it, until a request is queued or [micros] have passed.
+ *
+ * For an isolate whose last turn found nothing: the next request on a busy
+ * server is usually that close, and waiting for it in the kernel here costs
+ * less than parking -- handing the runtime to the helper, which wakes this
+ * isolate with a message when it comes. The isolate's event loop is held for
+ * at most [micros], which is how late a timer can be while it waits.
+ *
+ * 0 a request was queued; 2 none came; 1 the helper drives or the server is
+ * stopping; -1 a server that is not driven.
+ */
+int32_t aw_linger(uint64_t server_id, uint32_t micros);
 
 /**
  * Compresses `input_len` bytes at `input` with `codec` at `level` into the

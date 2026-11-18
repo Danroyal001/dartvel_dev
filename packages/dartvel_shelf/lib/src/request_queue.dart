@@ -39,7 +39,8 @@ typedef RequestHandler = void Function(
 /// gives the event loop back, so timers, body chunks and WebSocket frames are
 /// not starved by a steady stream of requests.
 final class RequestQueue {
-  RequestQueue._(this._take, this._register);
+  RequestQueue._(
+      this._take, this._register, this._drive, this._park, this._linger);
 
   /// The queue for a library that has one, or null for one that calls the
   /// request handler with each request.
@@ -61,8 +62,24 @@ final class RequestQueue {
           void Function(ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)>(
         'aw_register_request_wakeup_handler',
       ),
+      library.providesSymbol('aw_drive')
+          ? library.lookupFunction<ffi.Int32 Function(ffi.Uint64),
+              int Function(int)>('aw_drive')
+          : null,
+      library.providesSymbol('aw_park')
+          ? library.lookupFunction<ffi.Int32 Function(ffi.Uint64),
+              int Function(int)>('aw_park')
+          : null,
+      library.providesSymbol('aw_linger')
+          ? library.lookupFunction<ffi.Int32 Function(ffi.Uint64, ffi.Uint32),
+              int Function(int, int)>('aw_linger')
+          : null,
     );
   }
+
+  /// Whether this isolate can drive the server's runtime itself: pass
+  /// AW_FLAG_DRIVEN to aw_start when it can.
+  bool get drives => _drive != null && _park != null;
 
   static const int _batch = 64;
   static const int _batchesPerTurn = 4;
@@ -70,7 +87,15 @@ final class RequestQueue {
   final int Function(int, ffi.Pointer<FfiRequest>, int) _take;
   final void Function(ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>)
       _register;
+  final int Function(int)? _drive;
+  final int Function(int)? _park;
+  final int Function(int, int)? _linger;
+
+  /// How long an idle turn waits for the next request before the isolate
+  /// parks, in microseconds: what a timer can be late by while it waits.
+  static const int _lingerMicros = 250;
   final ffi.Pointer<FfiRequest> _out = pkgffi.calloc<FfiRequest>(_batch);
+  bool _againScheduled = false;
   ffi.NativeCallable<ffi.Void Function()>? _wakeup;
   RawReceivePort? _again;
   int _serverId = 0;
@@ -91,8 +116,15 @@ final class RequestQueue {
   void attach(int serverId) => _serverId = serverId;
 
   void _drain() {
+    _againScheduled = false;
     final RequestHandler? handler = _handler;
     if (handler == null) return;
+    final int Function(int)? drive = _drive;
+    final int Function(int)? park = _park;
+    if (drive != null && park != null) {
+      _drainDriven(handler, drive, park);
+      return;
+    }
     for (var turn = 0; turn < _batchesPerTurn; turn++) {
       final int taken = _take(_serverId, _out, _batch);
       for (var i = 0; i < taken; i++) {
@@ -106,6 +138,57 @@ final class RequestQueue {
     }
     // Still full: the native side will not wake again until it is emptied,
     // so this isolate comes back for the rest after the event loop's turn.
+    _again?.sendPort.send(null);
+  }
+
+  /// The isolate drives the server's runtime (AW_FLAG_DRIVEN): each turn
+  /// reads what the sockets have, writes the answers handlers have given,
+  /// and takes the requests that produced. While requests keep coming the
+  /// isolate comes back for the next turn by a message to itself, so the
+  /// answers its handlers give in this turn's microtasks are written by the
+  /// next one, on this thread. A turn with nothing to take hands the runtime
+  /// to the server's helper thread, which waits for the next request and
+  /// wakes this isolate for it.
+  void _drainDriven(RequestHandler handler, int Function(int) drive,
+      int Function(int) park) {
+    var handedOver = false;
+    for (var turn = 0; turn < _batchesPerTurn; turn++) {
+      drive(_serverId);
+      final int taken = _take(_serverId, _out, _batch);
+      for (var i = 0; i < taken; i++) {
+        final FfiRequest request = (_out + i).ref;
+        handler(request.id, request.method, request.target, request.hdrs,
+            request.hdrsLen, request.body, request.peer);
+      }
+      if (taken > 0) handedOver = true;
+      if (taken < _batch) break;
+    }
+    if (handedOver) {
+      _scheduleAgain();
+      return;
+    }
+    // Nothing this turn. The next request of a busy server is usually a
+    // moment away: waited for here, it is taken without the helper's
+    // hand-back and its message.
+    final int Function(int, int)? linger = _linger;
+    if (linger != null && linger(_serverId, _lingerMicros) == 0) {
+      final int taken = _take(_serverId, _out, _batch);
+      for (var i = 0; i < taken; i++) {
+        final FfiRequest request = (_out + i).ref;
+        handler(request.id, request.method, request.target, request.hdrs,
+            request.hdrsLen, request.body, request.peer);
+      }
+      if (taken > 0) {
+        _scheduleAgain();
+        return;
+      }
+    }
+    park(_serverId);
+  }
+
+  void _scheduleAgain() {
+    if (_againScheduled) return;
+    _againScheduled = true;
     _again?.sendPort.send(null);
   }
 

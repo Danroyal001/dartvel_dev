@@ -46,6 +46,10 @@ const int _nativeAbiVersion = 2;
 /// AW_FLAG_SHARED in rust/src/lib.rs: listen with SO_REUSEPORT.
 const int _awFlagShared = 0x02;
 
+/// AW_FLAG_DRIVEN in rust/src/lib.rs: this isolate drives the server's
+/// runtime itself while it has requests to take.
+const int _awFlagDriven = 0x04;
+
 /// The native side's own default, so a library that cannot be configured is
 /// refused only when a caller asked for something else.
 const Duration _defaultRequestTimeout = Duration(seconds: 60);
@@ -126,6 +130,19 @@ final class _ResponseScratch {
   static const int _keep = 256 * 1024;
 
   final ffi.Pointer<gen.FfiResp> _resp = pkgffi.calloc<gen.FfiResp>();
+
+  // Handlers still running, which may yet fill this. A server stopped with
+  // one still at work frees the memory only once that one is done: freed at
+  // the stop, a late answer was written into memory malloc had taken back.
+  int _users = 0;
+  bool _released = false;
+
+  void enter() => _users++;
+
+  void leave() {
+    _users--;
+    if (_released && _users == 0) _free();
+  }
   ffi.Pointer<ffi.Uint8> _kept = pkgffi.malloc<ffi.Uint8>(4096);
   int _keptCapacity = 4096;
   ffi.Pointer<ffi.Uint8> _bytes = ffi.nullptr;
@@ -134,17 +151,11 @@ final class _ResponseScratch {
 
   /// [status], [headers] and [body] laid out for aw_complete; a null [body]
   /// is a streamed response. Valid until [done].
-  ffi.Pointer<gen.FfiResp> fill(
-      int status, Map<String, List<String>> headers, Uint8List? body) {
+  ffi.Pointer<gen.FfiResp> fill(int status, Headers headers, Uint8List? body) {
     _bytes = _kept;
     _view = _kept.asTypedList(_keptCapacity);
     _length = 0;
-    headers.forEach((String name, List<String> values) {
-      for (final String value in values) {
-        _write(name);
-        _write(value);
-      }
-    });
+    headers.forEachValue(_writeHeader);
     final int headersLength = _length;
     if (body != null && body.isNotEmpty) {
       _reserve(body.length);
@@ -169,9 +180,20 @@ final class _ResponseScratch {
   }
 
   void release() {
+    if (_released) return;
+    _released = true;
+    if (_users == 0) _free();
+  }
+
+  void _free() {
     done();
     pkgffi.malloc.free(_kept);
     pkgffi.calloc.free(_resp);
+  }
+
+  void _writeHeader(String name, String value) {
+    _write(name);
+    _write(value);
   }
 
   /// [text] as UTF-8, then a NUL.
@@ -588,6 +610,7 @@ Future<ServerHandle> serve(
     // Started now, in the callback's own turn of the event loop. It was a
     // `Future(...)`, which is a timer: every request waited for one more
     // trip around the event loop before its handler ran.
+    scratch.enter();
     unawaited(() async {
       try {
         final resp = await effective(req);
@@ -702,7 +725,7 @@ Future<ServerHandle> serve(
         // reusable buffer: aw_complete copies them before it returns, and
         // nothing else runs on this isolate in between.
         final ffi.Pointer<gen.FfiResp> out = scratch.fill(
-            resp.status, resp.headers.multiValueMap,
+            resp.status, resp.headers,
             streamed ? null : buffered);
 
         if (streamed) {
@@ -789,6 +812,7 @@ Future<ServerHandle> serve(
         // told the native side so, and a chunk that arrives after it is
         // dropped rather than waiting for a pull nobody will make.
         bodies.remove(reqId);
+        scratch.leave();
       }
     }());
   }
@@ -911,7 +935,9 @@ Future<ServerHandle> serve(
     ..ptr = hostPtr.cast()
     ..len = hostBytes.length;
 
-  final flags = (h2c ? gen.AW_FLAG_H2C : 0) | (shared ? _awFlagShared : 0);
+  final flags = (h2c ? gen.AW_FLAG_H2C : 0) |
+      (shared ? _awFlagShared : 0) |
+      ((requestQueue?.drives ?? false) ? _awFlagDriven : 0);
   final serverId = api.aw_start(hostFfiPtr.ref, port, flags);
   requestQueue?.attach(serverId);
 
@@ -1014,7 +1040,11 @@ Request _readRequest({
       method.ptr.cast<ffi.Uint8>().asTypedList(method.len));
   final targetStr = String.fromCharCodes(
       target.ptr.cast<ffi.Uint8>().asTypedList(target.len));
-  final headers = decodeHeaders(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
+  // Copied now, because the native side frees them once the request is
+  // acknowledged, and decoded only when the handler first reads a header:
+  // many routes never do.
+  final Uint8List headerBytes =
+      Uint8List.fromList(hdrsPtr.cast<ffi.Uint8>().asTypedList(hdrsLen));
   // A body the native side streamed is pulled one chunk at a time as the
   // handler reads it; one it read whole arrives here and is already in memory.
   final Stream<List<int>> bodySource = bodyStream == null
@@ -1024,7 +1054,7 @@ Request _readRequest({
   return Request(
     method: methodStr,
     url: _requestUrl(targetStr, authority: authority, port: port),
-    headers: Headers(headers),
+    headers: Headers.decodedOnRead(() => decodeHeaders(headerBytes)),
     bodyStream: bodySource,
     peerAddress: peerAddress,
   );
