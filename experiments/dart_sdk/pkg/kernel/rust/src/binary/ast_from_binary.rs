@@ -61,6 +61,19 @@ pub fn indexError(index: i64, length: usize) -> String {
     rangeErrorRange("length", index, 0, length as i64 - 1)
 }
 
+/// `value as Type` when it is not one ([actual] is its `runtimeType`).
+pub fn castError(actual: &str, expected: &str) -> String {
+    format!("type '{actual}' is not a subtype of type '{expected}' in type cast")
+}
+
+/// `value!` on null.
+pub const nullCheckError: &str = "Null check operator used on a null value";
+
+/// A typed-data list stored to out of range (`list[index] = value`).
+pub fn storeIndexError(index: i64, length: usize) -> String {
+    format!("RangeError (index): Index out of range: index should be less than {length}: {index}")
+}
+
 /// `RangeError.range(value, minValue, null, name).toString()`.
 pub fn rangeErrorMin(name: &str, value: i64, min: i64) -> String {
     format!("RangeError ({name}): Invalid value: Not greater than or equal to {min}: {value}")
@@ -121,6 +134,22 @@ pub struct BinaryBuilder<'a> {
     /// How deeply the expression, statement, type and pattern being read
     /// are nested (see [nestingLimit]).
     nesting: u32,
+    /// What a reference read now marks in [Bindings::references]: 1, or 2
+    /// inside a part upstream reads lazily.
+    referenceMark: u8,
+    /// The lazily read class whose members are being read ([noRegion]
+    /// outside one).
+    currentRegion: u32,
+    /// `_currentLibrary!.dependencies.length`: None when there is no
+    /// current library.
+    currentLibraryDependencyCount: Option<usize>,
+    /// The error [Self::deferError] kept last.
+    lastDeferred: Option<Box<str>>,
+    /// The ids of the structural parameters made (first, count).
+    structuralRanges: Vec<(TypeParamId, u32)>,
+    /// `_cachedSimpleInterfaceTypes`: by link table index, which
+    /// nullabilities (bits) have been read.
+    simpleInterfaceTypes: Vec<u8>,
     /// Where the stack was when reading began, and how much of it the
     /// reader may use on the caller's thread (None on [withDeepStack]'s).
     stackBase: usize,
@@ -152,6 +181,12 @@ impl<'a> BinaryBuilder<'a> {
             switchCaseStackBase: 0,
             variableContextStack: Vec::new(),
             nesting: 0,
+            referenceMark: 1,
+            currentRegion: noRegion,
+            currentLibraryDependencyCount: None,
+            lastDeferred: None,
+            structuralRanges: Vec::new(),
+            simpleInterfaceTypes: Vec::new(),
             stackBase: stackAddress(),
             stackBudget: Some(callerStackBudget),
         }
@@ -258,6 +293,144 @@ impl<'a> BinaryBuilder<'a> {
     #[inline(never)]
     fn indexFailure<T>(&self, index: i64, length: usize) -> Result<T> {
         self.thrown(indexError(index, length))
+    }
+
+    /// The `runtimeType` of [t].
+    fn dartTypeRuntimeType(&self, t: &DartType) -> &'static str {
+        dartTypeRuntimeType(t, |id| self.structuralRanges.iter().any(|&(first, count)| id >= first && id - first < count))
+    }
+
+    /// `Enum.values[index]` for an enum of [count] values.
+    #[inline(always)]
+    fn enumValue(&self, index: u32, count: u32) -> Result<u8> {
+        if index >= count {
+            return self.indexFailure(index as i64, count as usize);
+        }
+        Ok(index as u8)
+    }
+
+    /// `value as Type`: what the VM throws when [actual] is not one.
+    #[cold]
+    #[inline(never)]
+    fn castFailure<T>(&self, actual: &str, expected: &str) -> Result<T> {
+        self.thrown(castError(actual, expected))
+    }
+
+    /// `value!` on null.
+    #[cold]
+    #[inline(never)]
+    fn nullCheckFailure<T>(&self) -> Result<T> {
+        self.thrown(nullCheckError)
+    }
+
+    // References and the nodes they point at.
+
+    /// `canonicalName.reference`: upstream makes the reference the first
+    /// time a canonical name is read as one.
+    #[inline(always)]
+    fn markReference(&mut self, name: CnId) {
+        if let Some(mark) = self.component.bindings.references.get_mut(name as usize) {
+            *mark |= self.referenceMark;
+        }
+    }
+
+    /// `reference.node as Kind?` for the reference of [name]: the node it
+    /// points at if that is a [kind], null if none (after `_tryLoadNode`),
+    /// or upstream's cast error.
+    fn nodeOf(&mut self, name: CnId, kind: NamedNodeKind) -> Result<Option<BoundNode>> {
+        match self.boundNode(name)? {
+            None => Ok(None),
+            Some(node) if node.kind == kind => Ok(Some(node)),
+            Some(node) => self.castFailure(node.kind.runtimeType(), &format!("{}?", kind.runtimeType())),
+        }
+    }
+
+    /// `Reference.node` of [name]'s reference: `_node`, or when it has
+    /// none, `_tryLoadNode`, which loads the members of the class above
+    /// the nearest `@`-name (and makes that class's reference).
+    fn boundNode(&mut self, name: CnId) -> Result<Option<BoundNode>> {
+        let bound = self.component.bindings.nodes.get(name as usize).copied().flatten();
+        if let Some(node) = bound
+            && (node.region == noRegion || self.regionLoaded(node.region))
+        {
+            return Ok(Some(node));
+        }
+        // `_tryLoadNode`.
+        let names = &self.component.names;
+        let mut parent = names.parent(name);
+        while let Some(p) = parent {
+            if self.component.strings.get(names.name(p)).first() == Some(&b'@') {
+                break;
+            }
+            parent = names.parent(p);
+        }
+        if let Some(at) = parent
+            && let Some(owner) = self.component.names.parent(at)
+        {
+            self.markReference(owner);
+            if let Some(Some(node)) = self.component.bindings.nodes.get(owner as usize).copied()
+                && node.kind == NamedNodeKind::Class
+                && (node.region == noRegion || self.regionLoaded(node.region))
+                && let Some(region) = self.classRegionOf(owner)
+                && !self.regionLoaded(region)
+            {
+                self.loadRegion(region)?;
+            }
+        }
+        let bound = self.component.bindings.nodes.get(name as usize).copied().flatten();
+        Ok(bound.filter(|node| node.region == noRegion || self.regionLoaded(node.region)))
+    }
+
+    /// The lazily read members of the class named [name], if they are.
+    fn classRegionOf(&self, name: CnId) -> Option<u32> {
+        self.component.bindings.classes.iter().rposition(|c| c.reference == name).map(|i| i as u32)
+    }
+
+    fn regionLoaded(&self, region: u32) -> bool {
+        // The members being read are being loaded (upstream clears the
+        // lazy builder before it runs it).
+        if region == self.currentRegion {
+            return true;
+        }
+        self.component.bindings.classes.get(region as usize).is_some_and(|c| c.loaded)
+    }
+
+    /// `Class.ensureLoaded` while reading: upstream reads the members then
+    /// (its reader is left after them, and its type parameter stack
+    /// empty), throwing what reading them throws.
+    #[cold]
+    #[inline(never)]
+    fn loadRegion(&mut self, region: u32) -> Result<()> {
+        self.component.bindings.classes[region as usize].loaded = true;
+        let class = &self.component.bindings.classes[region as usize];
+        if let Some(error) = &class.error {
+            return self.thrown(error.to_string());
+        }
+        self.byteOffset = class.endOffset;
+        self.typeParameterStack.clear();
+        Ok(())
+    }
+
+    /// A new node of [kind] made for [name]'s reference (`reference.node =
+    /// this`).
+    fn bindNode(&mut self, name: CnId, kind: NamedNodeKind, nodeName: StrId, parent: Option<(NamedNodeKind, StrId)>) -> u32 {
+        let id = self.component.bindings.nextId;
+        self.component.bindings.nextId += 1;
+        self.setBinding(name, BoundNode {
+            kind,
+            id,
+            name: nodeName,
+            parent,
+            cn: name,
+            region: self.currentRegion,
+        });
+        id
+    }
+
+    fn setBinding(&mut self, name: CnId, node: BoundNode) {
+        if let Some(slot) = self.component.bindings.nodes.get_mut(name as usize) {
+            *slot = Some(node);
+        }
     }
 
     #[inline(always)]
@@ -403,7 +576,7 @@ impl<'a> BinaryBuilder<'a> {
         let mut i = start;
         let push = |builder: &Self, charCodes: &mut Vec<u16>, value: i64| -> Result<()> {
             if charCodes.len() >= length {
-                return builder.thrown(indexError(charCodes.len() as i64, length));
+                return builder.thrown(storeIndexError(charCodes.len() as i64, length));
             }
             // A Uint16List keeps the low 16 bits.
             charCodes.push(value as u16);
@@ -480,11 +653,13 @@ impl<'a> BinaryBuilder<'a> {
     }
 
     /// `getNullableCanonicalNameReferenceFromInt`.
-    fn getNullableCanonicalNameReferenceFromInt(&self, index: u32) -> Result<Ref> {
+    fn getNullableCanonicalNameReferenceFromInt(&mut self, index: u32) -> Result<Ref> {
         if index == 0 {
             return Ok(None);
         }
-        Ok(Some(self.index(&self.linkTable, index as i64 - 1)?))
+        let name = self.index(&self.linkTable, index as i64 - 1)?;
+        self.markReference(name);
+        Ok(Some(name))
     }
 
     fn readNonNullCanonicalNameReference(&mut self) -> Result<CnId> {
@@ -703,10 +878,7 @@ impl<'a> BinaryBuilder<'a> {
             let library = self.readLibrary(index.libraryOffsets[i + 1])?;
             // A library read again (a concatenated file) is the same node,
             // read over: it keeps its place in the component.
-            let existing = match self.laterComponent {
-                false => None,
-                true => self.component.libraries.iter().position(|l| l.reference == library.reference),
-            };
+            let existing = self.component.libraries.iter().position(|l| l.reference == library.reference);
             match existing {
                 Some(existing) => {
                     self.component.libraries[existing] = library;
@@ -789,6 +961,10 @@ impl<'a> BinaryBuilder<'a> {
             let child = self.component.names.getChild(parent, name);
             self.linkTable.push(child);
         }
+        self.simpleInterfaceTypes = vec![0; self.linkTable.len()];
+        let count = self.component.names.len();
+        self.component.bindings.nodes.resize(count, None);
+        self.component.bindings.references.resize(count, 0);
         Ok(())
     }
 
@@ -961,6 +1137,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartType()?;
                 let valueType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let key = self.readConstantReference()?;
@@ -990,6 +1167,7 @@ impl<'a> BinaryBuilder<'a> {
             ConstantTag::RecordConstant => {
                 let positional = self.readConstantReferenceList()?;
                 let namedLength = self.readUInt30()?;
+                self.dartList(namedLength as u64)?;
                 let mut named: Vec<(StrId, ConstId)> = Vec::with_capacity(self.cap(namedLength as usize));
                 for _ in 0..namedLength {
                     let name = self.readStringReference()?;
@@ -1100,6 +1278,7 @@ impl<'a> BinaryBuilder<'a> {
         for variableContextIndex in 0..contextCount {
             let captureKind = self.readByte()? as u8;
             let variableCount = self.readUInt30()?;
+            self.dartList(variableCount as u64)?;
             let mut variables = Vec::with_capacity(self.cap(variableCount as usize));
             for _ in 0..variableCount {
                 variables.push(self.readVariableReference()?);
@@ -1134,6 +1313,7 @@ impl<'a> BinaryBuilder<'a> {
             return Ok(None);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut contexts = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             contexts.push(self.readVariableContextReference()?);
@@ -1145,6 +1325,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readAnnotationList(&mut self) -> Result<Vec<Expression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut annotations = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             annotations.push(self.readExpression()?);
@@ -1193,31 +1374,50 @@ impl<'a> BinaryBuilder<'a> {
         let languageVersionMajor = self.readUInt30()?;
         let languageVersionMinor = self.readUInt30()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Library)?;
         let name = self.readStringReference()?;
         let fileUri = self.readUriReference()?;
-        // A library read for the first time is made with
+        // A library made here (not read before) is made with
         // `Uri.parse(canonicalName.name)`, which can throw.
-        let readBefore = self.laterComponent && self.component.libraries.iter().any(|l| l.reference == reference);
-        if !readBefore {
+        if existing.is_none() {
             let text = self.component.strings.get(self.component.names.name(reference));
             if let Err(thrown) = dart_core::uri::parseUriToStringWtf8(text) {
                 return self.thrown(thrown);
             }
+            self.bindNode(reference, NamedNodeKind::Library, name, None);
+        } else if let Some(mut node) = existing {
+            // `library.name = name`.
+            node.name = name;
+            self.setBinding(reference, node);
         }
+        // `_currentLibrary = library`: a new library has no dependencies
+        // yet; one read again keeps the ones it had until they are read.
+        self.currentLibraryDependencyCount = Some(match existing {
+            None => 0,
+            Some(_) => self
+                .component
+                .libraries
+                .iter()
+                .find(|l| l.reference == reference)
+                .map_or(0, |l| l.dependencies.len()),
+        });
         let problemsAsJson = self.readListOfStrings()?;
         let annotations = self.readAnnotationList()?;
 
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut dependencies = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             dependencies.push(self.readLibraryDependency()?);
         }
+        self.currentLibraryDependencyCount = Some(dependencies.len());
         let numExportedReference = self.readUInt30()?;
         let mut additionalExports = Vec::with_capacity(self.cap(numExportedReference as usize));
         for _ in 0..numExportedReference {
             additionalExports.push(self.readNonNullCanonicalNameReference()?);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut parts = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let annotations = self.readAnnotationList()?;
@@ -1230,6 +1430,7 @@ impl<'a> BinaryBuilder<'a> {
             });
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut typedefs = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             typedefs.push(self.readTypedef()?);
@@ -1243,21 +1444,24 @@ impl<'a> BinaryBuilder<'a> {
             let endOffset = self.index(&classOffsets, index as i64 + 1)?;
             classes.push(self.readClass(endOffset)?);
         }
-        if length > 0 {
-            self.byteOffset = *classOffsets.last().unwrap();
-        }
+        // `_byteOffset = classOffsets.last` (lists are growable, so even
+        // for no classes).
+        self.byteOffset = *classOffsets.last().unwrap();
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut extensions = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             extensions.push(self.readExtension()?);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut extensionTypeDeclarations = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             extensionTypeDeclarations.push(self.readExtensionTypeDeclaration()?);
         }
-        let fields = self.readFieldList()?;
-        let procedures = self.readProcedureList(&procedureOffsets)?;
+        let fields = self.readFieldList(None)?;
+        let procedures = self.readProcedureList(&procedureOffsets, None)?;
+        self.currentLibraryDependencyCount = None;
         Ok(Library {
             flags,
             languageVersionMajor,
@@ -1283,9 +1487,10 @@ impl<'a> BinaryBuilder<'a> {
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let annotations = self.readAnnotationList()?;
-        let targetLibrary = self.readNonNullCanonicalNameReference()?;
+        let targetLibrary = self.readNonNullLibraryReference()?;
         let name = self.readStringReference()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut combinators = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let isShow = self.readByte()? == 1;
@@ -1304,9 +1509,11 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readTypedef(&mut self) -> Result<Typedef> {
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Typedef)?;
         let fileUri = self.readUriReference()?;
         let fileOffset = self.readOffset()?;
         let name = self.readStringReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Typedef, name, None);
         let annotations = self.readAnnotationList()?;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let r#type = self.readDartType()?;
@@ -1323,34 +1530,82 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
+    /// A node made for [reference] (`new Node(reference: reference)`), or
+    /// the one it points at already, renamed (upstream reuses it).
+    fn bindOrRename(
+        &mut self,
+        reference: CnId,
+        existing: Option<BoundNode>,
+        kind: NamedNodeKind,
+        name: StrId,
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) {
+        match existing {
+            None => {
+                self.bindNode(reference, kind, name, parent);
+            }
+            Some(mut node) => {
+                node.name = name;
+                self.setBinding(reference, node);
+            }
+        }
+    }
+
     fn readClass(&mut self, endOffset: usize) -> Result<Class> {
         // Upstream only asserts the tag (asserts are off in its oracle).
         let _tag = self.readByte()?;
         let (_procedureCount, procedureOffsets) = self.readOffsetsTable(endOffset, 0)?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Class)?;
         let fileUri = self.readUriReference()?;
         let startFileOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
         let flags = self.readUInt30()?;
         let name = self.readStringReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Class, name, None);
         let annotations = self.readAnnotationList()?;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let supertype = self.readSupertypeOption()?;
         let mixedInType = self.readSupertypeOption()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut implementedTypes = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             implementedTypes.push(self.readSupertype()?);
         }
-        // `readClassPartialContent`.
-        let fields = self.readFieldList()?;
-        let length = self.readUInt30()?;
-        let mut constructors = Vec::with_capacity(self.cap(length as usize));
-        for _ in 0..length {
-            constructors.push(self.readConstructor()?);
-        }
-        let procedures = self.readProcedureList(&procedureOffsets)?;
+        let parent = Some((NamedNodeKind::Class, name));
+        let (fields, constructors, procedures, lazyRegion) = if self.disableLazyReading {
+            let (fields, constructors, procedures) = self.readClassPartialContent(&procedureOffsets, parent)?;
+            (fields, constructors, procedures, noRegion)
+        } else {
+            // `_setLazyLoadClass`: upstream reads the members when they are
+            // first used; they are read here, and what reading them throws
+            // is thrown when upstream would read them.
+            let region = self.component.bindings.classes.len() as u32;
+            self.component.bindings.classes.push(LazyClass {
+                reference,
+                endOffset: *procedureOffsets.last().unwrap(),
+                error: None,
+                loaded: false,
+            });
+            let saved = self.saveStacks();
+            let (savedMark, savedRegion) = (self.referenceMark, self.currentRegion);
+            self.referenceMark = 2;
+            self.currentRegion = region;
+            let result = self.readClassPartialContent(&procedureOffsets, parent);
+            self.referenceMark = savedMark;
+            self.currentRegion = savedRegion;
+            match result {
+                Ok((fields, constructors, procedures)) => (fields, constructors, procedures, region),
+                Err(error) => {
+                    self.deferError(error)?;
+                    self.restoreStacks(saved);
+                    self.component.bindings.classes[region as usize].error = Some(self.lastDeferred.take().unwrap());
+                    (Vec::new(), Vec::new(), Vec::new(), region)
+                }
+            }
+        };
         self.typeParameterStack.clear();
         self.byteOffset = endOffset;
         Ok(Class {
@@ -1369,18 +1624,73 @@ impl<'a> BinaryBuilder<'a> {
             fields,
             constructors,
             procedures,
+            lazyRegion,
         })
     }
 
-    fn readExtensionMemberDescriptors(&mut self) -> Result<Vec<ExtensionMemberDescriptor>> {
+    /// `readClassPartialContent`.
+    #[allow(clippy::type_complexity)]
+    fn readClassPartialContent(
+        &mut self,
+        procedureOffsets: &[usize],
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) -> Result<(Vec<Field>, Vec<Constructor>, Vec<Procedure>)> {
+        let fields = self.readFieldList(parent)?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let mut constructors = Vec::with_capacity(self.cap(length as usize));
+        for _ in 0..length {
+            constructors.push(self.readConstructor(parent)?);
+        }
+        let procedures = self.readProcedureList(procedureOffsets, parent)?;
+        Ok((fields, constructors, procedures))
+    }
+
+    /// The reader's stacks, to put back when a lazily read part fails.
+    fn saveStacks(&self) -> [usize; 5] {
+        [
+            self.variableStack.len(),
+            self.typeParameterStack.len(),
+            self.labelStack.len(),
+            self.switchCaseStack.len(),
+            self.variableContextStack.len(),
+        ]
+    }
+
+    fn restoreStacks(&mut self, saved: [usize; 5]) {
+        self.variableStack.truncate(saved[0]);
+        self.typeParameterStack.truncate(saved[1]);
+        self.labelStack.truncate(saved[2]);
+        self.switchCaseStack.truncate(saved[3]);
+        self.variableContextStack.truncate(saved[4]);
+    }
+
+    /// Keeps [error] (from a part upstream reads lazily) for later, in
+    /// [Self::lastDeferred]; an error that is not upstream's (the reader
+    /// needing a deeper stack) goes on now.
+    #[cold]
+    #[inline(never)]
+    fn deferError(&mut self, error: ParseError) -> Result<()> {
+        if error.message == needsDeepStack {
+            return Err(error);
+        }
+        self.lastDeferred = Some(error.message.into_boxed_str());
+        Ok(())
+    }
+
+    fn readExtensionMemberDescriptors(&mut self, kinds: u32) -> Result<Vec<ExtensionMemberDescriptor>> {
+        let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut descriptors = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readName()?;
-            let kind = self.readByte()? as u8;
+            let kind = self.readByte()?;
             let flags = self.readByte()? as u8;
             let memberReference = self.readNullableCanonicalNameReference()?;
             let tearOffReference = self.readNullableCanonicalNameReference()?;
+            // `ExtensionMemberKind.values[kind]` (or the extension type
+            // declaration's), after the references.
+            let kind = self.enumValue(kind, kinds)?;
             descriptors.push(ExtensionMemberDescriptor {
                 name,
                 kind,
@@ -1395,15 +1705,17 @@ impl<'a> BinaryBuilder<'a> {
     fn readExtension(&mut self) -> Result<Extension> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Extension)?;
         let name = self.readStringReference()?;
         let annotations = self.readAnnotationList()?;
         let fileUri = self.readUriReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Extension, name, None);
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let onType = self.readDartType()?;
         self.typeParameterStack.clear();
-        let memberDescriptors = self.readExtensionMemberDescriptors()?;
+        let memberDescriptors = self.readExtensionMemberDescriptors(5)?;
         Ok(Extension {
             reference,
             name,
@@ -1420,22 +1732,38 @@ impl<'a> BinaryBuilder<'a> {
     fn readExtensionTypeDeclaration(&mut self) -> Result<ExtensionTypeDeclaration> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::ExtensionTypeDeclaration)?;
         let name = self.readStringReference()?;
         let annotations = self.readAnnotationList()?;
         let fileUri = self.readUriReference()?;
+        self.bindOrRename(reference, existing, NamedNodeKind::ExtensionTypeDeclaration, name, None);
         let fileOffset = self.readOffset()?;
         let flags = self.readByte()? as u8;
         let typeParameters = self.readAndPushTypeParameterList()?;
         let declaredRepresentationType = self.readDartType()?;
         let representationName = self.readStringReference()?;
-        let implements = self.readDartTypeList()?;
+        // `_readExtensionTypeDeclarationImplementsList`: each one `as
+        // TypeDeclarationType`.
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let mut implements = Vec::with_capacity(self.cap(length as usize));
+        for _ in 0..length {
+            let r#type = self.readDartType()?;
+            if !matches!(r#type, DartType::Interface { .. } | DartType::Extension { .. }) {
+                return self.castFailure(self.dartTypeRuntimeType(&r#type), "TypeDeclarationType");
+            }
+            implements.push(r#type);
+        }
+        // `_readProcedureListWithoutOffsets`: read now (no end offset).
+        let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
+        let parent = Some((NamedNodeKind::ExtensionTypeDeclaration, name));
         let mut procedures = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            procedures.push(self.readProcedure()?);
+            procedures.push(self.readProcedure(-1, parent)?);
         }
         self.typeParameterStack.clear();
-        let memberDescriptors = self.readExtensionMemberDescriptors()?;
+        let memberDescriptors = self.readExtensionMemberDescriptors(8)?;
         Ok(ExtensionTypeDeclaration {
             reference,
             name,
@@ -1452,43 +1780,69 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readFieldList(&mut self) -> Result<Vec<Field>> {
+    fn readFieldList(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Vec<Field>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut fields = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            fields.push(self.readField()?);
+            fields.push(self.readField(parent)?);
         }
         Ok(fields)
     }
 
-    fn readProcedureList(&mut self, procedureOffsets: &[usize]) -> Result<Vec<Procedure>> {
+    fn readProcedureList(
+        &mut self,
+        procedureOffsets: &[usize],
+        parent: Option<(NamedNodeKind, StrId)>,
+    ) -> Result<Vec<Procedure>> {
         let length = self.readUInt30()? as usize;
         self.dartList(length as u64)?;
         let mut procedures = Vec::with_capacity(self.cap(length as usize));
         for index in 0..length {
             self.byteOffset = self.index(procedureOffsets, index as i64)?;
-            // `readProcedure(procedureOffsets[index + 1])`.
-            self.index(procedureOffsets, index as i64 + 1)?;
-            procedures.push(self.readProcedure()?);
+            let endOffset = self.index(procedureOffsets, index as i64 + 1)?;
+            procedures.push(self.readProcedure(endOffset as i64, parent)?);
         }
         self.byteOffset = *procedureOffsets.last().unwrap();
         Ok(procedures)
     }
 
-    fn readField(&mut self) -> Result<Field> {
+    fn readField(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Field> {
         let _tag = self.readByte()?;
         let fieldReference = self.readNonNullCanonicalNameReference()?;
         let getterReference = self.readNonNullCanonicalNameReference()?;
         let setterReference = self.readNullableCanonicalNameReference()?;
+        let existing = self.nodeOf(fieldReference, NamedNodeKind::Field)?;
         let fileUri = self.readUriReference()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
         let flags = self.readUInt30()?;
         let name = self.readName()?;
+        match existing {
+            None => {
+                // `new Field(...)` points all its references at itself.
+                let id = self.bindNode(fieldReference, NamedNodeKind::Field, name.text, parent);
+                let node = self.component.bindings.nodes[fieldReference as usize].unwrap();
+                debug_assert_eq!(node.id, id);
+                self.setBinding(getterReference, node);
+                if let Some(setter) = setterReference {
+                    self.setBinding(setter, node);
+                }
+            }
+            Some(mut node) => {
+                node.name = name.text;
+                self.setBinding(fieldReference, node);
+            }
+        }
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let annotations = self.readAnnotationList()?;
         let r#type = self.readDartType()?;
         let thisVariable = self.readAndPushVariableOption()?;
+        if let Some(variable) = &thisVariable
+            && variable.kind != Tag::ThisVariable
+        {
+            return self.castFailure(variableRuntimeType(variable.kind), "ThisVariable?");
+        }
         let initializer = self.readExpressionOption()?.map(Box::new);
         let scope = self.readOptionalScope(scopeSize)?;
         Ok(Field {
@@ -1508,9 +1862,10 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readConstructor(&mut self) -> Result<Constructor> {
+    fn readConstructor(&mut self, parent: Option<(NamedNodeKind, StrId)>) -> Result<Constructor> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Constructor)?;
         let fileUri = self.readUriReference()?;
         let startFileOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
@@ -1518,7 +1873,8 @@ impl<'a> BinaryBuilder<'a> {
         let flags = self.readByte()? as u8;
         let name = self.readName()?;
         let annotations = self.readAnnotationList()?;
-        let (function, preAllocatedContexts) = self.readFunctionNode()?;
+        let (function, preAllocatedContexts) = self.readFunctionNode(false, -1)?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Constructor, name.text, parent);
         if let Some(this) = &function.thisVariable {
             self.variableStack.push(this.id);
         }
@@ -1531,6 +1887,7 @@ impl<'a> BinaryBuilder<'a> {
         let savedVariableContextStackSize = self.variableContextStack.len();
         self.variableContextStack.extend(preAllocatedContexts);
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut initializers = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             initializers.push(self.readInitializer()?);
@@ -1551,21 +1908,38 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    fn readProcedure(&mut self) -> Result<Procedure> {
+    /// `readProcedure(endOffset)`: -1 for a procedure of an extension type
+    /// declaration (no offsets table).
+    fn readProcedure(&mut self, endOffset: i64, parent: Option<(NamedNodeKind, StrId)>) -> Result<Procedure> {
         let _tag = self.readByte()?;
         let reference = self.readNonNullCanonicalNameReference()?;
+        let existing = self.nodeOf(reference, NamedNodeKind::Procedure)?;
         let fileUri = self.readUriReference()?;
         let fileStartOffset = self.readOffset()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
-        let kind = self.readByte()? as u8;
-        let stubKind = self.readByte()? as u8;
+        let kind = self.readByte()?;
+        let kind = self.enumValue(kind, 5)?;
+        let stubKind = self.readByte()?;
+        let stubKind = self.enumValue(stubKind, 8)?;
         let flags = self.readUInt30()?;
         let name = self.readName()?;
         let annotations = self.readAnnotationList()?;
+        let functionNodeSize = endOffset.wrapping_sub(self.byteOffset as i64);
+        // Small factories and extension type declaration procedures are
+        // read now; other bodies lazily.
+        let readFunctionNodeNow = endOffset == -1
+            || (kind == ProcedureKind::Factory && functionNodeSize <= 50)
+            || self.disableLazyReading;
         let stubTargetReference = self.readNullableCanonicalNameReference()?;
         let signatureType = self.readDartTypeOption()?;
-        let (function, _) = self.readFunctionNode()?;
+        if let Some(t) = &signatureType
+            && !matches!(t, DartType::Function(_))
+        {
+            return self.castFailure(self.dartTypeRuntimeType(t), "FunctionType?");
+        }
+        let (function, _) = self.readFunctionNode(!readFunctionNodeNow, endOffset)?;
+        self.bindOrRename(reference, existing, NamedNodeKind::Procedure, name.text, parent);
         Ok(Procedure {
             reference,
             fileUri,
@@ -1644,14 +2018,16 @@ impl<'a> BinaryBuilder<'a> {
         })
     }
 
-    /// `readFunctionNode`, with the contexts it allocated for its scope
-    /// (`preAllocatedContexts`).
-    fn readFunctionNode(&mut self) -> Result<(FunctionNode, Vec<ContextId>)> {
+    /// `readFunctionNode(lazyLoadBody:, outerEndOffset:)`, with the
+    /// contexts it allocated for its scope (`preAllocatedContexts`).
+    fn readFunctionNode(&mut self, lazyLoadBody: bool, outerEndOffset: i64) -> Result<(FunctionNode, Vec<ContextId>)> {
         let _tag = self.readByte()?;
         let fileOffset = self.readOffset()?;
         let fileEndOffset = self.readOffset()?;
-        let asyncMarker = self.readByte()? as u8;
-        let dartAsyncMarker = self.readByte()? as u8;
+        let asyncMarker = self.readByte()?;
+        let asyncMarker = self.enumValue(asyncMarker, 4)?;
+        let dartAsyncMarker = self.readByte()?;
+        let dartAsyncMarker = self.enumValue(dartAsyncMarker, 4)?;
         let typeParameterStackHeight = self.typeParameterStack.len();
         let scopeSize = self.readScopeSizeAndAllocateContexts()?;
         let preAllocatedContexts =
@@ -1659,17 +2035,33 @@ impl<'a> BinaryBuilder<'a> {
         let typeParameters = self.readAndPushTypeParameterList()?;
         let variableStackHeight = self.variableStack.len();
         let thisVariable = self.readAndPushVariableOption()?;
+        if let Some(variable) = &thisVariable
+            && variable.kind != Tag::ThisVariable
+        {
+            return self.castFailure(variableRuntimeType(variable.kind), "ThisVariable?");
+        }
         let _totalParameterCount = self.readUInt30()?;
         let requiredParameterCount = self.readUInt30()?;
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut positionalParameters = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            positionalParameters.push(*self.readAndPushVariable()?);
+            let variable = self.readAndPushVariable()?;
+            if variable.kind != Tag::PositionalParameter {
+                return self.castFailure(variableRuntimeType(variable.kind), "PositionalParameter");
+            }
+            positionalParameters.push(*variable);
         }
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut namedParameters = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            namedParameters.push(*self.readAndPushVariable()?);
+            let variable = self.readVariable()?;
+            if variable.kind != Tag::NamedParameter {
+                return self.castFailure(variableRuntimeType(variable.kind), "NamedParameter");
+            }
+            self.variableStack.push(variable.id);
+            namedParameters.push(*variable);
         }
         let returnType = self.readDartType()?;
         let emittedValueType = self.readDartTypeOption()?;
@@ -1680,26 +2072,63 @@ impl<'a> BinaryBuilder<'a> {
             } else {
                 None
             };
-            let errorMessage = if self.readAndCheckOptionTag()? {
-                Some(self.readStringReference()?)
+            if self.readAndCheckOptionTag()? {
+                // `RedirectingFactoryTarget.error(errorMessage)`.
+                Some(RedirectingFactoryTarget {
+                    targetReference: None,
+                    typeArguments: None,
+                    errorMessage: Some(self.readStringReference()?),
+                })
             } else {
-                None
-            };
-            Some(RedirectingFactoryTarget {
-                targetReference,
-                typeArguments,
-                errorMessage,
-            })
+                // `.byReference(targetReference!, typeArguments!)`.
+                if targetReference.is_none() || typeArguments.is_none() {
+                    return self.nullCheckFailure();
+                }
+                Some(RedirectingFactoryTarget {
+                    targetReference,
+                    typeArguments,
+                    errorMessage: None,
+                })
+            }
         } else {
             None
         };
         let oldLabelStackBase = self.labelStackBase;
         let oldSwitchCaseStackBase = self.switchCaseStackBase;
+        let lazyLoadBody = lazyLoadBody && (outerEndOffset <= 0 || outerEndOffset - self.byteOffset as i64 > 2);
         self.labelStackBase = self.labelStack.len();
         self.switchCaseStackBase = self.switchCaseStack.len();
-        let body = self.readStatementOption()?.map(Box::new);
-        let scope = self.readOptionalScope(scopeSize)?;
-        let capturedContexts = self.readOptionalCapturedContexts()?;
+        let (body, scope, capturedContexts, lazyBody) = if !lazyLoadBody {
+            let body = self.readStatementOption()?.map(Box::new);
+            let scope = self.readOptionalScope(scopeSize)?;
+            let capturedContexts = self.readOptionalCapturedContexts()?;
+            (body, scope, capturedContexts, LazyBody::Eager)
+        } else {
+            // `_setLazyLoadFunction`: upstream reads the body when its
+            // writer reaches it, with these stacks; it is read here, and
+            // what reading it throws is thrown there.
+            let saved = self.saveStacks();
+            let savedMark = self.referenceMark;
+            self.referenceMark = 2;
+            let result = (|| -> Result<_> {
+                let body = self.readStatementOption()?.map(Box::new);
+                let scope = self.readOptionalScope(scopeSize)?;
+                let capturedContexts = self.readOptionalCapturedContexts()?;
+                Ok((body, scope, capturedContexts))
+            })();
+            self.referenceMark = savedMark;
+            match result {
+                Ok((body, scope, capturedContexts)) => (body, scope, capturedContexts, LazyBody::Lazy),
+                Err(error) => {
+                    self.deferError(error)?;
+                    self.restoreStacks(saved);
+                    // `variableContextStack.length -= scopeSize`.
+                    let length = self.variableContextStack.len().saturating_sub(scopeSize as usize);
+                    self.variableContextStack.truncate(length);
+                    (None, None, None, LazyBody::Failed(self.lastDeferred.take().unwrap()))
+                }
+            }
+        };
         self.labelStackBase = oldLabelStackBase;
         self.switchCaseStackBase = oldSwitchCaseStackBase;
         self.variableStack.truncate(variableStackHeight);
@@ -1721,6 +2150,7 @@ impl<'a> BinaryBuilder<'a> {
                 body,
                 scope,
                 capturedContexts,
+                lazyBody,
             },
             preAllocatedContexts,
         ))
@@ -1817,7 +2247,7 @@ impl<'a> BinaryBuilder<'a> {
                 className: classReference,
                 typeArguments,
             }),
-            _ => self.fail("a supertype is not an interface type"),
+            other => self.castFailure(self.dartTypeRuntimeType(&other), "InterfaceType"),
         }
     }
 
@@ -1831,6 +2261,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readDartTypeList(&mut self) -> Result<Vec<DartType>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut types = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             types.push(self.readDartType()?);
@@ -1840,6 +2271,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readNamedTypeList(&mut self) -> Result<Vec<NamedType>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut types = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readStringReference()?;
@@ -1874,23 +2306,33 @@ impl<'a> BinaryBuilder<'a> {
         let tag = self.readByte()?;
         Ok(match tag {
             Tag::SimpleInterfaceType => {
-                let nullability = self.readByte()? as u8;
-                let classReference = match self.readNullableCanonicalNameReference()? {
-                    Some(c) => c,
-                    None => {
-                        return self.fail("Expected a class reference to be valid but was `null`.");
+                let nullabilityIndex = self.readByte()?;
+                let classReferenceIndex = self.readUInt30()?;
+                if classReferenceIndex == 0 {
+                    return self.thrown("Expected a class reference to be valid but was `null`.");
+                }
+                let index = classReferenceIndex as usize - 1;
+                let classReference = self.index(&self.linkTable, index as i64)?;
+                if nullabilityIndex < 3 {
+                    // `_cachedSimpleInterfaceTypes`: remembered by index.
+                    self.simpleInterfaceTypes[index] |= 1 << nullabilityIndex;
+                    self.markReference(classReference);
+                    DartType::Interface {
+                        nullability: nullabilityIndex as u8,
+                        classReference,
+                        typeArguments: Vec::new(),
                     }
-                };
-                DartType::Interface {
-                    nullability,
-                    classReference,
-                    typeArguments: Vec::new(),
+                } else {
+                    self.cachedSimpleInterfaceType(index, nullabilityIndex)?
                 }
             }
             Tag::SimpleFunctionType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let positionalParameters = self.readDartTypeList()?;
                 let returnType = Box::new(self.readDartType()?);
+                // `Nullability.values[...]` (or the cache of `void
+                // Function()`s, as long).
+                let nullability = self.enumValue(nullability, 3)?;
                 DartType::Function(Box::new(FunctionType {
                     nullability,
                     typeParameters: Vec::new(),
@@ -1901,30 +2343,33 @@ impl<'a> BinaryBuilder<'a> {
                 }))
             }
             Tag::InterfaceType => {
-                let nullability = self.readByte()? as u8;
-                let classReference = self.readNonNullCanonicalNameReference()?;
+                let nullability = self.readByte()?;
+                let classReference = self.readNonNullClassReference()?;
+                let typeArguments = self.readDartTypeList()?;
                 DartType::Interface {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     classReference,
-                    typeArguments: self.readDartTypeList()?,
+                    typeArguments,
                 }
             }
             Tag::VoidType => DartType::Void,
             Tag::TypeParameterType => {
-                let declaredNullability = self.readByte()? as u8;
+                let declaredNullability = self.readByte()?;
                 let index = self.readUInt30()? as usize;
-                match self.typeParameterStack.get(index) {
-                    Some(&parameter) => DartType::TypeParameter {
-                        declaredNullability,
-                        parameter,
-                    },
-                    None => return self.fail(format!("type parameter index {index} out of range")),
+                let parameter = match self.typeParameterStack.get(index) {
+                    Some(&parameter) => parameter,
+                    None => return self.indexFailure(index as i64, self.typeParameterStack.len()),
+                };
+                DartType::TypeParameter {
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
+                    parameter,
                 }
             }
             Tag::DynamicType => DartType::Dynamic,
             Tag::TypedefType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let typedefReference = Some(self.readNonNullCanonicalNameReference()?);
+                let nullability = self.enumValue(nullability, 3)?;
                 DartType::Typedef {
                     nullability,
                     typedefReference,
@@ -1932,17 +2377,20 @@ impl<'a> BinaryBuilder<'a> {
                 }
             }
             Tag::InvalidType => DartType::Invalid,
-            Tag::NeverType => DartType::Never {
-                nullability: self.readByte()? as u8,
-            },
+            Tag::NeverType => {
+                let nullability = self.readByte()?;
+                DartType::Never {
+                    nullability: self.enumValue(nullability, 3)?,
+                }
+            }
             Tag::NullType => DartType::Null,
             Tag::ExtensionType => {
-                let declaredNullability = self.readByte()? as u8;
-                let extensionTypeDeclarationReference = self.readNonNullCanonicalNameReference()?;
+                let declaredNullability = self.readByte()?;
+                let extensionTypeDeclarationReference = self.readNonNullExtensionTypeDeclarationReference()?;
                 let typeArguments = self.readDartTypeList()?;
                 let extensionTypeErasure = Box::new(self.readDartType()?);
                 DartType::Extension {
-                    declaredNullability,
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
                     extensionTypeDeclarationReference,
                     typeArguments,
                     extensionTypeErasure,
@@ -1950,7 +2398,7 @@ impl<'a> BinaryBuilder<'a> {
             }
             Tag::FunctionType => {
                 let typeParameterStackHeight = self.typeParameterStack.len();
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let typeParameters = self.readAndPushStructuralParameterList()?;
                 let requiredParameterCount = self.readUInt30()?;
                 let _totalParameterCount = self.readUInt30()?;
@@ -1959,7 +2407,7 @@ impl<'a> BinaryBuilder<'a> {
                 let returnType = Box::new(self.readDartType()?);
                 self.typeParameterStack.truncate(typeParameterStackHeight);
                 DartType::Function(Box::new(FunctionType {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     typeParameters,
                     requiredParameterCount,
                     positionalParameters,
@@ -1968,29 +2416,54 @@ impl<'a> BinaryBuilder<'a> {
                 }))
             }
             Tag::IntersectionType => {
-                let left = Box::new(self.readDartType()?);
+                let left = self.readDartType()?;
+                if !matches!(left, DartType::TypeParameter { .. }) || self.dartTypeRuntimeType(&left) != "TypeParameterType" {
+                    return self.castFailure(self.dartTypeRuntimeType(&left), "TypeParameterType");
+                }
                 let right = Box::new(self.readDartType()?);
-                DartType::Intersection { left, right }
+                DartType::Intersection {
+                    left: Box::new(left),
+                    right,
+                }
             }
             Tag::RecordType => {
-                let nullability = self.readByte()? as u8;
+                let nullability = self.readByte()?;
                 let positional = self.readDartTypeList()?;
                 let named = self.readNamedTypeList()?;
                 DartType::Record(Box::new(RecordType {
-                    nullability,
+                    nullability: self.enumValue(nullability, 3)?,
                     positional,
                     named,
                 }))
             }
             Tag::FutureOrType => {
-                let declaredNullability = self.readByte()? as u8;
+                let declaredNullability = self.readByte()?;
+                let typeArgument = Box::new(self.readDartType()?);
                 DartType::FutureOr {
-                    declaredNullability,
-                    typeArgument: Box::new(self.readDartType()?),
+                    declaredNullability: self.enumValue(declaredNullability, 3)?,
+                    typeArgument,
                 }
             }
             _ => return self.fail(format!("unexpected dart type tag: {tag}")),
         })
+    }
+
+    /// `_readSimpleInterfaceType` with a nullability index past the end:
+    /// upstream's cache key (`(index) * 3 + nullability`) can name a type
+    /// read before, which it returns; otherwise `Nullability.values` throws.
+    #[cold]
+    #[inline(never)]
+    fn cachedSimpleInterfaceType(&mut self, index: usize, nullabilityIndex: u32) -> Result<DartType> {
+        let key = index as u64 * 3 + nullabilityIndex as u64;
+        let (cachedIndex, cachedNullability) = ((key / 3) as usize, (key % 3) as u32);
+        if self.simpleInterfaceTypes.get(cachedIndex).is_some_and(|seen| seen & (1 << cachedNullability) != 0) {
+            return Ok(DartType::Interface {
+                nullability: cachedNullability as u8,
+                classReference: self.linkTable[cachedIndex],
+                typeArguments: Vec::new(),
+            });
+        }
+        self.indexFailure(nullabilityIndex as i64, 3)
     }
 
     /// `readAndPushTypeParameterList`: the parameters are on the stack
@@ -2014,6 +2487,9 @@ impl<'a> BinaryBuilder<'a> {
         };
         for i in 0..length {
             self.typeParameterStack.push(first + i);
+        }
+        if !keepAnnotations && length > 0 {
+            self.structuralRanges.push((first, length));
         }
         let mut parameters = Vec::with_capacity(self.cap(length as usize));
         for i in 0..length {
@@ -2044,6 +2520,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readExpressionList(&mut self) -> Result<Vec<Expression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut expressions = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             expressions.push(self.readExpression()?);
@@ -2077,6 +2554,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readNamedExpressionList(&mut self) -> Result<Vec<NamedExpression>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut named = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             let name = self.readStringReference()?;
@@ -2105,6 +2583,12 @@ impl<'a> BinaryBuilder<'a> {
             Tag::LoadLibrary | Tag::CheckLibraryIsLoaded => {
                 let fileOffset = self.readOffset()?;
                 let import = self.readUInt30()?;
+                // `_currentLibrary!.dependencies[index]`.
+                match self.currentLibraryDependencyCount {
+                    None => return self.nullCheckFailure(),
+                    Some(count) if import as usize >= count => return self.indexFailure(import as i64, count),
+                    Some(_) => {}
+                }
                 if tag == Tag::LoadLibrary {
                     Expression::LoadLibrary { fileOffset, import }
                 } else {
@@ -2139,7 +2623,7 @@ impl<'a> BinaryBuilder<'a> {
                         variable,
                         promotedType: None,
                     },
-                    None => return self.fail(format!("Unexpected variable index: {index}.")),
+                    None => return self.indexFailure(index as i64, self.variableStack.len()),
                 }
             }
             Tag::VariableSet => {
@@ -2157,7 +2641,7 @@ impl<'a> BinaryBuilder<'a> {
                 self.readUInt30()?; // offset of the variable declaration in the binary.
                 let variable = match self.variableStack.get(index) {
                     Some(&variable) => variable,
-                    None => return self.fail(format!("Unexpected variable index: {index}.")),
+                    None => return self.indexFailure(index as i64, self.variableStack.len()),
                 };
                 Expression::VariableSet {
                     fileOffset,
@@ -2572,6 +3056,7 @@ impl<'a> BinaryBuilder<'a> {
                     }
                 }
                 let assertCount = self.readUInt30()?;
+                self.dartList(assertCount as u64)?;
                 let mut asserts = Vec::with_capacity(self.cap(assertCount as usize));
                 for _ in 0..assertCount {
                     asserts.push(self.readStatement()?);
@@ -2720,6 +3205,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartType()?;
                 let valueType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let key = self.readExpression()?;
@@ -2758,7 +3244,7 @@ impl<'a> BinaryBuilder<'a> {
             Tag::FunctionExpression => {
                 let fileOffset = self.readOffset()?;
                 let id = self.readUInt30()?;
-                let (function, _) = self.readFunctionNode()?;
+                let (function, _) = self.readFunctionNode(false, -1)?;
                 Expression::FunctionExpression {
                     fileOffset,
                     id,
@@ -2827,6 +3313,7 @@ impl<'a> BinaryBuilder<'a> {
                 let expression = self.boxed()?;
                 let expressionType = self.readDartTypeOption()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut cases = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let fileOffset = self.readOffset()?;
@@ -2865,6 +3352,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readPatternList(&mut self) -> Result<Vec<Pattern>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut patterns = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             patterns.push(self.readPattern()?);
@@ -2974,6 +3462,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let invalidExpression = self.boxed()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut declaredVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     declaredVariables.push(*self.readAndPushVariable()?);
@@ -3027,6 +3516,7 @@ impl<'a> BinaryBuilder<'a> {
                 let keyType = self.readDartTypeOption()?;
                 let valueType = self.readDartTypeOption()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut entries = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     let tag = self.readByte()?;
@@ -3091,6 +3581,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let requiredType = self.readDartType()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut fields = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     match self.readPattern()? {
@@ -3112,6 +3603,7 @@ impl<'a> BinaryBuilder<'a> {
                 let left = Box::new(self.readPattern()?);
                 let right = Box::new(self.readPattern()?);
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut orPatternJointVariables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     orPatternJointVariables.push(self.readVariableReference()?);
@@ -3203,6 +3695,7 @@ impl<'a> BinaryBuilder<'a> {
 
     fn readStatementList(&mut self) -> Result<Vec<Statement>> {
         let length = self.readUInt30()?;
+        self.dartList(length as u64)?;
         let mut statements = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
             statements.push(self.readStatement()?);
@@ -3355,6 +3848,7 @@ impl<'a> BinaryBuilder<'a> {
                 let fileOffset = self.readOffset()?;
                 let scopeSize = self.readScopeSizeAndAllocateContexts()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut variables = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     variables.push(self.readVariableDeclaration()?);
@@ -3406,6 +3900,7 @@ impl<'a> BinaryBuilder<'a> {
                 for id in ids {
                     let fileOffset = self.readOffset()?;
                     let length = self.readUInt30()?;
+                    self.dartList(length as u64)?;
                     let mut expressionOffsets = Vec::with_capacity(self.cap(length as usize));
                     let mut expressions = Vec::with_capacity(self.cap(length as usize));
                     for _ in 0..length {
@@ -3446,6 +3941,7 @@ impl<'a> BinaryBuilder<'a> {
                 let body = self.boxedStatement()?;
                 let flags = self.readByte()?;
                 let length = self.readUInt30()?;
+                self.dartList(length as u64)?;
                 let mut catches = Vec::with_capacity(self.cap(length as usize));
                 for _ in 0..length {
                     catches.push(self.readCatch()?);
@@ -3481,7 +3977,7 @@ impl<'a> BinaryBuilder<'a> {
                 // Popped by the enclosing scope.
                 self.variableStack.push(variable.id);
                 let id = self.readUInt30()?;
-                let (function, _) = self.readFunctionNode()?;
+                let (function, _) = self.readFunctionNode(false, -1)?;
                 Statement::FunctionDeclaration {
                     fileOffset,
                     variable,
@@ -3908,5 +4404,58 @@ fn constantsEqual(a: &Constant, b: &Constant) -> bool {
             Constant::Instance { classReference: c2, typeArguments: t2, fieldValues: f2 },
         ) => c1 == c2 && t1 == t2 && sameMap(f1, f2),
         _ => a == b,
+    }
+}
+
+/// The `runtimeType` of a variable read with tag [kind].
+pub fn variableRuntimeType(kind: u32) -> &'static str {
+    match kind {
+        Tag::LocalVariable => "LocalVariable",
+        Tag::LateVariable => "LateVariable",
+        Tag::SyntheticVariable => "SyntheticVariable",
+        Tag::CatchVariable => "CatchVariable",
+        Tag::PositionalParameter => "PositionalParameter",
+        Tag::NamedParameter => "NamedParameter",
+        Tag::ThisVariable => "ThisVariable",
+        Tag::LocalFunctionVariable => "LocalFunctionVariable",
+        _ => "ConstVariable",
+    }
+}
+
+/// The `runtimeType` of a type, given which type parameters are
+/// structural ones.
+pub fn dartTypeRuntimeType(t: &DartType, isStructural: impl Fn(TypeParamId) -> bool) -> &'static str {
+    match t {
+        DartType::Never { .. } => "NeverType",
+        DartType::Invalid => "InvalidType",
+        DartType::Dynamic => "DynamicType",
+        DartType::Void => "VoidType",
+        DartType::Null => "NullType",
+        DartType::Interface { .. } => "InterfaceType",
+        DartType::Function(_) => "FunctionType",
+        DartType::Record(_) => "RecordType",
+        DartType::TypeParameter { parameter, .. } => {
+            if isStructural(*parameter) {
+                "StructuralParameterType"
+            } else {
+                "TypeParameterType"
+            }
+        }
+        DartType::Intersection { .. } => "IntersectionType",
+        DartType::Extension { .. } => "ExtensionType",
+        DartType::Typedef { .. } => "TypedefType",
+        DartType::FutureOr { .. } => "FutureOrType",
+    }
+}
+
+/// A string (WTF-8) as upstream's oracle prints it: UTF-8, each lone
+/// surrogate as U+FFFD (what `stdout`'s encoder does).
+pub fn wtf8ToString(bytes: &[u8]) -> String {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => text.to_string(),
+        Err(_) => match dart_core::uri::decodeWtf8(bytes) {
+            Ok(units) => String::from_utf16_lossy(&units),
+            Err(_) => String::from_utf8_lossy(bytes).into_owned(),
+        },
     }
 }
