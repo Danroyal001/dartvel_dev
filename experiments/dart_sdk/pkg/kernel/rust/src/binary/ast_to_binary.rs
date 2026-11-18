@@ -1362,7 +1362,7 @@ impl<'c> BinaryPrinter<'c> {
         self.writeName(&node.name)?;
         self.writeAnnotationList(&node.annotations)?;
         self.writeNullAllowedReference(node.stubTargetReference)?;
-        self.writeOptionalDartType(&node.signatureType)?;
+        self.writeOptionalDartType((&node.signatureType).as_ref())?;
         self.visitFunctionNode(&node.function)?;
         self.variableIndexer.reset();
         self.currentlyInNonimplementation = currentlyInNonimplementationSaved;
@@ -1460,7 +1460,7 @@ impl<'c> BinaryPrinter<'c> {
             self.writeVariable(p)?;
         }
         self.writeDartType(&node.returnType)?;
-        self.writeOptionalDartType(&node.emittedValueType)?;
+        self.writeOptionalDartType((&node.emittedValueType).as_ref())?;
         match &node.redirectingFactoryTarget {
             None => self.writeByte(Tag::Nothing),
             Some(target) => {
@@ -1567,7 +1567,7 @@ impl<'c> BinaryPrinter<'c> {
         Ok(())
     }
 
-    fn writeOptionalDartType(&mut self, t: &Option<DartType>) -> Result<()> {
+    fn writeOptionalDartType(&mut self, t: Option<&DartType>) -> Result<()> {
         match t {
             None => self.writeByte(Tag::Nothing),
             Some(t) => {
@@ -1660,14 +1660,15 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeByte(*declaredNullability as u32);
                 self.writeDartType(typeArgument)?;
             }
-            DartType::Function {
+            DartType::Function(function) => {
+                let FunctionType {
                 nullability,
                 typeParameters,
                 requiredParameterCount,
                 positionalParameters,
                 namedParameters,
                 returnType,
-            } => {
+            } = &**function;
                 if *requiredParameterCount as usize == positionalParameters.len()
                     && typeParameters.is_empty()
                     && namedParameters.is_empty()
@@ -1689,11 +1690,12 @@ impl<'c> BinaryPrinter<'c> {
                     self.exitParameters(typeParameters);
                 }
             }
-            DartType::Record {
+            DartType::Record(record) => {
+                let RecordType {
                 nullability,
                 positional,
                 named,
-            } => {
+            } = &**record;
                 self.writeByte(Tag::RecordType);
                 self.writeByte(*nullability as u32);
                 self.writeDartTypeList(positional)?;
@@ -2219,7 +2221,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeExpression(condition)?;
                 self.writeExpression(then)?;
                 self.writeExpression(otherwise)?;
-                self.writeOptionalDartType(staticType)?;
+                self.writeOptionalDartType(staticType.as_deref())?;
             }
             Expression::StringConcatenation {
                 fileOffset,
@@ -2445,7 +2447,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeByte(Tag::AwaitExpression);
                 self.writeOffset(*fileOffset);
                 self.writeExpression(operand)?;
-                self.writeOptionalDartType(runtimeCheckType)?;
+                self.writeOptionalDartType(runtimeCheckType.as_deref())?;
             }
             Expression::FunctionExpression {
                 fileOffset,
@@ -2546,14 +2548,14 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeByte(Tag::SwitchExpression);
                 self.writeOffset(*fileOffset);
                 self.writeExpression(expression)?;
-                self.writeOptionalDartType(expressionType)?;
+                self.writeOptionalDartType(expressionType.as_deref())?;
                 self.writeUInt30(cases.len() as u32);
                 for case in cases {
                     self.writeOffset(case.fileOffset);
                     self.writePatternGuard(&case.patternGuard)?;
                     self.writeExpression(&case.expression)?;
                 }
-                self.writeOptionalDartType(staticType)?;
+                self.writeOptionalDartType(staticType.as_deref())?;
             }
             Expression::PatternAssignment {
                 fileOffset,
@@ -2602,8 +2604,8 @@ impl<'c> BinaryPrinter<'c> {
         self.writeName(&node.fieldName)?;
         self.writeByte(node.accessKind as u32);
         self.writeNullAllowedReference(node.targetReference)?;
-        self.writeOptionalDartType(&node.resultType)?;
-        self.writeOptionalDartType(&node.recordType)?;
+        self.writeOptionalDartType((&node.resultType).as_ref())?;
+        self.writeOptionalDartType((&node.recordType).as_ref())?;
         self.writeUInt30(node.recordFieldIndex);
         match &node.typeArguments {
             None => self.writeByte(Tag::Nothing),
@@ -2705,7 +2707,7 @@ impl<'c> BinaryPrinter<'c> {
             } => {
                 self.writeByte(Tag::ListPattern);
                 self.writeOffset(*fileOffset);
-                self.writeOptionalDartType(typeArgument)?;
+                self.writeOptionalDartType((typeArgument).as_ref())?;
                 self.writePatternList(patterns)?;
                 self.writeDartType(requiredType)?;
                 self.writeDartType(matchedValueType)?;
@@ -2738,8 +2740,8 @@ impl<'c> BinaryPrinter<'c> {
             } => {
                 self.writeByte(Tag::MapPattern);
                 self.writeOffset(*fileOffset);
-                self.writeOptionalDartType(keyType)?;
-                self.writeOptionalDartType(valueType)?;
+                self.writeOptionalDartType((keyType).as_ref())?;
+                self.writeOptionalDartType((valueType).as_ref())?;
                 self.writeUInt30(entries.len() as u32);
                 for entry in entries {
                     match entry {
@@ -2753,7 +2755,7 @@ impl<'c> BinaryPrinter<'c> {
                             self.writeOffset(*fileOffset);
                             self.writeExpression(key)?;
                             self.writePattern(value)?;
-                            self.writeOptionalDartType(keyType)?;
+                            self.writeOptionalDartType((keyType).as_ref())?;
                         }
                         MapPatternEntry::Rest { fileOffset } => {
                             self.writeByte(Tag::MapPatternRestEntry);
@@ -2868,7 +2870,7 @@ impl<'c> BinaryPrinter<'c> {
                         self.writeDartTypeList(types)?;
                     }
                 }
-                self.writeOptionalDartType(functionType)?;
+                self.writeOptionalDartType((functionType).as_ref())?;
             }
             Pattern::Rest {
                 fileOffset,
@@ -2892,14 +2894,14 @@ impl<'c> BinaryPrinter<'c> {
             } => {
                 self.writeByte(Tag::VariablePattern);
                 self.writeOffset(*fileOffset);
-                self.writeOptionalDartType(r#type)?;
+                self.writeOptionalDartType((r#type).as_ref())?;
                 self.writeVariable(variable)?;
                 self.writeDartType(matchedValueType)?;
             }
             Pattern::Wildcard { fileOffset, r#type } => {
                 self.writeByte(Tag::WildcardPattern);
                 self.writeOffset(*fileOffset);
-                self.writeOptionalDartType(r#type)?;
+                self.writeOptionalDartType((r#type).as_ref())?;
             }
         }
         Ok(())
@@ -3066,7 +3068,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeOffset(*fileOffset);
                 self.writeByte(u32::from(*isExplicitlyExhaustive));
                 self.writeExpression(expression)?;
-                self.writeOptionalDartType(expressionType)?;
+                self.writeOptionalDartType((expressionType).as_ref())?;
                 self.writeUInt30(cases.len() as u32);
                 for case in cases {
                     self.writeOffset(case.fileOffset);
@@ -3219,7 +3221,7 @@ impl<'c> BinaryPrinter<'c> {
                 self.writeByte(Tag::PatternSwitchStatement);
                 self.writeOffset(*fileOffset);
                 self.writeExpression(expression)?;
-                self.writeOptionalDartType(expressionType)?;
+                self.writeOptionalDartType((expressionType).as_ref())?;
                 self.writeUInt30(cases.len() as u32);
                 for case in cases {
                     self.writeUInt30(case.jointVariableDeclarations.len() as u32);

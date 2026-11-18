@@ -1397,14 +1397,14 @@ impl<'a> BinaryBuilder<'a> {
                 let nullability = self.readByte()? as u8;
                 let positionalParameters = self.readDartTypeList()?;
                 let returnType = Box::new(self.readDartType()?);
-                DartType::Function {
+                DartType::Function(Box::new(FunctionType {
                     nullability,
                     typeParameters: Vec::new(),
                     requiredParameterCount: positionalParameters.len() as u32,
                     positionalParameters,
                     namedParameters: Vec::new(),
                     returnType,
-                }
+                }))
             }
             Tag::InterfaceType => {
                 let nullability = self.readByte()? as u8;
@@ -1464,14 +1464,14 @@ impl<'a> BinaryBuilder<'a> {
                 let namedParameters = self.readNamedTypeList()?;
                 let returnType = Box::new(self.readDartType()?);
                 self.typeParameterStack.truncate(typeParameterStackHeight);
-                DartType::Function {
+                DartType::Function(Box::new(FunctionType {
                     nullability,
                     typeParameters,
                     requiredParameterCount,
                     positionalParameters,
                     namedParameters,
                     returnType,
-                }
+                }))
             }
             Tag::IntersectionType => {
                 let left = Box::new(self.readDartType()?);
@@ -1482,11 +1482,11 @@ impl<'a> BinaryBuilder<'a> {
                 let nullability = self.readByte()? as u8;
                 let positional = self.readDartTypeList()?;
                 let named = self.readNamedTypeList()?;
-                DartType::Record {
+                DartType::Record(Box::new(RecordType {
                     nullability,
                     positional,
                     named,
-                }
+                }))
             }
             Tag::FutureOrType => {
                 let declaredNullability = self.readByte()? as u8;
@@ -1671,7 +1671,7 @@ impl<'a> BinaryBuilder<'a> {
                         fileOffset,
                         receiver,
                         name,
-                        resultType,
+                        resultType: Box::new(resultType),
                         interfaceTarget,
                     }
                 } else {
@@ -1680,7 +1680,7 @@ impl<'a> BinaryBuilder<'a> {
                         fileOffset,
                         receiver,
                         name,
-                        resultType,
+                        resultType: Box::new(resultType),
                         interfaceTarget,
                     }
                 }
@@ -1703,7 +1703,7 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::RecordIndexGet {
                     fileOffset,
                     receiver,
-                    receiverType,
+                    receiverType: Box::new(receiverType),
                     index: self.readUInt30()?,
                 }
             }
@@ -1714,7 +1714,7 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::RecordNameGet {
                     fileOffset,
                     receiver,
-                    receiverType,
+                    receiverType: Box::new(receiverType),
                     name: self.readStringReference()?,
                 }
             }
@@ -1838,9 +1838,9 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     receiver,
                     name,
-                    arguments,
-                    functionType,
-                    resultType,
+                    arguments: Box::new(arguments),
+                    functionType: Box::new(functionType),
+                    resultType: Box::new(resultType),
                     interfaceTarget: self.readNonNullInstanceMemberReference()?,
                 }
             }
@@ -1858,8 +1858,8 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     receiver,
                     name,
-                    arguments,
-                    functionType,
+                    arguments: Box::new(arguments),
+                    functionType: Box::new(functionType),
                     interfaceTarget: self.readNonNullInstanceMemberReference()?,
                 }
             }
@@ -1875,7 +1875,7 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     receiver,
                     name,
-                    arguments: self.readArguments()?,
+                    arguments: Box::new(self.readArguments()?),
                 }
             }
             Tag::FunctionInvocation => {
@@ -1887,8 +1887,8 @@ impl<'a> BinaryBuilder<'a> {
                     kind,
                     fileOffset,
                     receiver,
-                    arguments,
-                    functionType: self.readDartType()?,
+                    arguments: Box::new(arguments),
+                    functionType: Box::new(self.readDartType()?),
                 }
             }
             Tag::FunctionTearOff => {
@@ -1905,8 +1905,8 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::LocalFunctionInvocation {
                     fileOffset,
                     variable,
-                    arguments,
-                    functionType: self.readDartType()?,
+                    arguments: Box::new(arguments),
+                    functionType: Box::new(self.readDartType()?),
                 }
             }
             Tag::EqualsNull => {
@@ -1925,7 +1925,7 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     left,
                     right,
-                    functionType,
+                    functionType: Box::new(functionType),
                     interfaceTarget: self.readNonNullInstanceMemberReference()?,
                 }
             }
@@ -1939,7 +1939,7 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     receiver,
                     name,
-                    arguments,
+                    arguments: Box::new(arguments),
                     interfaceTarget: self.readNonNullInstanceMemberReference()?,
                 }
             }
@@ -1950,7 +1950,7 @@ impl<'a> BinaryBuilder<'a> {
                     isConst: tag == Tag::ConstStaticInvocation,
                     fileOffset,
                     targetReference,
-                    arguments: self.readArguments()?,
+                    arguments: Box::new(self.readArguments()?),
                 }
             }
             Tag::ConstructorInvocation | Tag::ConstConstructorInvocation => {
@@ -1960,7 +1960,7 @@ impl<'a> BinaryBuilder<'a> {
                     isConst: tag == Tag::ConstConstructorInvocation,
                     fileOffset,
                     targetReference,
-                    arguments: self.readArguments()?,
+                    arguments: Box::new(self.readArguments()?),
                 }
             }
             Tag::RedirectingFactoryInvocation => {
@@ -2010,7 +2010,7 @@ impl<'a> BinaryBuilder<'a> {
                     condition,
                     then,
                     otherwise,
-                    staticType: self.readDartTypeOption()?,
+                    staticType: self.readDartTypeOption()?.map(Box::new),
                 }
             }
             Tag::StringConcatenation => {
@@ -2025,7 +2025,7 @@ impl<'a> BinaryBuilder<'a> {
                 let typeArgument = self.readDartType()?;
                 Expression::ListConcatenation {
                     fileOffset,
-                    typeArgument,
+                    typeArgument: Box::new(typeArgument),
                     lists: self.readExpressionList()?,
                 }
             }
@@ -2034,7 +2034,7 @@ impl<'a> BinaryBuilder<'a> {
                 let typeArgument = self.readDartType()?;
                 Expression::SetConcatenation {
                     fileOffset,
-                    typeArgument,
+                    typeArgument: Box::new(typeArgument),
                     sets: self.readExpressionList()?,
                 }
             }
@@ -2044,8 +2044,8 @@ impl<'a> BinaryBuilder<'a> {
                 let valueType = self.readDartType()?;
                 Expression::MapConcatenation {
                     fileOffset,
-                    keyType,
-                    valueType,
+                    keyType: Box::new(keyType),
+                    valueType: Box::new(valueType),
                     maps: self.readExpressionList()?,
                 }
             }
@@ -2194,7 +2194,7 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::ListLiteral {
                     isConst: tag == Tag::ConstListLiteral,
                     fileOffset,
-                    typeArgument,
+                    typeArgument: Box::new(typeArgument),
                     expressions: self.readExpressionList()?,
                 }
             }
@@ -2204,7 +2204,7 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::SetLiteral {
                     isConst: tag == Tag::ConstSetLiteral,
                     fileOffset,
-                    typeArgument,
+                    typeArgument: Box::new(typeArgument),
                     expressions: self.readExpressionList()?,
                 }
             }
@@ -2222,8 +2222,8 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::MapLiteral {
                     isConst: tag == Tag::ConstMapLiteral,
                     fileOffset,
-                    keyType,
-                    valueType,
+                    keyType: Box::new(keyType),
+                    valueType: Box::new(valueType),
                     entries,
                 }
             }
@@ -2236,7 +2236,7 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     positional,
                     named,
-                    recordType: self.readDartType()?,
+                    recordType: Box::new(self.readDartType()?),
                 }
             }
             Tag::AwaitExpression => {
@@ -2245,7 +2245,7 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::AwaitExpression {
                     fileOffset,
                     operand,
-                    runtimeCheckType: self.readDartTypeOption()?,
+                    runtimeCheckType: self.readDartTypeOption()?.map(Box::new),
                 }
             }
             Tag::FunctionExpression => {
@@ -2334,9 +2334,9 @@ impl<'a> BinaryBuilder<'a> {
                 Expression::SwitchExpression {
                     fileOffset,
                     expression,
-                    expressionType,
+                    expressionType: expressionType.map(Box::new),
                     cases,
-                    staticType: self.readDartTypeOption()?,
+                    staticType: self.readDartTypeOption()?.map(Box::new),
                 }
             }
             Tag::PatternAssignment => {
@@ -2347,7 +2347,7 @@ impl<'a> BinaryBuilder<'a> {
                     fileOffset,
                     pattern,
                     expression,
-                    matchedValueType: self.readDartType()?,
+                    matchedValueType: Box::new(self.readDartType()?),
                 }
             }
             _ => return self.fail(format!("unexpected expression tag: {tagByte}")),

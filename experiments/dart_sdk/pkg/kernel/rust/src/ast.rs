@@ -500,19 +500,19 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        resultType: DartType,
+        resultType: Box<DartType>,
         interfaceTarget: InterfaceTarget,
     },
     RecordIndexGet {
         fileOffset: Offset,
         receiver: Box<Expression>,
-        receiverType: DartType,
+        receiverType: Box<DartType>,
         index: u32,
     },
     RecordNameGet {
         fileOffset: Offset,
         receiver: Box<Expression>,
-        receiverType: DartType,
+        receiverType: Box<DartType>,
         name: StrId,
     },
     InstanceSet {
@@ -528,7 +528,7 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        resultType: DartType,
+        resultType: Box<DartType>,
         interfaceTarget: InterfaceTarget,
     },
     DynamicGet {
@@ -577,9 +577,9 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        arguments: Arguments,
-        functionType: DartType,
-        resultType: DartType,
+        arguments: Box<Arguments>,
+        functionType: Box<DartType>,
+        resultType: Box<DartType>,
         interfaceTarget: InterfaceTarget,
     },
     InstanceGetterInvocation {
@@ -588,9 +588,9 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
         /// `DynamicType` stands for a missing function type.
-        functionType: DartType,
+        functionType: Box<DartType>,
         interfaceTarget: InterfaceTarget,
     },
     DynamicInvocation {
@@ -599,15 +599,15 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
     },
     FunctionInvocation {
         kind: u8,
         fileOffset: Offset,
         receiver: Box<Expression>,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
         /// `DynamicType` stands for a missing function type.
-        functionType: DartType,
+        functionType: Box<DartType>,
     },
     FunctionTearOff {
         fileOffset: Offset,
@@ -616,8 +616,8 @@ pub enum Expression {
     LocalFunctionInvocation {
         fileOffset: Offset,
         variable: VarId,
-        arguments: Arguments,
-        functionType: DartType,
+        arguments: Box<Arguments>,
+        functionType: Box<DartType>,
     },
     EqualsNull {
         fileOffset: Offset,
@@ -627,7 +627,7 @@ pub enum Expression {
         fileOffset: Offset,
         left: Box<Expression>,
         right: Box<Expression>,
-        functionType: DartType,
+        functionType: Box<DartType>,
         interfaceTarget: InterfaceTarget,
     },
     /// AbstractSuperMethodInvocation (abstract) and SuperMethodInvocation.
@@ -636,20 +636,20 @@ pub enum Expression {
         fileOffset: Offset,
         receiver: Box<Expression>,
         name: Name,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
         interfaceTarget: InterfaceTarget,
     },
     StaticInvocation {
         isConst: bool,
         fileOffset: Offset,
         targetReference: CnId,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
     },
     ConstructorInvocation {
         isConst: bool,
         fileOffset: Offset,
         targetReference: CnId,
-        arguments: Arguments,
+        arguments: Box<Arguments>,
     },
     RedirectingFactoryInvocation {
         fileOffset: Offset,
@@ -675,7 +675,7 @@ pub enum Expression {
         condition: Box<Expression>,
         then: Box<Expression>,
         otherwise: Box<Expression>,
-        staticType: Option<DartType>,
+        staticType: Option<Box<DartType>>,
     },
     StringConcatenation {
         fileOffset: Offset,
@@ -683,18 +683,18 @@ pub enum Expression {
     },
     ListConcatenation {
         fileOffset: Offset,
-        typeArgument: DartType,
+        typeArgument: Box<DartType>,
         lists: Vec<Expression>,
     },
     SetConcatenation {
         fileOffset: Offset,
-        typeArgument: DartType,
+        typeArgument: Box<DartType>,
         sets: Vec<Expression>,
     },
     MapConcatenation {
         fileOffset: Offset,
-        keyType: DartType,
-        valueType: DartType,
+        keyType: Box<DartType>,
+        valueType: Box<DartType>,
         maps: Vec<Expression>,
     },
     InstanceCreation {
@@ -762,20 +762,20 @@ pub enum Expression {
     ListLiteral {
         isConst: bool,
         fileOffset: Offset,
-        typeArgument: DartType,
+        typeArgument: Box<DartType>,
         expressions: Vec<Expression>,
     },
     SetLiteral {
         isConst: bool,
         fileOffset: Offset,
-        typeArgument: DartType,
+        typeArgument: Box<DartType>,
         expressions: Vec<Expression>,
     },
     MapLiteral {
         isConst: bool,
         fileOffset: Offset,
-        keyType: DartType,
-        valueType: DartType,
+        keyType: Box<DartType>,
+        valueType: Box<DartType>,
         entries: Vec<MapLiteralEntry>,
     },
     RecordLiteral {
@@ -783,12 +783,12 @@ pub enum Expression {
         fileOffset: Offset,
         positional: Vec<Expression>,
         named: Vec<NamedExpression>,
-        recordType: DartType,
+        recordType: Box<DartType>,
     },
     AwaitExpression {
         fileOffset: Offset,
         operand: Box<Expression>,
-        runtimeCheckType: Option<DartType>,
+        runtimeCheckType: Option<Box<DartType>>,
     },
     FunctionExpression {
         fileOffset: Offset,
@@ -833,15 +833,15 @@ pub enum Expression {
     SwitchExpression {
         fileOffset: Offset,
         expression: Box<Expression>,
-        expressionType: Option<DartType>,
+        expressionType: Option<Box<DartType>>,
         cases: Vec<SwitchExpressionCase>,
-        staticType: Option<DartType>,
+        staticType: Option<Box<DartType>>,
     },
     PatternAssignment {
         fileOffset: Offset,
         pattern: Box<Pattern>,
         expression: Box<Expression>,
-        matchedValueType: DartType,
+        matchedValueType: Box<DartType>,
     },
 }
 
@@ -1203,19 +1203,10 @@ pub enum DartType {
         classReference: CnId,
         typeArguments: Vec<DartType>,
     },
-    Function {
-        nullability: u8,
-        typeParameters: Vec<TypeParameter>,
-        requiredParameterCount: u32,
-        positionalParameters: Vec<DartType>,
-        namedParameters: Vec<NamedType>,
-        returnType: Box<DartType>,
-    },
-    Record {
-        nullability: u8,
-        positional: Vec<DartType>,
-        named: Vec<NamedType>,
-    },
+    /// Boxed: function and record types are the largest variants, and a
+    /// type is stored inline in many nodes.
+    Function(Box<FunctionType>),
+    Record(Box<RecordType>),
     /// `TypeParameterType` and `StructuralParameterType`.
     TypeParameter {
         declaredNullability: u8,
@@ -1240,6 +1231,25 @@ pub enum DartType {
         declaredNullability: u8,
         typeArgument: Box<DartType>,
     },
+}
+
+/// `FunctionType`'s fields (see [`DartType::Function`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionType {
+    pub nullability: u8,
+    pub typeParameters: Vec<TypeParameter>,
+    pub requiredParameterCount: u32,
+    pub positionalParameters: Vec<DartType>,
+    pub namedParameters: Vec<NamedType>,
+    pub returnType: Box<DartType>,
+}
+
+/// `RecordType`'s fields (see [`DartType::Record`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordType {
+    pub nullability: u8,
+    pub positional: Vec<DartType>,
+    pub named: Vec<NamedType>,
 }
 
 /// `Constant`. Constants refer to other constants by id.
