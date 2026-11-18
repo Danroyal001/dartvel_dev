@@ -114,6 +114,31 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
+## Per-request cost, counted in instructions (18 November 2026, afternoon)
+
+Requests per second on this shared machine move by up to 2x between trials,
+which hides a change worth a few percent. User-space instructions per
+request do not move with load, so this round measured those: `perf stat -e
+instructions:u` on the server process during a 5 s, 64-connection oha run of
+`/plaintext`, divided by the requests answered, three alternating runs, the
+same native library under both Dart sides.
+
+| server | instructions per plaintext request (three runs) |
+|---|---|
+| `relic_native`, one isolate | 19,892 / 20,637 / 20,600 |
+| dartvel_shelf, main (#277) | 37,604 / 38,242 / 37,879 |
+| dartvel_shelf, this change | 35,832 / 35,151 / 36,389 |
+
+The change (a request with no body gets no body stream; `Router.measure`
+without its tracing closures when nothing traces; method names not
+allocated) takes off about 5%. Relic's server spends a little over half of
+what this one does. By the profiles, the rest is on both sides: the Dart
+side of a request (about 18,000 here against about 13,000 in Relic: the
+request and response objects, the router's measuring, the async calls
+between them) and the native one (about 12,000 against about 7,000: Tokio's
+scheduling, the request and answer tables, copies). Closing it is the work
+still ahead, with a lean WebSocket path.
+
 ## WebSocket round (18 November 2026, 10:00-11:00)
 
 **What changed:** `sink.addStream` no longer awaits each frame. Awaiting

@@ -835,6 +835,8 @@ const int AW_FLAG_SHARED = 2;
 
 const int AW_FLAG_DRIVEN = 4;
 
+const int AW_BODY_NONE = 2;
+
 const int AW_BODY_CHUNK = 0;
 
 const int AW_BODY_END = 1;

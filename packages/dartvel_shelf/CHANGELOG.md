@@ -1,5 +1,7 @@
 ## Unreleased
 
+- A request with no body (most GETs) is marked so by the native side (`AW_BODY_NONE`) and gets no body stream, pull object or table entry in Dart; common method names are not allocated per request. About 5% fewer instructions per plaintext request.
+
 - A WebSocket burst reaches Dart whole on a loaded machine too: the native reader wakes the isolate when it would block or the queue is full rather than at a burst's first frame, a drain keeps taking while the reader is partway through a burst, and `sink.addStream` pauses only when the native queue is full.
 
 - WebSocket `sink.addStream` takes frames from its source while the native queue has room and pauses only when it is full; it awaited each frame, so every frame was drained, queued and written on its own (a burst of 1,000 cost 1,000 writes, now a few). Same order, same completion, same errors.

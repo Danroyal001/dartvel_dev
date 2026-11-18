@@ -316,7 +316,8 @@ async fn serve_fast<W: AsyncWrite + Unpin>(
         target: ffi_str(&head[fast.target.clone()]),
         hdrs: flat.as_ptr(),
         hdrs_len: flat.len(),
-        body: FfiBuf { ptr: std::ptr::null(), len: 0 },
+        // A fast request never has a body.
+        body: FfiBuf { ptr: super::AW_BODY_NONE as *const u8, len: 0 },
         peer: ffi_str(peer),
     };
     let accept_encoding = if lean.compression {
