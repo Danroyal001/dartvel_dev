@@ -36,6 +36,15 @@
 #define AW_FLAG_DRIVEN 4
 
 /**
+ * The address a request's body buffer carries, with length 0, when the
+ * request has no body at all: Dart then makes no body stream for it. Never
+ * read from. Not 1: that is the address an empty byte buffer carries (the
+ * alignment of a byte), which is what a streamed body passes. No real
+ * buffer lies below 4096. An older Dart reads it as an empty body.
+ */
+#define AW_BODY_NONE 2
+
+/**
  * A chunk of the request body [req_id] is here.
  */
 #define AW_BODY_CHUNK 0
