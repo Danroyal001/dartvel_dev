@@ -508,6 +508,25 @@ The table is the contract. Each row says which entries a target has, what
   visitors took the site for broken, so it was removed from the framework. A
   pubspec that still sets `dartvel.web.firstFrame` (true, false or a map)
   builds, with one warning that the key is ignored and can be deleted.
+- **SSR-first (opt-in).** `dartvel.web.ssrFirst: true` shows each page's
+  server-rendered document (the `.dv-fallback` block both the static build
+  and the web server write, through the one render path) as the page from
+  the first paint, instead of the splash. The build writes a style and a
+  handover script into the shell's head; a page made from that shell carries
+  its document first in the body, so the browser never paints the splash
+  over it, and a page with no document keeps the splash. The document is its
+  own fixed scroller above the Flutter view and below the loading bar, in
+  the splash's colours (`splash.color`/`splash.darkColor`, so the app's
+  page colours, light and dark), with links in `splash.progressColor` where
+  that reads at 4.5:1. Its links are normal navigations; selection, find,
+  Tab and screen readers work on it while the engine boots. At
+  `dartvel-first-frame` the script waits for a selection inside it to end
+  (at most 10 s), reveals the section at the top of the screen if the reader
+  had scrolled (the find runtime then scrolls the app there), moves focus
+  off it, fades it out over 200 ms (none with reduced motion) and marks
+  `<html data-dv-app>`, which puts it back in the clipped box for find,
+  crawlers and print. Off by default: with it off every page is byte for
+  byte what it was.
 - **The splash and its bar on a device too.** On Android, iOS, macOS, Windows
   and Linux the launch screen the platform draws stays up until Flutter's first
   frame, and nothing can move on it. `DV.run` draws the application's own
