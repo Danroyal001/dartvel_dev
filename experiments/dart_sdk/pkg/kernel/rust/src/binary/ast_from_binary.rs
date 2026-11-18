@@ -316,6 +316,16 @@ impl<'a> BinaryBuilder<'a> {
         self.readStringEntry(numBytes)
     }
 
+    /// `Uri.parse(readString())`: the URI as upstream writes it back
+    /// (`"$uri"`, normalised), or what `Uri.parse` throws.
+    fn readUri(&mut self) -> Result<Box<[u8]>> {
+        let text = self.readString()?;
+        match dart_core::uri::parseUriToStringWtf8(&text) {
+            Ok(normalised) => Ok(normalised.into()),
+            Err(thrown) => self.thrown(thrown),
+        }
+    }
+
     /// `readStringEntry`: [numBytes] bytes of WTF-8, as upstream's string
     /// would write them again: upstream decodes them trusting they are
     /// valid, and its writer encodes the result, so for damaged bytes this
@@ -753,7 +763,8 @@ impl<'a> BinaryBuilder<'a> {
         self.dartList(length as u64)?;
         self.sourceUriTable = Vec::with_capacity(self.cap(length as usize));
         for _ in 0..length {
-            let uriString = self.readString()?;
+            // `Uri.parse(readString())`, written back as `"$uri"`.
+            let uriString = self.readUri()?;
             let uri = self.component.uris.intern(&uriString);
             self.sourceUriTable.push(uri);
             // Upstream views the input unless lazy reading is off (a
@@ -774,7 +785,7 @@ impl<'a> BinaryBuilder<'a> {
                 lineStarts.push(lineStart);
                 previousLineStart = lineStart;
             }
-            let importUri = self.readString()?;
+            let importUri = self.readUri()?;
             let constructorCoverageCount = self.readUInt30()?;
             let mut coverage = Vec::with_capacity(self.cap(constructorCoverageCount as usize));
             for _ in 0..constructorCoverageCount {
@@ -1128,6 +1139,15 @@ impl<'a> BinaryBuilder<'a> {
         let reference = self.readNonNullCanonicalNameReference()?;
         let name = self.readStringReference()?;
         let fileUri = self.readUriReference()?;
+        // A library read for the first time is made with
+        // `Uri.parse(canonicalName.name)`, which can throw.
+        let readBefore = self.laterComponent && self.component.libraries.iter().any(|l| l.reference == reference);
+        if !readBefore {
+            let text = self.component.strings.get(self.component.names.name(reference));
+            if let Err(thrown) = dart_core::uri::parseUriToStringWtf8(text) {
+                return self.thrown(thrown);
+            }
+        }
         let problemsAsJson = self.readListOfStrings()?;
         let annotations = self.readAnnotationList()?;
 
