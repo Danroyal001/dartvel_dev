@@ -119,9 +119,13 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
   final List<DVModuleCodeUse> unresolved = <DVModuleCodeUse>[];
 
   final List<String> paths = files.keys.toList()..sort();
+  final Map<String, DVDartSourceView> views = <String, DVDartSourceView>{
+    for (final String path in paths) path: dvDartSourceView(files[path]!),
+  };
+  final Map<String, String> constants = _moduleConstants(views.values);
   for (final String path in paths) {
     final String source = files[path]!;
-    final DVDartSourceView view = dvDartSourceView(source);
+    final DVDartSourceView view = views[path]!;
     int lineOf(int offset) =>
         '\n'.allMatches(source.substring(0, offset)).length + 1;
     void unresolvedAt(int offset, String what) => unresolved.add(
@@ -129,19 +133,19 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
     );
 
     for (final RegExpMatch m in dvSecretReadCall.allMatches(view.masked)) {
-      final String? name = dvDartStringLiteralAt(view.code, m.end);
-      if (name == null || name.isEmpty) {
+      final List<String>? names = _valuesAt(view, m.end, constants);
+      if (names == null || names.any((String n) => n.isEmpty)) {
         unresolvedAt(m.start, 'a secret named at runtime');
       } else {
-        secrets.add(name);
+        secrets.addAll(names);
       }
     }
     for (final RegExpMatch m in _bearerSecret.allMatches(view.masked)) {
-      final String? name = dvDartStringLiteralAt(view.code, m.end);
-      if (name == null || name.isEmpty) {
+      final List<String>? names = _valuesAt(view, m.end, constants);
+      if (names == null || names.any((String n) => n.isEmpty)) {
         unresolvedAt(m.start, 'a bearer secret named at runtime');
       } else {
-        secrets.add(name);
+        secrets.addAll(names);
       }
     }
 
@@ -158,12 +162,14 @@ DVModuleCodeAnalysis dvAnalyseModuleSources(
     }
     for (final RegExpMatch m in _baseUrl.allMatches(view.masked)) {
       if (_registersGeneratedBackend(view.masked, m.start, m.end)) continue;
-      final String? url = dvDartStringLiteralAt(view.code, m.end);
-      final String? host = url == null ? null : _hostOf(url);
-      if (host == null) {
+      final List<String>? urls = _valuesAt(view, m.end, constants);
+      final List<String?> hosts = <String?>[
+        for (final String url in urls ?? const <String>[]) _hostOf(url),
+      ];
+      if (urls == null || hosts.contains(null)) {
         unresolvedAt(m.start, 'egress to a base URL built at runtime');
       } else {
-        egress.add(host);
+        egress.addAll(hosts.whereType<String>());
       }
     }
 
@@ -365,4 +371,102 @@ Map<Object?, Object?> dvModuleDartvelSection(String root) {
   } on Object {
     return const <Object?, Object?>{};
   }
+}
+
+final RegExp _constString = RegExp(
+  r'\bconst\s+String\s+([A-Za-z_$][\w$]*)\s*=',
+);
+final RegExp _identifierArgument = RegExp(
+  r'^\s*(?:([A-Z][\w$]*)\s*\.\s*)?([A-Za-z_$][\w$]*)\s*(?=[,)\]}]|$)',
+);
+final RegExp _choiceArgument = RegExp(
+  r'^\s*[\w$.!\s]+?\?\s*(?:([A-Z][\w$]*)\s*\.\s*)?([A-Za-z_$][\w$]*)\s*:'
+  r'\s*(?:([A-Z][\w$]*)\s*\.\s*)?([A-Za-z_$][\w$]*)\s*(?=[,)\]}])',
+);
+
+/// Words that may stand before a name without declaring it.
+const Set<String> _notDeclarations = <String>{
+  'return', 'await', 'yield', 'throw', 'else', 'case', 'in', 'is', 'as',
+  'new', 'assert', 'const', 'default', 'do', 'when', 'and', 'or', 'not',
+};
+
+/// The `const String` names the module declares with a plain literal, and
+/// nowhere declares again.
+///
+/// A name read at a call is trusted only when the module gives it exactly
+/// one meaning: one literal value, however many constants of that name say
+/// it, and no parameter, variable, field or getter of the same name anywhere
+/// in the module that could stand in for it inside some scope. Anything else
+/// leaves the use unresolved, as a name read at runtime always was.
+Map<String, String> _moduleConstants(Iterable<DVDartSourceView> views) {
+  final Map<String, Set<String>> values = <String, Set<String>>{};
+  final Set<String> refused = <String>{};
+  final Map<String, int> constDeclarations = <String, int>{};
+  for (final DVDartSourceView view in views) {
+    for (final RegExpMatch m in _constString.allMatches(view.masked)) {
+      final String name = m.group(1)!;
+      constDeclarations[name] = (constDeclarations[name] ?? 0) + 1;
+      final String? literal = dvDartStringLiteralAt(view.code, m.end);
+      // The literal must be the whole value: `'a' + b` is not 'a'.
+      final bool whole =
+          literal != null &&
+          RegExp(r'^\s*(?:r?(?:"[^"]*"|' "'[^']*'" r'))\s*;').hasMatch(
+            view.code.substring(m.end),
+          );
+      if (!whole) {
+        refused.add(name);
+      } else {
+        (values[name] ??= <String>{}).add(literal);
+      }
+    }
+  }
+  final Map<String, String> constants = <String, String>{};
+  for (final MapEntry<String, Set<String>> entry in values.entries) {
+    final String name = entry.key;
+    if (refused.contains(name) || entry.value.length != 1) continue;
+    final RegExp declared = RegExp(
+      r'(?:\b([A-Za-z_$][\w$]*)(?:<[^;{}()=]*>)?\??\s+|\bthis\s*\.\s*)'
+      '${RegExp.escape(name)}'
+      r'(?![\w$])',
+    );
+    var others = 0;
+    for (final DVDartSourceView view in views) {
+      for (final RegExpMatch m in declared.allMatches(view.masked)) {
+        final String? word = m.group(1);
+        if (word != null && _notDeclarations.contains(word)) continue;
+        others++;
+      }
+    }
+    // Each constant of the name is itself one `String name` match.
+    if (others > constDeclarations[name]!) continue;
+    constants[name] = entry.value.single;
+  }
+  return constants;
+}
+
+/// The value or values the argument at [offset] can have: a literal; a
+/// constant from [constants], bare or through its class (`Config.name`); or
+/// `condition ? a : b` where both sides are one of those. Null when the
+/// build cannot read it.
+List<String>? _valuesAt(
+  DVDartSourceView view,
+  int offset,
+  Map<String, String> constants,
+) {
+  final String? literal = dvDartStringLiteralAt(view.code, offset);
+  if (literal != null) return <String>[literal];
+  final String rest = view.masked.substring(offset);
+  final RegExpMatch? name = _identifierArgument.firstMatch(rest);
+  if (name != null) {
+    final String? value = constants[name.group(2)!];
+    return value == null ? null : <String>[value];
+  }
+  final RegExpMatch? choice = _choiceArgument.firstMatch(rest);
+  if (choice != null) {
+    final String? first = constants[choice.group(2)!];
+    final String? second = constants[choice.group(4)!];
+    if (first == null || second == null) return null;
+    return <String>[first, second];
+  }
+  return null;
 }
