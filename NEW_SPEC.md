@@ -1240,8 +1240,10 @@ rows as they come near the screen, as they do in any scroll view.
 Back and forward in a browser rebuild a page; the shell puts it back where the
 reader left it, per history entry, as a browser does with a document, and a new
 visit starts at the top. When the app takes over from the server-rendered
-document it keeps that document's scroll position (`window.__dvScrollY`, which a
-pre-app document may set, or the window's own). The back-to-top button moves
+document it keeps that document's scroll position: every page document records
+`window.__dvScrollY` as the reader scrolls it, until the engine's view is in, and
+the shell waits up to ten seconds for a late page (a deferred library, its data)
+to be long enough, leaving a reader who scrolled first where they are. The back-to-top button moves
 whichever scroll view is the page's, the shell's or the page's own, and is drawn
 by the shell outside the scroll view so it never scrolls away.
 
