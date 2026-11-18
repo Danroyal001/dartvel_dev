@@ -33,6 +33,7 @@ import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
+import 'src/analytics/consent_ui.dart' show DVConsentBanner;
 import 'src/gestures/gestures.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/auth_frame.dart';
@@ -12024,12 +12025,22 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
         : reachable;
     final Widget safe =
         spec.safeArea ? SafeArea(child: selectionWrapped) : selectionWrapped;
+    // The consent banner, over the page and outside its scroll view and its
+    // layouts, so it sits at the bottom of the screen whatever the page is.
+    // It was placed inside the page, where a layout's scroll view sized it to
+    // the content and drew it at the end of a long page, out of sight. It is
+    // the page alone in an application that declares no analytics, on
+    // Studio's canvas, and on Studio's own screens.
+    final Widget asked = DVPagePreviewScope.of(context) ||
+            _pageAddress().path.startsWith('/__studio')
+        ? safe
+        : DVConsentBanner(child: safe);
     // What the application tracks through DV.progress, across the top of
     // the page, over whatever it is showing.
     final Widget framed = Stack(
       fit: StackFit.passthrough,
       children: <Widget>[
-        safe,
+        asked,
         const Positioned(top: 0, left: 0, right: 0, child: DVTrackedProgress()),
       ],
     );
