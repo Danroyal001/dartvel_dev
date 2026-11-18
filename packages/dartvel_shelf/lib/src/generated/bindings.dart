@@ -384,6 +384,35 @@ class DartvelShelfBindings {
   late final _aw_ws_closed = _aw_ws_closedPtr.asFunction<int Function(int)>();
 
   /// Heartbeat acknowledgements do not depend on a Dart data-stream listener.
+  /// 1 while [id]'s reader is partway through a burst -- it has more to parse
+  /// before it would wait on the socket -- on a thread other than the
+  /// caller's; 0 otherwise, and for a connection that is gone. A Dart drain
+  /// that finds the queue empty keeps taking while it is 1. On a server whose
+  /// isolate drives the runtime itself the reader only runs when that isolate
+  /// does, so it is 0 there: waiting for it would wait for ever.
+  int aw_ws_reader_busy(int id) {
+    return _aw_ws_reader_busy(id);
+  }
+
+  late final _aw_ws_reader_busyPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_ws_reader_busy',
+      );
+  late final _aw_ws_reader_busy = _aw_ws_reader_busyPtr
+      .asFunction<int Function(int)>();
+
+  /// 1 when a frame is waiting for Dart on [id] (or held from a batch), 0
+  /// otherwise: a cheap look that takes nothing.
+  int aw_ws_pending(int id) {
+    return _aw_ws_pending(id);
+  }
+
+  late final _aw_ws_pendingPtr =
+      _lookup<ffi.NativeFunction<ffi.Int32 Function(ffi.Uint64)>>(
+        'aw_ws_pending',
+      );
+  late final _aw_ws_pending = _aw_ws_pendingPtr.asFunction<int Function(int)>();
+
   int aw_ws_pong_count(int id) {
     return _aw_ws_pong_count(id);
   }

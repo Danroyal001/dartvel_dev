@@ -18,10 +18,14 @@ void main() {
   test('a burst echoed through addStream is flushed a few times, in order',
       () async {
     final channelReady = Completer<NativeWebSocketChannel>();
+    // The echo starts once the whole burst is in the server's socket: what
+    // is measured is how the server batches frames that are all there, not
+    // how fast a loaded machine delivers them to it.
+    final burstWritten = Completer<void>();
     final server = await serve(
       webSocketHandler((channel, _) {
         channelReady.complete(channel as NativeWebSocketChannel);
-        channel.sink.addStream(channel.stream);
+        burstWritten.future.then((_) => channel.sink.addStream(channel.stream));
       }),
       host: '127.0.0.1',
       port: 0,
@@ -53,6 +57,9 @@ void main() {
         received.clear();
         received.add(bytes.sublist(end + 4));
         socket.add(burst.takeBytes());
+        // Flushed to the operating system: on loopback the bytes are then in
+        // the server's receive buffer.
+        socket.flush().then((_) => burstWritten.complete());
         return;
       }
       if (bytes.length >= count * 8 && !done.isCompleted) done.complete();
@@ -68,10 +75,7 @@ void main() {
     }
     final channel = await channelReady.future;
     // One write per frame (1,000 here) is what awaiting each frame cost.
-    // How many frames each drain finds depends on how far the native reader
-    // has got when the isolate wakes, which a loaded machine moves; a
-    // quarter of the frames still fails on that, and does not on load.
-    expect(channel.flushCount, lessThan(count ~/ 4),
+    expect(channel.flushCount, lessThan(count ~/ 10),
         reason: 'frames that arrived together go out together');
   });
 

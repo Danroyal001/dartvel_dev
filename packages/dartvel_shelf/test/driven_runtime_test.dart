@@ -14,10 +14,16 @@ import 'package:test/test.dart';
 void main() {
   late ServerHandle server;
   late HttpClient client;
+  late Completer<void> held;
 
   setUp(() async {
+    held = Completer<void>();
     final router = Router()
       ..get('/fast', (Request req) async => Response.text('fast'))
+      ..get('/held', (Request req) async {
+        await held.future;
+        return Response.text('held');
+      })
       ..get('/slow/:ms', (Request req) async {
         await Future<void>.delayed(
             Duration(milliseconds: int.parse(req.params['ms']!)));
@@ -58,14 +64,15 @@ void main() {
   });
 
   test('a slow handler does not hold up fast ones', () async {
-    final slow = get('/slow/2000');
-    final clock = Stopwatch()..start();
+    // The slow answer is released only once fifty fast ones have come back:
+    // a slow handler that held the others up would leave them -- and this
+    // test -- waiting for ever, however fast or loaded the machine is.
+    final slow = get('/held');
     for (var i = 0; i < 50; i++) {
       expect(await get('/fast'), 'fast');
     }
-    expect(clock.elapsedMilliseconds, lessThan(1500),
-        reason: 'fifty fast requests finish while one slow one is waited on');
-    expect(await slow, 'slow 2000');
+    held.complete();
+    expect(await slow, 'held');
   });
 
   test('a server stops cleanly with an answer still pending', () async {
