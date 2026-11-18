@@ -24,3 +24,15 @@ path = "tests/malformed_input.rs"
 [[test]]
 name = "small_components"
 path = "tests/small_components.rs"
+
+[[bin]]
+name = "kernel_damage"
+path = "src/bin/kernel_damage.rs"
+
+[[test]]
+name = "damage_oracle"
+path = "tests/damage_oracle.rs"
+
+[[test]]
+name = "deep_nesting"
+path = "tests/deep_nesting.rs"

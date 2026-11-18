@@ -63,6 +63,7 @@ running it from source for every program.
 
 ```sh
 DART=/path/to/dart cargo test --release -p kernel --test roundtrip_oracle
+DART=/path/to/dart cargo test --release -p kernel --test damage_oracle -- --ignored
 ```
 
 `KERNEL_WORK` moves the scratch directory (default
@@ -99,19 +100,32 @@ differ are kept, and the test names the first differing byte of each.
 - An instance member reference whose target is not in the component (an
   unlinked component) keeps the member-signature origin that was read;
   upstream cannot write such a component at all.
-- The reader and the writer recurse as upstream does, so a tree nested
-  deeply enough to exhaust the stack aborts the process (upstream throws a
-  stack overflow). Any other damaged input is refused with a `ParseError`
-  (`tests/malformed_input.rs`).
-- **Errors are not yet upstream's.** On valid input the bytes are
-  upstream's; on damaged input the port refuses where upstream throws, but
-  with its own message (`invalid size '…' reported at byte N`), where
-  upstream throws `ParseError` (`null:N: … at <debug path>`),
-  `ArgumentError`, `InvalidKernelVersionError`, `StateError`, a `RangeError`
-  from reading past the end, or a plain string, depending on where the
-  damage is. Matching them means following upstream's read order exactly on
-  damaged input, `debugPath` included (in a build without asserts it only
-  grows). Until then this increment is not 1:1 on errors.
+- **Damaged input is not yet fully 1:1** (`tests/damage_oracle.rs`, numbers
+  below). Matched: the header, the component index, the string, link,
+  source and constant tables, references, the library and class indexes,
+  string decoding (upstream's trusting WTF-8 decoder, re-encoded as its
+  writer does), allocation failures and deep nesting. Not matched yet:
+  - URIs: upstream runs `Uri.parse` on every source and import URI and
+    writes `"$uri"`, so a damaged URI is normalised (non-ASCII escaped,
+    case and dots changed) or throws a `FormatException` with the URI in
+    it. A port of `Uri.parse` (`sdk/lib/core/rust`) is in progress.
+  - Name binding: upstream's writer recomputes every canonical name from
+    the tree and binds it (`Cannot bind ... to ..., target is already bound
+    to ...`, `... is not bound to an AST node`), and its reader casts the
+    nodes a reference is bound to (`type 'Library' is not a subtype of type
+    'ExtensionTypeDeclaration?'`). The port keeps the names it read.
+  - Upstream reads class members and function bodies lazily, when its
+    writer reaches them; the port reads them in file order. For one
+    damaged place the error is the same; for several, which comes first can
+    differ.
+  - Two kinds of upstream error depend on its environment, not its input:
+    `Out of Memory` (the oracle runs with a 256 MB heap; the port models a
+    single allocation of more than 248 MiB, and objects made before they
+    are read with estimated sizes) and `Stack Overflow` (at 4205 levels of
+    nesting, measured on chains of `!`; upstream's real limit depends on the
+    kinds of node). Near those limits the port is approximate, and some
+    `already bound` messages print identity hash codes, which differ from
+    run to run even upstream.
 - Not a pipeline stage on its own. The reader and writer are the first part
   of the type-flow port: they become a stage in `gen_kernel --aot` when the
   analysis itself is ported (Dart passes before, Rust type flow, Dart passes
@@ -137,11 +151,29 @@ are printed).
 
 | Corpus | Components | Differences |
 |---|---|---|
-| `vm_platform.dill`, 5 programs plain and `--aot`, 27 of the 120 type-flow test inputs plain and `--aot` (the build was stopped there to free the server) | 65 | 0 |
+| `vm_platform.dill`, 5 programs plain and `--aot`, every runnable type-flow test input (110 of 120; the other 10 are libraries those import) plain and `--aot` | 227 | 0 |
 | Concatenated files: platform + program, platform + two programs, a whole program twice | 3 | 0 |
 
 Before this round, all three concatenated files were refused (the port
 read only single-component files; upstream's `readComponent` merges them).
+
+### Damaged input
+
+`tests/damage_oracle.rs`: every truncation and every byte flipped four ways
+(masks 0x01, 0x40, 0x80, 0xFF); upstream (`oracle/damage.dart`, Dart
+3.15.0-145.0.dev JIT, 256 MB heap) and the port must write the same bytes or
+throw the same thing.
+
+| Base file | Damaged inputs | Differ, before | Differ, now |
+|---|---|---|---|
+| `tests/fixtures/empty.dill` (88 bytes) | 440 | 273 | 0 |
+| `tests/fixtures/hello-unlinked.dill` (616 bytes) | 3,080 | not run (the harness died: upstream ran out of memory inside the test's scope) | 843 |
+
+Of the 843: about 500 are URIs (a damaged URI that upstream normalises or
+rejects), about 216 name binding, the rest Out of Memory near the modelled
+limit and node casts. `tests/deep_nesting.rs`: upstream writes a chain 4202
+deep and throws `Stack Overflow` at 4203; so does the port (it aborted
+before).
 
 ### Speed and memory (7 runs each)
 
