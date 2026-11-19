@@ -66,6 +66,34 @@ requestAnimationFrame(async () => {
 });
 </script></body></html>''';
 
+/// A page whose text is still from the first frame while it holds the
+/// capture: the consent banner waits for the stored answer to be read, which
+/// under load can take longer than the text takes to look settled. Builds of
+/// sigmadev.digital wrote the banner on some pages and not others.
+const String _holdingApp = '''<!DOCTYPE html><html><head><title>app</title></head><body>
+<flt-semantics-placeholder></flt-semantics-placeholder>
+<script>
+window.__dvCaptureHolds = 1;
+function draw(labels) {
+  const old = document.querySelector('flt-semantics-host');
+  if (old) old.remove();
+  const host = document.createElement('flt-semantics-host');
+  for (const label of labels) {
+    const node = document.createElement('flt-semantics');
+    node.textContent = label;
+    host.append(node);
+  }
+  document.body.append(host);
+}
+requestAnimationFrame(() => {
+  draw(['About us']);
+  setTimeout(() => {
+    draw(['About us', 'Cookies and measurement']);
+    window.__dvCaptureHolds = 0;
+  }, 4000);
+});
+</script></body></html>''';
+
 List<String> _labels(String tree) => <String>[
       for (final Object? node in jsonDecode(tree) as List<Object?>)
         (node! as Map<String, Object?>)['label']! as String,
@@ -114,6 +142,19 @@ void main() {
       expect(
         _labels(File(dvSemanticsPathFor(root.path, '/vs/rails')).readAsStringSync()),
         <String>['Claims about Rails', 'ALSO'],
+      );
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('only once the page has let go of the capture', () async {
+      File(p.join(web.path, 'index.html')).writeAsStringSync(_holdingApp);
+      final DVCaptureRun run = await dvCaptureSemantics(
+          projectRoot: root.path, webRoot: web.path, routes: <String>['/about'],
+          concurrency: 1);
+      expect(run.browserAvailable, isTrue, reason: 'this test needs Chrome');
+      expect(
+        _labels(File(dvSemanticsPathFor(root.path, '/about')).readAsStringSync()),
+        <String>['About us', 'Cookies and measurement'],
+        reason: 'text that holds still is not a settled page while it says it is not done',
       );
     }, timeout: const Timeout(Duration(minutes: 2)));
 
