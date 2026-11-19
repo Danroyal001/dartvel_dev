@@ -1,5 +1,6 @@
 ## Unreleased
 
+- The consent banner's three buttons share its width in one row, labels centred, and stack full width on a screen too narrow for three; they sat at three natural widths with a gap on the right.
 - `DVCaptureHold`: work that changes what a page shows can hold the build's prerender until it is done (`DVCaptureHold.begin()` / `release()`). `DVConsentBanner` holds it until the stored consent has been read and the frame with (or without) the banner is drawn, and lets go if analytics cannot start or the banner leaves the page.
 
 - Every page keeps its content inside the safe area, including content sized from the screen: inside a page shell `MediaQuery.sizeOf` (and `context.screen.size`) is now the page's safe box, not the whole window, so a letter index or a full-height layout no longer runs under the navigation bar (the Dev Launcher's drawer put Z behind it). The loading bar sits below the status bar. On the web, `DV.run` reads the browser's `env(safe-area-inset-*)` into `MediaQuery` padding (Flutter's web engine reports none), so pages, sheets and dialogs keep clear of a notch and the home indicator. `@DVPage(safeArea: false)` still opts a page out for full-bleed content.

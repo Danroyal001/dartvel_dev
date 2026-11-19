@@ -137,4 +137,62 @@ void main() {
     expect(find.byKey(const ValueKey<String>('dv-consent-banner')), findsNothing);
     expect(find.text('Page'), findsOneWidget);
   });
+
+  // Owner, 19 Nov 2026 (sigmadev.digital at phone width): the banner's three
+  // buttons sat at three natural widths with a gap on the right. They share
+  // the banner's width, one edge each side, labels centred; on a screen too
+  // narrow for three side by side they stack, each the full width.
+  const List<String> buttons = <String>['dv-consent-accept-all', 'dv-consent-reject-all', 'dv-consent-choose'];
+  Rect rectOf(WidgetTester tester, String key) => tester.getRect(find.byKey(ValueKey<String>(key)));
+
+  Future<void> pumpAt(WidgetTester tester, double width) async {
+    tester.view.physicalSize = Size(width, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    DVAnalyticsRuntime.start(settings: settings(), database: MemoryDVDatabaseAdapter.new);
+    await tester.pumpWidget(MaterialApp(
+      home: DVPageShell(
+        spec: const DVPageScaffoldSpec(title: 'Home'),
+        child: const SiteLayout(child: SizedBox(height: 900, child: Text('Page'))),
+      ),
+    ));
+    await settle(tester);
+  }
+
+  void expectLabelsCentred(WidgetTester tester) {
+    for (final String key in buttons) {
+      final Rect button = rectOf(tester, key);
+      final Rect label = tester.getRect(find.descendant(of: find.byKey(ValueKey<String>(key)), matching: find.byType(Text)).first);
+      expect(label.center.dx, moreOrLessEquals(button.center.dx, epsilon: 1), reason: '$key label centred');
+    }
+  }
+
+  testWidgets('on a phone the banner buttons share its width in one row', (WidgetTester tester) async {
+    await pumpAt(tester, 390);
+    // The banner's content sits 16 px inside its edges.
+    final Rect banner = tester.getRect(find.byKey(const ValueKey<String>('dv-consent-banner')));
+    final List<Rect> rects = <Rect>[for (final String key in buttons) rectOf(tester, key)];
+    expect(rects.first.left, moreOrLessEquals(banner.left + 16, epsilon: 0.5), reason: 'starts at the content edge');
+    expect(rects.last.right, moreOrLessEquals(banner.right - 16, epsilon: 0.5), reason: 'ends at the other content edge');
+    for (final Rect rect in rects) {
+      expect(rect.top, moreOrLessEquals(rects.first.top, epsilon: 0.5), reason: 'one row');
+      expect(rect.width, moreOrLessEquals(rects.first.width, epsilon: 0.5), reason: 'one width');
+      expect(rect.height, moreOrLessEquals(rects.first.height, epsilon: 0.5), reason: 'one height');
+    }
+    expectLabelsCentred(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on a very narrow screen they stack, each the full width', (WidgetTester tester) async {
+    await pumpAt(tester, 280);
+    final List<Rect> rects = <Rect>[for (final String key in buttons) rectOf(tester, key)];
+    for (final (int i, Rect rect) in rects.indexed) {
+      expect(rect.left, moreOrLessEquals(rects.first.left, epsilon: 0.5));
+      expect(rect.right, moreOrLessEquals(rects.first.right, epsilon: 0.5));
+      if (i > 0) expect(rect.top, greaterThan(rects[i - 1].bottom - 0.5), reason: 'stacked');
+    }
+    expect(rects.first.width, greaterThan(280 - 2 * 20));
+    expectLabelsCentred(tester);
+    expect(tester.takeException(), isNull);
+  });
 }

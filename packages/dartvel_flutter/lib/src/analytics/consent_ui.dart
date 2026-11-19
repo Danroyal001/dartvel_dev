@@ -85,10 +85,14 @@ DVAnalyticsRuntime? _configured(DVAnalyticsRuntime? given) =>
 Widget _action(BuildContext context, String key, String label,
     VoidCallback? onPressed) {
   final ColorScheme scheme = Theme.of(context).colorScheme;
+  // The label centred in whatever width the button is given (a share of a
+  // row, or the full width when stacked).
+  DVModifier modifier = const DVModifier();
+  modifier = modifier.align(Alignment.center);
   return KeyedSubtree(
     key: ValueKey<String>(key),
     child: DVText(label).modifier(
-      const DVModifier()
+      modifier
           .paddingSymmetric(horizontal: 12, vertical: 8)
           .minimumTapTarget(width: 44, height: 44)
           .rounded(8)
@@ -314,8 +318,12 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
                           'was turned on. Please try again.')
                       .modifier(const DVModifier().color(scheme.error)),
                 ),
-              DVBox.wrapLine(
-                <Widget>[
+              // One row of equal shares; stacked, each the full width, where
+              // three would not fit side by side (owner, 19 Nov 2026: three
+              // natural widths and a gap on the right looked broken).
+              LayoutBuilder(builder: (BuildContext context, BoxConstraints box) {
+                final bool row = box.maxWidth >= 300;
+                final List<Widget> actions = <Widget>[
                   _action(
                       context,
                       'dv-consent-accept-all',
@@ -342,8 +350,12 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
                       if (mounted) setState(() {});
                     }));
                   }),
-                ],
-              ),
+                ];
+                if (!row) return DVBox.list(actions, spacing: 8);
+                // Equal shares: a plain Row, since DVBox.row with spacing
+                // lays out as an OverflowBar, which cannot share its width.
+                return Row(spacing: 8, children: <Widget>[for (final Widget action in actions) Expanded(child: action)]);
+              }),
             ],
             spacing: 8,
           ),
