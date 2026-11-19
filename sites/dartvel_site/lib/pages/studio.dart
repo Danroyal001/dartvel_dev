@@ -171,6 +171,10 @@ Widget _studioPage(BuildContext context) => const SiteScroll(<Widget>[
           'done to it, found by typing a few letters. Ctrl+D duplicates '
           'the selected element, and Ctrl+/ lists every shortcut.',
         ),
+        Body(
+          'Studio inherits your app’s Material theme, light and dark. New '
+          'projects start with Dartvel’s theme until you customise it.',
+        ),
         StudioShot(
           'assets/studio_shots/formula-bar.png',
           'The Studio page editor with the formula bar across the top: the '
@@ -191,10 +195,6 @@ Widget _studioPage(BuildContext context) => const SiteScroll(<Widget>[
     Section(
       tint: true,
       children: <Widget>[
-        Body(
-          'Studio inherits your app’s Material theme, light and dark. New '
-          'projects start with Dartvel’s theme until you customise it.',
-        ),
         Eyebrow('KEYBOARD AND SCREEN READER'),
         Heading('Controls support keyboard and screen reader input.'),
         Body(
