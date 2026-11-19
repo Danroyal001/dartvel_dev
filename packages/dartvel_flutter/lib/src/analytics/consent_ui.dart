@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../../dartvel_flutter.dart'
     show DVBox, DVModifier, DVNavLink, DVRouteTarget, DVText;
 import 'app_tracking_transparency.dart';
+import '../seo/capture_hold.dart';
 
 /// Records [answers] as a choice made through [prompt], and returns whether
 /// everything that was answered was written.
@@ -150,12 +151,37 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
 
   DVAnalyticsRuntime? get _runtime => _configured(widget.analytics);
 
+  /// Held while the stored answer is unread: until then the page has no
+  /// banner and looks finished, and a prerender that read it then wrote the
+  /// page without one.
+  DVCaptureHold? _hold;
+
   @override
   void initState() {
     super.initState();
-    _runtime?.whenReady(() {
-      if (mounted) setState(() {});
+    final DVAnalyticsRuntime? runtime = _runtime;
+    if (runtime == null) return;
+    if (runtime.loadedConsent == null) _hold = DVCaptureHold.begin();
+    runtime.whenReady(() {
+      if (!mounted) return;
+      setState(() {});
+      // Let go once the frame with the banner (or without it) is drawn.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _letGo());
     });
+    // A pipeline that cannot start never calls whenReady; the page is then
+    // as finished as it will get.
+    runtime.ready.then<void>((_) {}, onError: (Object _) => _letGo());
+  }
+
+  void _letGo() {
+    _hold?.release();
+    _hold = null;
+  }
+
+  @override
+  void dispose() {
+    _letGo();
+    super.dispose();
   }
 
   Future<void> _answer(DVAnalyticsRuntime runtime, DVConsent consent,

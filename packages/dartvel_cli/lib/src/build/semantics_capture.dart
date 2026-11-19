@@ -15,7 +15,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
 
-import 'page_shots.dart' show DVInFlight, DVTextSettle;
+import 'page_shots.dart' show DVInFlight, DVTextSettle, dvCaptureHeldScript;
 
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
@@ -345,7 +345,12 @@ Future<DVCaptureRun> dvCaptureSemantics({
           await Future<void>.delayed(const Duration(milliseconds: 400));
           tree = await page.evaluate<String>(_extract);
           final int resources = await page.evaluate<int>(_resourceCount);
+          // The app says when it is still deciding what the page shows: the
+          // consent banner waits on the stored answer, and its text-free
+          // wait looked exactly like a settled page.
+          final bool held = await page.evaluate<bool>(dvCaptureHeldScript);
           if (!tab.flight.busy &&
+              !held &&
               settled.add(tree == '[]' ? 0 : tree.length, resources, tree)) {
             break;
           }
