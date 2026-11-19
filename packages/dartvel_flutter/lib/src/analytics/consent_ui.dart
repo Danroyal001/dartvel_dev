@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../../dartvel_flutter.dart'
     show DVBox, DVModifier, DVNavLink, DVRouteTarget, DVText;
 import 'app_tracking_transparency.dart';
+import '../seo/capture_hold.dart';
 
 /// Records [answers] as a choice made through [prompt], and returns whether
 /// everything that was answered was written.
@@ -84,10 +85,14 @@ DVAnalyticsRuntime? _configured(DVAnalyticsRuntime? given) =>
 Widget _action(BuildContext context, String key, String label,
     VoidCallback? onPressed) {
   final ColorScheme scheme = Theme.of(context).colorScheme;
+  // The label centred in whatever width the button is given (a share of a
+  // row, or the full width when stacked).
+  DVModifier modifier = const DVModifier();
+  modifier = modifier.align(Alignment.center);
   return KeyedSubtree(
     key: ValueKey<String>(key),
     child: DVText(label).modifier(
-      const DVModifier()
+      modifier
           .paddingSymmetric(horizontal: 12, vertical: 8)
           .minimumTapTarget(width: 44, height: 44)
           .rounded(8)
@@ -150,12 +155,37 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
 
   DVAnalyticsRuntime? get _runtime => _configured(widget.analytics);
 
+  /// Held while the stored answer is unread: until then the page has no
+  /// banner and looks finished, and a prerender that read it then wrote the
+  /// page without one.
+  DVCaptureHold? _hold;
+
   @override
   void initState() {
     super.initState();
-    _runtime?.whenReady(() {
-      if (mounted) setState(() {});
+    final DVAnalyticsRuntime? runtime = _runtime;
+    if (runtime == null) return;
+    if (runtime.loadedConsent == null) _hold = DVCaptureHold.begin();
+    runtime.whenReady(() {
+      if (!mounted) return;
+      setState(() {});
+      // Let go once the frame with the banner (or without it) is drawn.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _letGo());
     });
+    // A pipeline that cannot start never calls whenReady; the page is then
+    // as finished as it will get.
+    runtime.ready.then<void>((_) {}, onError: (Object _) => _letGo());
+  }
+
+  void _letGo() {
+    _hold?.release();
+    _hold = null;
+  }
+
+  @override
+  void dispose() {
+    _letGo();
+    super.dispose();
   }
 
   Future<void> _answer(DVAnalyticsRuntime runtime, DVConsent consent,
@@ -288,8 +318,12 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
                           'was turned on. Please try again.')
                       .modifier(const DVModifier().color(scheme.error)),
                 ),
-              DVBox.wrapLine(
-                <Widget>[
+              // One row of equal shares; stacked, each the full width, where
+              // three would not fit side by side (owner, 19 Nov 2026: three
+              // natural widths and a gap on the right looked broken).
+              LayoutBuilder(builder: (BuildContext context, BoxConstraints box) {
+                final bool row = box.maxWidth >= 300;
+                final List<Widget> actions = <Widget>[
                   _action(
                       context,
                       'dv-consent-accept-all',
@@ -316,8 +350,12 @@ class _DVConsentBannerState extends State<DVConsentBanner> {
                       if (mounted) setState(() {});
                     }));
                   }),
-                ],
-              ),
+                ];
+                if (!row) return DVBox.list(actions, spacing: 8);
+                // Equal shares: a plain Row, since DVBox.row with spacing
+                // lays out as an OverflowBar, which cannot share its width.
+                return Row(spacing: 8, children: <Widget>[for (final Widget action in actions) Expanded(child: action)]);
+              }),
             ],
             spacing: 8,
           ),

@@ -75,6 +75,12 @@ String dvShotName(String route, DVShotSize size) {
 /// Whether a page's text has stopped changing: the same non-zero length
 /// three looks running. A shell that draws its navigation before the page
 /// it loads has text long before it has its content.
+/// Whether the app is holding the capture (dartvel_flutter DVCaptureHold):
+/// work under way that changes what the page shows, which the text alone
+/// cannot tell apart from a page at rest.
+const String dvCaptureHeldScript =
+    '() => (Number(globalThis.__dvCaptureHolds) || 0) > 0';
+
 class DVTextSettle {
   int _lastLength = -1;
   int _lastResources = -1;
@@ -294,7 +300,8 @@ Future<DVPageShotsResult> dvCapturePages({
           while (DateTime.now().isBefore(deadline)) {
             text = await page.evaluate<int>(_pageText);
             final int resources = await page.evaluate<int>(_pageResources);
-            if (settled.add(text, resources)) break;
+            final bool held = await page.evaluate<bool>(dvCaptureHeldScript);
+            if (!held && settled.add(text, resources)) break;
             await Future<void>.delayed(const Duration(milliseconds: 500));
           }
           // Fonts and images arrive after the first frame with text in it.

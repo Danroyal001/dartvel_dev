@@ -13,6 +13,7 @@
 // replaced it without being asked would be a worse bug than the white one.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:dartvel_cli/src/build/native_splash.dart';
 import 'package:dartvel_cli/src/build/pwa_icons.dart';
@@ -488,6 +489,58 @@ dartvel:
       expect(html, contains('srcset="dartvel-splash-dark.png"'));
       expect(html, contains('media="(prefers-color-scheme: dark)"'));
       expect(html, contains('width:120px'));
+    });
+
+    // Owner, 19 Nov 2026, dartvel.dev: "No splash logo, just the loading
+    // text". A preloaded image is fetched at low priority and the app's
+    // megabytes of wasm at high, so on a slow line the logo arrived after
+    // the loading line and the bar. A logo of a few kilobytes is written
+    // into the page itself, and is there in the first paint.
+    test('a small logo is in the page itself, drawn with the first paint', () {
+      _png('assets/splash.png', 400, 200);
+      _png('assets/splash-dark.png', 400, 200, r: 0, g: 0, b: 255);
+      _write('build/web/index.html', _webIndex);
+      dvWriteWebSplash(
+        Directory(p.join(root.path, 'build', 'web')),
+        _splash(const <String, Object?>{
+          'splash': <String, Object?>{'image': 'assets/splash.png', 'darkImage': 'assets/splash-dark.png'},
+        }),
+      );
+      final String html = _read('build/web/index.html');
+      final RegExpMatch light = RegExp(r'<img src="data:image/png;base64,([A-Za-z0-9+/=]+)"').firstMatch(html)!;
+      expect(base64Decode(light.group(1)!),
+          File(p.join(root.path, 'build/web/dartvel-splash.png')).readAsBytesSync(),
+          reason: 'the same picture as the file beside the page');
+      final RegExpMatch dark = RegExp(r'<source srcset="data:image/png;base64,([A-Za-z0-9+/=]+)" media="\(prefers-color-scheme: dark\)">').firstMatch(html)!;
+      expect(base64Decode(dark.group(1)!),
+          File(p.join(root.path, 'build/web/dartvel-splash-dark.png')).readAsBytesSync());
+      expect(html, isNot(contains('rel="preload" href="data:')), reason: 'nothing to fetch');
+      expect(html, isNot(contains('rel="preload" href="dartvel-splash')));
+    });
+
+    test('a logo too big to carry in every page stays a file, asked for first', () {
+      final DVRgbaImage noise = DVRgbaImage(400, 400);
+      final math.Random random = math.Random(1);
+      for (var y = 0; y < 400; y++) {
+        for (var x = 0; x < 400; x++) {
+          noise.set(x, y, r: random.nextInt(256), g: random.nextInt(256), b: random.nextInt(256));
+        }
+      }
+      File(p.join(root.path, 'assets/photo.png'))
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(dvPngEncode(noise));
+      _write('build/web/index.html', _webIndex);
+      dvWriteWebSplash(
+        Directory(p.join(root.path, 'build', 'web')),
+        _splash(const <String, Object?>{
+          'splash': <String, Object?>{'image': 'assets/photo.png'},
+        }),
+      );
+      final String html = _read('build/web/index.html');
+      expect(File(p.join(root.path, 'build/web/dartvel-splash.png')).lengthSync(), greaterThan(dvSplashInlineLimit));
+      expect(html, contains('<img src="dartvel-splash.png"'));
+      expect(html, contains('<link rel="preload" href="dartvel-splash.png" as="image">'));
+      expect(html, isNot(contains('data:image/png')));
     });
 
     test('the writer puts the image beside index.html and links it', () {

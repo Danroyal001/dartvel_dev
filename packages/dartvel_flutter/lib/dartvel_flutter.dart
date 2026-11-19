@@ -819,6 +819,7 @@ export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
+export 'src/seo/capture_hold.dart' show DVCaptureHold;
 export 'src/auth/ask_for_code.dart';
 export 'src/auth/auth_frame.dart';
 export 'src/auth/qr_code.dart';

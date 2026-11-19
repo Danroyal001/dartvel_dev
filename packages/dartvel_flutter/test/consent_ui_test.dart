@@ -64,6 +64,7 @@ void main() {
     DVAnalyticsRuntime.resetForTest();
     DVPrivacyRuntime.resetForTest();
     DVConsentBanner.resetForTest();
+    DVCaptureHold.resetForTest();
     DVAppTrackingTransparency.applies = () => false;
     DVNativeBridge.unregister(DVAppTrackingTransparency.requestBinding);
   });
@@ -88,6 +89,68 @@ void main() {
       await settle(tester);
       expect(byKey('dv-consent-banner'), findsOneWidget);
       expect(find.text('page'), findsOneWidget);
+    });
+
+    // A prerender reads the page once its text holds still. The banner waits
+    // on the stored answer, so without a hold a slow read let some pages be
+    // written with it and some without (sigmadev.digital, 19 Nov 2026).
+    testWidgets('holds the page capture until it knows whether to show',
+        (WidgetTester tester) async {
+      final MemoryDVDatabaseAdapter db = MemoryDVDatabaseAdapter();
+      final Completer<void> open = Completer<void>();
+      final DVAnalyticsRuntime runtime = DVAnalyticsRuntime.start(
+        settings: settings(),
+        database: () async {
+          await open.future;
+          return db;
+        },
+      );
+      await pumpApp(tester, DVConsentBanner(analytics: runtime, child: const Text('page')));
+      expect(DVCaptureHold.active, 1, reason: 'the page is not finished while the answer is unread');
+      await tester.runAsync(() async => open.complete());
+      await settle(tester);
+      await tester.pump();
+      expect(byKey('dv-consent-banner'), findsOneWidget);
+      expect(DVCaptureHold.active, 0, reason: 'drawn, so the capture may read it');
+    });
+
+    testWidgets('lets go of the capture when analytics cannot start',
+        (WidgetTester tester) async {
+      final DVAnalyticsRuntime runtime = DVAnalyticsRuntime.start(
+        settings: settings(),
+        database: () async => throw StateError('no database'),
+      );
+      await pumpApp(tester, DVConsentBanner(analytics: runtime, child: const Text('page')));
+      await settle(tester);
+      await tester.pump();
+      expect(byKey('dv-consent-banner'), findsNothing);
+      expect(DVCaptureHold.active, 0, reason: 'a capture must never wait on a pipeline that failed');
+    });
+
+    testWidgets('does not hold the capture once the answer is already read',
+        (WidgetTester tester) async {
+      final DVAnalyticsRuntime runtime = DVAnalyticsRuntime.start(
+          settings: settings(), database: MemoryDVDatabaseAdapter.new);
+      await tester.runAsync(() => runtime.ready);
+      await pumpApp(tester, DVConsentBanner(analytics: runtime, child: const Text('page')));
+      expect(DVCaptureHold.active, 0);
+      expect(byKey('dv-consent-banner'), findsOneWidget);
+    });
+
+    testWidgets('lets go of the capture when it leaves the page first',
+        (WidgetTester tester) async {
+      final Completer<void> open = Completer<void>();
+      final DVAnalyticsRuntime runtime = DVAnalyticsRuntime.start(
+        settings: settings(),
+        database: () async {
+          await open.future;
+          return MemoryDVDatabaseAdapter();
+        },
+      );
+      await pumpApp(tester, DVConsentBanner(analytics: runtime, child: const Text('page')));
+      expect(DVCaptureHold.active, 1);
+      await pumpApp(tester, const Text('elsewhere'));
+      expect(DVCaptureHold.active, 0);
     });
 
     testWidgets('closing it records nothing and grants nothing',

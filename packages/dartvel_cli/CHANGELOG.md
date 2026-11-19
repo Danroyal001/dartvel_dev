@@ -1,5 +1,9 @@
 ## 3.47.6 — 2026-11-18
 
+- The prerender waits while the app holds the capture (`DVCaptureHold` in dartvel_flutter, read from `globalThis.__dvCaptureHolds`), in the semantics capture and the page screenshots. A page whose text looked settled while the consent banner was still reading the stored answer was written with the banner on some pages and without it on others (sigmadev.digital, 19 Nov 2026).
+
+- The web splash logo is in the page itself when it is small (up to 16 KB, `dvSplashInlineLimit`; an icon at 3x is a few kilobytes), so it is drawn with the first paint. A preloaded image is fetched at low priority and the app's wasm at high, so on a slow line the logo arrived after the loading line and the bar, and the splash read "Loading…" over nothing. A larger picture stays a file beside `index.html`, preloaded as before; the file is written either way.
+
 - A redirect whose target has its own query now keeps the request's query too: the target's parameters are defaults, a parameter the request also names takes the request's value, and the request's others follow (`dvRedirectLocation`). A tagged short link such as `/w/store: /product/store?utm_source=whatsapp` used to drop an ad's `utm_*` and `fbclid`.
 
 ## 3.47.5 — 2026-11-17
