@@ -332,6 +332,7 @@ Widget _section(
 
   return DVBox(
     DVBox(
+      textBand(children) ??
       DVBox.list(children, spacing: 22),
       // Fades and rises as it comes into view. The band's own background is
       // outside this, so the colour is already painted when the content
@@ -340,6 +341,27 @@ Widget _section(
       const DVModifier().maxWidth(kColumn).centered().revealOnScroll(),
     ),
     band,
+  );
+}
+
+/// A band of nothing but a label, a heading and paragraphs, as two columns on
+/// a wide screen: the label and heading on the left, the paragraphs on the
+/// right. The paragraphs keep their reading width either way; stacked in the
+/// 1040-pixel column they left its right half empty (owner, 19 Nov 2026, on
+/// /studio). Null for any other band, and on a narrow screen it is one
+/// column as before.
+Widget? textBand(List<Widget> children) {
+  final bool textOnly = children.every((Widget child) => child is Eyebrow || child is Heading || child is Body);
+  final List<Widget> header = <Widget>[for (final Widget child in children) if (child is Eyebrow || child is Heading) child];
+  final List<Widget> paragraphs = <Widget>[for (final Widget child in children) if (child is Body) child];
+  if (!textOnly || header.isEmpty || paragraphs.isEmpty) return null;
+  return LayoutBuilder(
+    builder: (BuildContext context, BoxConstraints box) => box.maxWidth < 900
+        ? DVBox.list(children, spacing: 22)
+        : DVBox.row(<Widget>[
+            DVBox(DVBox.list(header, spacing: 22), const DVModifier().fill().paddingOnly(right: 48)),
+            DVBox(DVBox.list(paragraphs, spacing: 22), const DVModifier().fill()),
+          ], crossAlign: .start),
   );
 }
 
