@@ -48,6 +48,18 @@ const String dvSplashDefaultLoadingText = 'Loading…';
 const String dvWebSplashImage = 'dartvel-splash.png';
 const String dvWebSplashDarkImage = 'dartvel-splash-dark.png';
 
+/// The largest splash picture written into every page as data rather than
+/// fetched. A preloaded image is fetched at low priority and the app's wasm
+/// at high, so on a slow line a fetched logo arrived after the loading line
+/// and the bar: the splash read "Loading…" over nothing (dartvel.dev, 19 Nov
+/// 2026). An icon at 3x is a few kilobytes; a picture larger than this stays
+/// a file, asked for first.
+const int dvSplashInlineLimit = 16 * 1024;
+
+/// [bytes] as the page's own picture when small enough, else [file].
+String _splashSource(List<int> bytes, String file) =>
+    bytes.length <= dvSplashInlineLimit ? 'data:image/png;base64,${base64Encode(bytes)}' : file;
+
 /// The loading bar's colour when a project names none: a blue that reads on
 /// a light splash and a dark one.
 const String dvProgressDefaultColor = '#2F6BFF';
@@ -411,12 +423,14 @@ String dvWebSplashApply(
   // SSR-first pages show their document, not the logo: on a slow line the
   // logo would take bandwidth from the page. A page with no document still
   // draws the splash, and its picture loads when it is drawn (lazily).
-  final String logoPreload = imageUrl == null || splash.ssrFirst
+  // A picture carried in the page (dvSplashInlineLimit) has nothing to fetch.
+  bool fetched(String? url) => url != null && !url.startsWith('data:');
+  final String logoPreload = !fetched(imageUrl) || splash.ssrFirst
       ? ''
       : darkImageUrl == null
           ? '<link rel="preload" href="$imageUrl" as="image">\n'
           : '<link rel="preload" href="$imageUrl" as="image" media="(prefers-color-scheme: light)">\n'
-              '<link rel="preload" href="$darkImageUrl" as="image" media="(prefers-color-scheme: dark)">\n';
+              '${fetched(darkImageUrl) ? '<link rel="preload" href="$darkImageUrl" as="image" media="(prefers-color-scheme: dark)">\n' : ''}';
   final String headBlock = '$_headOpen\n'
       '$logoPreload'
       // The compiled app, fetched while the page is parsed rather than once
@@ -481,17 +495,17 @@ DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
     width = dvSplashLogicalWidth(splash, source);
     // 3x: the densest screens a browser reports, and the file stays small.
     final File out = File(p.join(web.path, dvWebSplashImage));
-    _record(result, root, out,
-        _putBytes(out, dvPngEncode(_scaled(source, width * 3))));
-    imageUrl = dvWebSplashImage;
+    final Uint8List bytes = dvPngEncode(_scaled(source, width * 3));
+    _record(result, root, out, _putBytes(out, bytes));
+    imageUrl = _splashSource(bytes, dvWebSplashImage);
 
     final DVRgbaImage? dark =
         splash.darkImage == null ? null : _decode(splash.darkImage!, result);
     if (dark != null) {
       final File darkOut = File(p.join(web.path, dvWebSplashDarkImage));
-      _record(result, root, darkOut,
-          _putBytes(darkOut, dvPngEncode(_scaled(dark, width * 3))));
-      darkUrl = dvWebSplashDarkImage;
+      final Uint8List darkBytes = dvPngEncode(_scaled(dark, width * 3));
+      _record(result, root, darkOut, _putBytes(darkOut, darkBytes));
+      darkUrl = _splashSource(darkBytes, dvWebSplashDarkImage);
     }
   }
 
