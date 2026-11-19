@@ -1,4 +1,4 @@
-## 3.47.6 — 2026-11-18
+## 3.47.6 — 2026-11-20
 
 - About a third less work per request (24k instead of 37k instructions per plaintext request). The native side writes a whole answer straight to the socket, keeps the response heads it has built per thread, re-arms one timer per connection for its timeouts, and frees a queued request's bytes without a message back from Dart. On the shared benchmark machine one isolate now serves more plaintext requests per second than Relic 2 (17,763 against 15,005); Relic is still ahead on JSON, headers, four isolates and WebSocket. Details in doc/shelf-parity.md.
 

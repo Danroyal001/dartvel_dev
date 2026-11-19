@@ -1,4 +1,4 @@
-## 3.47.6 — 2026-11-18
+## 3.47.6 — 2026-11-20
 
 - The consent banner's three buttons share its width in one row, labels centred, and stack full width on a screen too narrow for three; they sat at three natural widths with a gap on the right.
 - `DVCaptureHold`: work that changes what a page shows can hold the build's prerender until it is done (`DVCaptureHold.begin()` / `release()`). `DVConsentBanner` holds it until the stored consent has been read and the frame with (or without) the banner is drawn, and lets go if analytics cannot start or the banner leaves the page.
