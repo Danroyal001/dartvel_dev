@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.6 — 2026-11-20
 
 - The prerender waits while the app holds the capture (`DVCaptureHold` in dartvel_flutter, read from `globalThis.__dvCaptureHolds`), in the semantics capture and the page screenshots. A page whose text looked settled while the consent banner was still reading the stored answer was written with the banner on some pages and without it on others (sigmadev.digital, 19 Nov 2026).
 

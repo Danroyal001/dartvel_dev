@@ -1,4 +1,6 @@
-## Unreleased
+## 3.47.6 — 2026-11-20
+
+- The router hands a route's answer through with two async steps fewer, parses each URL once, and times requests on one shared clock; the recent-records log buffer is a ring, so writing an access line costs about a quarter less.
 
 - `Router.measure` takes a path without closures, a label map or a telemetry scope when neither spans nor semantic metrics are read.
 
