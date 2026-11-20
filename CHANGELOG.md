@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.7 — 2026-11-20
 
 - `DVNavLink` and `DVNavLink.external` take `target:`: `DVLinkTarget.auto` (as before: a route or a host of `dartvel.hosts` in this tab), `DVLinkTarget.sameTab` or `DVLinkTarget.newTab`, for a plain click, a tap, Enter and a screen reader alike (the web interceptor reads it from the links on screen). A middle or modified click still opens beside. A site that spans subdomains no longer needs its own link opener to keep them in one tab.
 - With scripting off, the page around the server-rendered document takes its colours edge to edge, light and dark, with no browser margin. Only the 44rem reading column was painted, so a dark page showed as a strip on the browser's white page.
