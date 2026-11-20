@@ -163,6 +163,11 @@ const String dvFallbackNoscriptCss =
     '.dv-fallback{position:static;width:auto;height:auto;max-width:44rem;'
     'margin:0 auto;padding:2rem 1.25rem;overflow:visible;clip-path:none;'
     'pointer-events:auto}'
+    // The page around the reading column takes the column's colours, edge to
+    // edge: the column alone painted a dark strip on the browser's white page,
+    // under its default 8px body margin (owner, 20 Nov 2026, on dartvel.dev).
+    'html,body{margin:0;background:#fff}'
+    '@media (prefers-color-scheme:dark){html,body{background:#0a0d13}}'
     '.dv-fallback [data-dv-anchor]{display:block;content-visibility:visible}'
     // A password's eye flips the field with script; with none it could only
     // be a button that does nothing.
