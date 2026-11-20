@@ -56,10 +56,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  pictureBandTests();
+
   testWidgets('on a phone it stays one column', (WidgetTester tester) async {
     final (Rect title, Rect body) = await measure(tester, const Size(390, 844));
     expect(body.left, moreOrLessEquals(title.left, epsilon: 0.5));
     expect(body.top, greaterThan(title.bottom - 1));
+    expect(tester.takeException(), isNull);
+  });
+}
+
+// Owner's screenshot again (20 Nov check on the spare): the bands that also
+// carry a picture of Studio -- Page builder, Data -- kept their paragraphs in
+// the left half above the picture, with the right half of the column empty.
+// Their text reads in two columns too, and the picture stays full width below.
+const String pictureBandHeading = 'Drag a page together, then keep it as an ordinary @DVPage.';
+const String pictureBandParagraph = 'Insert text, images, buttons, spacers and dividers';
+
+void pictureBandTests() {
+  testWidgets('on a laptop a band with a picture lays its text out in two columns too', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(routed(const StudioPageGeneratedPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 2));
+    final Rect title = tester.getRect(find.textContaining(pictureBandHeading, findRichText: true).first);
+    final Rect body = tester.getRect(find.textContaining(pictureBandParagraph, findRichText: true).first);
+    expect(body.left, greaterThan(title.right - 1), reason: 'the paragraphs sit beside the heading, not under it');
+    expect(body.top, lessThan(title.bottom), reason: 'the first paragraph starts beside the heading');
+    expect(body.right, greaterThan(title.left + 1040 - 48), reason: 'no empty half of the column on the right');
     expect(tester.takeException(), isNull);
   });
 }
