@@ -12,6 +12,58 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'client_hosts.dart' show dvInstalledHosts;
 
+/// Where a link opens when it is followed normally (a plain click, a tap,
+/// Enter, a screen reader). A middle or modified click is the reader's own
+/// instruction and is never overridden.
+enum DVLinkTarget {
+  /// What a link does by default: a route of this app, or a page on another
+  /// host of `dartvel.hosts`, in this tab, as between two pages of one site.
+  auto,
+
+  /// In this tab, wherever it points. For a site that spans subdomains or
+  /// domains it does not list in `dartvel.hosts`, so they read as one site.
+  sameTab,
+
+  /// In a new tab, wherever it points, a page of this app included.
+  newTab,
+}
+
+/// The [DVLinkTarget] of each link on screen, by the href its anchor carries.
+///
+/// The web interceptor reads it when a keyboard or a screen reader activates
+/// an anchor: the anchor is the semantics tree's and carries only an href, so
+/// the link's choice has to be looked up rather than read off the element.
+/// Links register while mounted and only when they chose something other than
+/// [DVLinkTarget.auto]; two links to one address with different choices
+/// resolve to the one mounted last.
+class DVLinkTargets {
+  const DVLinkTargets._();
+
+  static final Map<String, List<DVLinkTarget>> _byHref = <String, List<DVLinkTarget>>{};
+
+  /// Called by a link when it mounts or changes. Returns nothing to undo;
+  /// [forget] with the same pair does that.
+  static void remember(String href, DVLinkTarget target) {
+    if (target == DVLinkTarget.auto) return;
+    (_byHref[href] ??= <DVLinkTarget>[]).add(target);
+  }
+
+  /// Called by a link when it unmounts or changes.
+  static void forget(String href, DVLinkTarget target) {
+    if (target == DVLinkTarget.auto) return;
+    final List<DVLinkTarget>? targets = _byHref[href];
+    if (targets == null) return;
+    targets.remove(target);
+    if (targets.isEmpty) _byHref.remove(href);
+  }
+
+  /// What the links on screen pointing at [href] asked for.
+  static DVLinkTarget of(String href) => _byHref[href]?.last ?? DVLinkTarget.auto;
+
+  @visibleForTesting
+  static void reset() => _byHref.clear();
+}
+
 /// What the browser reported about a link activation.
 class DVLinkActivation {
   const DVLinkActivation({
@@ -22,6 +74,7 @@ class DVLinkActivation {
     this.button = 0,
     this.withModifier = false,
     this.alreadyHandled = false,
+    this.linkTarget = DVLinkTarget.auto,
   });
 
   /// The anchor's `href`, exactly as written.
@@ -44,6 +97,9 @@ class DVLinkActivation {
 
   /// Whether another handler has already called `preventDefault`.
   final bool alreadyHandled;
+
+  /// Where the link on screen asked to open ([DVLinkTargets]).
+  final DVLinkTarget linkTarget;
 }
 
 /// The path to route to, or null when the browser should be left alone.
@@ -57,6 +113,8 @@ class DVLinkActivation {
 /// scroll rather than a route.
 String? dvRoutedLinkPath(DVLinkActivation activation) {
   if (activation.alreadyHandled) return null;
+  // Asked to open beside: the browser opens it, from the marked anchor.
+  if (activation.linkTarget == DVLinkTarget.newTab) return null;
   if (activation.button != 0) return null;
   if (activation.withModifier) return null;
   if (activation.hasDownload) return null;
@@ -114,6 +172,10 @@ bool dvLinkLeavesTheSite(DVLinkActivation activation) {
 
   final String? target = activation.target;
   if (target != null && target.isNotEmpty && target != '_self') return false;
+
+  // The link said where it opens.
+  if (activation.linkTarget == DVLinkTarget.sameTab) return false;
+  if (activation.linkTarget == DVLinkTarget.newTab) return true;
 
   final Uri? destination = Uri.tryParse(activation.href);
   if (destination == null) return false;

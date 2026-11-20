@@ -148,6 +148,10 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
               'Tap or scroll outside a preview to close it. Back closes the '
                   'preview before leaving the page.',
               'DVNavLink.external opens another site and never preloads.',
+              'target: DVLinkTarget.sameTab or DVLinkTarget.newTab says where a '
+                  'link opens when followed normally; the default keeps routes '
+                  'and hosts of dartvel.hosts in the same tab. Enter and screen '
+                  'readers follow the same choice.',
             ]),
             DocsSubheading('Show your own preview'),
             DocsCode('routing-navlink-custom'),

@@ -28,9 +28,11 @@ import '../../dartvel_flutter.dart'
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'client_hosts.dart' show dvIsOtherOrigin, dvPublicLocation;
 import 'first_frame_gate.dart' show dvFirstFrameShown;
-import 'link_interception.dart' show DVPressedLink;
+import 'link_interception.dart' show DVLinkTarget, DVLinkTargets, DVPressedLink;
 import 'link_menu.dart' show DVLinkMenuScope, dvShowLinkMenu;
 import 'route_prefetch.dart' show DVRoutePrefetch;
+
+export 'link_interception.dart' show DVLinkTarget;
 
 /// When a link fetches the route it points at.
 /// How long a link has to stay on screen before [DVLinkPreload.visible]
@@ -102,6 +104,7 @@ class DVNavLink extends StatefulWidget {
     this.onPreload,
     this.onPreview,
     this.openInNewTab,
+    this.target = DVLinkTarget.auto,
     this.padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
     this.enabled = true,
     this.semanticLabel,
@@ -129,6 +132,7 @@ class DVNavLink extends StatefulWidget {
     super.key,
     required this.child,
     this.openInNewTab,
+    this.target = DVLinkTarget.auto,
     this.padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
     this.enabled = true,
     this.semanticLabel,
@@ -165,6 +169,11 @@ class DVNavLink extends StatefulWidget {
   /// How to open the destination beside this one, for a middle or modifier
   /// click. Defaults to the platform's own way of doing it.
   final void Function(String path)? openInNewTab;
+
+  /// Where it opens when followed normally: [DVLinkTarget.auto] (a route or
+  /// a host of dartvel.hosts in this tab, as before), [DVLinkTarget.sameTab]
+  /// or [DVLinkTarget.newTab]. A middle or modified click still opens beside.
+  final DVLinkTarget target;
 
   /// The hit area around [child]. Padding here rather than on the child means
   /// the space around the label is clickable, so a click that looks
@@ -221,6 +230,7 @@ class _DVNavLinkState extends State<DVNavLink> {
     // have turned the browser's off: the 404 page is often the first page.
     DVBrowserMenu.install();
     _VisiblePreloads.attach();
+    _rememberTarget();
     if (widget.preload == DVLinkPreload.immediate) {
       // After the frame: a build must not start work that could rebuild it.
       // And after the first frame is on screen: on the web, frames build
@@ -249,8 +259,36 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
   }
 
+  // The web interceptor reads it when a keyboard or a screen reader follows
+  // this link's anchor, which carries only the href.
+  String? _rememberedHref;
+  DVLinkTarget _rememberedTarget = DVLinkTarget.auto;
+
+  void _rememberTarget() {
+    _forgetTarget();
+    if (widget.target == DVLinkTarget.auto) return;
+    _rememberedHref = _href;
+    _rememberedTarget = widget.target;
+    DVLinkTargets.remember(_rememberedHref!, _rememberedTarget);
+  }
+
+  void _forgetTarget() {
+    final String? href = _rememberedHref;
+    if (href != null) DVLinkTargets.forget(href, _rememberedTarget);
+    _rememberedHref = null;
+  }
+
+  @override
+  void didUpdateWidget(DVNavLink oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.target != widget.target || oldWidget.to != widget.to || oldWidget.externalUrl != widget.externalUrl) {
+      _rememberTarget();
+    }
+  }
+
   @override
   void dispose() {
+    _forgetTarget();
     _stopWatching();
     _VisiblePreloads.detach(this);
     _previewTimer?.cancel();
@@ -558,6 +596,18 @@ class _DVNavLinkState extends State<DVNavLink> {
     _removePreview();
     // A route another host of dartvel.hosts owns is that host's page: left
     // for, in this tab, as a link off the site is, never routed here.
+    if (widget.target == DVLinkTarget.newTab) {
+      // Asked for a tab. Where the browser follows anchors, Enter and a screen
+      // reader reach the anchor, which the interceptor marked target=_blank.
+      if (DVLinkOpener.browserFollowsAnchors && !fromPointer) return;
+      final void Function(String)? override = widget.openInNewTab;
+      if (override != null) {
+        override(_href);
+      } else {
+        DVLinkOpener.open(_href, newTab: true);
+      }
+      return;
+    }
     final String? external =
         widget.externalUrl ?? (dvIsOtherOrigin(_href) ? _href : null);
     if (external != null) {

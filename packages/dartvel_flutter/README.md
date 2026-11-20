@@ -342,7 +342,11 @@ destination, takes keyboard focus and answers Enter, opens beside the page on
 a middle or modifier click, preloads the route's deferred code when it
 becomes visible, and shows a preview of the destination on a resting pointer
 or a long press. `DVNavLink.external(url, child: ...)` is the same for an
-address outside the app.
+address outside the app. `target:` says where either opens when followed
+normally: `DVLinkTarget.auto` (a route, or a host of `dartvel.hosts`, in this
+tab), `DVLinkTarget.sameTab` (for subdomains or domains of one site that are
+not in `dartvel.hosts`) or `DVLinkTarget.newTab`. A middle or modified click
+still opens beside, and Enter and screen readers follow the same choice.
 
 Beside the pages:
 
