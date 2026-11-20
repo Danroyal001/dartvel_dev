@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVNavLink` and `DVNavLink.external` take `target:`: `DVLinkTarget.auto` (as before: a route or a host of `dartvel.hosts` in this tab), `DVLinkTarget.sameTab` or `DVLinkTarget.newTab`, for a plain click, a tap, Enter and a screen reader alike (the web interceptor reads it from the links on screen). A middle or modified click still opens beside. A site that spans subdomains no longer needs its own link opener to keep them in one tab.
+
 ## 3.47.6 — 2026-11-20
 
 - The consent banner's three buttons share its width in one row, labels centred, and stack full width on a screen too narrow for three; they sat at three natural widths with a gap on the right.

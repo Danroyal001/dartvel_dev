@@ -122,8 +122,10 @@ void dvInterceptLinkNavigation(void Function(String path) route) {
       return;
     }
 
+    final String href = anchor.getAttribute('href') ?? '';
     final DVLinkActivation activation = DVLinkActivation(
-      href: anchor.getAttribute('href') ?? '',
+      href: href,
+      linkTarget: DVLinkTargets.of(href),
       currentUrl: web_dom.window.location.href,
       target: anchor.getAttribute('target'),
       hasDownload: anchor.hasAttribute('download'),
