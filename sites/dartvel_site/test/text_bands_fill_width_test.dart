@@ -57,6 +57,7 @@ void main() {
   });
 
   pictureBandTests();
+  codeBandTests();
 
   testWidgets('on a phone it stays one column', (WidgetTester tester) async {
     final (Rect title, Rect body) = await measure(tester, const Size(390, 844));
@@ -87,6 +88,27 @@ void pictureBandTests() {
     expect(body.left, greaterThan(title.right - 1), reason: 'the paragraphs sit beside the heading, not under it');
     expect(body.top, lessThan(title.bottom), reason: 'the first paragraph starts beside the heading');
     expect(body.right, greaterThan(title.left + 1040 - 48), reason: 'no empty half of the column on the right');
+    expect(tester.takeException(), isNull);
+  });
+}
+
+// The Free Studio band opens with a code sample before its paragraphs; it is
+// text too, so it goes to the right column with them.
+void codeBandTests() {
+  testWidgets('on a laptop a band whose text includes a code sample reads in two columns', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1366, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(routed(const StudioPageGeneratedPage()));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(seconds: 2));
+    final Rect title = tester.getRect(find.textContaining('Open Studio on your live server with one grant.', findRichText: true).first);
+    final Rect code = tester.getRect(find.textContaining('# pubspec.yaml', findRichText: true).first);
+    final Rect body = tester.getRect(find.textContaining('Only people you grant can open it.', findRichText: true).first);
+    expect(code.left, greaterThan(title.right - 1), reason: 'the code sample sits beside the heading');
+    expect(code.top, lessThan(title.bottom), reason: 'it starts beside the heading, not under it');
+    expect(body.left, greaterThan(title.right - 1), reason: 'the paragraphs follow the code in the right column');
     expect(tester.takeException(), isNull);
   });
 }

@@ -353,16 +353,19 @@ Widget _section(
 /// when the band does not open with a heading and a paragraph, and on a
 /// narrow screen it is one column as before.
 Widget? textBand(List<Widget> children) {
-  bool isText(Widget child) => child is Eyebrow || child is Heading || child is Body;
+  bool isHeader(Widget child) => child is Eyebrow || child is Heading;
+  // A code sample reads with the paragraphs, so it goes in their column.
+  bool isReading(Widget child) => child is Body || child is CodeBlock;
+  bool isText(Widget child) => isHeader(child) || isReading(child);
   final int textEnd = children.indexWhere((Widget child) => !isText(child));
   final List<Widget> text = textEnd < 0 ? children : children.sublist(0, textEnd);
   final List<Widget> rest = textEnd < 0 ? const <Widget>[] : children.sublist(textEnd);
-  final List<Widget> header = <Widget>[for (final Widget child in text) if (child is Eyebrow || child is Heading) child];
-  final List<Widget> paragraphs = <Widget>[for (final Widget child in text) if (child is Body) child];
+  final List<Widget> header = <Widget>[for (final Widget child in text) if (isHeader(child)) child];
+  final List<Widget> paragraphs = <Widget>[for (final Widget child in text) if (isReading(child)) child];
   // A heading after a paragraph starts another block; two columns would pull
   // it away from the paragraphs it introduces.
-  final int lastHeader = text.lastIndexWhere((Widget child) => child is Eyebrow || child is Heading);
-  final int firstParagraph = text.indexWhere((Widget child) => child is Body);
+  final int lastHeader = text.lastIndexWhere(isHeader);
+  final int firstParagraph = text.indexWhere(isReading);
   if (header.isEmpty || paragraphs.isEmpty || lastHeader > firstParagraph) return null;
   return LayoutBuilder(
     builder: (BuildContext context, BoxConstraints box) => box.maxWidth < 900
