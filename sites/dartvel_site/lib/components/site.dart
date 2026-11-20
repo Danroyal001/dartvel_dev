@@ -344,24 +344,36 @@ Widget _section(
   );
 }
 
-/// A band of nothing but a label, a heading and paragraphs, as two columns on
-/// a wide screen: the label and heading on the left, the paragraphs on the
-/// right. The paragraphs keep their reading width either way; stacked in the
-/// 1040-pixel column they left its right half empty (owner, 19 Nov 2026, on
-/// /studio). Null for any other band, and on a narrow screen it is one
-/// column as before.
+/// A band that opens with a label, a heading and paragraphs lays that text
+/// out as two columns on a wide screen: the label and heading on the left, the
+/// paragraphs on the right, each at reading width. Whatever follows the text
+/// (a picture of Studio, a code sample, cards) stays full width below it.
+/// Stacked in the 1040-pixel column the text left its right half empty
+/// (owner, 19 Nov 2026, on /studio; bands with a picture too, 20 Nov). Null
+/// when the band does not open with a heading and a paragraph, and on a
+/// narrow screen it is one column as before.
 Widget? textBand(List<Widget> children) {
-  final bool textOnly = children.every((Widget child) => child is Eyebrow || child is Heading || child is Body);
-  final List<Widget> header = <Widget>[for (final Widget child in children) if (child is Eyebrow || child is Heading) child];
-  final List<Widget> paragraphs = <Widget>[for (final Widget child in children) if (child is Body) child];
-  if (!textOnly || header.isEmpty || paragraphs.isEmpty) return null;
+  bool isText(Widget child) => child is Eyebrow || child is Heading || child is Body;
+  final int textEnd = children.indexWhere((Widget child) => !isText(child));
+  final List<Widget> text = textEnd < 0 ? children : children.sublist(0, textEnd);
+  final List<Widget> rest = textEnd < 0 ? const <Widget>[] : children.sublist(textEnd);
+  final List<Widget> header = <Widget>[for (final Widget child in text) if (child is Eyebrow || child is Heading) child];
+  final List<Widget> paragraphs = <Widget>[for (final Widget child in text) if (child is Body) child];
+  // A heading after a paragraph starts another block; two columns would pull
+  // it away from the paragraphs it introduces.
+  final int lastHeader = text.lastIndexWhere((Widget child) => child is Eyebrow || child is Heading);
+  final int firstParagraph = text.indexWhere((Widget child) => child is Body);
+  if (header.isEmpty || paragraphs.isEmpty || lastHeader > firstParagraph) return null;
   return LayoutBuilder(
     builder: (BuildContext context, BoxConstraints box) => box.maxWidth < 900
         ? DVBox.list(children, spacing: 22)
-        : DVBox.row(<Widget>[
-            DVBox(DVBox.list(header, spacing: 22), const DVModifier().fill().paddingOnly(right: 48)),
-            DVBox(DVBox.list(paragraphs, spacing: 22), const DVModifier().fill()),
-          ], crossAlign: .start),
+        : DVBox.list(<Widget>[
+            DVBox.row(<Widget>[
+              DVBox(DVBox.list(header, spacing: 22), const DVModifier().fill().paddingOnly(right: 48)),
+              DVBox(DVBox.list(paragraphs, spacing: 22), const DVModifier().fill()),
+            ], crossAlign: .start),
+            ...rest,
+          ], spacing: 22),
   );
 }
 
