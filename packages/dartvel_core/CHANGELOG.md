@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.7 — 2026-11-20
 
 - With scripting off, the page around the server-rendered document takes its colours edge to edge, light and dark, with no browser margin. Only the 44rem reading column was painted, so a dark page showed as a strip on the browser's white page.
 
