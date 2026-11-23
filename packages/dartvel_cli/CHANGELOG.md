@@ -1,3 +1,7 @@
+## Unreleased
+
+- The syntax check's Rust helper parses several files at once (one thread per processor, at most 8; `--jobs N`), answering in the same order with the same answers. The check before `dartvel build` and in `dartvel doctor` went from 477 to 122 ms on dartvel_flutter's 695 files and from 161 to 109 ms on a 553-file app (the Dart analyzer: 629 and 221 ms). A helper started again after it died parses one file at a time, so the file it died on is still the one sent to Dart.
+
 ## 3.47.6 — 2026-11-20
 
 - The prerender waits while the app holds the capture (`DVCaptureHold` in dartvel_flutter, read from `globalThis.__dvCaptureHolds`), in the semantics capture and the page screenshots. A page whose text looked settled while the consent banner was still reading the stored answer was written with the banner on some pages and without it on others (sigmadev.digital, 19 Nov 2026).

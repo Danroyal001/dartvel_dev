@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel build` and `dartvel doctor` check syntax up to several times faster: the Rust helper parses files on one thread per processor (at most 8) and answers in order, with the same answers (695 files: 477 to 122 ms; the Dart analyzer takes 629 ms). See rust/README.md, Speed.
+
 ## 3.47.7 — 2026-11-20
 
 - `DVNavLink` and `DVNavLink.external` take `target:`: `DVLinkTarget.auto` (as before: a route or a host of `dartvel.hosts` in this tab), `DVLinkTarget.sameTab` or `DVLinkTarget.newTab`, for a plain click, a tap, Enter and a screen reader alike (the web interceptor reads it from the links on screen). A middle or modified click still opens beside. A site that spans subdomains no longer needs its own link opener to keep them in one tab.

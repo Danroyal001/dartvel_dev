@@ -93,7 +93,10 @@ So the CLI never takes the helper's word that a file is wrong:
    `package:analyzer`**, and only what the analyzer reports is shown. A
    helper that dies, or answers nothing for 10 seconds, is killed: its
    answers so far stand, the file it was on goes to Dart, and it is started
-   again after that file, up to three times. A helper that breaks its
+   again after that file, up to three times. The first run parses several
+   files at once, so the file it died on can be later than the first one it
+   had not answered; every run after a death passes `--jobs 1`, so from then
+   on the file after its last answer is the one it died on. A helper that breaks its
    protocol is not believed about anything in that run.
 3. The helper is a separate process, so nothing it does can take the CLI
    down.
@@ -132,7 +135,10 @@ every file with `package:analyzer`: the same findings, more slowly.
 ## The helper's protocol
 
 `dartvel_syntax` reads file paths from standard input, one a line, and
-answers in order on standard output, flushing after each file:
+answers in order on standard output, flushing after each file. It parses up
+to `--jobs N` files at once (by default one per processor, at most 8); each
+file is parsed on its own, and the answers are written in the order the
+paths came, so they are the same lines `--jobs 1` writes:
 
 ```text
 dartvel_syntax	1                  greeting: the protocol version
@@ -144,6 +150,37 @@ deferred	2	byte-order-mark        or not-utf8, too-large, parser-panic, deeply-n
 Fields are separated by tabs. With `--diagnostics` each flagged file is
 followed by `diagnostic <file> <code> <offset> <length> <message>` lines,
 which is what the differential test reads.
+
+## Speed
+
+Each file is parsed on its own thread from a pool (`--jobs`), which the
+Dart analyzer in the CLI cannot do: it parses one file after another on the
+CLI's one isolate. Measured 23 Nov 2026 on the 8-core server (load 3.5-5),
+compiled `tool/syntax_check_bench.dart`, nine alternating rounds, every file
+answered clean by the helper, findings identical:
+
+| Files | Dart analyzer (median) | Helper, one thread (median) | Helper, parallel (median) |
+|---|---|---|---|
+| sigmadev-dv `lib/`: 553 files, 2.9 MB | 221 ms | 161 ms | 109 ms |
+| `packages/dartvel_flutter/lib`: 695 files, 9.0 MB | 629-700 ms | 477 ms | 122 ms |
+| `packages/`: 2,924 files, 28.7 MB | 2,159-2,227 ms | 1,928 ms | 304 ms |
+
+One cold check, as one `dartvel build` runs it (sigmadev-dv `lib/`, five
+processes each): Dart 235-272 ms, one thread 149-184 ms, parallel 99-117 ms.
+
+Peak memory: the helper on all of `packages/` peaks at 47 MB parallel (17
+MB on one thread); the Dart check of the same files adds 57 MB to the CLI
+(67 MB against 9 MB for the same program checking no files). On sigmadev-dv
+`lib/`: helper 28 MB, Dart 40 MB more.
+
+A profile of one thread is flat across the ported scanner, parser and AST
+builder (no function above 5%; `malloc`/`free` about 7%, the UTF-16
+conversion about 4%), so the threads were the large gain left.
+
+Type arguments nested 20,000 deep (in `deep_nesting_is_answered`) take
+the helper 64 s and 7.3 GB on one thread, before and after this change; the
+CLI's 10 s stall timeout stops it well before that, but run the test with
+room for it (`HEAVY_MEMORY_MAX=8G`).
 
 ## Working on it
 
