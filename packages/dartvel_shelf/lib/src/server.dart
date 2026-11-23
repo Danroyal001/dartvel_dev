@@ -805,15 +805,33 @@ Future<ServerHandle> serve(
     }
   }
 
-  // The handler's answer, sent. Kept small: an async function's whole
-  // frame is saved at each await and restored after it, and this one
-  // carried every local of the upgrade and streaming paths through the
-  // await every request makes. Those are functions of their own now.
-  Future<void> respond(int reqId, Request req) async {
+  // Nobody is left to pull this request's body: its answer is what told
+  // the native side so, and a chunk that arrives after it is dropped rather
+  // than waiting for a pull nobody will make. Once per request, however it
+  // ended.
+  void responded(int reqId) {
+    bodies.remove(reqId);
+    scratch.leave();
+  }
+
+  void respondFailed(int reqId, Object error, StackTrace stack) {
+    // By type alone: an error's message is free to quote the request that
+    // caused it. A Router catches its routes' errors and logs them itself;
+    // this is a handler serve() was given directly, or a failure turning a
+    // response into bytes.
+    _logRefused(500, 'failed (${error.runtimeType})', stack);
+    // Already answered is harmless: the native side answers a request once
+    // and refuses the second.
+    _answerError(api, reqId, 500);
+    responded(reqId);
+  }
+
+  // The handler's answer, sent.
+  void respondWith(int reqId, Response resp) {
     try {
-      final resp = await effective(req);
       if (resp is WebSocketResponse) {
         upgrade(reqId, resp);
+        responded(reqId);
         return;
       }
       // Already whole in memory, the common answer: sent from here.
@@ -823,25 +841,34 @@ Future<ServerHandle> serve(
             scratch.fill(resp.status, resp.headers, whole);
         api.aw_complete(reqId, out.ref);
         scratch.done();
+        responded(reqId);
         return;
       }
-      await sendBody(reqId, resp);
     } catch (error, stack) {
-      // By type alone: an error's message is free to quote the request
-      // that caused it. A Router catches its routes' errors and logs them
-      // itself; this is a handler serve() was given directly, or a failure
-      // turning a response into bytes.
-      _logRefused(500, 'failed (${error.runtimeType})', stack);
-      // Already answered is harmless: the native side answers a request
-      // once and refuses the second.
-      _answerError(api, reqId, 500);
-    } finally {
-      // Nobody is left to pull this request's body: its answer is what
-      // told the native side so, and a chunk that arrives after it is
-      // dropped rather than waiting for a pull nobody will make.
-      bodies.remove(reqId);
-      scratch.leave();
+      respondFailed(reqId, error, stack);
+      return;
     }
+    sendBody(reqId, resp).then((_) => responded(reqId),
+        onError: (Object error, StackTrace stack) =>
+            respondFailed(reqId, error, stack));
+  }
+
+  // The handler is called and its answer sent when it completes, with a
+  // listener on its future rather than an async function awaiting it: the
+  // function's suspend state, its own future and its resumption were a cost
+  // every request paid. The same order of events: the answer is sent in the
+  // microtask the handler's future completes in, as after an await.
+  void respond(int reqId, Request req) {
+    final Future<Response> answer;
+    try {
+      answer = effective(req);
+    } catch (error, stack) {
+      respondFailed(reqId, error, stack);
+      return;
+    }
+    answer.then((Response resp) => respondWith(reqId, resp),
+        onError: (Object error, StackTrace stack) =>
+            respondFailed(reqId, error, stack));
   }
 
   void readRequest(
@@ -906,7 +933,7 @@ Future<ServerHandle> serve(
     // `Future(...)`, which is a timer: every request waited for one more
     // trip around the event loop before its handler ran.
     scratch.enter();
-    unawaited(respond(reqId, req));
+    respond(reqId, req);
   }
 
   // A request handed to the listener is acknowledged once read, so the
