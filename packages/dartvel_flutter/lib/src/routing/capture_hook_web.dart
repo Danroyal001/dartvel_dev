@@ -2,11 +2,14 @@
 /// with, so it boots the app once per browser tab instead of once per route.
 library dartvel_flutter.routing.capture_hook.web;
 
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
 import 'package:flutter/painting.dart';
 import 'package:go_router/go_router.dart';
+
+import '../seo/paint_snapshot.dart';
 
 /// The page global the build reads.
 const String _global = '__dartvelCapture';
@@ -20,6 +23,7 @@ const String _global = '__dartvelCapture';
 ///   the same requests a fresh load of it makes.
 /// * `location()` is where the router is now: a route that redirected
 ///   elsewhere is read with a fresh load instead.
+/// * `snapshot()` is what the app painted, as JSON (`dvPaintSnapshot`).
 ///
 /// A browser a person is using never has it.
 void dvInstallCaptureHook(GoRouter router, {bool? automated}) {
@@ -44,6 +48,12 @@ void dvInstallCaptureHook(GoRouter router, {bool? automated}) {
   hook.setProperty(
     'location'.toJS,
     (() => router.routerDelegate.currentConfiguration.uri.path.toJS).toJS,
+  );
+  // What the app painted, for the SSR-first document to be laid out as the
+  // first frame draws the page (see dvPaintSnapshot).
+  hook.setProperty(
+    'snapshot'.toJS,
+    (() => jsonEncode(dvPaintSnapshot()).toJS).toJS,
   );
   globalContext.setProperty(_global.toJS, hook);
 }

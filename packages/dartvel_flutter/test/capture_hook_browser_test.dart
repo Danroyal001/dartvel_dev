@@ -16,6 +16,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -77,6 +78,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(PaintingBinding.instance.imageCache.containsKey('probe'), isFalse);
     expect(globalContext.has('__dartvelImages'), isFalse);
+  });
+
+  testWidgets('snapshot() is what the app painted, as JSON',
+      (WidgetTester tester) async {
+    final GoRouter app = router();
+    dvInstallCaptureHook(app, automated: true);
+    await tester.pumpWidget(MaterialAppShim(app));
+    final String json = hook()!.callMethod<JSString>('snapshot'.toJS).toDart;
+    final Map<String, Object?> snapshot =
+        (jsonDecode(json) as Map<Object?, Object?>).cast<String, Object?>();
+    expect(snapshot['width'], greaterThan(0));
+    expect(
+        (snapshot['items']! as List<Object?>)
+            .whereType<Map<Object?, Object?>>()
+            .any((Map<Object?, Object?> item) => item['text'] == 'home'),
+        isTrue);
   });
 
   testWidgets('a browser a person is using gets no hook', (WidgetTester tester) async {
