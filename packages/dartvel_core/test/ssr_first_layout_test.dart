@@ -266,6 +266,25 @@ void main() {
       expect(out, isNot(contains('</style><script>')));
     });
 
+    test('the stylesheet means the same after the page minifier', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(400, <Map<String, Object?>>[
+            _box(<num>[0, 0, 400, 800], '#ffffff'),
+            _text('Ship faster', <num>[50, 100, 300, 40], z: 1),
+            _text('\u{e5d2}', <num>[350, 10, 24, 24], z: 2, family: 'MaterialIcons'),
+          ]),
+          _width(1000, <Map<String, Object?>>[_text('Ship faster', <num>[350, 100, 300, 40], z: 1)]),
+        ]),
+      );
+      String style(String html) =>
+          RegExp(r'<style class="dvl-style">(.*?)</style>', dotAll: true).firstMatch(html)!.group(1)!;
+      // The minifier reads nested rules as declarations; nothing written may
+      // depend on a space it would take out.
+      expect(dvMinifyCss(style(out)), style(out));
+    });
+
     test('no capture for a width: the document is returned as it was', () {
       expect(dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[])), _doc);
     });

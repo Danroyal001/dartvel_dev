@@ -684,7 +684,7 @@ class _Layout {
       ..write('.dv-fallback:has(>.dvl){padding:0;scrollbar-width:none}')
       ..write('.dv-fallback:has(>.dvl)::-webkit-scrollbar{display:none}')
       ..write('.dvl{position:relative;min-height:100%}')
-      ..write('.dvl :is(h1,h2,h3,h4,h5,h6,p,ul,ol,li,pre,code,figure,figcaption,nav,main,footer,header,'
+      ..write('.dvl *:is(h1,h2,h3,h4,h5,h6,p,ul,ol,li,pre,code,figure,figcaption,nav,main,footer,header,'
           'section,strong,em,label,div,blockquote,a){margin:0!important;padding:0;border:0;'
           'background:none;list-style:none;text-decoration:none;color:inherit}')
       ..write('.dvl .dvp{display:block;pointer-events:none}')
