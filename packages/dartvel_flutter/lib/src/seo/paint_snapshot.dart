@@ -38,6 +38,7 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// The paint snapshot of the app as it is on screen now.
@@ -557,3 +558,15 @@ double _round(double value, [int factor = 100]) {
 /// Kept for callers that want the engine's paragraph default as a family.
 const String dvEngineDefaultFontFamily = 'Roboto';
 
+
+/// Whether the app has nothing left to draw: no frame scheduled and no
+/// animation running. The capture reads [dvPaintSnapshot] once this holds,
+/// rather than reading it until reads agree.
+bool dvPaintIdle() {
+  final SchedulerBinding binding = SchedulerBinding.instance;
+  return !binding.hasScheduledFrame && binding.transientCallbackCount == 0;
+}
+
+/// The scheme the app has been told, `light` or `dark`.
+String dvPaintBrightness() =>
+    WidgetsBinding.instance.platformDispatcher.platformBrightness.name;

@@ -24,6 +24,7 @@ const String _global = '__dartvelCapture';
 /// * `location()` is where the router is now: a route that redirected
 ///   elsewhere is read with a fresh load instead.
 /// * `snapshot()` is what the app painted, as JSON (`dvPaintSnapshot`).
+/// * `idle()` and `brightness()` say when it is worth reading (`dvPaintIdle`).
 ///
 /// A browser a person is using never has it.
 void dvInstallCaptureHook(GoRouter router, {bool? automated}) {
@@ -55,5 +56,9 @@ void dvInstallCaptureHook(GoRouter router, {bool? automated}) {
     'snapshot'.toJS,
     (() => jsonEncode(dvPaintSnapshot()).toJS).toJS,
   );
+  // Whether it has nothing left to draw, and the scheme it has been told: the
+  // capture reads each picture once both are so.
+  hook.setProperty('idle'.toJS, (() => dvPaintIdle().toJS).toJS);
+  hook.setProperty('brightness'.toJS, (() => dvPaintBrightness().toJS).toJS);
   globalContext.setProperty(_global.toJS, hook);
 }

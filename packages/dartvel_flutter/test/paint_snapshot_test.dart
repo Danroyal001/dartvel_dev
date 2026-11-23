@@ -23,6 +23,7 @@ List<double> _rect(Map<String, Object?> item) =>
     (item['r']! as List<Object?>).cast<num>().map((num v) => v.toDouble()).toList();
 
 void main() {
+  idleTests();
   setUp(() {
     final TestWidgetsFlutterBinding binding =
         TestWidgetsFlutterBinding.ensureInitialized();
@@ -322,5 +323,19 @@ void main() {
     final Map<String, Object?> pill = _items(dvPaintSnapshot()).firstWhere(
         (Map<String, Object?> item) => item['k'] == 'b' && item['bg'] == '#123456');
     expect(pill['rad'], <double>[20, 20, 20, 20]);
+  });
+}
+
+void idleTests() {
+  testWidgets('idle: nothing left to draw once the page is at rest', (WidgetTester tester) async {
+    final AnimationController controller = AnimationController(
+        vsync: const TestVSync(), duration: const Duration(milliseconds: 300));
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(MaterialApp(home: FadeTransition(opacity: controller, child: const Text('Fading'))));
+    controller.forward();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(dvPaintIdle(), isFalse, reason: 'mid animation');
+    await tester.pumpAndSettle();
+    expect(dvPaintIdle(), isTrue);
   });
 }
