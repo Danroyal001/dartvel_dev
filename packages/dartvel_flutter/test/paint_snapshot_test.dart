@@ -40,6 +40,7 @@ void main() {
     final Map<String, Object?> snapshot = dvPaintSnapshot();
     expect(snapshot['width'], 400);
     expect(snapshot['height'], 800);
+    expect(snapshot['brightness'], 'light');
     expect(jsonDecode(jsonEncode(snapshot)), isA<Map<String, Object?>>());
   });
 

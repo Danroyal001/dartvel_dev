@@ -55,6 +55,9 @@ Map<String, Object?> dvPaintSnapshot() {
   return <String, Object?>{
     'width': _round(size.width),
     'height': _round(size.height),
+    // What the app has been told the scheme is, so the capture can wait for a
+    // switch to reach it before reading the colours.
+    'brightness': binding.platformDispatcher.platformBrightness.name,
     'items': snapshot.items,
   };
 }
