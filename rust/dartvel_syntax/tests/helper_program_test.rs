@@ -210,10 +210,14 @@ fn parallel_answers_are_the_serial_answers_in_order() {
     for flags in [&[][..], &["--diagnostics"][..]] {
         let serial = run_helper(&[flags, &["--jobs", "1"]].concat(), &paths);
         assert!(serial.status.success());
-        assert_eq!(output_lines(&serial).len() > paths.len(), true);
+        assert!(output_lines(&serial).len() > paths.len());
         for jobs in ["2", "4", "16"] {
             let parallel = run_helper(&[flags, &["--jobs", jobs]].concat(), &paths);
-            assert!(parallel.status.success(), "--jobs {jobs}: {:?}", parallel.status);
+            assert!(
+                parallel.status.success(),
+                "--jobs {jobs}: {:?}",
+                parallel.status
+            );
             assert_eq!(
                 output_lines(&parallel),
                 output_lines(&serial),
@@ -222,7 +226,11 @@ fn parallel_answers_are_the_serial_answers_in_order() {
             assert!(parallel.stderr.is_empty());
         }
         let by_default = run_helper(flags, &paths);
-        assert_eq!(output_lines(&by_default), output_lines(&serial), "default {flags:?}");
+        assert_eq!(
+            output_lines(&by_default),
+            output_lines(&serial),
+            "default {flags:?}"
+        );
     }
     fs::remove_dir_all(&directory).unwrap();
 }
@@ -233,7 +241,11 @@ fn parallel_answers_are_the_serial_answers_in_order() {
 fn a_slow_file_first_keeps_the_order() {
     let directory = scratch_directory("slow_first");
     let slow = directory.join("slow.dart");
-    fs::write(&slow, format!("{}int{} x;", "List<".repeat(3_000), ">".repeat(3_000))).unwrap();
+    fs::write(
+        &slow,
+        format!("{}int{} x;", "List<".repeat(3_000), ">".repeat(3_000)),
+    )
+    .unwrap();
     let mut paths = vec![slow.to_string_lossy().into_owned()];
     paths.extend(mixed_paths(&directory, 50));
     let serial = run_helper(&["--jobs", "1"], &paths);
@@ -245,7 +257,12 @@ fn a_slow_file_first_keeps_the_order() {
 
 #[test]
 fn a_job_count_that_is_not_a_positive_number_is_refused() {
-    for arguments in [&["--jobs"][..], &["--jobs", "0"], &["--jobs", "many"], &["--jobs", "-2"]] {
+    for arguments in [
+        &["--jobs"][..],
+        &["--jobs", "0"],
+        &["--jobs", "many"],
+        &["--jobs", "-2"],
+    ] {
         let output = run_helper(arguments, &[]);
         assert_eq!(output.status.code(), Some(64), "{arguments:?}");
         assert!(output.stdout.is_empty(), "{arguments:?}");

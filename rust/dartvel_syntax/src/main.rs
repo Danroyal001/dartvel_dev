@@ -46,7 +46,10 @@ fn main() -> ExitCode {
                 println!("{}", greeting());
                 return ExitCode::SUCCESS;
             }
-            "--jobs" => match arguments.next().and_then(|count| count.parse::<usize>().ok()) {
+            "--jobs" => match arguments
+                .next()
+                .and_then(|count| count.parse::<usize>().ok())
+            {
                 Some(count) if count > 0 => jobs = Some(count),
                 _ => {
                     eprintln!("dartvel_syntax: --jobs takes a number of threads, 1 or more");
@@ -83,7 +86,9 @@ fn main() -> ExitCode {
 
 /// Runs [work] on a thread with the parser's stack, or on this thread when
 /// the system gives no such thread.
-fn on_a_parser_stack(work: impl FnOnce() -> io::Result<()> + Send + Clone + 'static) -> io::Result<()> {
+fn on_a_parser_stack(
+    work: impl FnOnce() -> io::Result<()> + Send + Clone + 'static,
+) -> io::Result<()> {
     for stack_bytes in [PARSER_STACK_BYTES, SMALLER_PARSER_STACK_BYTES] {
         let spawned = thread::Builder::new()
             .name("parser".to_string())
@@ -105,7 +110,12 @@ fn greet(output: &mut impl Write) -> io::Result<()> {
 }
 
 /// Writes the answer for file [index] and flushes it.
-fn answer(output: &mut impl Write, index: usize, outcome: &SyntaxOutcome, with_diagnostics: bool) -> io::Result<()> {
+fn answer(
+    output: &mut impl Write,
+    index: usize,
+    outcome: &SyntaxOutcome,
+    with_diagnostics: bool,
+) -> io::Result<()> {
     for result_line in result_lines(index, outcome, with_diagnostics) {
         writeln!(output, "{result_line}")?;
     }
@@ -121,7 +131,12 @@ fn answer_every_path(with_diagnostics: bool) -> io::Result<()> {
     greet(&mut output)?;
     for (index, line) in io::stdin().lock().lines().enumerate() {
         let path = line?;
-        answer(&mut output, index, &check_file(Path::new(&path)), with_diagnostics)?;
+        answer(
+            &mut output,
+            index,
+            &check_file(Path::new(&path)),
+            with_diagnostics,
+        )?;
     }
     Ok(())
 }
@@ -150,7 +165,10 @@ fn answer_every_path_in_parallel(with_diagnostics: bool, jobs: usize) -> io::Res
                     Err(_) => return,
                 };
                 let Ok((index, path)) = next else { return };
-                if outcomes.send((index, check_file(Path::new(&path)))).is_err() {
+                if outcomes
+                    .send((index, check_file(Path::new(&path))))
+                    .is_err()
+                {
                     return;
                 }
             }
@@ -171,21 +189,23 @@ fn answer_every_path_in_parallel(with_diagnostics: bool, jobs: usize) -> io::Res
         return answer_every_path(with_diagnostics);
     }
 
-    let writer = thread::Builder::new().name("writer".to_string()).spawn(move || {
-        let standard_output = io::stdout();
-        let mut output = standard_output.lock();
-        greet(&mut output)?;
-        let mut waiting: BTreeMap<usize, SyntaxOutcome> = BTreeMap::new();
-        let mut next_to_answer = 0;
-        for (index, outcome) in outcome_receiver {
-            waiting.insert(index, outcome);
-            while let Some(outcome) = waiting.remove(&next_to_answer) {
-                answer(&mut output, next_to_answer, &outcome, with_diagnostics)?;
-                next_to_answer += 1;
+    let writer = thread::Builder::new()
+        .name("writer".to_string())
+        .spawn(move || {
+            let standard_output = io::stdout();
+            let mut output = standard_output.lock();
+            greet(&mut output)?;
+            let mut waiting: BTreeMap<usize, SyntaxOutcome> = BTreeMap::new();
+            let mut next_to_answer = 0;
+            for (index, outcome) in outcome_receiver {
+                waiting.insert(index, outcome);
+                while let Some(outcome) = waiting.remove(&next_to_answer) {
+                    answer(&mut output, next_to_answer, &outcome, with_diagnostics)?;
+                    next_to_answer += 1;
+                }
             }
-        }
-        Ok::<(), io::Error>(())
-    })?;
+            Ok::<(), io::Error>(())
+        })?;
 
     let mut read = Ok(());
     for (index, line) in io::stdin().lock().lines().enumerate() {
