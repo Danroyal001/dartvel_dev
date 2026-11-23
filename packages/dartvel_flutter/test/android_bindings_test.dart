@@ -31,6 +31,8 @@ void main() {
         'haptics.lightVibrate',
         'haptics.impact',
         'share.text',
+        // An external link handed to the app that opens it (ACTION_VIEW).
+        'links.open',
         // The launchable apps and opening them (DVApps), through PackageManager.
         'apps.list',
         'apps.open',

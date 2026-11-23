@@ -1,5 +1,6 @@
 ## Unreleased
 
+- External links work on Android: `DVNavLink.external` and `DVLinkOpener.open` hand the address to the phone (ACTION_VIEW: the browser, the dialer for `tel:`, the mail app for `mailto:`). Off the web they did nothing at all. Only http, https, mailto, tel, sms, smsto, geo and market addresses are opened; `intent:`, `file:` and `content:` are refused. New binding `links.open`.
 - `dartvel build` and `dartvel doctor` check syntax up to several times faster: the Rust helper parses files on one thread per processor (at most 8) and answers in order, with the same answers (695 files: 477 to 122 ms; the Dart analyzer takes 629 ms). See rust/README.md, Speed.
 
 ## 3.47.7 — 2026-11-20

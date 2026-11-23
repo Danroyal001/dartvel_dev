@@ -147,7 +147,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
                   'hover, so nothing the guard protects is shown.',
               'Tap or scroll outside a preview to close it. Back closes the '
                   'preview before leaving the page.',
-              'DVNavLink.external opens another site and never preloads.',
+              'DVNavLink.external opens another site and never preloads. On a '
+                  'phone it opens the browser (or the dialer for tel:, the mail '
+                  'app for mailto:).',
               'target: DVLinkTarget.sameTab or DVLinkTarget.newTab says where a '
                   'link opens when followed normally; the default keeps routes '
                   'and hosts of dartvel.hosts in the same tab. Enter and screen '
