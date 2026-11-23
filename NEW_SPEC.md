@@ -16748,7 +16748,9 @@ syntax error with its file, line and column, exit 65:
 
 `dartvel doctor` lists the same errors. They are the Dart analyzer's
 (`parseString`), word for word. A CLI binary carries a Rust port of that
-parser as a helper program and asks it first which files are clean; a file it
+parser as a helper program and asks it first which files are clean (it
+parses several files at once, one thread per processor, and answers in the
+order asked); a file it
 flags, declines or dies on is parsed by the Dart analyzer, and only the
 analyzer's findings are shown, so the helper can make the check faster and
 cannot change what it says. A CLI without the helper (`dart pub global

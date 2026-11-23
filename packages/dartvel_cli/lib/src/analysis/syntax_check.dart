@@ -246,7 +246,11 @@ class DVSyntaxHelper {
     final Set<String> clean = <String>{};
     int next = 0;
     for (int starts = 0; next < askable.length && starts <= restarts; starts++) {
-      final _HelperRun run = await _run(askable.sublist(next));
+      // The helper parses several files at once, so when it dies the file it
+      // died on may be later than the first one it had not answered. Started
+      // again, it goes one file at a time, and the file after its last
+      // answer is then the one it died on.
+      final _HelperRun run = await _run(askable.sublist(next), oneAtATime: starts > 0);
       if (!run.believable) break;
       for (final int index in run.clean) {
         clean.add(askable[next + index]);
@@ -258,10 +262,10 @@ class DVSyntaxHelper {
     return clean;
   }
 
-  Future<_HelperRun> _run(List<String> paths) async {
+  Future<_HelperRun> _run(List<String> paths, {required bool oneAtATime}) async {
     final Process process;
     try {
-      process = await Process.start(executable, const <String>[]);
+      process = await Process.start(executable, oneAtATime ? const <String>['--jobs', '1'] : const <String>[]);
     } on ProcessException {
       return const _HelperRun.unbelievable();
     }

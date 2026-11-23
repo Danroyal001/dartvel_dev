@@ -295,6 +295,35 @@ done''', stallTimeout: const Duration(milliseconds: 500));
       expect(report.parsedInDart, 1);
     }, testOn: '!windows');
 
+    test('the first helper parses in parallel; one started again after a death parses one file at a time',
+        () async {
+      final Directory root = _project(<String, Object>{
+        'lib/a.dart': _clean,
+        'lib/b.dart': _clean,
+        'lib/c.dart': _clean,
+        'lib/d.dart': _clean,
+      });
+      final Directory logs = Directory.systemTemp.createTempSync('dv_syntax_starts_');
+      addTearDown(() => logs.deleteSync(recursive: true));
+      final String starts = p.join(logs.path, 'starts');
+      // Logs its arguments at every start and dies on b.dart. Running in
+      // parallel, the real helper can die on a file later than the first one
+      // it has not answered; one file at a time, the file after the last
+      // answer is the one it died on.
+      final DVSyntaxHelper helper = _scriptedHelper('''
+printf '[%s]\\n' "\$*" >> '$starts'
+$_greet
+index=0
+while IFS= read -r path; do
+  case "\$path" in *b.dart) exit 9 ;; esac
+  printf 'clean\\t%s\\n' "\$index"
+  index=\$((index+1))
+done''');
+      final DVSyntaxReport report = await dvCheckProjectSyntax(root.path, helper: helper);
+      expect(report.cleanByHelper, 3, reason: 'a, c and d; b went to Dart');
+      expect(File(starts).readAsLinesSync(), <String>['[]', '[--jobs 1]']);
+    }, testOn: '!windows');
+
     test('a helper that is not there is the same as no helper', () async {
       final Directory root = _project(mixedProject);
       final DVSyntaxReport report =

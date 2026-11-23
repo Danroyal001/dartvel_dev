@@ -84,7 +84,9 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
         Bullets(<String>[
           'The errors are the Dart analyzer\'s own, word for word.',
           'An installed dartvel binary first asks a parser written in Rust, '
-              'a port of the analyzer\'s, which files are clean. Only the '
+              'a port of the analyzer\'s, which files are clean. It parses '
+              'several files at once, so a large project is checked in a '
+              'fraction of the time the analyzer takes. Only the '
               'files it does not vouch for are parsed again in Dart, and '
               'only what the Dart analyzer says is shown.',
           'Run from source, or installed with `dart pub global activate`, '
