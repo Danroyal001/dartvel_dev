@@ -198,6 +198,44 @@ void main() {
       expect(RegExp('#$id\\{[^}]*(display|position):').hasMatch(out), isFalse, reason: out);
     });
 
+    test('a z-index that does not change is written once', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(400, <Map<String, Object?>>[_text('Ship faster', <num>[50, 100, 300, 40], z: 7)]),
+          _width(1000, <Map<String, Object?>>[_text('Ship faster', <num>[350, 100, 300, 40], z: 9)]),
+          _width(1600, <Map<String, Object?>>[_text('Ship faster', <num>[650, 100, 300, 40], z: 9)]),
+        ]),
+      );
+      final String id = RegExp(r'<span id="(dvr\d+)">Ship faster').firstMatch(out)!.group(1)!;
+      // One line from 400 to 1600 (centred): one placement, and the z-index
+      // the nearer capture has.
+      expect(RegExp('#$id\\{left:').allMatches(out).length, 2, reason: out);
+      expect(RegExp('#$id\\{[^}]*z-index:9').allMatches(out).length, 1);
+    });
+
+    test('what is below the fold is placed by a second stylesheet after the document', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40]),
+            _text('See pricing', <num>[20, 5000, 100, 20]),
+          ]),
+        ]),
+      );
+      final String top = RegExp(r'<span id="(dvr\d+)">Ship faster').firstMatch(out)!.group(1)!;
+      final String deep = RegExp(r'<span id="(dvr\d+)">See pricing').firstMatch(out)!.group(1)!;
+      final List<RegExpMatch> styles = RegExp(r'<style class="dvl-style">(.*?)</style>', dotAll: true).allMatches(out).toList();
+      expect(styles, hasLength(2));
+      expect(styles.first.group(1), contains('#$top{'));
+      expect(styles.first.group(1), isNot(contains('#$deep{')));
+      expect(styles.last.group(1), contains('#$deep{'));
+      expect(out.indexOf(styles.last.group(0)!), greaterThan(out.indexOf('See pricing')));
+      // Until it arrives, what it places is off the screen, not in the way.
+      expect(styles.first.group(1), contains('.dvl [id^=dvr]{position:absolute;left:-99999px'));
+    });
+
     test('boxes and images are drawn by an aria-hidden layer that is not text', () {
       final String out = dvSsrFirstLayout(
         _doc,
