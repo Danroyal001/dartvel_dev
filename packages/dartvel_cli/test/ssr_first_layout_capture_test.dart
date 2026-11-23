@@ -108,6 +108,7 @@ void main() {
   });
 
   group('a slow scheme switch', _laggingSchemeTests);
+  group('an app that says when it is idle', _idleTests);
 
   group('in a browser', () {
     late Browser browser;
@@ -174,6 +175,54 @@ void _laggingSchemeTests() {
           (((entry[scheme]! as Map<String, Object?>)['items']! as List<Object?>).first! as Map<String, Object?>)['bg']! as String;
       expect(background('light'), '#ffffff', reason: 'light at ${entry['width']}');
       expect(background('dark'), '#000000', reason: 'dark at ${entry['width']}');
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+}
+
+/// An app that says when it is idle: the capture reads each picture once,
+/// when the app has nothing left to draw, instead of until three reads agree.
+const String _idleApp = '''<!DOCTYPE html><html><body><flt-semantics-host></flt-semantics-host><script>
+let told = 'light';
+let busyUntil = 0;
+globalThis.__snapshots = 0;
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+  busyUntil = Date.now() + 500;
+  setTimeout(() => { told = event.matches ? 'dark' : 'light'; }, 300);
+});
+addEventListener('resize', () => { busyUntil = Date.now() + 300; });
+globalThis.__dartvelCapture = {
+  idle: () => Date.now() > busyUntil,
+  brightness: () => told,
+  snapshot: () => { globalThis.__snapshots++; return JSON.stringify({
+    width: innerWidth, height: innerHeight, brightness: told,
+    items: [{k: 'b', r: [0, 0, innerWidth, innerHeight], z: 0, s: false, bg: told === 'dark' ? '#000000' : '#ffffff'}],
+  }); },
+};
+</script></body></html>''';
+
+void _idleTests() {
+  late Browser browser;
+  setUpAll(() async {
+    browser = await puppeteer.launch(executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
+  });
+  tearDownAll(() => browser.close());
+
+  test('an app that says when it is idle is read once per width and scheme', () async {
+    final Page page = await browser.newPage();
+    await page.setContent(_idleApp);
+    final Directory root = Directory.systemTemp.createTempSync('dv_idle');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String path = p.join(root.path, 'x.layout.json');
+    expect(await dvCaptureLayout(page, <int>[390, 1024, 1366], path: path), isTrue);
+    expect(await page.evaluate<int>('() => globalThis.__snapshots'), 6);
+    await page.close();
+    final Map<String, Object?> written = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    for (final Object? width in written['widths']! as List<Object?>) {
+      final Map<String, Object?> entry = width! as Map<String, Object?>;
+      String background(String scheme) =>
+          (((entry[scheme]! as Map<String, Object?>)['items']! as List<Object?>).first! as Map<String, Object?>)['bg']! as String;
+      expect(background('light'), '#ffffff');
+      expect(background('dark'), '#000000');
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

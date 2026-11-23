@@ -87,6 +87,18 @@ const String _snapshotScript = '''() => {
   return hook && typeof hook.snapshot === "function" ? hook.snapshot() : null;
 }''';
 
+/// Whether the app's hook says when it is idle.
+const String _saysIdleScript = '''() => {
+  const hook = globalThis.__dartvelCapture;
+  return !!hook && typeof hook.idle === "function" && typeof hook.brightness === "function";
+}''';
+
+/// Whether the app has nothing left to draw and has been told [scheme].
+const String _readyScript = '''(scheme) => {
+  const hook = globalThis.__dartvelCapture;
+  return hook.idle() && hook.brightness() === scheme;
+}''';
+
 Future<void> _scheme(Page page, String scheme) =>
     // puppeteer's MediaFeature spells the colour-scheme feature wrongly, so
     // the protocol call is made as written. Reduced motion stays on: the
@@ -107,8 +119,25 @@ Future<void> _scheme(Page page, String scheme) =>
 /// settled. sigmadev.digital's pricing page was laid out in dark colours for the
 /// light scheme at 1024 that way.
 Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme) async {
-  final List<String> reads = <String>[];
   final DateTime deadline = DateTime.now().add(settle);
+  // An app whose hook says when it is idle and which scheme it has been told
+  // is read once, when both are so: a picture is the largest thing the
+  // capture moves, and three of each per width made the read of a site of
+  // two hundred pages take an hour.
+  if (await page.evaluate<bool>(_saysIdleScript)) {
+    int quiet = 0;
+    while (DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final bool ready = await page.evaluate<bool>(_readyScript, args: <Object?>[scheme]);
+      quiet = ready ? quiet + 1 : 0;
+      if (quiet >= 2) break;
+    }
+    final String? now = await page.evaluate<String?>(_snapshotScript);
+    if (now == null) return null;
+    final Object? decoded = jsonDecode(now);
+    return decoded is Map ? decoded.cast<String, Object?>() : null;
+  }
+  final List<String> reads = <String>[];
   while (true) {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final String? now = await page.evaluate<String?>(_snapshotScript);
