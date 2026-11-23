@@ -83,6 +83,10 @@ String dvFindableHtml(String content) {
   String? leaf;
   int depth = 0;
 
+  // An element copied through whole, and how deep inside it the scanner is.
+  String? skip;
+  int skipDepth = 0;
+
   for (final RegExpMatch match in _tag.allMatches(content)) {
     final bool closing = match.group(1) == '/';
     final String name = match.group(2)!.toLowerCase();
@@ -100,6 +104,24 @@ String dvFindableHtml(String content) {
           leaf = null;
         }
       }
+      continue;
+    }
+
+    if (skip != null) {
+      if (name == skip && !selfClosing) {
+        skipDepth += closing ? -1 : 1;
+        if (skipDepth == 0) skip = null;
+      }
+      continue;
+    }
+
+    // A stylesheet and an aria-hidden layer (the SSR-first layout's, see
+    // ssr_first_layout.dart) are not paragraphs anyone searches for: copied
+    // through as they are.
+    if (!closing && !selfClosing &&
+        (name == 'style' || match.group(0)!.contains('aria-hidden="true"'))) {
+      skip = name;
+      skipDepth = 1;
       continue;
     }
 
