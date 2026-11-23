@@ -117,7 +117,6 @@ class _Snapshot {
   final Size size;
   late double _scale;
   final List<Map<String, Object?>> items = <Map<String, Object?>>[];
-  bool _pageScrollerTaken = false;
 
   /// [box]'s rectangle in logical pixels of the view.
   Rect? _rectOf(RenderBox box) {
@@ -198,14 +197,15 @@ class _Snapshot {
                 : next.axis ?? Axis.vertical;
             final bool vertical = axis == Axis.vertical;
             final bool clips = object is! RenderViewportBase || object.clipBehavior != Clip.none;
+            // Every scroller the size of the page is the page's: the shell's own
+            // (DVPageViewport), which does not scroll when the page has a
+            // scroll view, and that scroll view inside it.
             final bool page = vertical &&
-                !_pageScrollerTaken &&
                 rect.width >= size.width * 0.5 &&
                 rect.height >= size.height * 0.5;
             if (page) {
               // The page's own scroller: what it built below the fold is the
               // rest of the document, so only its sides clip.
-              _pageScrollerTaken = true;
               next = next.copyWith(
                 scrolls: true,
                 clip: Rect.fromLTRB(math.max(next.clip.left, rect.left),

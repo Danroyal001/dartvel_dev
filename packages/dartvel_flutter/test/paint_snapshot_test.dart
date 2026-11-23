@@ -215,6 +215,31 @@ void main() {
     expect(_text(snapshot, 'Block 15')['s'], isTrue);
   });
 
+  testWidgets('a page scroll view inside the page shell\'s own scroller is the page too',
+      (WidgetTester tester) async {
+    // The shell (DVPageViewport) is a scroller the size of the screen that does
+    // not scroll when the page has its own scroll view; the page\'s is the one
+    // whose content runs below the fold.
+    await tester.pumpWidget(MaterialApp(
+      home: SingleChildScrollView(
+        child: SizedBox(
+          height: 800,
+          child: SingleChildScrollView(
+            child: Column(
+              children: <Widget>[
+                for (int index = 0; index < 20; index++)
+                  SizedBox(height: 100, child: Text('Section $index')),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> snapshot = dvPaintSnapshot();
+    expect(_text(snapshot, 'Section 15')['s'], isTrue);
+    expect(_rect(_text(snapshot, 'Section 15'))[1], 1500);
+  });
+
   testWidgets('a horizontal SingleChildScrollView clips what is off to the side',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
