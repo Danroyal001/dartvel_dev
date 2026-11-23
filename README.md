@@ -575,6 +575,16 @@ its data and deferred code are ready, so the splash gives way to the finished
 page, never to a loading shell. A browser with no script gets the page's
 document instead.
 
+`dartvel.web.ssrFirst: true` shows each page's server-rendered document from
+the first paint instead of the splash, laid out the way the app's first frame
+draws the page: the build's capture records what the app painted at each
+width (`ssrFirst: {widths: [...]}`, default 360, 390, 768, 1024, 1366, 1920),
+light and dark, and the document's own text, links and fields are placed at
+those boxes in the app's fonts and colours, over a layer that draws its
+surfaces and images. It is still the real document (selection, find, Tab and
+screen readers work on it), and Flutter takes over in place at its first
+frame. See docs/web-performance.md.
+
 Earlier releases (0.13.22 to 0.13.24) showed a picture of each page, captured
 at build time, before the app loaded. It was removed: it looked finished but
 did nothing when pressed, and visitors took the site for broken. A project
