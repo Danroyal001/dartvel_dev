@@ -68,6 +68,7 @@ class _State {
     this.image,
     this.clipRadius,
     this.clipRect,
+    this.axis,
   });
 
   final Rect clip;
@@ -77,6 +78,9 @@ class _State {
   final List<double>? clipRadius;
   final Rect? clipRect;
 
+  /// The axis of the Scrollable whose viewport comes next.
+  final Axis? axis;
+
   _State copyWith({
     Rect? clip,
     double? opacity,
@@ -84,6 +88,7 @@ class _State {
     ImageProvider<Object>? image,
     List<double>? clipRadius,
     Rect? clipRect,
+    Axis? axis,
   }) =>
       _State(
         clip: clip ?? this.clip,
@@ -92,6 +97,7 @@ class _State {
         image: image ?? this.image,
         clipRadius: clipRadius ?? this.clipRadius,
         clipRect: clipRect ?? this.clipRect,
+        axis: axis ?? this.axis,
       );
 }
 
@@ -123,6 +129,7 @@ class _Snapshot {
     _State next = state;
     final Widget widget = element.widget;
     if (widget is Image) next = next.copyWith(image: widget.image);
+    if (widget is Scrollable) next = next.copyWith(axis: axisDirectionToAxis(widget.axisDirection));
 
     if (element is RenderObjectElement) {
       final RenderObject object = element.renderObject;
@@ -180,8 +187,14 @@ class _Snapshot {
             );
           } else if (object is RenderClipPath && object.clipBehavior != Clip.none) {
             next = next.copyWith(clip: next.clip.intersect(rect));
-          } else if (object is RenderViewportBase) {
-            final bool vertical = object.axis == Axis.vertical;
+          } else if (object is RenderAbstractViewport) {
+            // A sliver viewport knows its axis; a SingleChildScrollView's does
+            // not say, and takes its Scrollable's.
+            final Axis axis = object is RenderViewportBase
+                ? object.axis
+                : next.axis ?? Axis.vertical;
+            final bool vertical = axis == Axis.vertical;
+            final bool clips = object is! RenderViewportBase || object.clipBehavior != Clip.none;
             final bool page = vertical &&
                 !_pageScrollerTaken &&
                 rect.width >= size.width * 0.5 &&
@@ -195,7 +208,7 @@ class _Snapshot {
                 clip: Rect.fromLTRB(math.max(next.clip.left, rect.left),
                     next.clip.top, math.min(next.clip.right, rect.right), next.clip.bottom),
               );
-            } else if (object.clipBehavior != Clip.none) {
+            } else if (clips) {
               next = next.copyWith(clip: next.clip.intersect(rect));
             }
           }

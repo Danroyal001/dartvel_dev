@@ -151,6 +151,9 @@ classes:
   - android.content.res.Resources
   - java.io.File
 
+  # Passepartout VPN Bridge - custom class for VPN service management
+  - io.partout.passepartout.PartoutVpnBridge
+
   # Key custody. The application key is 32 raw bytes that AES-GCM in Dart
   # uses directly, so it cannot itself be a non-exportable Keystore key.
   # Instead an AES-256 key is generated inside the AndroidKeyStore provider

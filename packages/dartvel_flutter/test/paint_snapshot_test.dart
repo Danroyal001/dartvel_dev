@@ -197,6 +197,43 @@ void main() {
     expect(_rect(below)[1], greaterThan(800));
   });
 
+  testWidgets('a SingleChildScrollView page is the page scroller too',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+            for (int index = 0; index < 20; index++)
+              SizedBox(height: 100, child: Text('Block $index')),
+          ],
+        ),
+      ),
+    ));
+    final Map<String, Object?> snapshot = dvPaintSnapshot();
+    expect(_text(snapshot, 'Block 0')['s'], isTrue);
+    expect(_text(snapshot, 'Block 15')['s'], isTrue);
+  });
+
+  testWidgets('a horizontal SingleChildScrollView clips what is off to the side',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            for (int index = 0; index < 10; index++)
+              SizedBox(width: 150, height: 40, child: Text('Tile $index')),
+          ],
+        ),
+      ),
+    ));
+    final Iterable<Object?> texts = _items(dvPaintSnapshot())
+        .where((Map<String, Object?> item) => item['k'] == 't')
+        .map((Map<String, Object?> item) => item['text']);
+    expect(texts, contains('Tile 0'));
+    expect(texts, isNot(contains('Tile 5')));
+  });
+
   testWidgets('a horizontal scroller clips what is off to the side',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
