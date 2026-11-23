@@ -163,6 +163,41 @@ void main() {
       expect(out, contains('#${link.group(2)}{left:20px;top:10px;width:100px;height:20px'));
     });
 
+    test('what a narrower width pinned is placed again, not left pinned, at the next', () {
+      // At 400 the link has no box and its text is pinned like an app bar; at
+      // 1000 the link has a box and its text sits inside it. The wider range
+      // comes later in the stylesheet, so it has to undo the narrower one.
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(400, <Map<String, Object?>>[
+            _text('See pricing', <num>[40, 300, 100, 20], z: 5, scrolls: false),
+          ]),
+          _width(1000, <Map<String, Object?>>[
+            _text('See pricing', <num>[40, 300, 100, 20], z: 5),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[20, 290, 140, 40]},
+          ]),
+        ]),
+      );
+      final String id = RegExp(r'<span id="(dvr\d+)">See pricing').firstMatch(out)!.group(1)!;
+      final String wide = out.substring(out.indexOf('@media (min-width:700px){'));
+      expect(RegExp('#$id\\{[^}]*position:absolute').hasMatch(wide), isTrue, reason: wide);
+    });
+
+    test('only what a later range changes is written again', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(400, <Map<String, Object?>>[_text('Ship faster', <num>[50, 100, 300, 40])]),
+          _width(1000, <Map<String, Object?>>[_text('Ship faster', <num>[350, 100, 300, 40])]),
+        ]),
+      );
+      final String id = RegExp(r'<span id="(dvr\d+)">Ship faster').firstMatch(out)!.group(1)!;
+      // Always on screen, always in the page: no display or position to say.
+      expect(RegExp('#$id\\{[^}]*(display|position):').hasMatch(out), isFalse, reason: out);
+    });
+
     test('boxes and images are drawn by an aria-hidden layer that is not text', () {
       final String out = dvSsrFirstLayout(
         _doc,

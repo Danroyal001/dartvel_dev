@@ -704,7 +704,12 @@ class _Layout {
     final Map<String, String> lastStyle = <String, String>{};
     final Map<String, String> lastDark = <String, String>{};
     final List<_Node> all = <_Node>[...layer, ...controls, ...runs];
-    for (final ({double from, int a, int b, int near}) range in ranges) {
+    final Map<String, List<String>> geometries = <String, List<String>>{
+      for (final _Node node in all)
+        if (node.kind != 'sub') node.id: _geometries(node, ranges),
+    };
+    for (int rangeIndex = 0; rangeIndex < ranges.length; rangeIndex++) {
+      final ({double from, int a, int b, int near}) range = ranges[rangeIndex];
       final StringBuffer block = StringBuffer();
       final StringBuffer dark = StringBuffer();
       // The scroll height.
@@ -717,7 +722,7 @@ class _Layout {
       final Map<String, List<String>> darkGroups = <String, List<String>>{};
       for (final _Node node in all) {
         if (node.kind != 'sub') {
-          final String geometry = _geometry(node, range);
+          final String geometry = geometries[node.id]![rangeIndex];
           if (lastGeometry[node.id] != geometry) {
             block.write('#${node.id}{$geometry}');
             lastGeometry[node.id] = geometry;
@@ -802,9 +807,11 @@ class _Layout {
     return true;
   }
 
-  String _geometry(_Node node, ({double from, int a, int b, int near}) range) {
+  /// A node's placement in [range]: null when it is not on screen there.
+  ({String box, String display, String position, int? z})? _placement(
+      _Node node, ({double from, int a, int b, int near}) range) {
     final (List<double>, bool)? near = _boxAt(node, range.near);
-    if (near == null) return 'display:none';
+    if (near == null) return null;
     final (List<double>, bool)? a = _boxAt(node, range.a);
     final (List<double>, bool)? b = _boxAt(node, range.b);
     // Moves linearly between the two widths when it is on screen, and placed
@@ -818,19 +825,39 @@ class _Layout {
     final _Item? item = node.items[range.near];
     final bool clamp = item != null && item.kind == 't' && (item.json['ml'] as num? ?? 0) > 1 &&
         item.json['ell'] == true;
-    final StringBuffer out = StringBuffer('left:${v(0)};top:${v(1)};width:${v(2)};height:${v(3)};'
-        'display:${clamp ? '-webkit-box' : 'block'}');
-    if (node.kind == 'control' || node.kind == 'field') {
-      out.write(';position:${pinned ? 'fixed' : 'absolute'};z-index:${node.controlZ}');
-    } else {
-      if (pinned && node.container?.boxes[range.near] == null) {
-        out.write(';position:fixed');
-      } else if (node.kind != 'run' || pinned) {
-        out.write(';position:absolute');
-      }
-      if (item != null) out.write(';z-index:${item.z}');
-    }
-    return out.toString();
+    final bool control = node.kind == 'control' || node.kind == 'field';
+    final bool fixed = control ? pinned : pinned && node.container?.boxes[range.near] == null;
+    return (
+      box: 'left:${v(0)};top:${v(1)};width:${v(2)};height:${v(3)}',
+      display: clamp ? '-webkit-box' : 'block',
+      position: fixed ? 'fixed' : 'absolute',
+      z: control ? node.controlZ : item?.z,
+    );
+  }
+
+  /// [node]'s declarations in each of [ranges]. A property is written only
+  /// where it is needed: display when the node is off screen in some range
+  /// or clamped, position when it is pinned in some range, z-index always.
+  /// Every declaration a node has carries the same properties, so a later
+  /// range always undoes an earlier one (the ranges are cumulative).
+  List<String> _geometries(_Node node, List<({double from, int a, int b, int near})> ranges) {
+    final List<({String box, String display, String position, int? z})?> placed = <({String box, String display, String position, int? z})?>[
+      for (final ({double from, int a, int b, int near}) range in ranges) _placement(node, range),
+    ];
+    final bool sayDisplay = placed.any((p) => p == null || p.display != 'block');
+    final bool sayPosition = placed.any((p) => p != null && p.position != 'absolute') ||
+        (node.kind == 'control' || node.kind == 'field');
+    return <String>[
+      for (final p in placed)
+        p == null
+            ? 'display:none'
+            : <String>[
+                p.box,
+                if (sayDisplay) 'display:${p.display}',
+                if (sayPosition) 'position:${p.position}',
+                if (p.z != null) 'z-index:${p.z}',
+              ].join(';'),
+    ];
   }
 
   bool _sameContainer(_Node node, int a, int b) {
