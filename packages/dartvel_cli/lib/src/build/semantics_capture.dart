@@ -21,6 +21,7 @@ import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
 import 'route_prefetch.dart';
+import 'ssr_first_capture.dart' show dvCaptureLayout, dvLayoutCapturePathFor;
 
 /// Walks `flt-semantics-host` and reports the structure, not Flutter's DOM.
 ///
@@ -135,7 +136,7 @@ List<String> dvForgetGuardedCaptures(String projectRoot, Iterable<String> guarde
   final List<String> removed = <String>[];
   for (final String route in guarded) {
     final String tree = dvSemanticsPathFor(projectRoot, route);
-    for (final String path in <String>[tree, tree.replaceFirst(RegExp(r'\.json$'), '.images.json')]) {
+    for (final String path in <String>[tree, tree.replaceFirst(RegExp(r'\.json$'), '.images.json'), dvLayoutCapturePathFor(projectRoot, route)]) {
       final File file = File(path);
       if (file.existsSync()) {
         file.deleteSync();
@@ -262,6 +263,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
   Duration settle = const Duration(seconds: 20),
   int? concurrency,
   bool inApp = true,
+  List<int> layoutWidths = const <int>[],
 }) async {
   if (routes.isEmpty) {
     return const DVCaptureRun(captured: 0, browserAvailable: true);
@@ -374,6 +376,17 @@ Future<DVCaptureRun> dvCaptureSemantics({
         );
         final int nodes = (jsonDecode(tree) as List<Object?>).length;
         drew = nodes > 0;
+        // SSR-first: what the app painted at each width, light and dark, for
+        // the document to be laid out as the first frame draws the page.
+        final File layout = File(dvLayoutCapturePathFor(projectRoot, route));
+        if (drew && layoutWidths.isNotEmpty) {
+          if (!await dvCaptureLayout(page, layoutWidths, path: layout.path) &&
+              layout.existsSync()) {
+            layout.deleteSync();
+          }
+        } else if (layout.existsSync()) {
+          layout.deleteSync();
+        }
       } finally {
         if (!reuse) await tab.close();
       }
@@ -404,6 +417,8 @@ Future<DVCaptureRun> dvCaptureSemantics({
       // page that no longer shows those images.
       final File images = File(dvCapturedImagesPathFor(projectRoot, route));
       if (images.existsSync()) images.deleteSync();
+      final File layout = File(dvLayoutCapturePathFor(projectRoot, route));
+      if (layout.existsSync()) layout.deleteSync();
     }
   }
 

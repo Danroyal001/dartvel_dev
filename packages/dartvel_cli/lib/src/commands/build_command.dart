@@ -114,6 +114,7 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/removed_web_options.dart';
 import '../build/semantics_capture.dart';
+import '../build/ssr_first_capture.dart' show dvApplySsrFirstLayout, dvLayoutCapturePathFor, dvLayoutFonts;
 import '../build/server_config.dart';
 import '../build/supervisor_unit.dart';
 import '../build/render_backends.dart';
@@ -4549,6 +4550,8 @@ class BuildCommand extends Command<void> {
     if (tree.existsSync()) tree.copySync(p.join(outputs.path, 'tree.json'));
     if (images.existsSync())
       images.copySync(p.join(outputs.path, 'images.json'));
+    final File layout = File(dvLayoutCapturePathFor(root, route));
+    if (layout.existsSync()) layout.copySync(p.join(outputs.path, 'layout.json'));
     return outputs;
   }
 
@@ -4561,6 +4564,13 @@ class BuildCommand extends Command<void> {
     if (tree.existsSync()) tree.copySync(treeTarget.path);
     if (images.existsSync())
       images.copySync(dvCapturedImagesPathFor(root, route));
+    final File layout = File(p.join(outputs.path, 'layout.json'));
+    final File layoutTarget = File(dvLayoutCapturePathFor(root, route));
+    if (layout.existsSync()) {
+      layout.copySync(layoutTarget.path);
+    } else if (layoutTarget.existsSync()) {
+      layoutTarget.deleteSync();
+    }
   }
 
   Future<void> _captureSemantics(String root) async {
@@ -4595,6 +4605,7 @@ class BuildCommand extends Command<void> {
       ..addText('web', webHash)
       ..addText('route', route)
       ..addText('capture', '$dvSemanticsCaptureVersion')
+      ..addText('layout', DVSplash.of(root).ssrFirstWidths.join(','))
       ..addText('dartvel', dartvelCliVersion);
     // One stage per web output: every route's capture of one build is a
     // group, and the newest three groups are kept.
@@ -4635,6 +4646,7 @@ class BuildCommand extends Command<void> {
           requested: argResults?['capture-jobs'] as String?,
         ),
         inApp: argResults?['capture-in-app'] as bool? ?? true,
+        layoutWidths: DVSplash.of(root).ssrFirstWidths,
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
@@ -4758,7 +4770,12 @@ class BuildCommand extends Command<void> {
     if (!file.existsSync()) return null;
     final String html =
         dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
-    return html.trim().isEmpty ? null : html;
+    if (html.trim().isEmpty) return null;
+    // SSR-first: laid out as the app's first frame draws the page, from what
+    // the capture recorded at each width, in the app's own fonts.
+    if (!DVSplash.of(root).ssrFirst) return html;
+    return dvApplySsrFirstLayout(root, route, html,
+        dvLayoutFonts(p.join(root, 'build', 'web')));
   }
 
   /// Each route's page, as both targets render it: `dartvel build web` at
