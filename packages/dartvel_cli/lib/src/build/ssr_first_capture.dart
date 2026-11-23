@@ -98,51 +98,63 @@ Future<void> _scheme(Page page, String scheme) =>
       ],
     });
 
-/// The snapshot once two reads a frame apart agree (or after [settle]).
-Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle) async {
-  String? previous;
+/// The snapshot once the app has been told [scheme] and three reads a
+/// quarter second apart agree (or after [settle]).
+///
+/// Waiting for the scheme matters: a theme switch reaches the app a frame
+/// or more after the browser's, and Material animates it, so a read taken at
+/// once is the old scheme's colours, and holds still long enough to look
+/// settled. sigmadev.digital's pricing page was laid out in dark colours for the
+/// light scheme at 1024 that way.
+Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme) async {
+  final List<String> reads = <String>[];
   final DateTime deadline = DateTime.now().add(settle);
   while (true) {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final String? now = await page.evaluate<String?>(_snapshotScript);
     if (now == null) return null;
-    if (now == previous || DateTime.now().isAfter(deadline)) {
-      final Object? decoded = jsonDecode(now);
-      return decoded is Map ? decoded.cast<String, Object?>() : null;
-    }
-    previous = now;
+    final Object? decoded = jsonDecode(now);
+    if (decoded is! Map) return null;
+    final Object? told = decoded['brightness'];
+    final bool arrived = told == null || told == scheme;
+    if (arrived) reads.add(now);
+    final int count = reads.length;
+    final bool still = count >= 3 && reads[count - 1] == reads[count - 2] && reads[count - 2] == reads[count - 3];
+    if (still || DateTime.now().isAfter(deadline)) return decoded.cast<String, Object?>();
   }
 }
 
 /// Records the route open in [page] at each of [widths], light and dark, and
 /// writes it to [path]. Returns false, writing nothing, when the app has no
 /// capture hook. The page is put back at [restore] and the light scheme.
+///
+/// Every width in the light scheme first, then every width in the dark: one
+/// switch of scheme rather than one per width.
 Future<bool> dvCaptureLayout(
   Page page,
   List<int> widths, {
   required String path,
   DeviceViewport restore = const DeviceViewport(width: 800, height: 600),
-  Duration settle = const Duration(seconds: 6),
+  Duration settle = const Duration(seconds: 8),
 }) async {
   final List<Map<String, Object?>> captured = <Map<String, Object?>>[];
   try {
+    await _scheme(page, 'light');
     for (final int width in widths) {
       final int height = dvSsrFirstHeight(width);
       await page.setViewport(DeviceViewport(width: width, height: height));
-      await _scheme(page, 'light');
-      final Map<String, Object?>? light = await _settledSnapshot(page, settle);
+      final Map<String, Object?>? light = await _settledSnapshot(page, settle, 'light');
       if (light == null) return false;
       final List<Object?> controls =
           jsonDecode(await page.evaluate<String>(dvLayoutControlsScript)) as List<Object?>;
-      await _scheme(page, 'dark');
-      final Map<String, Object?>? dark = await _settledSnapshot(page, settle);
-      captured.add(<String, Object?>{
-        'width': width,
-        'height': height,
-        'light': light,
-        'dark': ?dark,
-        'controls': controls,
-      });
+      captured.add(<String, Object?>{'width': width, 'height': height, 'light': light, 'controls': controls});
+    }
+    await _scheme(page, 'dark');
+    for (final Map<String, Object?> entry in captured) {
+      final int width = entry['width']! as int;
+      await page.setViewport(DeviceViewport(width: width, height: entry['height']! as int));
+      final Map<String, Object?>? dark = await _settledSnapshot(page, settle, 'dark');
+      if (dark != null) entry['dark'] = dark;
     }
   } finally {
     await _scheme(page, 'light');

@@ -107,6 +107,8 @@ void main() {
     expect(laid, contains('Pricing</span></h1>'));
   });
 
+  group('a slow scheme switch', _laggingSchemeTests);
+
   group('in a browser', () {
     late Browser browser;
     setUpAll(() async {
@@ -135,4 +137,43 @@ void main() {
       ]);
     });
   });
+}
+
+/// An app whose theme follows the browser's scheme a while after it changes,
+/// as a real one does.
+const String _laggingApp = '''<!DOCTYPE html><html><body><flt-semantics-host></flt-semantics-host><script>
+let told = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+  setTimeout(() => { told = event.matches ? 'dark' : 'light'; }, 600);
+});
+globalThis.__dartvelCapture = { snapshot: () => JSON.stringify({
+  width: innerWidth, height: innerHeight, brightness: told,
+  items: [{k: 'b', r: [0, 0, innerWidth, innerHeight], z: 0, s: false, bg: told === 'dark' ? '#000000' : '#ffffff'}],
+}) };
+</script></body></html>''';
+
+void _laggingSchemeTests() {
+  late Browser browser;
+  setUpAll(() async {
+    browser = await puppeteer.launch(executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
+  });
+  tearDownAll(() => browser.close());
+
+  test('each width is read in the scheme it is for, though the app is slow to switch', () async {
+    final Page page = await browser.newPage();
+    await page.setContent(_laggingApp);
+    final Directory root = Directory.systemTemp.createTempSync('dv_scheme');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String path = p.join(root.path, 'x.layout.json');
+    expect(await dvCaptureLayout(page, <int>[390, 1024, 1366], path: path), isTrue);
+    await page.close();
+    final Map<String, Object?> written = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    for (final Object? width in written['widths']! as List<Object?>) {
+      final Map<String, Object?> entry = width! as Map<String, Object?>;
+      String background(String scheme) =>
+          (((entry[scheme]! as Map<String, Object?>)['items']! as List<Object?>).first! as Map<String, Object?>)['bg']! as String;
+      expect(background('light'), '#ffffff', reason: 'light at ${entry['width']}');
+      expect(background('dark'), '#000000', reason: 'dark at ${entry['width']}');
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }
