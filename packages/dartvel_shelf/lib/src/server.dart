@@ -166,6 +166,9 @@ final class _ResponseScratch {
   }
   ffi.Pointer<ffi.Uint8> _kept = pkgffi.malloc<ffi.Uint8>(4096);
   int _keptCapacity = 4096;
+  // A view of [_kept], made when [_kept] is: one made in every [fill] was an
+  // object allocated per response.
+  late Uint8List _keptView = _kept.asTypedList(_keptCapacity);
   ffi.Pointer<ffi.Uint8> _bytes = ffi.nullptr;
   Uint8List _view = Uint8List(0);
   int _length = 0;
@@ -174,7 +177,7 @@ final class _ResponseScratch {
   /// is a streamed response. Valid until [done].
   ffi.Pointer<gen.FfiResp> fill(int status, Headers headers, Uint8List? body) {
     _bytes = _kept;
-    _view = _kept.asTypedList(_keptCapacity);
+    _view = _keptView;
     _length = 0;
     headers.forEachValue(_headerWriter);
     final int headersLength = _length;
@@ -259,6 +262,7 @@ final class _ResponseScratch {
       pkgffi.malloc.free(_kept);
       _kept = grown;
       _keptCapacity = capacity;
+      _keptView = grown.asTypedList(capacity);
     }
     _bytes = grown;
     _view = grown.asTypedList(capacity);
