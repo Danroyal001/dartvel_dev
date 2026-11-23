@@ -175,3 +175,79 @@ fn deep_nesting_is_answered() {
     assert_eq!(lines.len(), shapes.len() + 1);
     fs::remove_dir_all(&directory).unwrap();
 }
+
+/// Files of every kind the helper answers: clean, flagged (one and several
+/// diagnostics), unreadable, not UTF-8, with a byte order mark, and names
+/// with spaces and tabs.
+fn mixed_paths(directory: &std::path::Path, count: usize) -> Vec<String> {
+    let mut paths = Vec::new();
+    for index in 0..count {
+        let path = directory.join(format!("file {index}.dart"));
+        match index % 7 {
+            0 => fs::write(&path, format!("void main() {{ print({index}); }}\n")).unwrap(),
+            1 => fs::write(&path, format!("void main() {{ print({index})\n")).unwrap(),
+            2 => fs::write(&path, "class {\nvar x = ;\n").unwrap(),
+            3 => {} // never written: unreadable
+            4 => fs::write(&path, [0x76, 0x61, 0x72, 0xFF, 0x3B]).unwrap(),
+            5 => fs::write(&path, b"\xEF\xBB\xBFvoid main() {}\n").unwrap(),
+            _ => fs::write(
+                &path,
+                format!("{}int{} x{index};", "List<".repeat(40), ">".repeat(40)),
+            )
+            .unwrap(),
+        }
+        paths.push(path.to_string_lossy().into_owned());
+    }
+    paths
+}
+
+/// Several files are parsed at once, and what comes out is exactly what one
+/// file at a time gives: the same lines in the same order.
+#[test]
+fn parallel_answers_are_the_serial_answers_in_order() {
+    let directory = scratch_directory("parallel");
+    let paths = mixed_paths(&directory, 300);
+    for flags in [&[][..], &["--diagnostics"][..]] {
+        let serial = run_helper(&[flags, &["--jobs", "1"]].concat(), &paths);
+        assert!(serial.status.success());
+        assert_eq!(output_lines(&serial).len() > paths.len(), true);
+        for jobs in ["2", "4", "16"] {
+            let parallel = run_helper(&[flags, &["--jobs", jobs]].concat(), &paths);
+            assert!(parallel.status.success(), "--jobs {jobs}: {:?}", parallel.status);
+            assert_eq!(
+                output_lines(&parallel),
+                output_lines(&serial),
+                "--jobs {jobs} {flags:?}"
+            );
+            assert!(parallel.stderr.is_empty());
+        }
+        let by_default = run_helper(flags, &paths);
+        assert_eq!(output_lines(&by_default), output_lines(&serial), "default {flags:?}");
+    }
+    fs::remove_dir_all(&directory).unwrap();
+}
+
+/// A file that takes long does not hold back the files after it from being
+/// parsed, only from being answered: answers stay in the order asked.
+#[test]
+fn a_slow_file_first_keeps_the_order() {
+    let directory = scratch_directory("slow_first");
+    let slow = directory.join("slow.dart");
+    fs::write(&slow, format!("{}int{} x;", "List<".repeat(3_000), ">".repeat(3_000))).unwrap();
+    let mut paths = vec![slow.to_string_lossy().into_owned()];
+    paths.extend(mixed_paths(&directory, 50));
+    let serial = run_helper(&["--jobs", "1"], &paths);
+    let parallel = run_helper(&["--jobs", "4"], &paths);
+    assert!(parallel.status.success());
+    assert_eq!(output_lines(&parallel), output_lines(&serial));
+    fs::remove_dir_all(&directory).unwrap();
+}
+
+#[test]
+fn a_job_count_that_is_not_a_positive_number_is_refused() {
+    for arguments in [&["--jobs"][..], &["--jobs", "0"], &["--jobs", "many"], &["--jobs", "-2"]] {
+        let output = run_helper(arguments, &[]);
+        assert_eq!(output.status.code(), Some(64), "{arguments:?}");
+        assert!(output.stdout.is_empty(), "{arguments:?}");
+    }
+}
