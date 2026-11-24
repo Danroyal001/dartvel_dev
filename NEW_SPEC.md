@@ -1075,14 +1075,27 @@ control, or the next screen of a list with no control left built in that
 direction -- and then moves the focus in Flutter's own order, scrolling it into
 view. A footer after a long lazy page is reached, and Shift+Tab goes back up
 through rows the list had let go.
-On the web the rest of a lazy list is also built while the page is idle: once
-the first frame is drawn and nothing is pending, animating or scrolling, the
-placeholders still waiting are built a few at a time, and a scrollable list
-grows its cache a couple of screens at a time until it covers the whole list.
-The first frame is exactly as lazy as before; afterwards every row has its
-semantics node and its text, so a screen reader reading line by line (a
-virtual cursor) reaches the footer of a long page without scrolling, and the
-browser's find, after a navigation inside the app, searches the whole page.
+On the web the rest of a lazy list is also reached while the page is idle:
+once the first frame is drawn, nothing is pending, animating or scrolling,
+and the browser reports idle time (`requestIdleCallback`), the rows still
+waiting are taken a few at a time, as many per step as the last step's frame
+says fit in half a frame, and a scrollable list grows its cache a couple of
+screens at a time until it covers the whole list. A row of a long collection
+in a page is *read*, not kept: built without layout, paint or text shaping,
+its words, headings and links taken, and let go, leaving a stand-in of the
+same height whose semantics say what the row says (a link stays a link, with
+its address) and whose words the find runtime searches. Rows that turn out
+to be cheap -- a paragraph, a line of text -- stay built, up to a budget of
+render objects for the whole app. A stand-in becomes the real row when the
+page scrolls near it, Tab reaches it, find lands in it, or a screen reader
+opens one of its links, which then opens the real link. The first frame is
+exactly as lazy as before; afterwards every row has its semantics and its
+text, so a screen reader reading line by line (a virtual cursor) reaches the
+footer of a long page without scrolling, and the browser's find, after a
+navigation inside the app, searches the whole page. Building every row
+instead cost sigmadev.digital's 177-tool catalogue on a phone (390 px, 4x CPU
+throttle) a JS heap of 50-58 MB against 15-21 MB and 4-7 frames a second for
+the fifteen seconds after the first frame against 39-48.
 Off the web nothing is built ahead: there the platform's screen reader scrolls
 a list when it reaches the end of what is built, and there is no browser find.
 

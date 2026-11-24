@@ -84,10 +84,14 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               'Tab and Shift+Tab reach every control on a long page, including '
                   'rows a lazy list has not built yet and the footer after them: '
                   'what is in the way is built before the focus moves on.',
-              'On the web those rows are also built while the page is idle, so '
+              'On the web those rows are also read while the page is idle, so '
                   'a screen reader reading line by line reaches the end of a long '
                   'page without scrolling, and the browser\'s find searches all of '
-                  'it, on the first page and after moving to another.',
+                  'it, on the first page and after moving to another. Reading a '
+                  'row takes its words and links and lets it go again, so a '
+                  'catalogue of hundreds of cards stays light on a phone; a row '
+                  'turns into the real one when you scroll, tab or find your way '
+                  'to it, or open one of its links.',
               'A link is named by its own words, even when it sits directly '
                   'among the paragraphs of a page.',
               'A refused save is announced in a live region, written under the '
