@@ -366,6 +366,10 @@ class _Node {
   bool captured = false;
   int subIndex = 0;
   int controlZ = 0;
+
+  /// Per width: a field's inner padding, left and right, where the app
+  /// starts its text.
+  final Map<int, (double, double)> pads = <int, (double, double)>{};
 }
 
 class _Element {
@@ -413,6 +417,7 @@ class _Layout {
 
     final List<_TextNode> texts = _readDocument(tokens);
     _assignControlBoxes();
+    _fillFields();
     _matchText(texts);
     _matchControls();
     _markReaderControls();
@@ -722,6 +727,40 @@ class _Layout {
     }
   }
 
+  /// The text each field starts with (`e` items: what the app's editable
+  /// paints) goes into the document's input as its value, styled as the app
+  /// draws it, rather than staying empty until Flutter takes over. Text of a
+  /// field the document has no input for is drawn with the layer. A password
+  /// input is never given one.
+  void _fillFields() {
+    for (final (_Node node, String _, _Token token) in _docControls) {
+      if (node.kind != 'field' || token.name != 'input') continue;
+      // The snapshot never reads a password; one that came anyway is
+      // swallowed, neither a value nor drawn.
+      final bool secret = (_attr(token.source, 'type') ?? 'text').toLowerCase() == 'password';
+      String? value;
+      for (final int w in node.boxes.keys) {
+        final List<double> box = node.boxes[w]!;
+        for (final _Item item in widths[w].items) {
+          if (item.used || item.kind != 'e') continue;
+          final List<double> r = item.rect;
+          final bool inside = r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
+              r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1;
+          if (!inside) continue;
+          item.used = true;
+          if (secret) continue;
+          node.items[w] = item;
+          node.pads[w] = (math.max(0, r[0] - box[0]), math.max(0, box[0] + box[2] - r[0] - r[2]));
+          value ??= item.text;
+          break;
+        }
+      }
+      if (!secret && value != null && _attr(token.source, 'value') == null) {
+        token.source = _withAttr(token.source, 'value', value);
+      }
+    }
+  }
+
   /// A control the layout never places (no box at any width, nothing of it
   /// painted) is kept for readers, its text hidden from the eye; it is still
   /// a Tab stop, so it is marked to show itself when focused.
@@ -773,7 +812,7 @@ class _Layout {
         final String kind = switch (item.kind) {
           'b' => 'box',
           'i' => 'image',
-          't' => 'decor',
+          't' || 'e' => 'decor',
           _ => '',
         };
         if (kind.isEmpty) continue;
@@ -1421,6 +1460,19 @@ class _Layout {
         final List<Map<String, Object?>> styles = item.runs;
         if (node.subIndex >= styles.length) return '';
         return _inlineStyle(styles[node.subIndex]);
+      case 'field':
+        final Map<String, Object?> run =
+            item.runs.isEmpty ? const <String, Object?>{} : item.runs.first;
+        (double, double)? pad;
+        node.items.forEach((int w, _Item own) {
+          if (identical(own, item)) pad = node.pads[w];
+        });
+        return <String>[
+          'font:${_font(run, item.json['lh'])}',
+          ..._inlineExtras(run),
+          'text-align:${_cssWord(item.json['al']) ?? 'left'}',
+          if (pad != null) 'padding:0 ${_num(pad!.$2)}px 0 ${_num(pad!.$1)}px',
+        ].join(';');
       case 'decor':
         return _textStyle(
               item,
@@ -1450,6 +1502,7 @@ class _Layout {
     switch (node.kind) {
       case 'run':
       case 'decor':
+      case 'field':
         final String colour =
             _colour(dark.runs.isEmpty ? null : dark.runs.first['c']) ?? '';
         final String lightColour =
