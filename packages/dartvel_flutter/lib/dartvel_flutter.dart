@@ -12054,9 +12054,6 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
           ),
           )
         : reachable;
-    // Inside the safe area, the page's screen is the safe box. See
-    // DVPageSafeBox: a page that sized itself from the screen ran under the
-    // navigation bar by exactly the insets the SafeArea had taken away.
     // Tab and Shift+Tab reach the controls a lazy list has not built yet:
     // what is in the way is built before the focus moves on. See
     // lazy_traversal.dart. Round everything the page draws, layouts
@@ -12068,6 +12065,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
       },
       child: selectionWrapped,
     );
+    // Inside the safe area, the page's screen is the safe box. See
+    // DVPageSafeBox: a page that sized itself from the screen ran under the
+    // navigation bar by exactly the insets the SafeArea had taken away.
     final Widget safe = spec.safeArea
         ? SafeArea(child: DVPageSafeBox(child: traversable))
         : traversable;
