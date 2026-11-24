@@ -391,6 +391,59 @@ void main() {
       expect(zOf(backgrounds.first), lessThan(zOf(heroLink)), reason: 'a pinned background stays behind');
     });
 
+    // sigmadev.digital's tools, SSR-first: each field drew its box and stood
+    // empty until Flutter took over, though the app starts it with a link.
+    test('a field shows the text the app starts it with, in its style', () {
+      const String doc = '<p><label for="dv-field-1">Link or text</label> '
+          '<input id="dv-field-1" type="text" name="Link or text" data-dv-field="Link or text"></p>\n';
+      Map<String, Object?> typed(String text, List<num> rect) => <String, Object?>{
+            ..._text(text, rect, z: 4, size: 17, colour: '#123456'),
+            'k': 'e',
+          };
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Link or text', <num>[20, 80, 200, 20], z: 1),
+            _box(<num>[20, 100, 350, 50], '#ffffff', z: 2, scrolls: true),
+            typed('https://sigmadev.digital', <num>[36, 113, 318, 24]),
+            // A field the document has no input for (a menu that picks a
+            // value): its text is drawn.
+            typed('QR code', <num>[36, 213, 280, 24]),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Link or text', 'r': <num>[20, 100, 350, 50]},
+            <String, Object?>{'k': 'f', 'name': '', 'r': <num>[20, 200, 350, 50]},
+          ]),
+        ]),
+      );
+      final String input = RegExp(r'<input[^>]*>').firstMatch(out)!.group(0)!;
+      expect(input, contains('value="https://sigmadev.digital"'));
+      final RegExpMatch style = RegExp(r'#dv-field-1\{[^}]*font:[^}]*\}').firstMatch(out) ??
+          (throw TestFailure('no style for the field in $out'));
+      expect(style.group(0), contains('17px'));
+      expect(style.group(0), contains('color:#123456'));
+      expect(style.group(0), contains('padding:0 16px 0 16px'), reason: 'the text starts where the app starts it');
+      expect(_visibleText(out), isNot(contains('https://sigmadev.digital')),
+          reason: 'a value, not text the document says twice');
+      expect(out, contains('content:"QR code"'), reason: 'drawn, where the document has no input');
+    });
+
+    test('a password field is never given a value', () {
+      const String doc = '<p><label for="dv-field-1">Password</label> '
+          '<input id="dv-field-1" type="password" name="Password" data-dv-field="Password"></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{..._text('secret', <num>[36, 113, 318, 24], z: 4), 'k': 'e'},
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Password', 'r': <num>[20, 100, 350, 50]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('secret')));
+    });
+
     test('dark colours come from the dark capture', () {
       final String out = dvSsrFirstLayout(
         _doc,

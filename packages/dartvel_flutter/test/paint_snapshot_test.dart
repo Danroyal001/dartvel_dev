@@ -492,6 +492,60 @@ void main() {
     expect(border['bg'], '#f4f4f4');
   });
 
+  // sigmadev.digital's tools, SSR-first: a field drew its box and nothing in
+  // it until Flutter took over -- the text it starts with is painted by the
+  // field's editable, not by a paragraph, and the snapshot read paragraphs.
+  testWidgets('a text field\'s text: its words, box and style, apart from paragraphs',
+      (WidgetTester tester) async {
+    final TextEditingController link = TextEditingController(text: 'https://sigmadev.digital');
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            child: TextField(
+              controller: link,
+              style: const TextStyle(fontSize: 17, color: Color(0xFF123456)),
+              decoration: const InputDecoration(contentPadding: EdgeInsets.all(16)),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> snapshot = dvPaintSnapshot();
+    final Map<String, Object?> typed = _items(snapshot)
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'e', orElse: () => <String, Object?>{});
+    expect(typed['text'], 'https://sigmadev.digital');
+    final Rect editable = tester.getRect(find.byType(EditableText));
+    final List<double> rect = _rect(typed);
+    expect(rect[0], closeTo(editable.left, 1));
+    expect(rect[2], closeTo(editable.width, 1));
+    final Map<String, Object?> run = (typed['runs']! as List<Object?>).first! as Map<String, Object?>;
+    expect(run['fs'], 17);
+    expect(run['c'], '#123456');
+    expect(_items(snapshot).where((Map<String, Object?> item) => item['k'] == 't' && item['text'] == 'https://sigmadev.digital'),
+        isEmpty, reason: 'not a paragraph: the document has no such text to place');
+  });
+
+  testWidgets('a password field\'s text is never read', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: TextField(controller: TextEditingController(text: 'hunter2'), obscureText: true),
+      ),
+    ));
+    expect(jsonEncode(dvPaintSnapshot()), isNot(contains('hunter2')));
+  });
+
+  testWidgets('an empty field\'s hint is painted text', (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: TextField(decoration: InputDecoration(hintText: 'Paste a link')),
+      ),
+    ));
+    expect(_text(dvPaintSnapshot(), 'Paste a link')['k'], 't');
+  });
+
   testWidgets('a multi-line field\'s border is round the whole field, not its scroller',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
