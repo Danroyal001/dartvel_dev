@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.8 — 2026-11-24
 
 - The syntax check's Rust helper parses several files at once (one thread per processor, at most 8; `--jobs N`), answering in the same order with the same answers. The check before `dartvel build` and in `dartvel doctor` went from 477 to 122 ms on dartvel_flutter's 695 files and from 161 to 109 ms on a 553-file app (the Dart analyzer: 629 and 221 ms). A helper started again after it died parses one file at a time, so the file it died on is still the one sent to Dart.
 

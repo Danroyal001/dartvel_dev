@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.8 — 2026-11-24
 
 - `Response.json` encodes straight to UTF-8 as it walks the value, rather than building the JSON text and encoding it again: the same bytes, headers and errors, with about 6% less work for a small JSON answer (about 1,900 instructions) on dartvel_shelf. `Response.text` with UTF-8 sets its content type from one string.
 
