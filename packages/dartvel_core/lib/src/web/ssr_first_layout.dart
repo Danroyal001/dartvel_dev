@@ -1137,10 +1137,10 @@ class _Layout {
     if (tall == null) return 0;
     double bottom = tall;
     for (final _Item item in widths[w].items) {
-      final _Item? other = item.tall;
-      if (item.scrolls && other != null) {
-        bottom = math.max(bottom, other.rect[1] + other.rect[3]);
-      }
+      if (!item.scrolls) continue;
+      // Not found at the second height: taken to stay where it is.
+      final List<double> rect = item.tall?.rect ?? item.rect;
+      bottom = math.max(bottom, rect[1] + rect[3]);
     }
     return (bottom - _contentHeight(w)) / (tall - widths[w].height);
   }

@@ -523,6 +523,22 @@ void main() {
       expect(out, contains('#$id{left:20px;top:calc(-60px + 100dvh);width:300px;height:40px'));
     });
 
+    test('what is not paired at the second height still counts in the scroll height', () {
+      // The footer at 3000 is not found at the taller screen (a lazy list
+      // built differently): the scroll height must not shrink with the screen.
+      final Map<String, Object?> width = _width(390, <Map<String, Object?>>[
+        _text('Ship faster', <num>[20, 100, 350, 40]),
+        <String, Object?>{'k': 'b', 'r': <num>[0, 2900, 390, 100], 'z': 2, 's': true, 'bg': '#222222'},
+      ])
+        ..['tall'] = <String, Object?>{
+          'height': 1000,
+          'items': <Map<String, Object?>>[_text('Ship faster', <num>[20, 100, 350, 40])],
+          'controls': <Object?>[],
+        };
+      final String out = dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[width]));
+      expect(out, contains('.dvl{height:3000px}'));
+    });
+
     test('a capture with no second height is laid out as before', () {
       final String out = dvSsrFirstLayout(
         _doc,
