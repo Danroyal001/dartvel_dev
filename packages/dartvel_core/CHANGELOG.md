@@ -1,5 +1,6 @@
 ## 3.47.8 — 2026-11-24
 
+- **Security:** an application with no accounts can turn its auth API off. `dartvel.auth.pages: false` removed only the account pages: whenever the server had a database, every `/api/auth/*` endpoint was still served over the provider installed for Studio, so anyone could `POST /api/auth/sign-up` and get an account and a session on an app that has no accounts. `dartvel.auth: false` now means no accounts: no account page, every `/api/auth/*` route answers 404, and the client no longer asks for a session at start. `dartvel.auth.signUp: false` closes sign-up alone (page and endpoint) for apps whose accounts are made another way. `pages: false` is unchanged, since apps with their own sign-in pages call those endpoints; an app that uses it to mean "no accounts" should switch to `auth: false`. Studio is unaffected (it signs in on its own mount). `dartvel.telegram` with `auth: false` is refused.
 - `Response.json` encodes straight to UTF-8 as it walks the value, rather than building the JSON text and encoding it again: the same bytes, headers and errors, with about 6% less work for a small JSON answer (about 1,900 instructions) on dartvel_shelf. `Response.text` with UTF-8 sets its content type from one string.
 
 ## 3.47.7 — 2026-11-20
