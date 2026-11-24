@@ -684,6 +684,12 @@ class _DVNavLinkState extends State<DVNavLink> {
       // A screen reader should hear a link and its destination, not a piece
       // of tappable text.
       link: true,
+      // A node of its own. Flutter merges what is not a container into its
+      // parent's node when nothing conflicts, and plain paragraphs conflict
+      // with nothing: a link directly in a page body took the page's text
+      // as its name, and on the web its <a> covered the page (Tori and
+      // Learnacer, Dartvel 3.47.7).
+      container: true,
       linkUrl: Uri.tryParse(_href),
       label: widget.semanticLabel,
       // An explicit label replaces the child's text rather than being read
