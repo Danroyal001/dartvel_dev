@@ -2994,6 +2994,12 @@ class DVBox<T> extends StatelessWidget {
       );
     }
 
+    // A long press with no tap (a clock that opens settings, a tile that offers
+    // more): the box answers it. Without a tap there is no pressable to carry
+    // it, and it was dropped, so the tooltip took every long press instead.
+    final VoidCallback? longPressOnly = m?.onTapCallback == null ? m?.onLongPressCallback : null;
+    if (longPressOnly != null) result = GestureDetector(onLongPress: longPressOnly, child: result);
+
     // Double tap, swipes and a custom gesture, under the control's own tap so
     // a tap and a swipe can share one box.
     final DVGestureSet? gestures = m?.gestureSet;
@@ -3010,6 +3016,8 @@ class DVBox<T> extends StatelessWidget {
       result = DVTooltipTarget(
         label: m!.tooltipValue ?? m.semanticLabelValue,
         required: dragDrop,
+        // A long press the box answers is the box's; hover and focus still show it.
+        longPressShows: longPressOnly == null,
         site: m.dragDropSite,
         // A drag surface is named without pretending to be a button. The
         // capture uses this identifier to retain its title and aria-label
@@ -4241,10 +4249,22 @@ class _DVInputFieldState extends State<_DVInputField>
         : (scope != null && !scope.isLast(_focus)
             ? TextInputAction.next
             : TextInputAction.done);
+    // The value is drawn in the style the modifier gives, as every other DVText
+    // is; what it leaves unset comes from the theme, as before.
+    final bool styled = modifier.textColor != null || modifier.fontSizeValue != null || modifier.fontWeightValue != null || modifier.letterSpacingValue != null || modifier.fontFamilyValue != null;
     return TextField(
       controller: _controller,
       focusNode: _focus,
       obscureText: _obscure,
+      style: styled
+          ? TextStyle(
+              color: modifier.textColor,
+              fontSize: modifier.fontSizeValue,
+              fontWeight: modifier.fontWeightValue,
+              letterSpacing: modifier.letterSpacingValue,
+              fontFamily: modifier.fontFamilyValue,
+            )
+          : null,
       maxLines: modifier.inputMultiline ? null : 1,
       minLines: modifier.inputMultiline ? 3 : 1,
       textInputAction: action,
