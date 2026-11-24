@@ -544,7 +544,9 @@ void main() {
       // and no Tab stop is ever invisible.
       expect(out, contains('<span class="dvu">See pricing</span>'));
       expect(out, contains('.dvu:focus-within'));
-      expect(out, matches(RegExp(r'\.dvl \.dvu:focus-within\{[^}]*clip-path:none')));
+      expect(out, matches(RegExp(r'\.dvl \.dvu:focus-within[,{][^}]*clip-path:none')));
+      // A link whose own text is kept only for readers shows itself too.
+      expect(out, contains(':focus:not(:has([id^=dvr]))'));
     });
 
     test('no capture for a width: the document is returned as it was', () {

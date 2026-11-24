@@ -62,11 +62,57 @@ String _page() => dvApplyPageHtml(
       path: '/',
     );
 
-Future<Page> _open(int width) async {
+Future<Page> _open(int width, {int height = 800, String path = '/'}) async {
   final Page page = await browser.newPage();
-  await page.setViewport(DeviceViewport(width: width, height: 800));
-  await page.goto('http://127.0.0.1:${server.port}/', wait: Until.load);
+  await page.setViewport(DeviceViewport(width: width, height: height));
+  await page.goto('http://127.0.0.1:${server.port}$path', wait: Until.load);
   return page;
+}
+
+/// A hero the height of the screen with its headline in the middle (the end
+/// of it filled with a gradient), the next section below it, and a link in
+/// a closed menu, captured at 390 x 800 and at 390 x 1000.
+const String _extraDoc = '<nav><a href="/menu" aria-label="Hidden menu link">Hidden menu link</a></nav>\n'
+    '<h1>Ship faster</h1>\n<p>Build once.</p>\n';
+
+String _extraPage() {
+  Map<String, Object?> items(num height) => <String, Object?>{
+        'height': height,
+        'items': <Object?>[
+          <String, Object?>{'k': 'b', 'r': <num>[0, 0, 390, height], 'z': 0, 's': true, 'bg': '#000000'},
+          <String, Object?>{
+            ..._text('Ship faster', <num>[45, height / 2 - 20, 300, 40], 1, size: 32),
+            'runs': <Object?>[
+              <String, Object?>{'t': 'Ship ', 'f': null, 'fs': 32, 'fw': 400, 'c': '#ffffff'},
+              <String, Object?>{
+                't': 'faster', 'f': null, 'fs': 32, 'fw': 400, 'c': '#ffffff',
+                'g': 'linear-gradient(90deg,#ffffff 0%,#ff0000 100%)',
+              },
+            ],
+          },
+          _text('Build once.', <num>[45, height + 40, 300, 24], 2),
+        ],
+        'controls': <Object?>[],
+      };
+  final Map<String, Object?> base = items(800);
+  return dvApplyPageHtml(
+    dvWebSplashApply(
+      _shell,
+      DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', progressColor: '#1D4ED8', ssrFirst: true),
+    ),
+    dvSsrFirstLayout(_extraDoc, <String, Object?>{
+      'widths': <Object?>[
+        <String, Object?>{
+          'width': 390,
+          'height': 800,
+          'light': base,
+          'controls': <Object?>[],
+          'tall': items(1000),
+        },
+      ],
+    }),
+    path: '/extra',
+  );
 }
 
 Future<List<num>> _box(Page page, String text) async {
@@ -86,7 +132,9 @@ void main() {
       request.response.headers.contentType = ContentType.html;
       request.response.write(request.uri.path == '/'
           ? _page()
-          : '<!DOCTYPE html><title>next</title><p id="landed">${request.uri.path}</p>');
+          : request.uri.path == '/extra'
+              ? _extraPage()
+              : '<!DOCTYPE html><title>next</title><p id="landed">${request.uri.path}</p>');
       request.response.close();
     });
     browser = await puppeteer.launch(executablePath: await dvChromeExecutable(), args: dvChromeLaunchArgs);
@@ -137,6 +185,53 @@ void main() {
     expect(onTop, isTrue);
     await page.mouse.click(Point<num>(box[0] + 2, box[1] + 20), clickCount: 3);
     expect(await page.evaluate<String>('() => getSelection().toString().trim()'), 'Ship faster');
+    await page.close();
+  });
+
+  test('a section the height of the screen fits a screen of another height', () async {
+    for (final int height in <int>[640, 800, 1200]) {
+      final Page page = await _open(390, height: height, path: '/extra');
+      final List<num> headline = await _box(page, 'Ship faster');
+      expect(headline[1], closeTo(height / 2 - 20, 0.6), reason: 'headline at $height');
+      final List<num> next = await _box(page, 'Build once.');
+      expect(next[1], closeTo(height + 40, 0.6), reason: 'next section at $height');
+      await page.close();
+    }
+  });
+
+  test('gradient text is still the text, cut out of its gradient, and visible when selected', () async {
+    final Page page = await _open(390, path: '/extra');
+    final Map<String, Object?> style = await page.evaluate<Map<String, Object?>>('''() => {
+      const span = [...document.querySelectorAll('.dv-fallback span[id^=dvr]')]
+          .find((el) => el.textContent === 'faster');
+      const own = getComputedStyle(span);
+      const selected = getComputedStyle(span, '::selection');
+      return {clip: own.webkitBackgroundClip, fill: own.webkitTextFillColor,
+              image: own.backgroundImage, selectedFill: selected.webkitTextFillColor};
+    }''');
+    expect(style['clip'], 'text');
+    expect(style['fill'], 'rgba(0, 0, 0, 0)');
+    expect(style['image'] as String, startsWith('linear-gradient(90deg'));
+    expect(style['selectedFill'], isNot('rgba(0, 0, 0, 0)'));
+    // Find and selection read it as one heading.
+    expect(await page.evaluate<String>('() => document.querySelector(".dv-fallback h1").textContent'), 'Ship faster');
+    await page.close();
+  });
+
+  test('a link kept only for readers is never an invisible Tab stop', () async {
+    final Page page = await _open(390, path: '/extra');
+    await page.keyboard.press(Key.tab);
+    final Map<String, Object?> focused = await page.evaluate<Map<String, Object?>>('''() => {
+      const el = document.activeElement;
+      const r = el.getBoundingClientRect();
+      return {text: el.textContent, w: r.width, h: r.height, top: r.top,
+              clip: getComputedStyle(el.closest('.dvu') || el).clipPath};
+    }''');
+    expect(focused['text'], 'Hidden menu link');
+    expect(focused['w'] as num, greaterThan(20));
+    expect(focused['h'] as num, greaterThan(10));
+    expect(focused['top'] as num, inInclusiveRange(0, 800));
+    expect(focused['clip'], 'none');
     await page.close();
   });
 

@@ -1091,9 +1091,13 @@ class _Layout {
       // A link or field kept only for readers (a closed menu's) is still a
       // Tab stop; when the keyboard reaches it, it shows itself where the
       // reader can see it rather than taking an invisible stop.
-      '.dvl .dvu:focus-within{position:fixed;left:8px;top:8px;width:auto;height:auto;'
+      '.dvl .dvu:focus-within,.dvl *:is(a,button,input,textarea,select,[tabindex]):focus:not(:has([id^=dvr]))'
+      '{position:fixed!important;left:8px!important;top:8px!important;width:auto!important;'
+      'height:auto!important;display:block!important;'
       'overflow:visible;clip-path:none;white-space:normal;z-index:2147483647;padding:8px 12px;'
-      'background:Canvas;color:CanvasText;outline:2px solid Highlight;border-radius:4px}}}',
+      'background:Canvas;color:CanvasText;outline:2px solid Highlight;border-radius:4px}'
+      '.dvl *:is(a,button,[tabindex]):focus:not(:has([id^=dvr])) .dvu{position:static;width:auto;'
+      'height:auto;overflow:visible;clip-path:none;white-space:normal}}}',
     );
     final String rest = later.isEmpty
         ? ''
