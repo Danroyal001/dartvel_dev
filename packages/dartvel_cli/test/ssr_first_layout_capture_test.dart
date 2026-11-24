@@ -189,13 +189,22 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) =>
   busyUntil = Date.now() + 500;
   setTimeout(() => { told = event.matches ? 'dark' : 'light'; }, 300);
 });
-addEventListener('resize', () => { busyUntil = Date.now() + 300; });
+// The app hears about a resize late, and says it is idle meanwhile: what
+// a loaded machine does to a real one.
+let seenWidth = innerWidth;
+const lag = globalThis.__resizeLag || 0;
+addEventListener('resize', () => {
+  busyUntil = Date.now() + 300;
+  const now = innerWidth;
+  if (lag === 0) { seenWidth = now; return; }
+  setTimeout(() => { seenWidth = now; }, lag);
+});
 globalThis.__dartvelCapture = {
   idle: () => Date.now() > busyUntil,
   brightness: () => told,
   snapshot: () => { globalThis.__snapshots++; return JSON.stringify({
-    width: innerWidth, height: innerHeight, brightness: told,
-    items: [{k: 'b', r: [0, 0, innerWidth, innerHeight], z: 0, s: false, bg: told === 'dark' ? '#000000' : '#ffffff'}],
+    width: seenWidth, height: innerHeight, brightness: told,
+    items: [{k: 'b', r: [0, 0, seenWidth, innerHeight], z: 0, s: false, bg: told === 'dark' ? '#000000' : '#ffffff'}],
   }); },
 };
 </script></body></html>''';
@@ -223,6 +232,25 @@ void _idleTests() {
           (((entry[scheme]! as Map<String, Object?>)['items']! as List<Object?>).first! as Map<String, Object?>)['bg']! as String;
       expect(background('light'), '#ffffff');
       expect(background('dark'), '#000000');
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('a resize that reaches the app late is waited for', () async {
+    final Page page = await browser.newPage();
+    await page.setContent(_idleApp.replaceFirst('globalThis.__resizeLag || 0', '1200'));
+    final Directory root = Directory.systemTemp.createTempSync('dv_resize');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String path = p.join(root.path, 'x.layout.json');
+    expect(await dvCaptureLayout(page, <int>[390, 1024, 1366], path: path), isTrue);
+    await page.close();
+    final Map<String, Object?> written = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    for (final Object? width in written['widths']! as List<Object?>) {
+      final Map<String, Object?> entry = width! as Map<String, Object?>;
+      // Read at its own width, not the one before the resize reached the app.
+      for (final String scheme in <String>['light', 'dark']) {
+        expect(((entry[scheme]! as Map<String, Object?>)['width']! as num).toInt(), entry['width'],
+            reason: '$scheme at ${entry['width']}');
+      }
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

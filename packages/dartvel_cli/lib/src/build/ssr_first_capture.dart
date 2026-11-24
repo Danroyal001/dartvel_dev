@@ -118,24 +118,33 @@ Future<void> _scheme(Page page, String scheme) =>
 /// once is the old scheme's colours, and holds still long enough to look
 /// settled. sigmadev.digital's pricing page was laid out in dark colours for the
 /// light scheme at 1024 that way.
-Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme) async {
+Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme, int width) async {
   final DateTime deadline = DateTime.now().add(settle);
   // An app whose hook says when it is idle and which scheme it has been told
   // is read once, when both are so: a picture is the largest thing the
   // capture moves, and three of each per width made the read of a site of
   // two hundred pages take an hour.
+  //
+  // Idle is not enough on its own: a resize reaches the app a frame or more
+  // after the browser's, and on a loaded machine the app can be idle at its
+  // old width meanwhile. A picture at the wrong width is read again.
   if (await page.evaluate<bool>(_saysIdleScript)) {
-    int quiet = 0;
-    while (DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      final bool ready = await page.evaluate<bool>(_readyScript, args: <Object?>[scheme]);
-      quiet = ready ? quiet + 1 : 0;
-      if (quiet >= 2) break;
+    while (true) {
+      int quiet = 0;
+      while (DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        final bool ready = await page.evaluate<bool>(_readyScript, args: <Object?>[scheme]);
+        quiet = ready ? quiet + 1 : 0;
+        if (quiet >= 2) break;
+      }
+      final String? now = await page.evaluate<String?>(_snapshotScript);
+      if (now == null) return null;
+      final Object? decoded = jsonDecode(now);
+      if (decoded is! Map) return null;
+      if (_atWidth(decoded, width) || !DateTime.now().isBefore(deadline)) {
+        return decoded.cast<String, Object?>();
+      }
     }
-    final String? now = await page.evaluate<String?>(_snapshotScript);
-    if (now == null) return null;
-    final Object? decoded = jsonDecode(now);
-    return decoded is Map ? decoded.cast<String, Object?>() : null;
   }
   final List<String> reads = <String>[];
   while (true) {
@@ -145,12 +154,18 @@ Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, Strin
     final Object? decoded = jsonDecode(now);
     if (decoded is! Map) return null;
     final Object? told = decoded['brightness'];
-    final bool arrived = told == null || told == scheme;
+    final bool arrived = (told == null || told == scheme) && _atWidth(decoded, width);
     if (arrived) reads.add(now);
     final int count = reads.length;
     final bool still = count >= 3 && reads[count - 1] == reads[count - 2] && reads[count - 2] == reads[count - 3];
     if (still || DateTime.now().isAfter(deadline)) return decoded.cast<String, Object?>();
   }
+}
+
+/// Whether [snapshot] was drawn at [width] (within a pixel).
+bool _atWidth(Map<Object?, Object?> snapshot, int width) {
+  final Object? drawn = snapshot['width'];
+  return drawn is! num || (drawn - width).abs() <= 1;
 }
 
 /// Records the route open in [page] at each of [widths], light and dark, and
@@ -172,7 +187,7 @@ Future<bool> dvCaptureLayout(
     for (final int width in widths) {
       final int height = dvSsrFirstHeight(width);
       await page.setViewport(DeviceViewport(width: width, height: height));
-      final Map<String, Object?>? light = await _settledSnapshot(page, settle, 'light');
+      final Map<String, Object?>? light = await _settledSnapshot(page, settle, 'light', width);
       if (light == null) return false;
       final List<Object?> controls =
           jsonDecode(await page.evaluate<String>(dvLayoutControlsScript)) as List<Object?>;
@@ -182,7 +197,7 @@ Future<bool> dvCaptureLayout(
     for (final Map<String, Object?> entry in captured) {
       final int width = entry['width']! as int;
       await page.setViewport(DeviceViewport(width: width, height: entry['height']! as int));
-      final Map<String, Object?>? dark = await _settledSnapshot(page, settle, 'dark');
+      final Map<String, Object?>? dark = await _settledSnapshot(page, settle, 'dark', width);
       if (dark != null) entry['dark'] = dark;
     }
   } finally {
