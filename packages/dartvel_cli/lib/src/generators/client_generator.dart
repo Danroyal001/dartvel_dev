@@ -4507,13 +4507,16 @@ void startDartvelKiosk() {
 
     final List<_WidgetParameter> out = <_WidgetParameter>[];
     bool named = false;
-    for (String part in _splitTopLevel(trimmed)) {
-      part = part.trim();
+    final List<String> parts = _splitTopLevel(trimmed);
+    for (int index = 0; index < parts.length; index++) {
+      String part = parts[index].trim();
       if (part.startsWith('{')) {
         named = true;
         part = part.substring(1).trim();
       }
-      if (part.endsWith('}')) part = part.substring(0, part.length - 1).trim();
+      // Only the last parameter closes the named group: an earlier one ending
+      // in `}` is a default such as `const <String, int>{}`.
+      if (named && index == parts.length - 1 && part.endsWith('}')) part = part.substring(0, part.length - 1).trim();
       if (part.isEmpty) continue;
 
       String? defaultValue;
