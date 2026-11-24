@@ -2266,6 +2266,34 @@ class BuildCommand extends Command<void> {
         if (written.existsSync() && written.readAsStringSync().contains('Written by dartvel build (dartvel.android.recentsService)')) written.deleteSync();
       }
     }
+    // The badge service: its declaration, the name Settings shows under
+    // notification access, and its source beside MainActivity.
+    final bool badges = dvAndroidBadgeServiceEnabled(_dartvelSection(root));
+    final String beforeBadges = manifest.readAsStringSync();
+    final String withBadges = dvAndroidBadgeServiceManifest(beforeBadges, enabled: badges && activities.isNotEmpty);
+    if (withBadges != beforeBadges) manifest.writeAsStringSync(withBadges);
+    final List<File> badgeFiles = <File>[
+      File(p.join(res, 'values', 'dartvel_badge_service.xml')),
+      for (final File activity in activities) File(p.join(activity.parent.path, 'DartvelBadgeService.kt')),
+    ];
+    if (badges && activities.isNotEmpty) {
+      final String? label = RegExp(r'<application[^>]*android:label="([^"@][^"]*)"').firstMatch(withBadges)?.group(1);
+      final String? package = RegExp(r'^package\s+([\w.]+)', multiLine: true).firstMatch(activities.first.readAsStringSync())?.group(1);
+      if (package == null) {
+        Logger.log('⚠️  MainActivity.kt names no package, so dartvel.android.notificationBadges was not written.');
+      } else {
+        final List<String> contents = <String>[dvAndroidBadgeServiceStrings(label ?? 'This app'), dvAndroidBadgeServiceSource(package)];
+        for (int index = 0; index < contents.length; index++) {
+          badgeFiles[index].parent.createSync(recursive: true);
+          if (!badgeFiles[index].existsSync() || badgeFiles[index].readAsStringSync() != contents[index]) badgeFiles[index].writeAsStringSync(contents[index]);
+        }
+        Logger.log('   Notification badges: once notification access is given, apps with notifications show a badge.');
+      }
+    } else {
+      for (final File written in badgeFiles) {
+        if (written.existsSync() && written.readAsStringSync().contains('Written by dartvel build (dartvel.android.notificationBadges)')) written.deleteSync();
+      }
+    }
   }
 
   void _writeIosAppShortcuts(String root) {
