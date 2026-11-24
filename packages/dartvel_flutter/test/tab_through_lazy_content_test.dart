@@ -134,6 +134,47 @@ void main() {
     expect(seen, <String>[for (int i = 59; i >= 0; i--) 'Open tool $i']);
   });
 
+  testWidgets('Tab from a control past a long stretch with nothing to focus reaches the next one', (WidgetTester tester) async {
+    // The list keeps the focused row alive after it scrolls out of view, at
+    // its old place: Flutter's traversal from there went round to the top.
+    await tester.pumpWidget(screen(Column(children: <Widget>[
+      button('Fixed'),
+      Expanded(
+        child: DVBox.list(<Widget>[
+          button('Only link'),
+          for (int i = 0; i < 300; i++) Text('Plain row $i'),
+          button('End link'),
+        ]).scrollable(),
+      ),
+    ])));
+    await tabUntil(tester, 'Only link');
+    expect(await tab(tester), 'End link');
+    expect(await tab(tester, back: true), 'Only link');
+  });
+
+  testWidgets('a reader who moves the focus while a walk scrolls keeps it there', (WidgetTester tester) async {
+    await tester.pumpWidget(screen(Column(children: <Widget>[
+      button('Fixed'),
+      Expanded(
+        child: DVBox.list(<Widget>[
+          button('Only link'),
+          for (int i = 0; i < 300; i++) Text('Plain row $i'),
+          button('End link'),
+        ]).scrollable(),
+      ),
+    ])));
+    await tabUntil(tester, 'Only link');
+    // Tab starts a walk: nothing focusable is built below, so the list
+    // scrolls a screen a frame towards End link.
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.pump();
+    // Before it gets there, the reader puts the focus on another control.
+    Focus.of(tester.element(find.text('Fixed'))).requestFocus();
+    await tester.pumpAndSettle();
+    expect(focusedLabel(), 'Fixed', reason: 'the walk does not take the focus back');
+  });
+
   testWidgets('a page whose list is all built tabs as before', (WidgetTester tester) async {
     await tester.pumpWidget(screen(DVBox.list(<Widget>[button('One'), button('Two'), button('Three')])));
     expect(await tab(tester), 'One');

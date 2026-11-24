@@ -16,7 +16,11 @@
 /// list with no control left built in that direction is scrolled on a screen
 /// at a time until one is, or until it ends. Then Flutter's own traversal
 /// moves the focus, in its own order, and scrolls the control into view as it
-/// always does. Where nothing is waiting to be built nothing differs.
+/// always does. After a scroll the focus goes to the nearest control past
+/// where it was, read from where it was: a list keeps a focused row alive
+/// after it scrolls away, at a place it no longer is. A reader who moves the
+/// focus while a list is scrolling keeps it where they put it. Where nothing
+/// is waiting to be built nothing differs.
 library;
 
 import 'dart:async';
@@ -77,23 +81,37 @@ abstract final class DVLazyTraversal {
     // Where the focus was, in each scrollable's own content, so the walk
     // still knows what "after" means once the row it was in is let go.
     final List<_Anchor> anchors = _anchorsOf(current);
+    final FocusScopeNode? scope = current.nearestScope;
+    // Read from the anchors, not from the focused row: a list keeps a focused
+    // row alive after it scrolls out of view, at a place it no longer is.
+    bool scrolled = false;
     for (int step = 0; step < maxSteps; step++) {
-      final _Step? next = current.context != null && current.context!.mounted
-          ? _stepFor(current, forward)
-          : _stepFromAnchors(anchors, current.nearestScope, forward);
+      final _Step? next = _stepFromAnchors(anchors, scope, forward);
       if (next == null) break;
+      scrolled = scrolled || next.scrolls;
       next.run();
       SchedulerBinding.instance.scheduleFrame();
       await SchedulerBinding.instance.endOfFrame;
     }
-    if (current.context != null && current.context!.mounted && current.hasPrimaryFocus) {
+    // The reader put the focus somewhere else while the list was scrolling:
+    // it stays there. A focused row the list let go hands the focus to its
+    // scope, which is not the reader moving it.
+    final FocusNode? now = FocusManager.instance.primaryFocus;
+    if (!identical(now, current) && now is! FocusScopeNode) return;
+    final bool stillThere = current.context != null && current.context!.mounted && current.hasPrimaryFocus;
+    // Only rows built where they stood: Flutter's traversal moves on, in its
+    // own order.
+    if (!scrolled && stillThere) {
       _traverse(current, forward);
       return;
     }
-    // The row the focus was in has been let go: go to the nearest control
-    // past where it was.
-    final FocusNode? target = _nearestPast(anchors, current.nearestScope, forward);
-    if (target == null) return;
+    // The list scrolled: go to the nearest control past where the focus was,
+    // read from where it was rather than from a row kept at its old place.
+    final FocusNode? target = _nearestPast(anchors, scope, forward, except: current);
+    if (target == null) {
+      if (stillThere) _traverse(current, forward);
+      return;
+    }
     target.requestFocus();
     final BuildContext? context = target.context;
     if (context != null) {
@@ -178,8 +196,11 @@ abstract final class DVLazyTraversal {
         : position.pixels > position.minScrollExtent + 0.5;
     if (!more) return null;
     final double by = position.viewportDimension * 0.8;
-    return _Step(() => position.jumpTo((position.pixels + (forward ? by : -by))
-        .clamp(position.minScrollExtent, position.maxScrollExtent)));
+    return _Step(
+      () => position.jumpTo((position.pixels + (forward ? by : -by))
+          .clamp(position.minScrollExtent, position.maxScrollExtent)),
+      scrolls: true,
+    );
   }
 
   static List<_Anchor> _anchorsOf(FocusNode current) {
@@ -194,7 +215,7 @@ abstract final class DVLazyTraversal {
     ];
   }
 
-  static FocusNode? _nearestPast(List<_Anchor> anchors, FocusScopeNode? scope, bool forward) {
+  static FocusNode? _nearestPast(List<_Anchor> anchors, FocusScopeNode? scope, bool forward, {FocusNode? except}) {
     for (final _Anchor anchor in anchors) {
       if (!anchor.list.mounted) continue;
       final _Frame? frame = _Frame.of(anchor.list);
@@ -202,6 +223,7 @@ abstract final class DVLazyTraversal {
       FocusNode? best;
       _Extent? bestExtent;
       for (final FocusNode node in scope?.traversalDescendants ?? const <FocusNode>[]) {
+        if (identical(node, except)) continue;
         final _Extent? extent = frame.extentOfNode(node);
         if (extent == null || !extent.isPast(anchor.extent, forward)) continue;
         if (bestExtent == null || extent.isPast(bestExtent, !forward)) {
@@ -216,8 +238,11 @@ abstract final class DVLazyTraversal {
 }
 
 class _Step {
-  const _Step(this.run);
+  const _Step(this.run, {this.scrolls = false});
   final VoidCallback run;
+
+  /// Whether it scrolls the list, rather than building rows where they are.
+  final bool scrolls;
 }
 
 class _Anchor {
