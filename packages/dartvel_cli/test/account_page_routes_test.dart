@@ -10,6 +10,7 @@
 // generator makes, and the refusals of a pubspec it cannot honour.
 import 'dart:io';
 
+import 'package:dartvel_cli/src/generators/account_generator.dart';
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -64,6 +65,10 @@ import 'package:flutter/widgets.dart';
 $annotation
 Widget ${name}Page(BuildContext context) => const SizedBox.shrink();
 ''';
+
+String _runtime(Directory root) =>
+    File(p.join(root.path, 'lib', 'dartvel_client', 'dartvel_runtime.dart'))
+        .readAsStringSync();
 
 String _router(Directory root) =>
     File(p.join(root.path, 'lib', 'dartvel_client', 'router.g.dart'))
@@ -291,4 +296,77 @@ dartvel:
       // Runs the CLI from source in a new process, so the time is mostly
       // compiling it: about 30 seconds on a busy host, the default limit.
       timeout: const Timeout(Duration(minutes: 3)));
+
+  // dartvel.auth: false is an application with no accounts at all: no
+  // account page, no auth API on its server (auth_off_backend_test), and no
+  // session asked for as the app starts. pages: false is only the pages: an
+  // application with its own sign-in keeps the API they call.
+  test('auth: false serves no account page and asks for no session', () async {
+    final Directory root = await _generate(
+      <String, String>{'index.dart': _page('home', '@DVPage()')},
+      config: 'auth: false\n',
+    );
+    final String router = _router(root);
+    for (final String widget in <String>[
+      'ProfilePage',
+      'SecurityPage',
+      'SessionsPage',
+      'DeletePage',
+      'SignUpPage',
+      'SignInWithEmailAndPasswordPage',
+    ]) {
+      expect(router, isNot(contains('DV.Auth.$widget(')));
+    }
+    expect(_entries(router), isEmpty);
+    expect(router, isNot(contains('dvSignInRoute =')));
+    expect(_runtime(root), isNot(contains('DVAuth().restore()')));
+  });
+
+  test('pages: false still restores the session its own pages sign in to',
+      () async {
+    final Directory root = await _generate(
+      <String, String>{'index.dart': _page('home', '@DVPage()')},
+      auth: 'false',
+    );
+    expect(_runtime(root), contains('DVAuth().restore()'));
+  });
+
+  test('auth.signUp: false leaves the sign-up page out and keeps sign-in',
+      () async {
+    final String router = _router(await _generate(
+      <String, String>{'index.dart': _page('home', '@DVPage()')},
+      config: 'auth:\n  signUp: false\n',
+    ));
+    expect(router, isNot(contains('DV.Auth.SignUpPage(')));
+    expect(router, contains("dvSignInRoute = '/login'"));
+    expect(_entries(router), isNot(contains('signUp /sign-up')));
+  });
+
+  test('a sign-up page with sign-up closed, or a dartvel.auth that is neither '
+      'false nor a map, is refused', () async {
+    await expectLater(
+      _generate(<String, String>{},
+          config: 'auth:\n  signUp: false\n  pages:\n    signUp: /join\n'),
+      throwsA(isA<StateError>().having((StateError e) => e.message, 'message',
+          contains('dartvel.auth.signUp'))),
+    );
+    await expectLater(_generate(<String, String>{}, config: 'auth:\n  signUp: no-thanks\n'),
+        throwsA(isA<StateError>()));
+    await expectLater(_generate(<String, String>{}, config: 'auth: off-please\n'),
+        throwsA(isA<StateError>()));
+  });
+
+  test('readApi: what dartvel.auth leaves the server serving', () {
+    AuthApi read(String yaml) =>
+        AccountGenerator.readApi(loadYaml(yaml) as YamlMap);
+    expect(read('{}').accounts, isTrue);
+    expect(read('{}').signUp, isTrue);
+    expect(read('auth: true').accounts, isTrue);
+    expect(read('auth:\n  pages: false\n').accounts, isTrue);
+    expect(read('auth:\n  pages: false\n').signUp, isTrue);
+    expect(read('auth: false').accounts, isFalse);
+    expect(read('auth: false').signUp, isFalse);
+    expect(read('auth:\n  signUp: false\n').accounts, isTrue);
+    expect(read('auth:\n  signUp: false\n').signUp, isFalse);
+  });
 }

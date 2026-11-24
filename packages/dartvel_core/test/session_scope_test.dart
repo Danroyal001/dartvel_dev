@@ -66,6 +66,17 @@ void main() {
       expect(scope.covers('x.tools.example.test'), isTrue);
     });
 
+    test('auth: false (no accounts) is host-only, and not a problem', () {
+      final DVSessionScopeResolution resolution =
+          DVSessionScope.resolve(hosts: _hosts(_siblings), auth: false);
+      expect(resolution.problems, isEmpty);
+      expect(resolution.scope.domain, isNull);
+      expect(
+          DVSessionScope.resolve(hosts: _hosts(_siblings), auth: 'off')
+              .problems,
+          isNotEmpty);
+    });
+
     test('a redirecting host, or one nothing declares, is not covered', () {
       final DVSessionScope scope = _resolved(_siblings);
       expect(scope.covers('old.example.test'), isFalse);

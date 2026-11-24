@@ -28,6 +28,7 @@ import 'package:dartvel_core/dartvel.dart'
         dvPageMiddlewareRefusal,
         dvPurchasesDeclared;
 
+import 'account_generator.dart' show AccountGenerator, AuthApi;
 import '../build/android_billing_bridge.dart'
     as android_billing
     show dvPurchasesPlayConfig;
@@ -380,14 +381,24 @@ class BackendGenerator {
   /// sessions endpoints run behind the stage and answer for the person it
   /// authenticated. Every POST is CSRF-checked, sign-in included: a login
   /// CSRF signs a victim's browser into the attacker's account.
-  static String _dvAuthRouteSource() => '''
+  ///
+  /// [api] is what `dartvel.auth` leaves served. An application with no
+  /// accounts (`auth: false`) gets none of these routes, so each answers 404:
+  /// the provider Studio signs in through is installed whenever there is a
+  /// database, and before this a public sign-up opened an account on an
+  /// application that has none. `auth.signUp: false` leaves sign-up out.
+  static String _dvAuthRouteSource(AuthApi api) {
+    if (!api.accounts) {
+      return '  // dartvel.auth: false -- no accounts, so no auth endpoint is served.\n';
+    }
+    return '''
   // The application's own sign-in. Answers 503 naming DVAuthEndpoints.install
   // until the application installs its auth provider.
-  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signUpPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+${api.signUp ? '''  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signUpPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
     if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     return core.DVAuthEndpoints.signUp(req);
   }));
-  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signInPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
+''' : '  // dartvel.auth.signUp: false -- accounts are not opened here.\n'}  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signInPath, (dv.Request req) => core.dvWithRequestTenant(req, () async {
     if (!_dvValidateCsrf(req, null)) return _dvCsrfForbidden();
     return core.DVAuthEndpoints.signIn(req);
   }));
@@ -451,6 +462,7 @@ class BackendGenerator {
     return core.DVAuthEndpoints.changePassword(req);
   }));
 ''';
+  }
 
   /// The paths [_dvAuthRouteSource] serves, below the API base path. Kept
   /// beside it: a function declaring one would be shadowed and never run.
@@ -1042,6 +1054,17 @@ $openApiJson\'\'\';
       final Object? dartvel = doc is Map ? doc['dartvel'] : null;
       return dartvel is Map ? PlatformApiGenerator.read(dartvel) : null;
     }();
+    // dartvel.auth: which of the application's own auth endpoints are
+    // served. auth: false (no accounts) serves none of them, and
+    // auth.signUp: false no sign-up; read by the reader the client's pages
+    // are, so a page and the endpoint it posts to cannot disagree.
+    final AuthApi authApi = () {
+      final File pubspec = File(p.join(root, 'pubspec.yaml'));
+      if (!pubspec.existsSync()) return const AuthApi();
+      final Object? doc = loadYaml(pubspec.readAsStringSync());
+      final Object? dartvel = doc is Map ? doc['dartvel'] : null;
+      return dartvel is Map ? AccountGenerator.readApi(dartvel) : const AuthApi();
+    }();
     // dartvel.telegram: install the Telegram sign-in provider. Refused here,
     // as the client generator refuses it, when it names a server secret.
     final Object? telegramSection = () {
@@ -1066,6 +1089,12 @@ $openApiJson\'\'\';
                     package.authProviders.containsKey('telegram'),
               )
               .firstOrNull;
+    if (telegram && !authApi.accounts) {
+      // Telegram sign-in is an account: it signs in through the endpoints
+      // auth: false removes.
+      throw const FormatException('pubspec.yaml sets dartvel.telegram and '
+          'dartvel.auth: false. Telegram sign-in needs accounts; remove one.');
+    }
     if (telegram && telegramProvider == null) {
       throw FormatException(
         dvRuntimeRefusal(
@@ -1524,7 +1553,7 @@ dv.Router buildBackendRouter() {
   dartvelRegisterBackendPolicies();
   core.DVBackendPolicy.verifyRegistered(const <String>[${routeActions.map((String a) => "'$a'").join(', ')}]);
 ${graphqlOptions?.installSource ?? ''}  final router = dv.Router();
-${_dvAuthRouteSource()}  bool _hasHealth = false;
+${_dvAuthRouteSource(authApi)}  bool _hasHealth = false;
 ${backendEntries.map((e) {
           final path = esc(e['path'] ?? '');
           // The address the route is registered at: a rawPath as written, outside

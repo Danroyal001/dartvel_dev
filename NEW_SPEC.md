@@ -3340,6 +3340,32 @@ routes: `/login`, `/sign-up`, and `/account/profile`, `/account/security`,
 `DV.Platform.biometrics`. That binding is not available on Android yet
 (Platform).
 
+**Which auth endpoints a server serves.** The pages and the API behind them
+are configured apart, because an application with its own sign-in pages still
+calls the endpoints:
+
+```yaml
+dartvel:
+  auth: false          # no accounts: no account page and no /api/auth/* route
+  # auth:
+  #   signUp: false    # accounts exist, but nobody opens one through the API
+  #   pages: false     # the application's own pages; every endpoint stays
+```
+
+- Nothing declared serves every page and every endpoint.
+- `auth: false` is an application with no accounts. No account page is
+  generated, every route under `<api>/auth/` answers 404, and the client does
+  not ask for a session as it starts. Studio is unaffected: it signs its own
+  people in on its own mount (`<studio>/api/auth/...`). `dartvel.telegram`
+  with `auth: false` is refused, since Telegram sign-in is an account.
+- `auth.signUp: false` keeps sign-in, sessions and the account endpoints and
+  serves no `POST <api>/auth/sign-up` (404); the sign-up page is left out, and
+  placing it at a path as well is refused naming both keys.
+- `auth.pages: false` removes the pages only. It is not "no accounts": an
+  application that has none says `auth: false`, or a public sign-up opens
+  an account on it (it used to be the only switch, and it left every
+  endpoint open).
+
 `DVAuthAppearance` supplies the prebuilt pages' identity and an optional
 `brandPanelBuilder` widget slot. Generated defaults read `dartvel.pwa.name`
 and `icon`, plus `dartvel.auth.tagline`, `heroImage` and `brandPanelColor`.

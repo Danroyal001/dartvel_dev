@@ -798,6 +798,10 @@ const String dvApiBasePath      = '${esc(apiBasePath)}';
     final String crashRelease =
         pubspecVersion == null ? 'unversioned' : '$pubspecVersion';
 
+    // dartvel.auth: false is an application with no accounts: there is no
+    // session to ask for, and its server answers 404 at /auth/session.
+    final bool restoresSession = AccountGenerator.readApi(dv).accounts;
+
     // Client runtime helper
     final runtimeDart = """
 import 'dart:async' show unawaited;
@@ -951,8 +955,7 @@ ${_runtimeInstallSource(runtimePackages, telegramConfigured: dv['telegram'] != n
   // where the HttpOnly session cookie outlives a reload and nothing on the
   // page can read it. DV.Auth.currentUser and DV.Auth.user are the signed-in
   // person from then on; a 401 leaves the app signed out without an error.
-  unawaited(const DVAuth().restore().then<void>((_) {}, onError: (Object _) {}));
-  // DV.Analytics from dartvel.analytics, over this device's own database:
+${restoresSession ? '  unawaited(const DVAuth().restore().then<void>((_) {}, onError: (Object _) {}));\n' : '  // dartvel.auth: false -- no accounts, no session to restore.\n'}  // DV.Analytics from dartvel.analytics, over this device's own database:
   // consent belongs to the install. After the bindings, because the database
   // is opened as the runtime starts and on Android the directory it goes in
   // is the files directory they find; and after the flags, so the exposure
