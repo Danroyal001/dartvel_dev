@@ -648,8 +648,21 @@ d.dispose();
   from then on the Recents button brings the app forward and `recentsPresses`
   fires. `homeAppSignals` lists everything the system tells the home app
   (Home, Back, pauses, focus, each close-system-dialogs reason, the windows
-  the service sees), for a diagnostics screen. Elsewhere `isSupported` is
-  false:
+  the service sees), for a diagnostics screen.
+  What every standard launcher does on top: `shortcuts(package)` lists an
+  app's own shortcuts (LauncherApps; only the home app may read them) and
+  `openShortcut` starts one; `packageChanges` has one event per install,
+  uninstall, update or change as Android broadcasts it;
+  `expandNotifications()` pulls the shade down; `lockScreen()` locks the
+  screen through the Recents service while the person has it on;
+  `pickWallpaper()` opens the wallpaper picker; `openSystemSettings(page)`
+  opens a page of the phone's Settings (each `DVSystemSettingsPage` carries
+  the words a search finds it by); and with
+  `dartvel.android.notificationBadges: true`, `notificationCounts` gives the
+  number of notifications each app shows, for badges, once the person allows
+  notification access (`isNotificationAccessOn`,
+  `openNotificationAccessSettings()`). Only counts leave the service. Elsewhere
+  `isSupported` is false:
 
   ```dart
   final List<DVInstalledApp> apps = await DV.Platform.apps.list();
