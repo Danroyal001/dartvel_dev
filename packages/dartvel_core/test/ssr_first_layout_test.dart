@@ -342,6 +342,108 @@ void main() {
       expect(out, contains('position:fixed'), reason: 'pinned, like an app bar');
     });
 
+    // sigmadev.digital, SSR-first, before the handover: the hero's link
+    // labels showed through the consent banner on a phone and a desktop.
+    // Every link was stacked above everything painted, so it stayed above a
+    // banner pinned to the screen that the app paints over it.
+    test('what is pinned over a link and painted after it covers it', () {
+      const String doc = '<a href="/pricing" title="See pricing" aria-label="See pricing">See pricing</a>\n'
+          '<h2>Cookies and measurement</h2>\n'
+          '<a href="/privacy" title="Privacy policy" aria-label="Privacy policy">Privacy policy</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            // A page background pinned behind everything, painted first.
+            _box(<num>[0, 0, 390, 800], '#ffffff', z: 0),
+            _text('See pricing', <num>[40, 700, 100, 20], z: 5),
+            // The banner, pinned to the bottom of the screen, over the link.
+            _box(<num>[0, 600, 390, 200], '#fafafa', z: 10),
+            _text('Cookies and measurement', <num>[16, 620, 300, 24], z: 11, scrolls: false),
+            _text('Privacy policy', <num>[16, 760, 120, 20], z: 12, scrolls: false),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[20, 690, 140, 40]},
+            <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'Privacy policy', 'r': <num>[16, 755, 140, 30], 's': false},
+          ]),
+        ]),
+      );
+      int zOf(String id) {
+        final RegExpMatch? found = RegExp('#$id\\{[^}]*z-index:(\\d+)').firstMatch(out);
+        expect(found, isNotNull, reason: 'no z-index for #$id in $out');
+        return int.parse(found!.group(1)!);
+      }
+
+      final String heroLink = RegExp(r'<a id="(dva\d+)" href="/pricing"').firstMatch(out)!.group(1)!;
+      final String bannerLink = RegExp(r'<a id="(dva\d+)" href="/privacy"').firstMatch(out)!.group(1)!;
+      final String heading = RegExp(r'<span id="(dvr\d+)">Cookies and measurement').firstMatch(out)!.group(1)!;
+      final List<String> boxes = <String>[
+        for (final RegExpMatch m in RegExp(r'#(dvp\d+)\{[^}]*background-color:(#[0-9a-f]+)').allMatches(out))
+          if (m.group(2) == '#fafafa') m.group(1)!,
+      ];
+      final List<String> backgrounds = <String>[
+        for (final RegExpMatch m in RegExp(r'#(dvp\d+)\{[^}]*background-color:(#[0-9a-f]+)').allMatches(out))
+          if (m.group(2) == '#ffffff') m.group(1)!,
+      ];
+      expect(boxes, isNotEmpty, reason: out);
+      expect(zOf(boxes.first), greaterThan(zOf(heroLink)), reason: 'the banner covers the link under it');
+      expect(zOf(heading), greaterThan(zOf(heroLink)));
+      expect(zOf(bannerLink), greaterThan(zOf(boxes.first)), reason: "the banner's own link is on the banner");
+      expect(zOf(backgrounds.first), lessThan(zOf(heroLink)), reason: 'a pinned background stays behind');
+    });
+
+    // sigmadev.digital's tools, SSR-first: each field drew its box and stood
+    // empty until Flutter took over, though the app starts it with a link.
+    test('a field shows the text the app starts it with, in its style', () {
+      const String doc = '<p><label for="dv-field-1">Link or text</label> '
+          '<input id="dv-field-1" type="text" name="Link or text" data-dv-field="Link or text"></p>\n';
+      Map<String, Object?> typed(String text, List<num> rect) => <String, Object?>{
+            ..._text(text, rect, z: 4, size: 17, colour: '#123456'),
+            'k': 'e',
+          };
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Link or text', <num>[20, 80, 200, 20], z: 1),
+            _box(<num>[20, 100, 350, 50], '#ffffff', z: 2, scrolls: true),
+            typed('https://sigmadev.digital', <num>[36, 113, 318, 24]),
+            // A field the document has no input for (a menu that picks a
+            // value): its text is drawn.
+            typed('QR code', <num>[36, 213, 280, 24]),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Link or text', 'r': <num>[20, 100, 350, 50]},
+            <String, Object?>{'k': 'f', 'name': '', 'r': <num>[20, 200, 350, 50]},
+          ]),
+        ]),
+      );
+      final String input = RegExp(r'<input[^>]*>').firstMatch(out)!.group(0)!;
+      expect(input, contains('value="https://sigmadev.digital"'));
+      final RegExpMatch style = RegExp(r'#dv-field-1\{[^}]*font:[^}]*\}').firstMatch(out) ??
+          (throw TestFailure('no style for the field in $out'));
+      expect(style.group(0), contains('17px'));
+      expect(style.group(0), contains('color:#123456'));
+      expect(style.group(0), contains('padding:0 16px 0 16px'), reason: 'the text starts where the app starts it');
+      expect(_visibleText(out), isNot(contains('https://sigmadev.digital')),
+          reason: 'a value, not text the document says twice');
+      expect(out, contains('content:"QR code"'), reason: 'drawn, where the document has no input');
+    });
+
+    test('a password field is never given a value', () {
+      const String doc = '<p><label for="dv-field-1">Password</label> '
+          '<input id="dv-field-1" type="password" name="Password" data-dv-field="Password"></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{..._text('secret', <num>[36, 113, 318, 24], z: 4), 'k': 'e'},
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Password', 'r': <num>[20, 100, 350, 50]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('secret')));
+    });
+
     test('dark colours come from the dark capture', () {
       final String out = dvSsrFirstLayout(
         _doc,
