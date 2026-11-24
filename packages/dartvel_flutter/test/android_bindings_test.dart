@@ -45,6 +45,9 @@ void main() {
         // Home and Recents pressed on a home app, stamped by its MainActivity.
         'apps.homePressedAt',
         'apps.recentsPressedAt',
+        // The wallpaper picker and the system's own Settings pages, by intent.
+        'apps.pickWallpaper',
+        'apps.openSystemSettings',
         'kiosk.enforce',
         'kiosk.release',
         // The launch Intent's URI. It belongs to the Activity, so it

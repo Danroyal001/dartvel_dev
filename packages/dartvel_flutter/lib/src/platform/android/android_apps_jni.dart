@@ -197,6 +197,60 @@ class DVAndroidApps {
   }
 
 
+
+  /// The phone's wallpaper picker: a chooser of everything that answers
+  /// ACTION_SET_WALLPAPER (the phone's own picker, and wallpaper apps).
+  static bool pickWallpaper(Context context) {
+    try {
+      final chooser = Intent.createChooser(Intent.new$2(Intent.ACTION_SET_WALLPAPER), null);
+      if (chooser == null) return false;
+      chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+      context.startActivity(chooser);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  /// The Settings action for each DVSystemSettingsPage, by its name, each
+  /// with fallbacks for phones that lack the precise page.
+  static const Map<String, List<String>> systemSettingsActions = <String, List<String>>{
+    'main': <String>['android.settings.SETTINGS'],
+    'wifi': <String>['android.settings.WIFI_SETTINGS', 'android.settings.WIRELESS_SETTINGS'],
+    'internet': <String>['android.settings.WIRELESS_SETTINGS', 'android.settings.DATA_ROAMING_SETTINGS'],
+    'bluetooth': <String>['android.settings.BLUETOOTH_SETTINGS'],
+    'display': <String>['android.settings.DISPLAY_SETTINGS'],
+    'sound': <String>['android.settings.SOUND_SETTINGS'],
+    'notifications': <String>['android.settings.NOTIFICATION_SETTINGS', 'android.settings.APP_NOTIFICATION_SETTINGS'],
+    'battery': <String>['android.intent.action.POWER_USAGE_SUMMARY', 'android.settings.BATTERY_SAVER_SETTINGS'],
+    'apps': <String>['android.settings.APPLICATION_SETTINGS', 'android.settings.MANAGE_APPLICATIONS_SETTINGS'],
+    'homeApp': <String>['android.settings.HOME_SETTINGS', 'android.settings.MANAGE_DEFAULT_APPS_SETTINGS'],
+    'storage': <String>['android.settings.INTERNAL_STORAGE_SETTINGS'],
+    'location': <String>['android.settings.LOCATION_SOURCE_SETTINGS'],
+    'security': <String>['android.settings.SECURITY_SETTINGS', 'android.settings.PRIVACY_SETTINGS'],
+    'accessibility': <String>['android.settings.ACCESSIBILITY_SETTINGS'],
+    'language': <String>['android.settings.LOCALE_SETTINGS', 'android.settings.INPUT_METHOD_SETTINGS'],
+    'dateTime': <String>['android.settings.DATE_SETTINGS'],
+    'developer': <String>['android.settings.APPLICATION_DEVELOPMENT_SETTINGS'],
+    'about': <String>['android.settings.DEVICE_INFO_SETTINGS'],
+  };
+
+  /// Opens the Settings [page] (a DVSystemSettingsPage name): its own action,
+  /// then each fallback, started and caught rather than looked up (from
+  /// Android 11 a lookup cannot see system screens). False when none opened.
+  static bool openSystemSettings(Context context, String page) {
+    final List<String>? actions = systemSettingsActions[page];
+    if (actions == null) return false;
+    for (final String action in actions) {
+      try {
+        context.startActivity(Intent.new$2(action.toJString())..addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        return true;
+      } on Object {
+        // Not on this phone; the next.
+      }
+    }
+    return false;
+  }
   /// Starts [package] the way tapping its icon would. False when the package
   /// is gone or has no launcher activity.
   static bool open(Context context, String package) {

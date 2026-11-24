@@ -1,7 +1,7 @@
 library dartvel_flutter;
 
 import 'dart:async';
-import 'dart:convert' show jsonDecode, jsonEncode, utf8;
+import 'dart:convert' show base64Decode, jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -6309,6 +6309,79 @@ class DVInstalledApp {
 ///
 /// Seeing other apps needs the `<queries>` declaration Android 11 requires,
 /// which `dartvel.android.launcher: true` writes into the manifest.
+/// One of another app's own shortcuts, as a launcher shows them when that
+/// app's icon is long-pressed: "New chat", "Scan a document". Android's
+/// LauncherApps lists them for the phone's home app only.
+class DVInstalledAppShortcut {
+  const DVInstalledAppShortcut({required this.packageName, required this.id, required this.label, this.icon});
+
+  /// The app the shortcut belongs to.
+  final String packageName;
+
+  /// The app's own id for it: what [DVApps.openShortcut] starts.
+  final String id;
+
+  /// Its short name, as the app gives it.
+  final String label;
+
+  /// Its icon as PNG bytes, or null when it has none.
+  final Uint8List? icon;
+}
+
+/// What happened to an installed package, as Android broadcast it.
+enum DVPackageChangeKind {
+  /// Newly installed.
+  added,
+
+  /// Uninstalled.
+  removed,
+
+  /// Updated to a new version (an update is not an uninstall and an install).
+  replaced,
+
+  /// Enabled, disabled, or one of its components changed.
+  changed,
+}
+
+/// One install, uninstall, update or change of a package while the app runs.
+class DVPackageChange {
+  const DVPackageChange(this.kind, this.packageName);
+
+  final DVPackageChangeKind kind;
+  final String packageName;
+}
+
+/// The pages of the phone's own Settings an app can open, each with the
+/// words a search finds it by.
+enum DVSystemSettingsPage {
+  main('Settings', <String>['settings', 'system', 'preferences']),
+  wifi('Wi-Fi', <String>['wifi', 'wi-fi', 'wireless', 'network', 'internet']),
+  internet('Network & internet', <String>['network', 'internet', 'mobile data', 'sim', 'airplane', 'hotspot']),
+  bluetooth('Bluetooth', <String>['bluetooth', 'pair', 'headphones', 'devices']),
+  display('Display', <String>['display', 'brightness', 'screen', 'dark mode', 'font size', 'wallpaper']),
+  sound('Sound', <String>['sound', 'volume', 'ringtone', 'vibrate', 'do not disturb']),
+  notifications('Notifications', <String>['notifications', 'alerts', 'badges']),
+  battery('Battery', <String>['battery', 'power', 'saver', 'charging']),
+  apps('Apps', <String>['apps', 'applications', 'permissions', 'default apps']),
+  homeApp('Home app', <String>['home app', 'launcher', 'default home']),
+  storage('Storage', <String>['storage', 'space', 'memory', 'files']),
+  location('Location', <String>['location', 'gps']),
+  security('Security & privacy', <String>['security', 'privacy', 'lock screen', 'password', 'fingerprint']),
+  accessibility('Accessibility', <String>['accessibility', 'talkback', 'magnification', 'text size']),
+  language('Languages & input', <String>['language', 'keyboard', 'input']),
+  dateTime('Date & time', <String>['date', 'time', 'time zone', 'clock']),
+  developer('Developer options', <String>['developer', 'usb debugging', 'adb']),
+  about('About phone', <String>['about', 'phone', 'android version', 'build number', 'model']);
+
+  const DVSystemSettingsPage(this.title, this.keywords);
+
+  /// The page's name, as the phone's Settings calls it.
+  final String title;
+
+  /// Lower-case words a search for the page matches.
+  final List<String> keywords;
+}
+
 /// What an app is for on the phone, as Android's default apps are chosen.
 enum DVAppRole { phone, messages, browser, camera, email, maps }
 
@@ -6583,6 +6656,150 @@ class DVApps {
     if (!DVNativeBridge.isRegistered('apps.homePressedAt') || await _DVSystemKeys.ask('recentsService.settings') != 'true') {
       throw UnsupportedError('The Recents service exists on an Android home app built with dartvel.android.recentsService: true.');
     }
+  }
+
+  /// [packageName]'s own shortcuts (static ones from its manifest and the
+  /// dynamic ones it publishes), in the app's order, as every launcher shows
+  /// them on a long press. Android's LauncherApps answers only the phone's
+  /// home app: anything else gets a [StateError] that says so. Unsupported
+  /// where there is no home-app activity to ask (not Android, an older build).
+  Future<List<DVInstalledAppShortcut>> shortcuts(String packageName) async {
+    final String? answer = await _askHomeApp('shortcuts.list:$packageName');
+    if (answer == null) throw UnsupportedError('App shortcuts are read by an Android home app (dartvel.android.launcher: true).');
+    if (answer == 'denied') throw StateError('Only the phone\'s home app can read other apps\' shortcuts. Make this app the home app first.');
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(answer);
+    } on FormatException {
+      return const <DVInstalledAppShortcut>[];
+    }
+    if (decoded is! List) return const <DVInstalledAppShortcut>[];
+    final List<DVInstalledAppShortcut> found = <DVInstalledAppShortcut>[];
+    for (final Object? item in decoded) {
+      if (item is! Map) continue;
+      final String id = '${item['id'] ?? ''}';
+      final String label = '${item['label'] ?? ''}'.trim();
+      // One with no id cannot be started, and one with no name is a blank row.
+      if (id.isEmpty || label.isEmpty) continue;
+      Uint8List? icon;
+      if (item['icon'] is String && (item['icon'] as String).isNotEmpty) {
+        try {
+          icon = base64Decode(item['icon'] as String);
+        } on FormatException {
+          icon = null;
+        }
+      }
+      found.add(DVInstalledAppShortcut(packageName: packageName, id: id, label: label, icon: icon));
+    }
+    return found;
+  }
+
+  /// Starts [shortcut] the way the app's own launcher entry would.
+  Future<void> openShortcut(DVInstalledAppShortcut shortcut) async {
+    final String? answer = await _askHomeApp('shortcuts.open:${shortcut.packageName}:${shortcut.id}');
+    if (answer == null) throw UnsupportedError('App shortcuts are opened by an Android home app (dartvel.android.launcher: true).');
+    if (answer != 'true') throw StateError('Could not open "${shortcut.label}" in ${shortcut.packageName}.');
+  }
+
+  /// One event for each app installed, uninstalled, updated or changed while
+  /// this home app runs, as Android broadcasts it: a launcher's drawer
+  /// follows at once instead of waiting to be brought back to the front.
+  /// Empty where the app is not an Android home app.
+  Stream<DVPackageChange> get packageChanges {
+    if (!DVNativeBridge.isRegistered('apps.homePressedAt')) return const Stream<DVPackageChange>.empty();
+    return _DVSystemKeys.heard.where((DVHomeAppSignal signal) => signal.name == 'package').map((DVHomeAppSignal signal) {
+      final int colon = signal.detail.indexOf(':');
+      if (colon <= 0) return null;
+      final String kind = signal.detail.substring(0, colon);
+      final String package = signal.detail.substring(colon + 1);
+      final DVPackageChangeKind? known = DVPackageChangeKind.values.where((DVPackageChangeKind each) => each.name == kind).firstOrNull;
+      return known == null || package.isEmpty ? null : DVPackageChange(known, package);
+    }).where((DVPackageChange? change) => change != null).cast<DVPackageChange>();
+  }
+
+  /// Pulls down the phone's notification shade, as a swipe down on a home
+  /// screen does. False when the phone would not (or nothing answers).
+  Future<bool> expandNotifications() async => await _askHomeApp('notifications.expand') == 'true';
+
+  /// Locks the screen, as a double tap on a home screen does on most
+  /// launchers. Android lets an app lock the screen only through an
+  /// accessibility service the person turned on: here the opt-in Recents
+  /// service (`dartvel.android.recentsService: true`). False while it is off;
+  /// [openRecentsServiceSettings] is where the person turns it on.
+  Future<bool> lockScreen() async => await _askHomeApp('screen.lock') == 'true';
+
+  /// Opens the phone's wallpaper picker (its own, or a chooser of the apps
+  /// that set wallpapers).
+  Future<void> pickWallpaper() async {
+    if (!DVNativeBridge.isRegistered('apps.pickWallpaper')) throw UnsupportedError('Choosing the wallpaper is available on Android only.');
+    if (!await DVNativeBridge.require<bool>('apps.pickWallpaper')) throw StateError('This phone has no wallpaper picker.');
+  }
+
+  /// Opens [page] of the phone's own Settings.
+  Future<void> openSystemSettings([DVSystemSettingsPage page = DVSystemSettingsPage.main]) async {
+    if (!DVNativeBridge.isRegistered('apps.openSystemSettings')) throw UnsupportedError('Opening the system settings is available on Android only.');
+    if (!await DVNativeBridge.require<bool>('apps.openSystemSettings', <String, Object?>{'page': page.name})) {
+      throw StateError('This phone has no ${page.title} settings page.');
+    }
+  }
+
+  /// How many notifications each app is showing, by package, for badges on
+  /// its icon: what is showing when listening starts, then each change.
+  /// Ongoing ones (music, downloads) and those whose channel turned badges
+  /// off are not counted. Needs `dartvel.android.notificationBadges: true`
+  /// and the person's notification access ([isNotificationAccessOn]); until
+  /// then it is one empty map.
+  Stream<Map<String, int>> get notificationCounts {
+    Map<String, int> parse(String? text) {
+      try {
+        final Object? decoded = jsonDecode(text ?? '{}');
+        if (decoded is! Map) return <String, int>{};
+        return <String, int>{
+          for (final MapEntry<Object?, Object?> entry in decoded.entries)
+            if (entry.value is num && (entry.value as num) > 0) '${entry.key}': (entry.value as num).toInt(),
+        };
+      } on FormatException {
+        return <String, int>{};
+      }
+    }
+
+    late final StreamController<Map<String, int>> controller;
+    StreamSubscription<DVHomeAppSignal>? keys;
+    controller = StreamController<Map<String, int>>(
+      onListen: () {
+        if (DVNativeBridge.isRegistered('apps.homePressedAt')) {
+          keys = _DVSystemKeys.heard.where((DVHomeAppSignal signal) => signal.name == 'badges').listen((DVHomeAppSignal signal) {
+            if (!controller.isClosed) controller.add(parse(signal.detail));
+          });
+        }
+        unawaited(_askHomeApp('badges.current').then((String? text) {
+          if (!controller.isClosed) controller.add(parse(text));
+        }));
+      },
+      onCancel: () {
+        keys?.cancel();
+        keys = null;
+      },
+    );
+    return controller.stream;
+  }
+
+  /// Whether the person gave this app notification access (the badge
+  /// service). False where there is none.
+  Future<bool> get isNotificationAccessOn async => await _askHomeApp('badges.isOn') == 'true';
+
+  /// Opens the system page where the person gives this app notification
+  /// access. Android lets no app give it to itself.
+  Future<void> openNotificationAccessSettings() async {
+    if (await _askHomeApp('badges.settings') != 'true') {
+      throw UnsupportedError('Notification badges need an Android home app built with dartvel.android.notificationBadges: true.');
+    }
+  }
+
+  /// [question] for the home-app activity; null where it is not one.
+  Future<String?> _askHomeApp(String question) async {
+    if (!DVNativeBridge.isRegistered('apps.homePressedAt')) return null;
+    return _DVSystemKeys.ask(question);
   }
 
   /// Starts the app [packageName] the way tapping its icon would.

@@ -47,6 +47,8 @@ const Set<String> dvNativeBindingNames = <String>{
   'apps.defaultFor',
   'apps.homePressedAt',
   'apps.recentsPressedAt',
+  'apps.pickWallpaper',
+  'apps.openSystemSettings',
 
   // Feedback and system integration.
   'clipboard.copy',

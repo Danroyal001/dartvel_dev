@@ -239,6 +239,9 @@ class DVAndroidBindings {
     // Recents pressed while it is visible (the system's "recentapps" broadcast,
     // stamped by the same MainActivity); DVApps.recentsPresses polls it.
     DVNativeBridge.register('apps.recentsPressedAt', (Object? _) => DVAndroidApps.recentsPressedAt(DVAndroidActivities.current));
+    // The wallpaper picker and a page of the system's own Settings, by intent.
+    DVNativeBridge.register('apps.pickWallpaper', (Object? _) => DVAndroidApps.pickWallpaper(context));
+    DVNativeBridge.register('apps.openSystemSettings', (Object? arguments) => DVAndroidApps.openSystemSettings(context, arguments is Map ? '${arguments['page'] ?? ''}' : ''));
 
     DVNativeBridge.register('share.text', (Object? arguments) {
       final map = arguments is Map ? arguments : const <Object?, Object?>{};
