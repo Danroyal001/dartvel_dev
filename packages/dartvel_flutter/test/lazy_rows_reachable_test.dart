@@ -200,6 +200,45 @@ void main() {
     semantics.dispose();
   });
 
+  // On a phone every frame the page draws costs a raster of the whole
+  // screen, however little changed: on sigmadev.digital at 390 px with 4x
+  // CPU that was about 100 ms a frame, and reading the catalogue a row or two
+  // a frame took over a hundred frames and 40 seconds of 3 frames a second.
+  // Reading a row draws nothing, so it takes no frame: the rows read land in
+  // the page together.
+  testWidgets('reading a long catalogue draws no frame per row; what was read lands in one frame', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    expect(tester.binding.hasScheduledFrame, isFalse);
+
+    int frames = 0;
+    for (int steps = 0; steps < 500 && DVLazyBackfill.step(); steps++) {
+      if (tester.binding.hasScheduledFrame) {
+        frames++;
+        await tester.pump();
+      }
+    }
+    if (tester.binding.hasScheduledFrame) {
+      frames++;
+      await tester.pump();
+    }
+    expect(semanticsText(tester), contains('What tool 199 does, in a sentence.'));
+    expect(frames, lessThanOrEqualTo(2), reason: 'a frame for what was read, not one per row');
+    semantics.dispose();
+  });
+
+  testWidgets('a step that only reads rows asks for no frame', (WidgetTester tester) async {
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    final int before = ToolCardForTest.builds;
+    expect(DVLazyBackfill.step(), isTrue);
+    expect(ToolCardForTest.builds, greaterThan(before), reason: 'it read some cards');
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    expect(find.text('What tool 150 does, in a sentence.', skipOffstage: false), findsNothing,
+        reason: 'a card read is not left in the tree');
+  });
+
   testWidgets('a card read for its words reads as the link it is', (WidgetTester tester) async {
     final SemanticsHandle semantics = tester.ensureSemantics();
     await tester.pumpWidget(screen(catalogue(200)));
