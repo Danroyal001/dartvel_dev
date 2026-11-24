@@ -118,8 +118,12 @@ abstract final class DVLazyBackfill {
   /// [perStep]); then, once nothing is left to read or what was read has
   /// waited [landAfterMs], lands it and grows one lazy list, in one frame.
   /// True when more is left for another step. Without a budget -- a test, a
-  /// debug build -- it reads [perStep] rows.
+  /// debug build -- it reads [perStep] rows. Nothing while a frame is
+  /// coming.
   static bool step([double? budgetMs]) {
+    // A frame is coming: what it builds is dirty now, and a row read now
+    // would build it outside its frame. The step waits for the next one.
+    if (SchedulerBinding.instance.hasScheduledFrame) return pending;
     final Stopwatch spent = Stopwatch()..start();
     final double budget = budgetMs ?? double.infinity;
     int read = 0;

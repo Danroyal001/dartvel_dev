@@ -305,14 +305,22 @@ class _DVReadingAnchorElement extends ProxyElement {
   /// for no focus, as neither will ever have a size.
   _Reading read(Widget row) {
     late Element root;
-    owner!.buildScope(this, () {
-      root = inflateWidget(
-        _DVDetached(
-          child: SelectionRegistrarScope(registrar: const _NoSelection(), child: ExcludeFocus(child: row)),
-        ),
-        _detachedSlot,
-      );
-    });
+    // A collection inside the row is read whole, not as the places its own
+    // rows would hold.
+    final bool whole = DVLazyLists.buildWhole;
+    DVLazyLists.buildWhole = true;
+    try {
+      owner!.buildScope(this, () {
+        root = inflateWidget(
+          _DVDetached(
+            child: SelectionRegistrarScope(registrar: const _NoSelection(), child: ExcludeFocus(child: row)),
+          ),
+          _detachedSlot,
+        );
+      });
+    } finally {
+      DVLazyLists.buildWhole = whole;
+    }
     final _Reading reading;
     try {
       reading = _Reading.of(root);
@@ -480,31 +488,94 @@ class _NoSelection implements SelectionRegistrar {
 /// What a read row says, as semantics only: one node for each paragraph,
 /// heading, link and button, stacked in the row's height so each has a place
 /// on screen, as a node must to be read. Nothing is drawn.
-class _StandIn extends StatelessWidget {
+///
+/// One render object writing its nodes itself, as a paragraph writes the
+/// nodes of its links, not a column of Semantics widgets: a catalogue of 177
+/// read cards held some two thousand elements and render objects for its
+/// stand-ins alone.
+class _StandIn extends LeafRenderObjectWidget {
   const _StandIn({required this.spoken, required this.open});
 
   final List<_Spoken> spoken;
   final void Function(_Spoken) open;
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          for (final _Spoken item in spoken)
-            Expanded(
-              child: Semantics(
-                container: true,
-                label: item.label,
-                link: item.link,
-                linkUrl: item.linkUrl,
-                button: item.button,
-                headingLevel: item.headingLevel == 0 ? null : item.headingLevel,
-                onTap: item.control ? () => open(item) : null,
-                child: const SizedBox.expand(),
-              ),
-            ),
-        ],
-      );
+  _RenderStandIn createRenderObject(BuildContext context) =>
+      _RenderStandIn(spoken, open, Directionality.maybeOf(context) ?? TextDirection.ltr);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderStandIn renderObject) => renderObject
+    ..spoken = spoken
+    ..open = open
+    ..textDirection = Directionality.maybeOf(context) ?? TextDirection.ltr;
+}
+
+class _RenderStandIn extends RenderBox {
+  _RenderStandIn(this._spoken, this.open, this._textDirection);
+
+  List<_Spoken> _spoken;
+  set spoken(List<_Spoken> value) {
+    if (identical(value, _spoken)) return;
+    _spoken = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  void Function(_Spoken) open;
+
+  TextDirection _textDirection;
+  set textDirection(TextDirection value) {
+    if (value == _textDirection) return;
+    _textDirection = value;
+    markNeedsSemanticsUpdate();
+  }
+
+  /// The nodes written last time, reused so a node keeps its id.
+  final List<SemanticsNode> _nodes = <SemanticsNode>[];
+
+  @override
+  bool get sizedByParent => true;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config
+      ..isSemanticBoundary = true
+      ..explicitChildNodes = true;
+  }
+
+  @override
+  void assembleSemanticsNode(SemanticsNode node, SemanticsConfiguration config, Iterable<SemanticsNode> children) {
+    final int count = _spoken.length;
+    while (_nodes.length < count) {
+      _nodes.add(SemanticsNode(showOnScreen: showOnScreen));
+    }
+    _nodes.length = count;
+    final double height = count == 0 ? 0 : size.height / count;
+    for (int index = 0; index < count; index++) {
+      final _Spoken item = _spoken[index];
+      final SemanticsConfiguration said = SemanticsConfiguration()
+        ..label = item.label
+        ..textDirection = _textDirection
+        ..isLink = item.link
+        ..isButton = item.button;
+      if (item.linkUrl != null) said.linkUrl = item.linkUrl;
+      if (item.headingLevel > 0) said.headingLevel = item.headingLevel;
+      if (item.control) said.onTap = () => open(item);
+      _nodes[index]
+        ..updateWith(config: said)
+        ..rect = Rect.fromLTWH(0, height * index, size.width, height);
+    }
+    node.updateWith(config: config, childrenInInversePaintOrder: _nodes);
+  }
+
+  @override
+  void clearSemantics() {
+    super.clearSemantics();
+    _nodes.clear();
+  }
 }
 
 enum _HostMode { placeholder, standIn, built }

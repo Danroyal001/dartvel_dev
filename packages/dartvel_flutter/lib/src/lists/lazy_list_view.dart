@@ -11,15 +11,24 @@
 /// (backfill.dart): first by four screens, then by as many as the last
 /// growth's build and layout say fit in [DVLazyBackfill.growBudgetMs]. Every
 /// frame rasters the whole screen however little changed, so fewer, fuller
-/// growths cost less than many small ones. From then on every row is built and stays built,
-/// and Flutter reports every row's semantics, the ones off screen marked
-/// hidden as it always does. The first frame builds exactly what it did.
+/// growths cost less than many small ones.
+///
+/// A row the cache grows into is not built and kept: it is a DVNearScreen,
+/// held at the height of the rows built so far, read for its words while the
+/// page is idle (near_screen.dart) and built when the page scrolls near it.
+/// Building and keeping every row of sigmadev.digital's home, a section a
+/// row, cost its first fifteen seconds a fifth of their frames. A row built
+/// because the reader scrolled to it is built as it always was. From then on
+/// Flutter reports every row's semantics, read or built, the ones off screen
+/// marked hidden as it always does. The first frame builds exactly what it
+/// did.
 library;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'backfill.dart';
+import 'near_screen.dart';
 
 class DVLazyListView extends StatefulWidget {
   const DVLazyListView({
@@ -53,6 +62,27 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
 
   void _spent(int microseconds) => _spentMicroseconds += microseconds;
 
+  /// The rows the cache grew into, read rather than built; a row once read
+  /// stays one, so it keeps its element when the list rebuilds.
+  final Set<int> _readRows = <int>{};
+
+  /// Whether a row built now is one the cache grew into: from a growth until
+  /// the reader scrolls. A row the reader scrolls to is built at once.
+  bool _growing = false;
+  ScrollPosition? _watched;
+
+  /// The rows built in full so far, and their height: the height a row read
+  /// holds until it is built.
+  double _builtHeight = 0;
+  int _builtRows = 0;
+
+  void _sized(double height) {
+    _builtHeight += height;
+    _builtRows++;
+  }
+
+  void _scrolled() => _growing = false;
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +99,7 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
   @override
   void dispose() {
     DVLazyBackfill.unregister(this);
+    _watched?.removeListener(_scrolled);
     super.dispose();
   }
 
@@ -114,6 +145,11 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
     }
     _grownScreens = screens;
     _spentMicroseconds = 0;
+    if (!identical(position, _watched)) {
+      _watched?.removeListener(_scrolled);
+      _watched = position..addListener(_scrolled);
+    }
+    _growing = true;
     setState(() => _cacheExtent = now + screen * screens);
     return true;
   }
@@ -121,7 +157,14 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
   @override
   Widget build(BuildContext context) {
     final IndexedWidgetBuilder? separator = widget.separatorBuilder;
-    Widget row(BuildContext context, int index) => _RowClock(onSpent: _spent, child: widget.itemBuilder(context, index));
+    Widget row(BuildContext context, int index) {
+      final Widget child = widget.itemBuilder(context, index);
+      if (_growing) _readRows.add(index);
+      if (!_readRows.contains(index)) return _RowClock(onSpent: _spent, onSized: _sized, child: child);
+      final double estimate = _builtRows == 0 ? 120 : _builtHeight / _builtRows;
+      return _RowClock(onSpent: _spent, child: DVNearScreen(estimatedHeight: estimate, child: child));
+    }
+
     if (separator == null) {
       return ListView.builder(
         key: _listKey,
@@ -143,18 +186,23 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
 /// Times what a row costs the frame it arrives in: building it, which
 /// builds everything in it at once, and laying it out.
 class _RowClock extends SingleChildRenderObjectWidget {
-  const _RowClock({required this.onSpent, super.child});
+  const _RowClock({required this.onSpent, this.onSized, super.child});
 
   final ValueChanged<int> onSpent;
+
+  /// Hears the row's height the first time it is laid out.
+  final ValueChanged<double>? onSized;
 
   @override
   SingleChildRenderObjectElement createElement() => _RowClockElement(this);
 
   @override
-  _RenderRowClock createRenderObject(BuildContext context) => _RenderRowClock(onSpent);
+  _RenderRowClock createRenderObject(BuildContext context) => _RenderRowClock(onSpent, onSized);
 
   @override
-  void updateRenderObject(BuildContext context, _RenderRowClock renderObject) => renderObject.onSpent = onSpent;
+  void updateRenderObject(BuildContext context, _RenderRowClock renderObject) => renderObject
+    ..onSpent = onSpent
+    ..onSized = onSized;
 }
 
 class _RowClockElement extends SingleChildRenderObjectElement {
@@ -169,14 +217,20 @@ class _RowClockElement extends SingleChildRenderObjectElement {
 }
 
 class _RenderRowClock extends RenderProxyBox {
-  _RenderRowClock(this.onSpent);
+  _RenderRowClock(this.onSpent, this.onSized);
 
   ValueChanged<int> onSpent;
+  ValueChanged<double>? onSized;
+  bool _sizedOnce = false;
 
   @override
   void performLayout() {
     final Stopwatch clock = Stopwatch()..start();
     super.performLayout();
     onSpent(clock.elapsedMicroseconds);
+    if (!_sizedOnce && onSized != null) {
+      _sizedOnce = true;
+      onSized!(size.height);
+    }
   }
 }
