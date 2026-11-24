@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/keyboard_scroll.dart';
+import 'src/lists/lazy_list_view.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/selection_mirror.dart';
@@ -3516,13 +3517,12 @@ class DVBox<T> extends StatelessWidget {
       return across == null ? child : Align(alignment: across, child: child);
     }
 
-    if (_spacing <= 0) {
-      return ListView.builder(itemCount: children.length, itemBuilder: (BuildContext context, int index) => row(index));
-    }
-    return ListView.separated(
+    // On the web the rows not built yet are built while the page is idle,
+    // for screen readers and the browser's find: see lazy_list_view.dart.
+    return DVLazyListView(
       itemCount: children.length,
       itemBuilder: (BuildContext context, int index) => row(index),
-      separatorBuilder: (BuildContext context, int index) => SizedBox(height: _spacing),
+      separatorBuilder: _spacing <= 0 ? null : (BuildContext context, int index) => SizedBox(height: _spacing),
     );
   }
 
