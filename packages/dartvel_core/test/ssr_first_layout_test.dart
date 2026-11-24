@@ -537,6 +537,40 @@ void main() {
       expect(out, contains('@font-face{font-family:"NotoEmoji"'));
     });
 
+    test('the end of the first screen is marked, before the stylesheet for below the fold', () {
+      // The head holds the first paint until this element is parsed
+      // (dvSsrFirstHead), so the first frame is the first screen in place:
+      // never the bare canvas, never half of it.
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40]),
+            _text('See pricing', <num>[20, 5000, 100, 20]),
+          ]),
+        ]),
+      );
+      const String marker = '<i id="$dvFirstScreenId" aria-hidden="true" hidden></i>';
+      expect(marker.allMatches(out), hasLength(1), reason: out);
+      final List<RegExpMatch> styles =
+          RegExp(r'<style class="dvl-style">(.*?)</style>', dotAll: true).allMatches(out).toList();
+      expect(out.indexOf(marker), greaterThan(out.indexOf('See pricing')));
+      expect(out.indexOf(marker), lessThan(out.indexOf(styles.last.group(0)!)));
+      // Find skips it like the rest of the layout's own pieces.
+      expect(dvFindableHtml(out), contains(marker));
+      expect(dvFindableHtml(out), isNot(contains('<section hidden="until-found" data-dv-anchor="3"><i id')));
+    });
+
+    test('everything above the fold: the marker still ends the document', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[_text('Ship faster', <num>[20, 100, 350, 40])]),
+        ]),
+      );
+      expect(out, endsWith('<i id="$dvFirstScreenId" aria-hidden="true" hidden></i></div>'));
+    });
+
     test('a slot keeps the shape the server fills on each request', () {
       const String slotted = '<p><span data-dv-slot="today">Monday</span></p>\n';
       final String out = dvSsrFirstLayout(

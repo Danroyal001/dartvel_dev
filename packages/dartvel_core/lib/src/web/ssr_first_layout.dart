@@ -46,6 +46,10 @@ class DVLayoutFont {
   final String? style;
 }
 
+/// The id of the element that ends the first screen of a laid-out document:
+/// the SSR-first head holds the first paint until it is parsed.
+const String dvFirstScreenId = 'dv-first-screen';
+
 /// The family the engine draws with when a style names none.
 const String dvLayoutDefaultFamily = 'Roboto';
 
@@ -430,9 +434,13 @@ class _Layout {
     }
     final (String first, String rest) = _css();
     // What is below the fold is placed by a second stylesheet after the
-    // document, so the first screen paints without waiting for it.
+    // document, so the first screen paints without waiting for it. The
+    // marker between them ends the first screen: the SSR-first head holds
+    // the first paint until it is parsed (dvSsrFirstHead), so the first frame
+    // is the first screen in place, never the bare canvas or half of it.
     return '<div class="dvl"><style class="dvl-style">$first</style>'
-        '${_layerHtml()}$body${rest.isEmpty ? '' : '<style class="dvl-style">$rest</style>'}</div>';
+        '${_layerHtml()}$body<i id="$dvFirstScreenId" aria-hidden="true" hidden></i>'
+        '${rest.isEmpty ? '' : '<style class="dvl-style">$rest</style>'}</div>';
   }
 
   // -- Reading the document.
