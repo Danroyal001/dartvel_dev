@@ -94,4 +94,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(doubles, 1);
   });
+
+  group('over a box that scrolls', () {
+    // A scrolling list claims every vertical drag (a primary ListView on a
+    // phone always scrolls, even when everything fits), so a swipe down on a
+    // home screen whose content scrolls never reached onSwipeDown. A pull
+    // past the list's top is that swipe, as on every launcher; past its end,
+    // a swipe up.
+    Widget scrolling(DVModifier modifier, {int rows = 3}) => MaterialApp(
+          home: Scaffold(
+            body: DVBox(
+              DVBox.list(<Widget>[for (int row = 0; row < rows; row++) SizedBox(height: 120, child: Text('Row $row'))]).scrollable(),
+              modifier,
+            ),
+          ),
+        );
+
+    testWidgets('a swipe down at the top of the list is onSwipeDown, once', (WidgetTester tester) async {
+      int downs = 0;
+      await tester.pumpWidget(scrolling(DVModifier().onSwipeDown(() => downs++)));
+      await tester.fling(find.text('Row 0'), const Offset(0, 250), 1500);
+      await tester.pumpAndSettle();
+      expect(downs, 1);
+    });
+
+    testWidgets('a long list scrolled down is scrolled back by a swipe down, not swiped', (WidgetTester tester) async {
+      int downs = 0;
+      await tester.pumpWidget(scrolling(DVModifier().onSwipeDown(() => downs++), rows: 40));
+      await tester.drag(find.text('Row 2'), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.drag(find.text('Row 7'), const Offset(0, 300));
+      await tester.pumpAndSettle();
+      expect(downs, 0, reason: 'the list scrolled back and still had room above');
+    });
+
+    testWidgets('a swipe up at the end of a list is onSwipeUp', (WidgetTester tester) async {
+      int ups = 0;
+      await tester.pumpWidget(scrolling(DVModifier().onSwipeUp(() => ups++)));
+      await tester.fling(find.text('Row 2'), const Offset(0, -250), 1500);
+      await tester.pumpAndSettle();
+      expect(ups, 1);
+    });
+
+    testWidgets('with a custom gesture too, and a pinch still reaches it', (WidgetTester tester) async {
+      int downs = 0;
+      double smallest = 1;
+      await tester.pumpWidget(scrolling(DVModifier().onSwipeDown(() => downs++).onGesture(DVGesture(onUpdate: (ScaleUpdateDetails details) {
+        if (details.pointerCount >= 2 && details.scale < smallest) smallest = details.scale;
+      }))));
+      await tester.fling(find.text('Row 0'), const Offset(0, 250), 1500);
+      await tester.pumpAndSettle();
+      expect(downs, 1);
+      final TestGesture first = await tester.startGesture(const Offset(100, 200), pointer: 7);
+      final TestGesture second = await tester.startGesture(const Offset(300, 200), pointer: 8);
+      for (int step = 0; step < 10; step++) {
+        await first.moveBy(const Offset(7, 0));
+        await second.moveBy(const Offset(-7, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+      expect(smallest, lessThan(0.6), reason: 'two fingers closing over the list are a pinch');
+    });
+  });
 }

@@ -99,6 +99,10 @@ class DVGestureSet {
             },
       child: child,
     );
+    // A scrolling list inside claims every vertical drag, so a swipe over it
+    // never reaches the drag recognizers above. A pull past its top is the
+    // swipe down, past its end the swipe up.
+    if (_vertical) result = _DVEdgeSwipes(onPastStart: swipeDown, onPastEnd: swipeUp, child: result);
     return result;
   }
 
@@ -109,4 +113,82 @@ class DVGestureSet {
   Widget announce(Widget child) => _horizontal || _vertical
       ? Semantics(onScrollUp: swipeUp, onScrollDown: swipeDown, onScrollLeft: swipeLeft, onScrollRight: swipeRight, child: child)
       : child;
+}
+
+/// How far a finger pulls a vertical list past its top or end, in logical
+/// pixels, before that is a swipe rather than a nudge at the edge.
+const double dvEdgeSwipeDistance = 48;
+
+/// Calls [onPastStart] when a finger pulls a vertical scrolling list inside
+/// [child] past its top, and [onPastEnd] past its end: once per drag, and
+/// only for a drag that started at that edge (a list scrolled back to its
+/// top by the same drag is a scroll, not a swipe).
+class _DVEdgeSwipes extends StatefulWidget {
+  const _DVEdgeSwipes({required this.child, this.onPastStart, this.onPastEnd});
+
+  final Widget child;
+  final VoidCallback? onPastStart;
+  final VoidCallback? onPastEnd;
+
+  @override
+  State<_DVEdgeSwipes> createState() => _DVEdgeSwipesState();
+}
+
+class _DVEdgeSwipesState extends State<_DVEdgeSwipes> {
+  double _pulled = 0;
+  bool _fired = false;
+  bool _atStart = false;
+  bool _atEnd = false;
+
+  bool _heard(ScrollNotification notification) {
+    final ScrollMetrics metrics = notification.metrics;
+    if (metrics.axis != Axis.vertical) return false;
+    if (notification is ScrollStartNotification) {
+      _pulled = 0;
+      _fired = false;
+      _atStart = metrics.pixels <= metrics.minScrollExtent;
+      _atEnd = metrics.pixels >= metrics.maxScrollExtent;
+    } else if (notification is OverscrollNotification && notification.dragDetails != null) {
+      // Clamping physics (Android): the list stays put and reports the rest.
+      _pull(notification.overscroll);
+    } else if (notification is ScrollUpdateNotification && notification.dragDetails != null) {
+      // Bouncing physics (iOS): the list moves past its edge.
+      if (metrics.pixels < metrics.minScrollExtent) {
+        _pulled = metrics.pixels - metrics.minScrollExtent;
+        _check();
+      } else if (metrics.pixels > metrics.maxScrollExtent) {
+        _pulled = metrics.pixels - metrics.maxScrollExtent;
+        _check();
+      } else if ((notification.scrollDelta ?? 0) != 0) {
+        // The drag scrolled the list: it is a scroll from here on.
+        _atStart = false;
+        _atEnd = false;
+      }
+    } else if (notification is ScrollEndNotification) {
+      _pulled = 0;
+    }
+    return false;
+  }
+
+  void _pull(double overscroll) {
+    // Negative is past the top, positive past the end; a change of direction
+    // starts counting again.
+    if (_pulled != 0 && overscroll.sign != _pulled.sign) _pulled = 0;
+    _pulled += overscroll;
+    _check();
+  }
+
+  void _check() {
+    if (_fired) return;
+    if (_pulled <= -dvEdgeSwipeDistance && _atStart) {
+      _fired = true;
+      widget.onPastStart?.call();
+    } else if (_pulled >= dvEdgeSwipeDistance && _atEnd) {
+      _fired = true;
+      widget.onPastEnd?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(onNotification: _heard, child: widget.child);
 }
