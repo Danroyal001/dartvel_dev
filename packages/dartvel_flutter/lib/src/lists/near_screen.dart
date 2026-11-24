@@ -310,6 +310,17 @@ class _Reading {
     return reading;
   }
 
+  /// A paragraph: one node with the plain paragraphs read just before it,
+  /// so a card is a link and a line of text rather than a node per line.
+  void _say(String text, int heading) {
+    final _Spoken? last = spoken.isEmpty ? null : spoken.last;
+    if (heading == 0 && last != null && !last.control && last.headingLevel == 0) {
+      spoken[spoken.length - 1] = _Spoken('${last.label}\n$text');
+      return;
+    }
+    spoken.add(_Spoken(text, headingLevel: heading));
+  }
+
   /// [heading] is the level of the heading it is in, [control] the labelled
   /// link or button whose label stands for everything in it, [silent] true
   /// inside what semantics exclude.
@@ -339,7 +350,7 @@ class _Reading {
         final String text = render.text.toPlainText(includeSemanticsLabels: false, includePlaceholders: false).trim();
         if (text.isNotEmpty) {
           blocks.add(DVFindBlock(text, headingLevel: heading == 0 ? null : heading));
-          if (!silent && text != control?.label) spoken.add(_Spoken(text, headingLevel: heading));
+          if (!silent && text != control?.label) _say(text, heading);
         }
       }
     }

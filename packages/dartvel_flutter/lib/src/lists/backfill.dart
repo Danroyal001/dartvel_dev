@@ -63,32 +63,39 @@ abstract final class DVLazyBackfill {
   static const int quietMs = 300;
 
   /// The most waiting things one step takes a little of.
-  static const int perStep = 16;
+  static const int perStep = 64;
 
   /// How long the frame a step causes may take, in milliseconds: the next
   /// step takes fewer things when it took longer, more when it was quick.
-  /// A frame at 60 Hz: the page is idle, nothing on it moves, and every
-  /// frame costs a raster of the whole screen however little changed (on a
-  /// phone's software GL that raster, not the build, was most of the cost),
-  /// so fewer, fuller frames are cheaper than many small ones. A debug build's frames say nothing about a
-  /// release build's (a frame of one paragraph takes 30-50 ms in a debug
-  /// build in Chrome), so there every step takes [perStep].
-  static const double frameBudgetMs = 16;
+  /// The page is idle and nothing on it moves, and every frame costs a
+  /// raster of the whole screen however little changed: on sigmadev.digital
+  /// at 390 px with 4x CPU that raster, not the reading, was most of the
+  /// cost (transferToImageBitmap took 6.8 s of 15), and a step of one or two
+  /// rows a frame took over a hundred frames for 177 tools. So a step fills
+  /// up to the long-task line instead, and the catalogue is read in a
+  /// handful of frames. A debug build's frames say nothing about a release
+  /// build's (a frame of one paragraph takes 30-50 ms in a debug build in
+  /// Chrome), so there every step takes [perStep].
+  static const double frameBudgetMs = 50;
 
   /// How many render objects rows read while idle may keep built, across
   /// the app; a row past it is let go after it is read.
   static const int keepBudget = 400;
 
   /// How many things the next step takes, from 1 to [perStep].
-  static int _take = 1;
+  static int _take = 8;
 
   static final Set<DVBackfillable> _waiting = <DVBackfillable>{};
 
   static bool _armed = false;
 
-  /// How much the next step takes, from 1 to [perStep]: a lazy list grows
-  /// its cache by this many pairs of screens.
-  static int get stride => kDebugMode ? perStep : _take;
+  /// How many pairs of screens a lazy list grows its cache by in the next
+  /// step: the step's share, up to four. Growing a cache builds and lays out
+  /// the rows it reaches, which reading does not.
+  static int get stride {
+    final int take = kDebugMode ? perStep : _take;
+    return take < 4 ? take : 4;
+  }
 
   /// Whether anything is waiting.
   static bool get pending => _waiting.isNotEmpty;
@@ -162,7 +169,7 @@ abstract final class DVLazyBackfill {
   static void reset() {
     _waiting.clear();
     _armed = false;
-    _take = 1;
+    _take = 8;
     enabled = kIsWeb;
   }
 }
