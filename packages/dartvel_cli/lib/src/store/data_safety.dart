@@ -182,7 +182,8 @@ final class DVDataSafetyInputs {
           : DVCrashConfig.parse(_plain(crashes)),
       analyticsDeclared: analytics != null,
       analyticsHasConsent: analytics is Map && analytics['consent'] is Map,
-      authDeclared: dartvel['auth'] != null,
+      // auth: false is the one declaration that says there are no accounts.
+      authDeclared: dartvel['auth'] != null && dartvel['auth'] != false,
       purchasesDeclared:
           dartvel['purchases'] is Map || dartvel['purchases'] == true,
       cleartextHosts: hosts is List

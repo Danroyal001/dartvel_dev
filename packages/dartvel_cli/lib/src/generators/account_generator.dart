@@ -58,6 +58,33 @@ class AccountGenerator {
     return Duration(days: days);
   }
 
+  /// What `dartvel.auth` in [dv] leaves the generated server serving.
+  ///
+  /// Nothing declared, `true` or a map is an application with accounts: every
+  /// auth endpoint is served, whichever pages are. `auth: false` is an
+  /// application with no accounts: no account page and no `/auth/*` route at
+  /// all (Studio signs in on its own mount, and is unaffected).
+  /// `auth.signUp: false` keeps the rest and serves no sign-up, for an
+  /// application whose accounts are made some other way. `pages: false` only
+  /// removes the pages: an application with its own sign-in pages calls the
+  /// endpoints they called. Throws [StateError] naming the key for anything
+  /// else, because a misspelt switch would leave sign-up open.
+  static AuthApi readApi(Map<Object?, Object?> dv) {
+    final Object? auth = dv['auth'];
+    if (auth == null || auth == true) return const AuthApi();
+    if (auth == false) return const AuthApi(accounts: false, signUp: false);
+    if (auth is! Map) {
+      throw StateError('dartvel.auth must be false (no accounts) or a map, '
+          'not "$auth".');
+    }
+    final Object? signUp = auth['signUp'];
+    if (signUp != null && signUp is! bool) {
+      throw StateError('dartvel.auth.signUp must be true or false, not '
+          '"$signUp".');
+    }
+    return AuthApi(signUp: signUp != false);
+  }
+
   /// The account pages `dartvel.auth.pages` in [dv] asks to be served.
   ///
   /// Nothing declared serves every page at its default path. `pages: false`
@@ -67,12 +94,24 @@ class AccountGenerator {
   /// path, a path the router already uses -- because each would otherwise be
   /// skipped into a route the application believes it configured.
   static List<AccountPageRoute> readPages(Map<Object?, Object?> dv) {
+    final AuthApi api = readApi(dv);
+    if (!api.accounts) return const <AccountPageRoute>[];
     final Object? auth = dv['auth'];
-    if (auth != null && auth is! Map) {
-      throw StateError('dartvel.auth must be a map, not "$auth".');
-    }
     final Object? declared = auth is Map ? auth['pages'] : null;
-    if (declared == null) return defaults;
+    // With sign-up closed the sign-up page would post to a route that is not
+    // there: it is left out, and one placed at a path is a contradiction.
+    final List<AccountPageRoute> offered = api.signUp
+        ? defaults
+        : <AccountPageRoute>[
+            for (final AccountPageRoute page in defaults)
+              if (page.key != 'signUp') page,
+          ];
+    if (declared is Map && !api.signUp && declared['signUp'] is String) {
+      throw StateError('dartvel.auth.pages.signUp is ${declared['signUp']}, '
+          'and dartvel.auth.signUp is false: the page would post to a sign-up '
+          'the server does not serve. Remove one of them.');
+    }
+    if (declared == null) return offered;
     if (declared == false) return const <AccountPageRoute>[];
     if (declared is! Map) {
       throw StateError('dartvel.auth.pages must be false or a map of account '
@@ -90,7 +129,7 @@ class AccountGenerator {
     }
     final List<AccountPageRoute> out = <AccountPageRoute>[];
     final Map<String, String> claimed = <String, String>{};
-    for (final AccountPageRoute page in defaults) {
+    for (final AccountPageRoute page in offered) {
       if (!declared.containsKey(page.key)) {
         out.add(page);
         claimed[page.path] = page.key;
@@ -222,6 +261,17 @@ Timer dartvelStartAccountDeletionSweep({required Duration every}) =>
 
   static String _literal(String value) =>
       "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll(r'$', r'\$').replaceAll('\n', r'\n')}'";
+}
+
+/// Which auth endpoints the generated server serves: [AccountGenerator.readApi].
+class AuthApi {
+  const AuthApi({this.accounts = true, this.signUp = true});
+
+  /// The application has accounts: the `/auth/*` endpoints are served.
+  final bool accounts;
+
+  /// `POST /auth/sign-up` is served. Never true without [accounts].
+  final bool signUp;
 }
 
 /// Where one prebuilt account page is served.
