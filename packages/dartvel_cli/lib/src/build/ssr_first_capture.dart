@@ -37,6 +37,12 @@ int dvSsrFirstHeight(int width) {
   return 1080;
 }
 
+/// The second screen height a width is read at: a quarter taller. What
+/// moves or grows between the two (a hero the height of the screen, what
+/// follows it, a bar pinned to the bottom) is laid out in `dvh`, so the
+/// document fits a screen of any height as the app does.
+int dvSsrFirstTallHeight(int height) => (height * 1.25).round();
+
 /// Where a route's layout capture is written: beside its semantics tree.
 String dvLayoutCapturePathFor(String projectRoot, String route) =>
     dvSemanticsPathFor(projectRoot, route).replaceFirst(RegExp(r'\.json$'), '.layout.json');
@@ -118,7 +124,7 @@ Future<void> _scheme(Page page, String scheme) =>
 /// once is the old scheme's colours, and holds still long enough to look
 /// settled. sigmadev.digital's pricing page was laid out in dark colours for the
 /// light scheme at 1024 that way.
-Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme, int width) async {
+Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, String scheme, int width, {int? height}) async {
   final DateTime deadline = DateTime.now().add(settle);
   // An app whose hook says when it is idle and which scheme it has been told
   // is read once, when both are so: a picture is the largest thing the
@@ -141,7 +147,7 @@ Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, Strin
       if (now == null) return null;
       final Object? decoded = jsonDecode(now);
       if (decoded is! Map) return null;
-      if (_atWidth(decoded, width) || !DateTime.now().isBefore(deadline)) {
+      if ((_atWidth(decoded, width) && _atHeight(decoded, height)) || !DateTime.now().isBefore(deadline)) {
         return decoded.cast<String, Object?>();
       }
     }
@@ -154,12 +160,19 @@ Future<Map<String, Object?>?> _settledSnapshot(Page page, Duration settle, Strin
     final Object? decoded = jsonDecode(now);
     if (decoded is! Map) return null;
     final Object? told = decoded['brightness'];
-    final bool arrived = (told == null || told == scheme) && _atWidth(decoded, width);
+    final bool arrived = (told == null || told == scheme) && _atWidth(decoded, width) && _atHeight(decoded, height);
     if (arrived) reads.add(now);
     final int count = reads.length;
     final bool still = count >= 3 && reads[count - 1] == reads[count - 2] && reads[count - 2] == reads[count - 3];
     if (still || DateTime.now().isAfter(deadline)) return decoded.cast<String, Object?>();
   }
+}
+
+/// Whether [snapshot] was drawn at [height] (within a pixel), when one is
+/// asked for.
+bool _atHeight(Map<Object?, Object?> snapshot, int? height) {
+  final Object? drawn = snapshot['height'];
+  return height == null || drawn is! num || (drawn - height).abs() <= 1;
 }
 
 /// Whether [snapshot] was drawn at [width] (within a pixel).
@@ -191,7 +204,25 @@ Future<bool> dvCaptureLayout(
       if (light == null) return false;
       final List<Object?> controls =
           jsonDecode(await page.evaluate<String>(dvLayoutControlsScript)) as List<Object?>;
-      captured.add(<String, Object?>{'width': width, 'height': height, 'light': light, 'controls': controls});
+      final Map<String, Object?> entry = <String, Object?>{
+        'width': width,
+        'height': height,
+        'light': light,
+        'controls': controls,
+      };
+      // The same width at a taller screen, light only: the layout does not
+      // change with the scheme.
+      final int tallHeight = dvSsrFirstTallHeight(height);
+      await page.setViewport(DeviceViewport(width: width, height: tallHeight));
+      final Map<String, Object?>? tall = await _settledSnapshot(page, settle, 'light', width, height: tallHeight);
+      if (tall != null) {
+        entry['tall'] = <String, Object?>{
+          'height': tallHeight,
+          'items': tall['items'],
+          'controls': jsonDecode(await page.evaluate<String>(dvLayoutControlsScript)) as List<Object?>,
+        };
+      }
+      captured.add(entry);
     }
     await _scheme(page, 'dark');
     for (final Map<String, Object?> entry in captured) {

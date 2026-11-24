@@ -223,7 +223,9 @@ void _idleTests() {
     addTearDown(() => root.deleteSync(recursive: true));
     final String path = p.join(root.path, 'x.layout.json');
     expect(await dvCaptureLayout(page, <int>[390, 1024, 1366], path: path), isTrue);
-    expect(await page.evaluate<int>('() => globalThis.__snapshots'), 6);
+    // Light and dark at each width, and light again at a second screen
+    // height (the layout does not change with the scheme).
+    expect(await page.evaluate<int>('() => globalThis.__snapshots'), 9);
     await page.close();
     final Map<String, Object?> written = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
     for (final Object? width in written['widths']! as List<Object?>) {
@@ -232,6 +234,28 @@ void _idleTests() {
           (((entry[scheme]! as Map<String, Object?>)['items']! as List<Object?>).first! as Map<String, Object?>)['bg']! as String;
       expect(background('light'), '#ffffff');
       expect(background('dark'), '#000000');
+    }
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test('each width is read again at a taller screen, for what is sized to the screen', () async {
+    final Page page = await browser.newPage();
+    await page.setContent(_idleApp);
+    final Directory root = Directory.systemTemp.createTempSync('dv_tall');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String path = p.join(root.path, 'x.layout.json');
+    expect(await dvCaptureLayout(page, <int>[390, 1366], path: path), isTrue);
+    await page.close();
+    final Map<String, Object?> written = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    for (final Object? width in written['widths']! as List<Object?>) {
+      final Map<String, Object?> entry = width! as Map<String, Object?>;
+      final Map<String, Object?> tall = entry['tall']! as Map<String, Object?>;
+      final int height = entry['height']! as int;
+      expect(tall['height'], dvSsrFirstTallHeight(height));
+      expect(tall['height'] as int, greaterThan(height));
+      // The app's own screen-sized box, read at that height.
+      final Map<String, Object?> box = (tall['items']! as List<Object?>).first! as Map<String, Object?>;
+      expect((box['r']! as List<Object?>)[3], tall['height']);
+      expect(tall['controls'], isA<List<Object?>>());
     }
   }, timeout: const Timeout(Duration(minutes: 2)));
 
