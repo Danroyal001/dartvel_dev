@@ -1,6 +1,7 @@
 ## Unreleased
 
 - `.tooltip()` on a `DVText` nobody presses is shown: a text field (`.input(...)`) and a status word now draw the tooltip on hover and keyboard focus. It was dropped (the box half is built with the interaction cleared), so a field named with a tooltip showed nothing and apps wrapped it in a Flutter `Tooltip` by hand. A long press in a field still selects text.
+- External links work on Android: `DVNavLink.external` and `DVLinkOpener.open` hand the address to the phone (ACTION_VIEW: the browser, the dialer for `tel:`, the mail app for `mailto:`). Off the web they did nothing at all. Only http, https, mailto, tel, sms, smsto, geo and market addresses are opened; `intent:`, `file:` and `content:` are refused. New binding `links.open`.
 - `dartvel build` and `dartvel doctor` check syntax up to several times faster: the Rust helper parses files on one thread per processor (at most 8) and answers in order, with the same answers (695 files: 477 to 122 ms; the Dart analyzer takes 629 ms). See rust/README.md, Speed.
 
 ## 3.47.7 — 2026-11-20

@@ -55,6 +55,7 @@ import 'generated/android/content/ClipboardManager.dart';
 import 'generated/android/content/Context.dart';
 import 'generated/android/content/Intent.dart';
 import 'generated/android/hardware/Sensor.dart';
+import 'generated/android/net/Uri.dart';
 import 'generated/android/os/VibrationEffect.dart';
 import 'generated/android/os/Vibrator.dart';
 import 'generated/android/os/VibratorManager.dart';
@@ -244,6 +245,13 @@ class DVAndroidBindings {
       final text = '${map['text'] ?? ''}';
       if (text.isEmpty) return false;
       return _shareText(text, '${map['title'] ?? 'Share'}');
+    });
+
+    DVNativeBridge.register('links.open', (Object? arguments) {
+      final map = arguments is Map ? arguments : const <Object?, Object?>{};
+      final url = '${map['url'] ?? ''}';
+      if (!dvAndroidOpensUrl(url)) return false;
+      return _openUrl(url);
     });
 
     // One sample each, not a subscription. SensorManager has no call that
@@ -605,6 +613,22 @@ class DVAndroidBindings {
   ///     inner intent — it is the one being started.
   ///   * The type. Intent resolution matches on the action and the MIME type
   ///     together, so an untyped intent is delivered to nothing.
+  /// ACTION_VIEW for [url]: the browser, dialer, mail app or store, as the
+  /// person set them. False when nothing on the phone opens it.
+  static bool _openUrl(String url) {
+    final context = _context;
+    if (context == null) return false;
+    final view = Intent.new$3(Intent.ACTION_VIEW, Uri.parse(url.toJString()));
+    view.addFlags(dvAndroidOpenUrlIntentFlags);
+    try {
+      context.startActivity(view);
+      return true;
+    } on Object {
+      // ActivityNotFoundException: no app on the phone opens this scheme.
+      return false;
+    }
+  }
+
   static bool _shareText(String text, String title) {
     final context = _context;
     if (context == null) return false;

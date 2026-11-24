@@ -1740,6 +1740,13 @@ its public title and that it needs signing in, so a hover never shows a
 signed-out reader what the guard protects. `preview: false` turns it off for
 a screen too heavy or too live to build on a hover.
 
+`DVNavLink.external`, and every other link that leaves the app (`DVLinkOpener.open`),
+opens in the browser on the web and through the platform elsewhere: on Android
+an ACTION_VIEW intent, so a web address opens the browser, `tel:` the dialer and
+`mailto:` the mail app. Only http, https, mailto, tel, sms, smsto, geo and market
+addresses are handed over; `intent:`, `file:` and `content:` ones are refused.
+A platform without the `links.open` binding does nothing rather than throw.
+
 ### A Navigator 2.0 app
 
 An app with its own `RouterDelegate` keeps it, and keeps its own route table.

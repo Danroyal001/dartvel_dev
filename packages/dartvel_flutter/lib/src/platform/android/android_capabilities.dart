@@ -81,6 +81,8 @@ const Set<String> dvAndroidImplementedBindings = <String>{
 
   // Intent.ACTION_SEND through a chooser.
   'share.text',
+  // Intent.ACTION_VIEW: an external link handed to the app that opens it.
+  'links.open',
   // The launchable apps and opening them (DVApps).
   'apps.list',
   'apps.open',
@@ -294,6 +296,27 @@ String? _dvAndroidUnder(String? filesDir, String name) {
 /// device: "Calling startActivity() from outside of an Activity context
 /// requires the FLAG_ACTIVITY_NEW_TASK flag".
 const int dvAndroidShareIntentFlags = 0x10000000;
+
+/// FLAG_ACTIVITY_NEW_TASK, for the ACTION_VIEW intent `links.open` starts
+/// from the application Context (the same reason as
+/// [dvAndroidShareIntentFlags]).
+const int dvAndroidOpenUrlIntentFlags = 0x10000000;
+
+/// The schemes `links.open` hands to another app.
+///
+/// An `intent:` address names any component of any app, extras included,
+/// and `file:`/`content:` ones hand this app's files out, so a link in page
+/// content must not reach ACTION_VIEW with one of those: only addresses that
+/// are meant for another app's front door are opened.
+const Set<String> dvAndroidOpenUrlSchemes = <String>{'http', 'https', 'mailto', 'tel', 'sms', 'smsto', 'geo', 'market'};
+
+/// Whether `links.open` opens [url] on Android: an absolute address with one
+/// of [dvAndroidOpenUrlSchemes].
+bool dvAndroidOpensUrl(String url) {
+  final Uri? parsed = Uri.tryParse(url.trim());
+  if (parsed == null || !parsed.hasScheme) return false;
+  return dvAndroidOpenUrlSchemes.contains(parsed.scheme.toLowerCase());
+}
 
 /// Whether the share goes through `Intent.createChooser`.
 ///
