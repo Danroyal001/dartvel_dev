@@ -65,6 +65,9 @@ const Set<String> dvNativeBindingNames = <String>{
   // choice arrives afterwards, so an application that did not wait reported
   // an acceptance whatever the person at the screen chose.
   'install.prompt',
+  // An address handed to the platform to open (ACTION_VIEW on Android): the
+  // browser, the dialer for tel:, the mail app for mailto:.
+  'links.open',
   'media.pick',
   'notifications.sendLocal',
   // Push: the registration the push service gave this device (an FCM token on
