@@ -10,8 +10,9 @@
 /// collapsed the selection, and Ctrl+C copied nothing (Tori and Learnacer,
 /// Dartvel 3.47.7). The same for a double-click and its word.
 ///
-/// On the web the page shell hears the browser's count on every click of a
-/// run past the first, where the button came up where it went down, and
+/// On the web the page shell hears the browser's count from the click that
+/// ends each press of a run past the first, where the button came up where
+/// it went down, and
 /// selects the word (two) or the paragraph (three or more) under it, as
 /// Flutter does when it counts the run itself. A run Flutter did count ends
 /// with the same selection it made. Elsewhere nothing is reported: the

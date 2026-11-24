@@ -1,5 +1,5 @@
 /// The document half of browser_clicks.dart: the browser's click count, read
-/// as the button comes up.
+/// from the click that ends each press.
 library;
 
 import 'dart:js_interop';
@@ -18,18 +18,21 @@ const double _slop = 4;
 void dvInstallBrowserClicks(void Function(int count, Offset position) report) {
   if (_installed) return;
   _installed = true;
-  // Captured on the document, after Flutter has had the pointer events: the
-  // mouse events follow the pointer events they belong to.
+  // The pointer events and the click, not mousedown and mouseup: Flutter
+  // cancels the pointer's press, and a browser then sends no mousedown or
+  // mouseup at all. The click still comes, after Flutter has had the press
+  // and the release, and carries the browser's count in `detail`. Captured
+  // on the document, where Flutter knows nothing of it.
   web.document.addEventListener(
-    'mousedown',
-    ((web.MouseEvent event) {
+    'pointerdown',
+    ((web.PointerEvent event) {
       _downX = event.clientX.toDouble();
       _downY = event.clientY.toDouble();
     }).toJS,
     true.toJS,
   );
   web.document.addEventListener(
-    'mouseup',
+    'click',
     ((web.MouseEvent event) {
       final double? downX = _downX;
       final double? downY = _downY;
