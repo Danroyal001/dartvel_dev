@@ -44,10 +44,14 @@ void main() {
     DVSecrets.reset();
   });
 
+  // The sender drops events more than seven days older than its clock, so the
+  // clock is fixed at the events' own day: on the real clock every event here
+  // became too old to send a week after it was written (24 Nov 2026).
   MetaConversionsApi api({String? testEventCode}) => MetaConversionsApi(
         const MetaPixelConfig(pixelId: '1234567890').copyWith(
           testEventCode: testEventCode,
         ),
+        clock: () => DateTime.utc(2026, 11, 14, 12),
       );
 
   MetaServerEvent event({DateTime? time}) => MetaServerEvent(
