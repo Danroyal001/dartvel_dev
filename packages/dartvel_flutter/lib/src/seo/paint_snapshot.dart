@@ -176,6 +176,8 @@ class _Snapshot {
                 shadowColor: object.shadowColor);
           } else if (object is RenderParagraph) {
             _paragraph(object, rect, next);
+          } else if (object is RenderEditable) {
+            _editable(object, rect, next);
           } else if (object is RenderImage) {
             _image(object, rect, next);
           } else if (object is RenderCustomPaint) {
@@ -531,6 +533,51 @@ class _Snapshot {
     if (paragraph.maxLines != null) item['ml'] = paragraph.maxLines;
     if (paragraph.overflow == TextOverflow.ellipsis) item['ell'] = true;
     if (!paragraph.softWrap || lines == 1) item['nw'] = true;
+    items.add(item);
+  }
+
+  /// The text a field starts with, which its editable paints rather than a
+  /// paragraph: kind `e`, so the layout puts it in the document's own
+  /// input (or draws it, where the document has none) instead of matching
+  /// it to the document's text. A password is never read.
+  void _editable(RenderEditable editable, Rect rect, _State state) {
+    if (editable.obscureText) return;
+    final InlineSpan? span = editable.text;
+    if (span == null) return;
+    final String text = span.toPlainText(includeSemanticsLabels: false, includePlaceholders: false);
+    if (text.trim().isEmpty) return;
+    final Map<String, Object?>? item = _item('e', rect, state);
+    if (item == null) return;
+    final List<Map<String, Object?>> runs = <Map<String, Object?>>[];
+    void walk(InlineSpan current, TextStyle inherited) {
+      final TextStyle style = current.style == null ? inherited : inherited.merge(current.style);
+      if (current is TextSpan) {
+        final String? own = current.text;
+        if (own != null && own.isNotEmpty) runs.add(_run(current, own, style, editable.textScaler));
+        for (final InlineSpan child in current.children ?? const <InlineSpan>[]) {
+          walk(child, style);
+        }
+      }
+    }
+
+    walk(span, const TextStyle());
+    final bool rtl = editable.textDirection == TextDirection.rtl;
+    final int lines = editable.maxLines == 1 ? 1 : math.max(1, '\n'.allMatches(text).length + 1);
+    item
+      ..['text'] = text
+      ..['runs'] = runs
+      ..['al'] = switch (editable.textAlign) {
+        TextAlign.center => 'center',
+        TextAlign.right => 'right',
+        TextAlign.left => 'left',
+        TextAlign.justify => 'justify',
+        TextAlign.end => rtl ? 'left' : 'right',
+        TextAlign.start => rtl ? 'right' : 'left',
+      }
+      ..['lines'] = lines
+      ..['lh'] = _round(editable.preferredLineHeight);
+    if (rtl) item['dir'] = 'rtl';
+    if (editable.maxLines == 1) item['nw'] = true;
     items.add(item);
   }
 
