@@ -598,6 +598,22 @@ The table is the contract. Each row says which entries a target has, what
   *Tab.* A link or field the document keeps only for readers (a closed
   menu's) shows itself where the reader can see it when the keyboard
   reaches it, so no Tab stop is invisible.
+  *The first paint.* The splash style paints the page canvas
+  (`html{background}`) in the splash colours, light and dark, so nothing
+  before the body is the browser's white. With SSR-first the head also adds
+  a render-blocking `<link rel="expect" blocking="render">` naming
+  `#dv-first-screen`, an empty `aria-hidden` element the layout writes
+  after the document and before the stylesheet for below the fold: the
+  browser paints nothing until the first screen and its styles are parsed,
+  so the first frame is the first screen in place, never the bare canvas or
+  half a page. The link is written by a script with this page's own URL,
+  because under `<base href="/">` a bare `#id` names the site root and is
+  ignored on every other route. A page with no layout is held until it is
+  parsed; a browser without `blocking` paints as before, on the app's
+  colour. Fallback font families are named only when the app bundles them:
+  Flutter on the web never draws with the visitor's system fonts, and the
+  theme's platform list (Material's Linux list on a Linux build box) cost a
+  font lookup each before the first paint.
   *Limits:* a width far from a captured one where the layout is not linear,
   painters that are not described, other shaders, blurs, and a slot the
   server fills with longer text than the build's.

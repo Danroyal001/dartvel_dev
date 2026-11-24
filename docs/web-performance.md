@@ -418,6 +418,61 @@ custom painter nor a shader can be read back from the render tree.
   control's content, such as a background, stays behind.
 - **Triple-click** already selected the paragraph in Chrome; the earlier
   report came from a check that clicked after Tab had scrolled the page.
+
+#### The first paint (25 November 2026)
+
+sigmadev.digital (3.47.8, SSR-first) painted a blank frame before its page
+on a slow line, in light and dark: Chrome paints as soon as the head is
+read, and the canvas was the browser's white until the body arrived.
+Measured as above (390 px, Fast 3G, 4x CPU, fresh profile, app script
+refused so only the document is timed; 15 runs each, host load 11-16, so
+single runs vary by a second):
+
+| | First paint | First text | What the first frame is |
+|---|---|---|---|
+| 3.47.8, dark | 520 ms (median) | 1,356 ms | a blank canvas, then the page |
+| 3.47.8, light | 412 ms | 1,272 ms | white, then the page (its hero is dark) |
+| now, dark | 1,656 ms | 1,656 ms | the first screen in place |
+| now, light | 1,608 ms | 1,608 ms | the first screen in place |
+
+- **The canvas is the app's colour.** The splash style paints
+  `html{background}` in the splash colours, light and dark, so nothing
+  before the body is white (every Dartvel web build, SSR-first or not).
+- **The first paint waits for the first screen.** The SSR-first head adds a
+  render-blocking `<link rel="expect" blocking="render">` naming
+  `#dv-first-screen`, an empty `aria-hidden` element the layout writes after
+  the document and before the stylesheet for below the fold. Chrome paints
+  nothing until it is parsed, so the first frame is the whole first screen,
+  consent banner and app bar included, never the canvas or half a page.
+  The link is written by a script with the page's own URL: under
+  `<base href="/">` a bare `#id` names the site root and is ignored on every
+  other route. A page with no layout is held until it is parsed; Firefox and
+  Safari ignore the attribute and paint on the app's colour. The same page
+  with and without the link, 12 runs each, alternating: first text
+  2,070 ms without, 2,246 ms with (within the noise of the host).
+- **Fallback fonts the app does not bundle are not named.** The capture's
+  theme carries Material's Linux fallback list (Ubuntu, Adwaita Sans,
+  Cantarell, DejaVu Sans, Liberation Sans, Arial) from the build box. Flutter
+  on the web never draws with system fonts, so the list only made the
+  browser look each one up before the first layout, and draw in one the app
+  never shows. In Chrome on Linux those lookups go to the browser's font
+  service: before the first paint they took 675 ms in 150 calls (4x CPU),
+  432 ms in 109 calls without the list. 10 KB less HTML (293 KB), the same
+  after brotli.
+
+The first text still comes about 0.9 s after the last byte of the
+document. Almost all of it is one layout of the whole document, and most of
+that is Chrome on Linux asking its font service for each font size the page
+uses (a desktop Linux visitor pays it; Android draws fonts in process).
+Splitting the stylesheet further does not move it: the first screen's rules
+and text are in by about byte 120 K, in the first round trips, and both
+stylesheets reach the browser before that layout starts.
+
+Handover diff on the web-server build (`~/sigmadev-speed/handover-diff`,
+home, light/dark), 3.47.8 → now: pixel diff 3.3 → 3.1 % and 3.6 → 3.2 %
+at 390 px, 3.0 → 3.0 % and 2.7 → 2.6 % at 1366 px; offsets unchanged (median
+4 px at 390, 1 px at 1366). Find, selection, Tab order and the accessibility
+tree of the document are the same (67 headings and links on the home page).
   The browser test still triple-clicks.
 
 Measured the same way, on the same sigmadev commit built twice as a

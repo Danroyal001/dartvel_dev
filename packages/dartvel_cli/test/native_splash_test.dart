@@ -343,6 +343,23 @@ dartvel:
       expect(html, contains('#445566'));
     });
 
+    test('the page itself is the splash colour from its first paint, so nothing flashes white', () {
+      // The browser paints the page's canvas as soon as the head is read; until
+      // the body arrives (a second on 3G for a large page) that canvas was the
+      // browser's default white, even on a dark app in dark mode.
+      final String html = dvWebSplashApply(_webIndex, splash);
+      final String style = RegExp(r'<style id="dartvel-splash-style">(.*?)</style>').firstMatch(html)!.group(1)!;
+      expect(style, contains('html{background:#112233}'));
+      expect(style, contains('@media (prefers-color-scheme:dark){html{background:#445566}}'));
+      // In the head, ahead of the body, so it is there for the first paint.
+      expect(html.indexOf('html{background:#112233}'), lessThan(html.indexOf('<body')));
+    });
+
+    test('with the splash turned off the page keeps its own background', () {
+      final String html = dvWebSplashApply(_webIndex, DVSplash(color: '#112233', darkColor: '#445566', enabled: false));
+      expect(html, isNot(contains('html{background:')));
+    });
+
     test('goes first in the body, so the Flutter view stacks above it', () {
       // The engine appends <flutter-view> to the end of the body. Placed
       // before it, the splash is underneath the application the moment the

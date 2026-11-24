@@ -6,12 +6,13 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' show Point;
 
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
 import 'package:dartvel_cli/src/build/native_splash.dart';
-import 'package:dartvel_core/dartvel.dart' show dvApplyPageHtml, dvSsrFirstLayout;
+import 'package:dartvel_core/dartvel.dart' show dvApplyPageHtml, dvFirstScreenId, dvSsrFirstLayout;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
@@ -61,6 +62,25 @@ String _page() => dvApplyPageHtml(
       }),
       path: '/',
     );
+
+/// The page at a deep route under `<base href="/">`, as a server on a slow
+/// line sends it: up to the end of the first screen, then (once [rest]
+/// completes) the stylesheet for below the fold and the rest.
+const String _baseShell = '<!DOCTYPE html><html><head><base href="/"><meta charset="UTF-8"><title>t</title></head>'
+    '<body><script>/* flutter_bootstrap.js */</script></body></html>';
+
+String _slowPage() => dvApplyPageHtml(
+      dvWebSplashApply(
+        _baseShell,
+        DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', progressColor: '#1D4ED8', ssrFirst: true),
+      ),
+      dvSsrFirstLayout(_doc, <String, Object?>{
+        'widths': <Object?>[_width(390, 45), _width(1366, 533)],
+      }),
+      path: '/docs/deep',
+    );
+
+Completer<void> rest = Completer<void>();
 
 Future<Page> _open(int width, {int height = 800, String path = '/'}) async {
   final Page page = await browser.newPage();
@@ -130,6 +150,17 @@ void main() {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((HttpRequest request) {
       request.response.headers.contentType = ContentType.html;
+      if (request.uri.path == '/docs/deep') {
+        final String page = _slowPage();
+        final int split = page.indexOf('<i id="$dvFirstScreenId"');
+        request.response.bufferOutput = false;
+        request.response.write(page.substring(0, split < 0 ? page.length ~/ 2 : split));
+        request.response.flush().then((_) => rest.future).then((_) {
+          request.response.write(page.substring(split < 0 ? page.length ~/ 2 : split));
+          return request.response.close();
+        });
+        return;
+      }
       request.response.write(request.uri.path == '/'
           ? _page()
           : request.uri.path == '/extra'
@@ -252,6 +283,29 @@ void main() {
     final Page page = await _open(390);
     final num height = await page.evaluate<num>('() => document.querySelector(".dv-fallback").scrollHeight');
     expect(height, greaterThanOrEqualTo(1600));
+    await page.close();
+  });
+
+  test('nothing is painted until the first screen is in: never the bare canvas, never half of it', () async {
+    // The head holds rendering until the end of the first screen is parsed
+    // (a render-blocking expect link). A deep route under <base href="/">:
+    // a bare "#id" would resolve against the base, name another page and be
+    // ignored, so the link names this page.
+    rest = Completer<void>();
+    final Page page = await browser.newPage();
+    await page.setViewport(DeviceViewport(width: 390, height: 800));
+    unawaited(page.goto('http://127.0.0.1:${server.port}/docs/deep', wait: Until.domContentLoaded).catchError((Object _) => null));
+    // The document holds everything up to the marker, its own first stylesheet
+    // included, and would have painted long before this.
+    await page.waitForFunction('() => !!document.querySelector(".dvl")');
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    final num paintsBefore = await page.evaluate<num>('() => performance.getEntriesByType("paint").length');
+    rest.complete();
+    await page.waitForFunction('() => performance.getEntriesByType("paint").length > 0');
+    expect(paintsBefore, 0, reason: 'painted before the first screen was parsed');
+    final bool blocking = await page.evaluate<bool>('''() => [...document.querySelectorAll('link[rel=expect]')]
+        .some((l) => l.href === location.href.split('#')[0] + '#$dvFirstScreenId' && l.blocking.contains('render'))''');
+    expect(blocking, isTrue);
     await page.close();
   });
 

@@ -405,6 +405,15 @@ String dvWebSplashApply(
       style.write('@media (prefers-color-scheme:dark){'
           '#dartvel-splash{background:${splash.darkColor}}}');
     }
+    // The page's own canvas in the app's colour. The browser paints it as soon
+    // as the head is read, long before the body (and the splash or document in
+    // it) arrives on a slow line; left alone it is the browser's white, which
+    // flashed before a dark app even in dark mode (sigmadev.digital, 24 Nov 2026).
+    style.write('html{background:${splash.color}}');
+    if (splash.darkColor != splash.color) {
+      style.write('@media (prefers-color-scheme:dark){'
+          'html{background:${splash.darkColor}}}');
+    }
     if (splash.loadingText != null) {
       // Under the logo, in the splash's own colours: dark text on a light
       // splash, light on a dark one. Pulsing, unless the visitor asked for

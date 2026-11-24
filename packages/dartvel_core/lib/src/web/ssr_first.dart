@@ -26,6 +26,7 @@ library;
 import 'dart:math' as math;
 
 import 'page_text.dart' show dvApplyPageHtml, dvApplyPageText;
+import 'ssr_first_layout.dart' show dvFirstScreenId;
 
 /// What marks a shell as SSR-first: the id of the style element
 /// [dvSsrFirstHead] writes into its head.
@@ -97,6 +98,25 @@ const String _handoverScript = '(function(){'
     'h.removeAttribute("data-dv-handover")},rm?0:200)}'
     'go()},{once:true})})()';
 
+/// Holds the first paint until the end of the first screen is parsed: a
+/// render-blocking `<link rel="expect">` naming the element the layout ends
+/// the first screen with ([dvFirstScreenId]). Without it a browser paints as
+/// soon as it can -- the bare canvas while the head is read, then whatever of
+/// the body has arrived -- so a slow line showed the page's colour, then
+/// half a page, then the page. With it the first frame is the first screen in
+/// place. A page with no layout is held until it is parsed, which the
+/// browser does anyway when nothing names the element. Written by a script
+/// because the link must name this page: under `<base href="/">` a bare
+/// `#id` names the site's root and is ignored on every other route. A
+/// browser without `blocking` ignores it and paints as before, on the app's
+/// colour (the splash style paints the canvas).
+const String _firstScreenScript = '(function(){'
+    'var d=document,l=d.createElement("link");'
+    'l.rel="expect";'
+    'l.href=location.href.split("#")[0]+"#$dvFirstScreenId";'
+    'l.setAttribute("blocking","render");'
+    'd.head.appendChild(l)})()';
+
 /// The style and script an SSR-first shell carries in its head.
 ///
 /// [background] and [darkBackground] are the app's page colours (the
@@ -136,6 +156,7 @@ String dvSsrFirstHead({
       '@media screen and (prefers-reduced-motion:no-preference){'
       'html[data-dv-handover] .dv-fallback{transition:opacity .2s ease-out}}'
       'html[data-dv-handover] .dv-fallback{opacity:0;pointer-events:none}';
-  return '<style $dvSsrFirstMarker>$css</style>\n'
+  return '<script>$_firstScreenScript</script>\n'
+      '<style $dvSsrFirstMarker>$css</style>\n'
       '<script>$_handoverScript</script>\n';
 }
