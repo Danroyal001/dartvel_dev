@@ -163,6 +163,28 @@ void main() {
       expect(out, contains('#${link.group(2)}{left:20px;top:10px;width:100px;height:20px'));
     });
 
+    test('two links to the same page are told apart by their names', () {
+      // A menu link and a button further down both go to /pricing; the
+      // semantics host lists the button first at this width.
+      const String doc = '<nav><a href="/pricing" title="Pricing" aria-label="Pricing">Pricing</a></nav>\n'
+          '<p><a href="/pricing" title="See plans" aria-label="See plans">See plans</a></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Pricing', <num>[300, 20, 60, 20], z: 1),
+            _text('See plans', <num>[40, 700, 100, 20], z: 2),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See plans', 'r': <num>[20, 690, 140, 40]},
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'Pricing', 'r': <num>[290, 10, 80, 40]},
+          ]),
+        ]),
+      );
+      final List<String> links = RegExp(r'<a id="(dva\d+)"').allMatches(out).map((RegExpMatch m) => m.group(1)!).toList();
+      expect(out, contains('#${links[0]}{left:290px;top:10px'));
+      expect(out, contains('#${links[1]}{left:20px;top:690px'));
+    });
+
     test('a link with nothing painted in its box is not placed: a closed menu', () {
       // The semantics host reports a box for a link in a menu that is laid
       // out but invisible; placed, it would sit on top of the page and take

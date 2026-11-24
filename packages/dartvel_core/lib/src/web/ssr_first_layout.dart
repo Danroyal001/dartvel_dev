@@ -111,7 +111,7 @@ class _Control {
 }
 
 String _controlKey(String kind, String? href, String? name) => switch (kind) {
-  'a' => 'a|${href ?? ''}',
+  'a' => 'a|${href ?? ''}|${_norm(name ?? '')}',
   'b' => 'b|${_norm(name ?? '')}',
   'f' => 'f|${_norm(name ?? '')}',
   'r' => 'r|',
@@ -417,7 +417,7 @@ class _Layout {
       if (name == 'a' && _attr(token.source, 'href') != null) {
         control = _control(
           token,
-          'a|${_attr(token.source, 'href')}',
+          'a|${_attr(token.source, 'href')}|${_norm(_attr(token.source, 'aria-label') ?? '')}',
           'control',
         );
       } else if (name == 'strong' && _attr(token.source, 'role') == 'button') {
