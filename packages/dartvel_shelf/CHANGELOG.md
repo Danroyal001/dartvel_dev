@@ -1,3 +1,7 @@
+## Unreleased
+
+- A handler's answer is sent from a listener on its future rather than an async function awaiting it, and the response buffer keeps one view of itself: about 900 fewer instructions on every request (plaintext 24.0k to 23.1k). With the `Response.json` change in dartvel_core, a JSON answer costs 30.7k to 28.1k. Relic 2 is still ahead on JSON, headers, four isolates and WebSocket; doc/shelf-parity.md ("Gaps round") has the measurements and what is left: system calls (Relic batches its socket work through io_uring, 0.12 system calls a request against 2.15 here) and a single-threaded WebSocket path.
+
 ## 3.47.6 — 2026-11-20
 
 - About a third less work per request (24k instead of 37k instructions per plaintext request). The native side writes a whole answer straight to the socket, keeps the response heads it has built per thread, re-arms one timer per connection for its timeouts, and frees a queued request's bytes without a message back from Dart. On the shared benchmark machine one isolate now serves more plaintext requests per second than Relic 2 (17,763 against 15,005); Relic is still ahead on JSON, headers, four isolates and WebSocket. Details in doc/shelf-parity.md.

@@ -114,6 +114,135 @@ these behaviors through real HTTP clients.
 Native directory listing/default-document customization remains available via
 the Shelf adapter's upstream static handler rather than new native options.
 
+## Gaps round: JSON, headers, WebSocket (24 November 2026)
+
+What was left after the structural round: Relic 2 ahead on json, headers,
+four isolates and both WebSocket rows. This round measured each gap before
+changing anything (`compare.dart` as before, plus user-space instructions per
+request or message with `perf stat -e instructions:u`, plus `strace -c` for
+system calls per request), shipped what measured as a win, and found where
+the rest is.
+
+**Shipped** (Dart only; the native library is unchanged, so the six prebuilt
+libraries are the ones on main):
+
+- `Response.json` encodes straight to UTF-8 (`JsonUtf8Encoder`) instead of
+  building the JSON text and encoding it again. Same bytes, headers and
+  errors (`dartvel_core/test/response_json_bytes_test.dart` pins escapes,
+  non-ASCII, astral characters, lone surrogates, `toJson`, a large value and
+  the failures against the old encoding). `/json`: about 1,900
+  instructions fewer a request.
+- `serve()` sends a handler's answer from a listener on its future instead
+  of an async function that awaits it (no suspend state, extra future and
+  resumption per request), and the response scratch keeps one view of its
+  buffer instead of making one per response. About 900 instructions fewer on
+  every request (plaintext 23,900 to 23,000 in eight alternating runs
+  before this round's final measurement). Together: plaintext about 24,000 to
+  23,100, json about 30,700 to 28,100 (table below).
+- `Response.text` with UTF-8 sets its content type from one constant string.
+
+User instructions per request (64 connections, oha, alternating runs):
+
+| row | relic_native | dartvel before (main) | dartvel after |
+|---|---|---|---|
+| plaintext | 20,051 / 20,614 / 20,559 | 23,462 / 24,048 / 24,032 | 23,089 / 22,945 / 23,073 |
+| json | 24,796 / 24,585 / 24,803 | 30,733 / 30,908 / 30,311 | 28,248 / 27,995 |
+| headers (18 browser headers) | 27,689 / 27,748 / 27,591 | 29,222 / 30,150 / 29,112 | 28,515 / 29,585 |
+
+(24 Nov 02:28-02:33 CEST, load 11.5-23.4, three alternating rounds; the
+third round's json and headers rows for "after" were cut by the slot. The
+headers row moves by about 1,000 between runs on both sides.)
+
+**Requests and messages a second** (`compare.dart`, compiled servers, three
+trials, medians; `fastest` is the best trial; 24 Nov 2026 02:33-02:50 CEST
+while two web-server builds of other projects ran beside it, load 14.1-21.7,
+median 17.1). `dartvel_before` is main (be9b2a735) and `dartvel` this change,
+both on the same native library. At this load one engine's trials differ by
+up to 2x (dartvel's three plaintext trials: 15,380, 7,225 and 5,334), so read the CPU a
+request and the instruction counts above rather than the medians:
+
+| scenario | metric | relic_native | relic_native4 | dartvel_before | dartvel | dartvel4 |
+|---|---|---|---|---|---|---|
+| plaintext | rps (median) | 22053 | 37228 | 10462 | 7225 | 17484 |
+| plaintext | fastest | 24453 | 39415 | 11574 | 15380 | 18517 |
+| plaintext | cpu_us_per_req | 42.2 | 59.5 | 62.9 | 56.5 | 73.4 |
+| plaintext | peak_rss_mib (max) | 16.9 | 27.0 | 18.0 | 17.4 | 26.5 |
+| json | rps (median) | 17275 | 19847 | 7772 | 13741 | 21462 |
+| json | fastest | 20224 | 42069 | 14562 | 15845 | 22871 |
+| json | cpu_us_per_req | 46.4 | 55.2 | 74.8 | 53.3 | 69.8 |
+| json | peak_rss_mib (max) | 16.9 | 27.1 | 17.8 | 17.8 | 26.3 |
+| headers | rps (median) | 17242 | 30373 | 17029 | 16183 | 18932 |
+| headers | fastest | 18736 | 31376 | 17459 | 18435 | 28568 |
+| headers | cpu_us_per_req | 46.6 | 55.3 | 48.5 | 57.0 | 83.2 |
+| headers | peak_rss_mib (max) | 17.5 | 27.2 | 17.7 | 17.6 | 27.5 |
+| websocket | messages_per_second (median) | 4302 | 1974 | 1300 | 2309 | 1381 |
+| websocket | fastest | 5045 | 4859 | 1520 | 4412 | 2287 |
+| websocket | p50_us | 149 | 149 | 294 | 183 | 182 |
+| websocket | peak_rss_mib (max) | 14.9 | 18.3 | 15.2 | 15.1 | 15.8 |
+| websocket_pipelined | messages_per_second (median) | 168081 | 185636 | 123670 | 170038 | 133343 |
+| websocket_pipelined | fastest | 186235 | 203820 | 208153 | 193691 | 173453 |
+| websocket_pipelined | peak_rss_mib (max) | 16.1 | 25.5 | 46.7 | 45.8 | 47.3 |
+
+load1: median 17.1, min 14.1, max 21.7; rows 75
+
+On this run: JSON CPU per request 74.8 to 53.3 us (Relic 46.4), plaintext
+62.9 to 56.5 us (Relic 42.2); four isolates ahead of Relic's four on JSON
+(21,462 vs 19,847, where Relic's four isolates answered fewer JSON than
+plaintext requests again). Relic ahead on every other row. An earlier
+baseline run the same night (23 Nov 23:48-23:56, load 9.9-17.4, main on both
+of ours): plaintext relic_native 27,974 vs dartvel 24,158; json 23,201 vs
+17,060; headers 24,289 vs 23,000; four isolates 48,632 vs 35,577; WebSocket
+ping-pong 4,333 vs 1,161; pipelined 227,036 vs 156,463.
+
+
+**Where the rest of the HTTP gap is.** Two things, both structural:
+
+1. *System calls.* `strace -c` during a 64-connection plaintext run: Relic's
+   server makes 0.12 system calls a request, nearly all `io_uring_enter`
+   (0.05 a request: one call submits and reaps about twenty sockets' reads and
+   writes). dartvel_shelf makes 2.15: one `recvfrom` and one `sendto` per
+   request (the floor for an epoll server), plus `epoll_wait` 0.05. The
+   kernel is half the server's CPU in the profile (TCP, netfilter, and a
+   contended epoll lock between the isolate's thread and the helper's), so
+   this is the largest single piece left. Closing it means an io_uring path
+   for the lean HTTP/1 connections on Linux (Tokio's epoll reactor cannot
+   batch like that), with epoll kept for other systems and for connections
+   handed to hyper.
+2. *The Dart side of a request,* now spread thin: futures and microtasks
+   (the router's measuring `.then` and zone, the handler's own async
+   function), the Request/Response/Headers objects and their maps, the
+   metrics. No single item is above 4% of the Dart samples.
+
+Headers on its own is not a gap any more: 18 browser headers add about
+5,300 instructions a request here against about 7,200 in Relic; the row is
+behind only by the plaintext difference.
+
+**WebSocket.** Per message, Relic spends about 20,300 user instructions on a
+ping-pong echo and a constant 8,100 on a pipelined one; dartvel_shelf about
+32,000 and 12,000-25,000. Pipelined throughput on this server is bimodal
+(about 135k-165k or 200k-270k messages a second, run to run) and tracks one
+thing: the isolate's thread spinning in `_awaitBurst` while the helper's
+reader, preempted on a loaded machine, is partway through a burst. The fast
+runs beat Relic's 227k; the slow ones do not. Tried and not shipped
+(measured, then reverted; nothing changed on main):
+
+- Leaf FFI calls for the per-frame native functions and reading the clock
+  every 32 looks in the burst wait: ping-pong 31,900 vs 32,100 instructions,
+  pipelined inside the noise.
+- A shorter burst wait (100 or 20 us instead of 1 ms): 20 us held pipelined
+  at about 80k (answers went out in many small writes); 100 us went both ways.
+- `IdHash` for the WebSocket, driven-server and queue tables (SipHash showed
+  as 4% of a pipelined profile): 3% fewer instructions on ping-pong, none on
+  HTTP; not worth rebuilding six libraries for.
+
+What beating Relic on both WebSocket rows takes is still the single-threaded
+lean path named in the earlier rounds: frames parsed and written by the
+isolate's own thread with a small codec in Rust (no tungstenite, no mpsc
+hand-off, no global table lookup per frame), a batch of frames per FFI call
+each way, and no cross-thread wakeup per message (the ping-pong cost is
+spread across the port message that wakes the isolate, the microtasks, the
+stream controller and tungstenite; none is large alone).
+
 ## Structural round: per-request cost (18 November 2026, evening)
 
 User-space instructions per `/plaintext` request, `perf stat -e
