@@ -401,6 +401,14 @@ custom painter nor a shader can be read back from the render tree.
   heading's at 390), leaving a Tab stop of no size; such text is now
   matched last. A control the layout never places shows itself where the
   reader can see it when focused.
+- **Stacking.** Every link and field is stacked above everything painted,
+  so its text and focus ring are never under a surface. What the app pins
+  to the screen and paints after the page's links -- a consent banner, a
+  bottom sheet, an app bar -- is now lifted above them too, with the pinned
+  controls on it, keeping its own order: sigmadev.digital's hero buttons
+  ("Chat on WhatsApp", "See plans and prices") showed through its consent
+  banner on a phone and a desktop. A pinned piece painted before any
+  control's content, such as a background, stays behind.
 - **Triple-click** already selected the paragraph in Chrome; the earlier
   report came from a check that clicked after Tab had scrolled the page.
   The browser test still triple-clicks.
