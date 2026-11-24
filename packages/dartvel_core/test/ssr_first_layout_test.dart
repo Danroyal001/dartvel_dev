@@ -203,6 +203,35 @@ void main() {
       expect(out, contains('#$link{display:none}'));
     });
 
+    test('a menu link off screen at a width does not take the same words painted elsewhere', () {
+      // "Tools" is a header link (in a closed menu at 390) and a footer
+      // heading. At 390 only the heading is painted; the link must not claim
+      // it, or the link becomes a zero-size Tab stop and the heading loses
+      // its text.
+      const String doc = '<nav><a href="/tools" aria-label="Tools">Tools</a></nav>\n'
+          '<footer><h3>Tools</h3></footer>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Tools', <num>[20, 2000, 40, 15], z: 3),
+          ]),
+          _width(1366, <Map<String, Object?>>[
+            _text('Tools', <num>[600, 20, 40, 20], z: 2, scrolls: false),
+            _text('Tools', <num>[20, 1500, 40, 15], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/tools', 'name': 'Tools', 'r': <num>[598, 18, 44, 24]},
+          ]),
+        ]),
+      );
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      final String heading = RegExp(r'<h3><span id="(dvr\d+)">Tools').firstMatch(out)!.group(1)!;
+      // At 390 (the first range) the link is not on screen, and the heading
+      // is where the app paints it: 2000 px down at 390, 1500 at 1366.
+      expect(out, contains('#$link{display:none}'));
+      expect(out, contains('#$heading{left:20px;top:calc(2199.8px + -51.23vw)'));
+    });
+
     test('a link whose box was not found keeps its painted text on screen', () {
       final String out = dvSsrFirstLayout(
         _doc,

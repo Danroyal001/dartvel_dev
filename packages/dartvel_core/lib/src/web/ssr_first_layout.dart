@@ -405,6 +405,7 @@ class _Layout {
     }
 
     final List<_TextNode> texts = _readDocument(tokens);
+    _assignControlBoxes();
     _matchText(texts);
     _matchControls();
     _buildLayer();
@@ -589,9 +590,28 @@ class _Layout {
       }
       final List<String> keys = queues.keys.toList()
         ..sort((String a, String b) => b.length.compareTo(a.length));
-      final List<List<(int, int, _Item)>> found = <List<(int, int, _Item)>>[];
-      for (final _TextNode text in texts) {
-        final List<(int, int, _Item)> pieces = <(int, int, _Item)>[];
+      final int w = perWidth.length;
+      final List<List<(int, int, _Item)>> found =
+          List<List<(int, int, _Item)>>.generate(texts.length, (_) => <(int, int, _Item)>[]);
+      // Text in a control the semantics host found at some width and not at
+      // this one (a menu link while the menu is closed) is matched last: the
+      // same words painted at this width are more likely something else's,
+      // a footer heading's, and taking them first would leave that without
+      // its text and the link a Tab stop of no size.
+      bool late(_TextNode text) {
+        final _Node? control = text.control?.node;
+        return control != null && control.boxes.isNotEmpty && control.boxes[w] == null;
+      }
+
+      final List<int> order = <int>[
+        for (int index = 0; index < texts.length; index++)
+          if (!late(texts[index])) index,
+        for (int index = 0; index < texts.length; index++)
+          if (late(texts[index])) index,
+      ];
+      for (final int textIndex in order) {
+        final _TextNode text = texts[textIndex];
+        final List<(int, int, _Item)> pieces = found[textIndex];
         final String value = text.norm;
         final List<String> candidates = <String>[
           for (final String key in keys)
@@ -636,7 +656,6 @@ class _Layout {
           ));
           at = bestStart + best.length;
         }
-        found.add(pieces);
       }
       perWidth.add(found);
     }
@@ -677,7 +696,9 @@ class _Layout {
     }
   }
 
-  void _matchControls() {
+  /// Each control's box at each width, off the semantics host, before the
+  /// text is matched.
+  void _assignControlBoxes() {
     for (int w = 0; w < widths.length; w++) {
       final Map<String, List<_Control>> captured = <String, List<_Control>>{};
       for (final _Control control in widths[w].controls) {
@@ -691,6 +712,9 @@ class _Layout {
         if (control.tall != null) node.tallBoxes[w] = control.tall!;
       }
     }
+  }
+
+  void _matchControls() {
     // A box with nothing painted in it is a control that is laid out and not
     // on screen: a closed menu's links. Placed, they would sit on top of the
     // page and take its clicks and its Tab stops. A field keeps its box: its
