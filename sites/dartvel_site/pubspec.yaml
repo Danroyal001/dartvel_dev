@@ -11,9 +11,9 @@ dependencies:
     sdk: flutter
   go_router: ^14.2.0
   dio: ^5.5.0
-  dartvel_core: ^3.47.7
-  dartvel_shelf: ^3.47.7
-  dartvel_flutter: ^3.47.7
+  dartvel_core: ^3.47.8
+  dartvel_shelf: ^3.47.8
+  dartvel_flutter: ^3.47.8
   flutter_web_plugins:
     sdk: flutter
 
@@ -25,7 +25,7 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   lints: ^4.0.0
-  dartvel_cli: ^3.47.7
+  dartvel_cli: ^3.47.8
   # Read by the typeface test, which checks that every font family the site
   # names is declared under flutter.fonts with a file that exists.
   yaml: ^3.1.2
@@ -90,10 +90,10 @@ dartvel:
     /docs/install: /docs
     /docs/installation: /docs
 
-  # No account pages: no /login, /sign-up or /account. Studio signs its one
+  # No accounts: no /login, /sign-up or /account and no /api/auth/* endpoint
+  # (pages: false alone left POST /api/auth/sign-up open). Studio signs its one
   # granted person in at its own /__studio/login.
-  auth:
-    pages: false
+  auth: false
 
   # Studio at /__studio, in the release build, with its own sign-in at
   # /__studio/login. It opens only for a person granted Studio.access with
