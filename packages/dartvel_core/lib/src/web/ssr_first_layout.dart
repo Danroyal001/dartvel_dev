@@ -408,6 +408,7 @@ class _Layout {
     _assignControlBoxes();
     _matchText(texts);
     _matchControls();
+    _markReaderControls();
     _buildLayer();
     _wrapText(texts);
 
@@ -711,6 +712,17 @@ class _Layout {
         node.boxes[w] = control.rect;
         if (control.tall != null) node.tallBoxes[w] = control.tall!;
       }
+    }
+  }
+
+  /// A control the layout never places (no box at any width, nothing of it
+  /// painted) is kept for readers, its text hidden from the eye; it is still
+  /// a Tab stop, so it is marked to show itself when focused.
+  void _markReaderControls() {
+    for (final (_Node node, String _, _Token token) in _docControls) {
+      if (node.kind == 'field' || node.captured) continue;
+      if (runs.any((_Node run) => run.container == node)) continue;
+      token.source = _withClass(token.source, 'dvf');
     }
   }
 
@@ -1091,12 +1103,12 @@ class _Layout {
       // A link or field kept only for readers (a closed menu's) is still a
       // Tab stop; when the keyboard reaches it, it shows itself where the
       // reader can see it rather than taking an invisible stop.
-      '.dvl .dvu:focus-within,.dvl *:is(a,button,input,textarea,select,[tabindex]):focus:not(:has([id^=dvr]))'
+      '.dvl .dvu:focus-within,.dvl .dvf:focus'
       '{position:fixed!important;left:8px!important;top:8px!important;width:auto!important;'
       'height:auto!important;display:block!important;'
       'overflow:visible;clip-path:none;white-space:normal;z-index:2147483647;padding:8px 12px;'
       'background:Canvas;color:CanvasText;outline:2px solid Highlight;border-radius:4px}'
-      '.dvl *:is(a,button,[tabindex]):focus:not(:has([id^=dvr])) .dvu{position:static;width:auto;'
+      '.dvl .dvf:focus .dvu{position:static;width:auto;'
       'height:auto;overflow:visible;clip-path:none;white-space:normal}}}',
     );
     final String rest = later.isEmpty

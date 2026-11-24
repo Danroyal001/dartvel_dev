@@ -546,7 +546,22 @@ void main() {
       expect(out, contains('.dvu:focus-within'));
       expect(out, matches(RegExp(r'\.dvl \.dvu:focus-within[,{][^}]*clip-path:none')));
       // A link whose own text is kept only for readers shows itself too.
-      expect(out, contains(':focus:not(:has([id^=dvr]))'));
+      expect(out, matches(RegExp(r'<a [^>]*class="dvf"[^>]*href="/pricing"|<a [^>]*href="/pricing"[^>]*class="dvf"')));
+      expect(out, matches(RegExp(r'\.dvl \.dvf:focus[,{][^}]*clip-path:none')));
+    });
+
+    test('a placed link with nothing but a picture in it keeps its place when focused', () {
+      final String out = dvSsrFirstLayout(
+        '<a href="/" aria-label="Home"><img src="logo.png" alt=""></a>\n',
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{'k': 'i', 'r': <num>[20, 16, 80, 40], 'z': 1, 's': false, 'src': 'logo.png', 'fit': 'contain'},
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/', 'name': 'Home', 'r': <num>[20, 16, 80, 40]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('class="dvf"')));
     });
 
     test('no capture for a width: the document is returned as it was', () {
