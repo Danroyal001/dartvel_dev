@@ -32,6 +32,7 @@ import 'package:meta/meta.dart';
 import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
+import 'src/accessibility/selection_mirror.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
 import 'src/analytics/consent_ui.dart' show DVConsentBanner;
@@ -11835,6 +11836,8 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     DVBrowserMenu.nativeMenuOn.removeListener(_browserMenuSwitched);
     DVFindInPage.unregister(this);
     _addressed?.routeInformationProvider.removeListener(_followAddress);
+    // What this page had selected goes with it.
+    if (_selected != null) DVSelectionMirror.write(null);
     _selectionFocusNode.dispose();
     super.dispose();
   }
@@ -12029,8 +12032,12 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
                       region: selection,
                       child: _selectionMenu(context, selection),
                     ),
-            onSelectionChanged: (SelectedContent? content) =>
-                _selected = content,
+            // And told to the document, so the browser sees it too: see
+            // selection_mirror.dart.
+            onSelectionChanged: (SelectedContent? content) {
+              _selected = content;
+              DVSelectionMirror.write(content?.plainText);
+            },
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
