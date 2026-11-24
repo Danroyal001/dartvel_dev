@@ -44,6 +44,68 @@ String semanticsText(WidgetTester tester) {
   return text.toString();
 }
 
+/// A card of a catalogue: a link with a title, a sentence and a footer line,
+/// a few dozen render objects, as a tool on sigmadev.digital is.
+class ToolCardForTest extends StatelessWidget {
+  const ToolCardForTest(this.number, {super.key, this.opened});
+
+  final int number;
+  final List<int>? opened;
+
+  /// How many times any card has been built.
+  static int builds = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    builds++;
+    return Semantics(
+      link: true,
+      label: 'Tool $number',
+      child: GestureDetector(
+        onTap: () => opened?.add(number),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(border: Border.all(), borderRadius: BorderRadius.circular(16)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: <Widget>[
+            Row(children: <Widget>[
+              Expanded(child: Text('Tool $number')),
+              Container(padding: const EdgeInsets.all(4), color: const Color(0xFF000000), child: const Text('FREE')),
+            ]),
+            const SizedBox(height: 8),
+            Text('What tool $number does, in a sentence.'),
+            const SizedBox(height: 8),
+            for (int line = 0; line < 4; line++) const Padding(padding: EdgeInsets.all(2), child: SizedBox(height: 2)),
+            const DecoratedBox(decoration: BoxDecoration(border: Border(top: BorderSide())), child: Text('CALCULATORS')),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// [count] cards in a page: rows past the first screens wait (DVNearScreen).
+Widget catalogue(int count, {List<int>? opened}) => DVBox.list(<Widget>[
+      for (int i = 0; i < count; i++) ToolCardForTest(i, opened: opened),
+    ], spacing: 12);
+
+/// The semantics node labelled [label] exactly.
+SemanticsNode semanticsNode(WidgetTester tester, String label) {
+  SemanticsNode? found;
+  bool visit(SemanticsNode node) {
+    if (found != null) return false;
+    if (node.getSemanticsData().label == label) {
+      found = node;
+      return false;
+    }
+    node.visitChildren(visit);
+    return true;
+  }
+
+  visit(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+  if (found == null) fail('no semantics node labelled "$label"');
+  return found!;
+}
+
 /// What the page on top drew, as the find runtime reads it.
 String foundText() => DVFindInPage.paragraphs().map((DVFoundParagraph p) => p.block.text).join('\n');
 
@@ -113,6 +175,82 @@ void main() {
     expect(found, contains('Second last paragraph'));
     expect(found, contains('Footer made by somebody'));
     expect(found, isNot(contains('Home last paragraph')), reason: 'only the page on top');
+  });
+
+  // A catalogue of cards, each a few dozen render objects: sigmadev.digital's
+  // 177 tools. Built whole while the page was idle, the catalogue took the
+  // phone's JS heap from 15-21 MB to 50-58 MB and the frame rate in the
+  // fifteen seconds after the first frame from 39-48 to 4-7 (Dartvel 3.47.9
+  // risk check). What is waiting is now read for its words and let go again:
+  // a screen reader and find reach every card, and only a few stay built.
+  testWidgets('a long catalogue is read for its words, and few of its cards stay built', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    expect(semanticsText(tester), isNot(contains('Tool 199')), reason: 'the first frame is as lazy as it was');
+
+    await idle(tester);
+    final String read = semanticsText(tester);
+    expect(read, contains('Tool 199'));
+    expect(read, contains('What tool 199 does, in a sentence.'));
+    expect(foundText(), contains('What tool 199 does, in a sentence.'));
+    expect(find.byType(ToolCardForTest, skipOffstage: false).evaluate().length, lessThan(60),
+        reason: 'a catalogue read for its words, not kept built');
+    expect(tester.getTopLeft(find.text('Tool 0')).dy, lessThan(200), reason: 'nothing scrolled');
+    semantics.dispose();
+  });
+
+  testWidgets('a card read for its words reads as the link it is', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    await idle(tester);
+    final SemanticsNode node = semanticsNode(tester, 'Tool 150');
+    expect(node.getSemanticsData().hasFlag(SemanticsFlag.isLink), isTrue);
+    expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+    semantics.dispose();
+  });
+
+  testWidgets('opening a card read for its words builds the real one and opens it', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    final List<int> opened = <int>[];
+    await tester.pumpWidget(screen(catalogue(200, opened: opened)));
+    await tester.pumpAndSettle();
+    await idle(tester);
+    expect(find.text('What tool 150 does, in a sentence.', skipOffstage: false), findsNothing,
+        reason: 'the premise: read for its words, not built');
+
+    tester.binding.pipelineOwner.semanticsOwner!.performAction(semanticsNode(tester, 'Tool 150').id, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+    expect(find.text('What tool 150 does, in a sentence.', skipOffstage: false), findsOneWidget);
+    expect(opened, <int>[150]);
+    semantics.dispose();
+  });
+
+  testWidgets('find lands on a card read for its words and builds it', (WidgetTester tester) async {
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    await idle(tester);
+    expect(find.text('What tool 180 does, in a sentence.', skipOffstage: false), findsNothing,
+        reason: 'the premise: read for its words, not built');
+
+    final Future<bool> revealed = DVFindInPage.reveal('What tool 180 does, in a sentence.');
+    await tester.pumpAndSettle();
+    expect(await revealed, isTrue);
+    final Finder card = find.text('What tool 180 does, in a sentence.');
+    expect(card, findsOneWidget);
+    final double top = tester.getTopLeft(card).dy;
+    expect(top, inInclusiveRange(0, 600), reason: 'scrolled to it');
+  });
+
+  testWidgets('one idle step builds no more than a few rows', (WidgetTester tester) async {
+    await tester.pumpWidget(screen(catalogue(200)));
+    await tester.pumpAndSettle();
+    final int before = ToolCardForTest.builds;
+    DVLazyBackfill.step();
+    await tester.pump();
+    await tester.pump();
+    expect(ToolCardForTest.builds - before, lessThanOrEqualTo(DVLazyBackfill.perStep));
   });
 
   testWidgets('a short page has nothing to build later', (WidgetTester tester) async {
