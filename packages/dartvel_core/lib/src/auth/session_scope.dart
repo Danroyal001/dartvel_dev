@@ -190,8 +190,11 @@ final class DVSessionScope {
       for (final DVHostEntry entry in hosts.entries) entry.pattern,
     ];
     final DVSessionScope hostOnly = DVSessionScope.host(hosts: serving);
+    // auth: false is an application with no accounts, and so no session to
+    // share: host-only, with nothing to report.
+    if (auth == false) return (scope: hostOnly, problems: problems);
     if (auth != null && auth is! Map) {
-      problems.add('dartvel.auth must be a map, not "$auth".');
+      problems.add('dartvel.auth must be false or a map, not "$auth".');
       return (scope: hostOnly, problems: problems);
     }
     final Object? scopeRaw = auth is Map ? auth['sessionScope'] : null;
