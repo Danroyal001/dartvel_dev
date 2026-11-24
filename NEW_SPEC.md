@@ -1044,6 +1044,13 @@ Two things that read a whole page still see every row: the build's page capture,
 which marks each page before it loads (`window.__dvCapture`) so the HTML for
 crawlers and readers without scripting has every row, and find in page, which
 walks a lazy list a screen at a time when a match is in a row not yet built.
+Tab and Shift+Tab reach every control in such a list too: before the focus
+leaves a scrollable, or passes rows that are only standing in, the page shell
+builds what is in the way -- the placeholders between the focus and the next
+control, or the next screen of a list with no control left built in that
+direction -- and then moves the focus in Flutter's own order, scrolling it into
+view. A footer after a long lazy page is reached, and Shift+Tab goes back up
+through rows the list had let go.
 
 Explicit `DVBox.wrapLine([...])` or `.wrapLine()` is a layout mode for
 collections. It is not the removed automatic wrapper behavior for arbitrary
@@ -1395,6 +1402,13 @@ the way:
   order. Studio's rail and panels use it.
 - **The selection area is rebuilt whole when the browser's own menu is
   switched** (`DVBrowserMenu.nativeMenuOn`); the page keeps its state.
+- **The browser sees what is selected.** On the web, whatever the reader
+  selects -- by drag, double-click or triple-click -- is also the document's
+  selection, held in a one-pixel clipped element kept from screen readers, so
+  `window.getSelection()`, the browser's own Copy and anything that reads the
+  selection get the same text Flutter copies. Flutter's handles and menu are
+  unchanged, a text field being typed in keeps its caret, and leaving the page
+  or clearing the selection clears it.
 
 ---
 

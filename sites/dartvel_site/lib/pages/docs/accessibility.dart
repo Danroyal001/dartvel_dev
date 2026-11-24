@@ -81,6 +81,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'Tab can still get to it.',
               'In a form, Tab walks the fields and then the controls. Enter '
                   'moves to the next field and submits from the last one.',
+              'Tab and Shift+Tab reach every control on a long page, including '
+                  'rows a lazy list has not built yet and the footer after them: '
+                  'what is in the way is built before the focus moves on.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
               'A password field starts with a Show password toggle button, '
@@ -161,9 +164,13 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
         ),
         DocsSection(
           id: 'selection',
-          title: 'Select text beside a sidebar',
+          title: 'Select and copy text',
           children: <Widget>[
-            DocsText('Every page\'s text can be selected and copied. Beside a '
+            DocsText('Every page\'s text can be selected and copied, and on the '
+                'web the browser sees the selection too: window.getSelection() '
+                'and the browser\'s own Copy get the text you selected by drag, '
+                'double-click or triple-click.'),
+            DocsText('Beside a '
                 'sidebar, rail or list pane of separate items, wrap the sidebar '
                 'in DVSelectionColumn, so a drag across the content next to it '
                 'selects what it crosses.'),
