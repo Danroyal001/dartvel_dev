@@ -306,12 +306,12 @@ paints text, not a colour) and LCP is earlier.
 
 What a visitor sees at the handover, checked in Chrome at 390 px, light and dark:
 
-- The document is a reading column in the system font: the site's
-  light/dark page colours, the navigation links as a row, then headings,
-  text and links. At the first frame it fades out over 200 ms onto the
-  app's own layout, fonts and imagery. Nothing moves (CLS 0.000), but the
-  page changes look at that moment. This is the cost of the option, and
-  why it is off by default.
+- Up to 3.47.7 (the measurements above), the document was a reading column
+  in the system font, in the site's light/dark page colours. At the first
+  frame it faded out over 200 ms onto the app's own layout, fonts and
+  imagery. Nothing moved (CLS 0.000), but the page changed look at that
+  moment. Since then it is laid out as the app draws the page; see *SSR-first
+  in the app's own look* below.
 - A reader who has scrolled the document keeps their place. The section at
   the top of their screen is handed to the find runtime, which scrolls the
   app to it. The app first draws at its top, then scrolls there, about
@@ -323,6 +323,67 @@ What a visitor sees at the handover, checked in Chrome at 390 px, light and dark
 
 Scripts: `measure.mjs` (with readable, clickable and CLS added),
 `ssrproxy.mjs`, `matrix.sh`, `table.mjs`.
+
+### SSR-first in the app's own look (November 2026)
+
+The document is now laid out the way the app's first frame draws the page,
+so the handover changes nothing a visitor can see (NEW_SPEC.md, *SSR-first
+in the app's own look*). The build's capture, which already runs every
+public route in Chrome, asks the app what it painted
+(`dvPaintSnapshot`, through the capture hook) at each width of
+`dartvel.web.ssrFirst.widths` (default 360, 390, 768, 1024, 1366, 1920), in
+light and dark, and reads each link, button and field's box off the
+semantics host. `dvSsrFirstLayout` keeps the document as it is and places
+its text, links and fields at those boxes, in the app's fonts (the
+FontManifest files, `font-display:swap`) and colours, over an
+`aria-hidden` layer for surfaces, borders, shadows, images and icons.
+Between two captured widths every box moves linearly; what is on screen at
+one width and not the next switches at the midpoint. The rules for the first
+two screens come first; the rest are in a second stylesheet after the
+document, so the first screen paints without waiting for them. It applies
+only on a screen with scripting, before the handover, in a browser that
+reads nested CSS; print, no script, older browsers and the page after the
+handover get the reading column.
+
+Measured with the handover diff (`~/sigmadev-speed/handover-diff`: Chrome,
+the SSR-first document with the app script refused against the app's first
+frame, pixel diff and every visible text block found again by OCR) on
+sigmadev.digital built with this change as a web-server binary, against the
+same pages before it (the live site rewritten into SSR-first, 23 November).
+*Median offset* is how far a block of the document is from the same text in
+the app; *size* and *colour* count blocks whose glyph size or ink differ.
+
+| Page | Width | Scheme | Pixel diff, before → now | Median offset, before → now | Size / colour mismatches now |
+|---|---|---|---|---|---|
+| Home | 390 | light | 68.4 % → 10.5 % | 34 → 1 px | 0/6, 0/6 |
+| Home | 390 | dark | 23.4 % → 12.2 % | 34 → 1 px | 0/6, 0/6 |
+| Home | 1024 | light | 64.6 % → 11.2 % | 137 → 1 px | 1/16, 1/16 |
+| Home | 1024 | dark | 15.6 % → 12.3 % | 137 → 1 px | 1/16, 1/16 |
+| Home | 1366 | light | 69.0 % → 8.1 % | 262 → 0 px | 2/18, 0/18 |
+| Home | 1366 | dark | 12.1 % → 9.1 % | 253 → 1 px | 1/19, 0/19 |
+| Pricing | 390 | light | 56.3 % → 3.5 % | 100 → 1 px | 0/6, 0/6 |
+| Pricing | 390 | dark | 24.6 % → 4.4 % | 100 → 0 px | 0/6, 0/6 |
+| Pricing | 1024 | light | 52.3 % → 4.4 % | 115 → 1 px | 0/17, 0/17 |
+| Pricing | 1024 | dark | 14.6 % → 6.0 % | 115 → 1 px | 1/17, 0/17 |
+| Pricing | 1366 | light | 46.6 % → 2.9 % | 217 → 1 px | 1/18, 0/18 |
+| Pricing | 1366 | dark | 10.2 % → 4.3 % | 217 → 1 px | 2/17, 0/17 |
+
+Every block on screen in both pictures is now in the app's font at its
+size; the tool still lists as "not found" the text the document keeps for
+screen readers only (a link's name, a menu that is closed), which is a 1 px
+clipped box and paints nothing. What the pixel diff still sees: glyph
+antialiasing (the browser and Flutter rasterise the same font differently),
+the home page's two radial glows behind the hero, which the site paints
+with a `CustomPainter`, and its headline's fade, a `ShaderMask`. Neither a
+custom painter nor a shader can be read back from the render tree, so a page
+that relies on them still changes there at the handover; everything built
+from boxes, text and images does not.
+
+Cost: the home page went from 8 KB to about 11 KB compressed before its
+first screen can paint (the first stylesheet), and about 24 KB in all; the
+build reads each route at six widths in two schemes, once each when the
+app says it is idle; the whole capture of sigmadev.digital's 226 routes took
+6 to 9 minutes on the shared build server under load.
 
 ## Still to do
 
