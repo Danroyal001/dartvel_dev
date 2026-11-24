@@ -1,5 +1,6 @@
 ## Unreleased
 
+- `.tooltip()` on a `DVText` nobody presses is shown: a text field (`.input(...)`) and a status word now draw the tooltip on hover and keyboard focus. It was dropped (the box half is built with the interaction cleared), so a field named with a tooltip showed nothing and apps wrapped it in a Flutter `Tooltip` by hand. A long press in a field still selects text.
 - `dartvel build` and `dartvel doctor` check syntax up to several times faster: the Rust helper parses files on one thread per processor (at most 8) and answers in order, with the same answers (695 files: 477 to 122 ms; the Dart analyzer takes 629 ms). See rust/README.md, Speed.
 
 ## 3.47.7 — 2026-11-20

@@ -52,6 +52,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'control that is only an icon is a DVBox around the Icon '
                   'and says what it is with .tooltip(\'Delete order\') on '
                   'its modifier.',
+              'A text field, or a word that is not pressed (a status), shows '
+                  'the tooltip given to .tooltip() on hover and keyboard focus; a '
+                  'long press in a field still selects text.',
               'A control with no name stops the build: a debug '
                   'build throws naming the file and line, and `dartvel build` '
                   'fails with the same list. `dartvel doctor` reports it too.',
