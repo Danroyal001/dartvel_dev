@@ -342,6 +342,55 @@ void main() {
       expect(out, contains('position:fixed'), reason: 'pinned, like an app bar');
     });
 
+    // sigmadev.digital, SSR-first, before the handover: the hero's link
+    // labels showed through the consent banner on a phone and a desktop.
+    // Every link was stacked above everything painted, so it stayed above a
+    // banner pinned to the screen that the app paints over it.
+    test('what is pinned over a link and painted after it covers it', () {
+      const String doc = '<a href="/pricing" title="See pricing" aria-label="See pricing">See pricing</a>\n'
+          '<h2>Cookies and measurement</h2>\n'
+          '<a href="/privacy" title="Privacy policy" aria-label="Privacy policy">Privacy policy</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            // A page background pinned behind everything, painted first.
+            _box(<num>[0, 0, 390, 800], '#ffffff', z: 0),
+            _text('See pricing', <num>[40, 700, 100, 20], z: 5),
+            // The banner, pinned to the bottom of the screen, over the link.
+            _box(<num>[0, 600, 390, 200], '#fafafa', z: 10),
+            _text('Cookies and measurement', <num>[16, 620, 300, 24], z: 11, scrolls: false),
+            _text('Privacy policy', <num>[16, 760, 120, 20], z: 12, scrolls: false),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[20, 690, 140, 40]},
+            <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'Privacy policy', 'r': <num>[16, 755, 140, 30], 's': false},
+          ]),
+        ]),
+      );
+      int zOf(String id) {
+        final RegExpMatch? found = RegExp('#$id\\{[^}]*z-index:(\\d+)').firstMatch(out);
+        expect(found, isNotNull, reason: 'no z-index for #$id in $out');
+        return int.parse(found!.group(1)!);
+      }
+
+      final String heroLink = RegExp(r'<a id="(dva\d+)" href="/pricing"').firstMatch(out)!.group(1)!;
+      final String bannerLink = RegExp(r'<a id="(dva\d+)" href="/privacy"').firstMatch(out)!.group(1)!;
+      final String heading = RegExp(r'<span id="(dvr\d+)">Cookies and measurement').firstMatch(out)!.group(1)!;
+      final List<String> boxes = <String>[
+        for (final RegExpMatch m in RegExp(r'#(dvp\d+)\{[^}]*background-color:(#[0-9a-f]+)').allMatches(out))
+          if (m.group(2) == '#fafafa') m.group(1)!,
+      ];
+      final List<String> backgrounds = <String>[
+        for (final RegExpMatch m in RegExp(r'#(dvp\d+)\{[^}]*background-color:(#[0-9a-f]+)').allMatches(out))
+          if (m.group(2) == '#ffffff') m.group(1)!,
+      ];
+      expect(boxes, isNotEmpty, reason: out);
+      expect(zOf(boxes.first), greaterThan(zOf(heroLink)), reason: 'the banner covers the link under it');
+      expect(zOf(heading), greaterThan(zOf(heroLink)));
+      expect(zOf(bannerLink), greaterThan(zOf(boxes.first)), reason: "the banner's own link is on the banner");
+      expect(zOf(backgrounds.first), lessThan(zOf(heroLink)), reason: 'a pinned background stays behind');
+    });
+
     test('dark colours come from the dark capture', () {
       final String out = dvSsrFirstLayout(
         _doc,
