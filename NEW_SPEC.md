@@ -527,6 +527,56 @@ The table is the contract. Each row says which entries a target has, what
   `<html data-dv-app>`, which puts it back in the clipped box for find,
   crawlers and print. Off by default: with it off every page is byte for
   byte what it was.
+- **SSR-first in the app's own look.** With `ssrFirst` on, the document is
+  laid out the way the app's first frame draws the page, so the handover
+  changes nothing a visitor can see. How: the build's capture already runs
+  the app in Chrome for every public route. After the semantics tree
+  settles it asks the app, through the capture hook
+  (`globalThis.__dartvelCapture.snapshot()`, installed only under
+  automation), for a paint snapshot -- `dvPaintSnapshot` in dartvel_flutter
+  walks the laid-out render tree and reports every paragraph (its text,
+  box, alignment, line height and each run's font family, size, weight,
+  slope, colour, letter spacing and decoration), every filled or bordered
+  box (colour, gradient, radii, border, shadow), every image (its source,
+  box and fit) and whether each sits in the page's scroller or is pinned
+  like an app bar -- and reads each link, button and field's box from the
+  semantics host. It does that at each width of `dartvel.web.ssrFirst.widths`
+  (default 360, 390, 768, 1024, 1366, 1920), in light and dark.
+  `dvSsrFirstLayout` (dartvel_core) then keeps the document exactly as it is
+  -- the same headings, links, fields and order, so find, selection, Tab and
+  screen readers read what they read before -- and adds three things: each
+  painted run of text inside it gets an id, each link, button and field
+  gets an id, and a stylesheet places each of them at its captured box in
+  its captured style. Between two captured widths every box moves linearly
+  (`calc(Apx + Bvw)`), which is exact for the left-aligned, centred,
+  right-aligned and fluid layouts a page is built from; something on screen
+  at one width and not the next switches at the midpoint. Boxes, images,
+  icons and painted text that is not part of the document (decoration) are
+  drawn by an `aria-hidden` layer of empty elements (text through CSS
+  `content`, so it is not selectable, findable or indexed twice). Text the
+  document carries that the app does not paint (a button's label for a
+  screen reader) is kept for readers and hidden from the eye. The fonts are
+  the app's own files from FontManifest.json, by the family names the
+  snapshot reports (a missing family falls back to Roboto, as the engine
+  does), with `font-display:swap`: every box is fixed, so a late font can
+  only redraw glyphs in place, never move anything. Everything is generated
+  at build time into the route's captured HTML, so `dartvel build web`
+  writes it and the web-server binary serves it from the same manifest
+  through `dvRenderRoutePage` -- one render path, nothing new at request
+  time. It is gated on `@media screen and (scripting:enabled)`, on CSS
+  nesting and on `html:not([data-dv-app])`: print, a browser with scripting
+  off, an older browser and the page after the handover all get the
+  reading column as before. A page with no capture (a data-model page the
+  server writes from its document) keeps the reading column.
+  *Why this and not the primitives:* deriving CSS from `DVBox`/`DVModifier`
+  would cover only what is written with them, miss theme resolution,
+  `Text` defaults, Material's own surfaces and every third-party widget, and
+  would need a CSS re-implementation of Flutter's layout. The render tree
+  after layout is the answer itself, for every widget, and the capture that
+  produces it already exists. *Limits:* a viewport height other than the
+  captured one (a hero sized to the screen), a width far from a captured
+  one where the layout is not linear, custom painters, shaders and blurs,
+  and a slot the server fills with longer text than the build's.
 - **The splash and its bar on a device too.** On Android, iOS, macOS, Windows
   and Linux the launch screen the platform draws stays up until Flutter's first
   frame, and nothing can move on it. `DV.run` draws the application's own

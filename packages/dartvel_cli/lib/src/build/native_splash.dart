@@ -30,6 +30,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'pwa_icons.dart';
+import 'ssr_first_capture.dart' show dvSsrFirstDefaultWidths;
 import 'web_renderer.dart' show dvBuildCompilesToWasm;
 
 /// The light colour when a project declares none anywhere.
@@ -81,12 +82,18 @@ class DVSplash {
     this.progressColor = dvProgressDefaultColor,
     this.loadingText = dvSplashDefaultLoadingText,
     this.ssrFirst = false,
+    this.ssrFirstWidths = const <int>[],
   });
 
   /// `dartvel.web.ssrFirst`: each page shows its server-rendered document
   /// from the first paint instead of the splash, and Flutter takes over at
   /// its first frame (see `dvSsrFirstHead`). Off unless set to `true`.
   final bool ssrFirst;
+
+  /// The widths the SSR-first document is laid out for, as the app's first
+  /// frame draws the page at each (`ssrFirst.widths`, else
+  /// [dvSsrFirstDefaultWidths]); empty when SSR-first is off.
+  final List<int> ssrFirstWidths;
 
   /// The line under the logo on the web splash, pulsing, so a slow load does
   /// not look hung: `splash.loadingText`, [dvSplashDefaultLoadingText] when
@@ -119,7 +126,20 @@ class DVSplash {
         rawPwa is Map ? rawPwa : const <Object?, Object?>{};
     final List<String> problems = <String>[];
     final Object? rawWeb = dartvel['web'];
-    final bool ssrFirst = rawWeb is Map && rawWeb['ssrFirst'] == true;
+    final Object? rawSsrFirst = rawWeb is Map ? rawWeb['ssrFirst'] : null;
+    // `true`, or a map (`widths`, `enabled`) that is on unless it says not.
+    final bool ssrFirst = rawSsrFirst == true ||
+        (rawSsrFirst is Map && rawSsrFirst['enabled'] != false);
+    final Object? rawWidths = rawSsrFirst is Map ? rawSsrFirst['widths'] : null;
+    final List<int> ssrFirstWidths = !ssrFirst
+        ? const <int>[]
+        : rawWidths is List
+            ? (<int>{
+                for (final Object? width in rawWidths)
+                  if (width is num && width >= 200 && width <= 4000) width.toInt(),
+              }.toList()
+              ..sort())
+            : dvSsrFirstDefaultWidths;
 
     String? colour(Object? value, String key) {
       if (value == null) return null;
@@ -180,6 +200,7 @@ class DVSplash {
         _ => dvSplashDefaultLoadingText,
       },
       ssrFirst: ssrFirst,
+      ssrFirstWidths: ssrFirstWidths,
     );
   }
 
