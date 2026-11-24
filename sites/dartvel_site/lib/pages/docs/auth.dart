@@ -238,6 +238,13 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
             DocsYaml('yaml-auth-pages'),
             Bullets(<String>[
               'false leaves a page out. A path serves it somewhere else.',
+              'pages: false removes the pages only: your own sign-in pages '
+                  'still call the endpoints, so they stay.',
+              'auth: false is an app with no accounts: no account page, and '
+                  'every /api/auth/ route answers 404. Studio still signs '
+                  'people in on its own address.',
+              'signUp: false keeps sign-in and leaves out sign-up, page and '
+                  'endpoint, when accounts are made some other way.',
               'deletionGraceDays, 0 to 29, is how many days a deleted account '
                   'waits before it is erased.',
             ]),

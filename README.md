@@ -640,7 +640,7 @@ Studio signs people in itself, at `/__studio/login` (under `dartvel.admin.path`
 when that moves it), against the application's own accounts: a signed-out
 visit to a Studio page is sent there and comes back once signed in, with the
 second factor asked for when the account has one. It does not use the
-application's `/login`, so it works with `dartvel.auth.pages` turned off.
+application's `/login`, so it works with `dartvel.auth.pages` turned off, and with `dartvel.auth: false`.
 Every other path under the mount sends a stranger to the sign-in, and Studio's
 code and its API answer a stranger as a path nobody serves. Nothing under the
 mount is ever a file.
@@ -885,6 +885,21 @@ DV.Auth.SignInWithEmailAndPasswordPage();
 DV.Auth.SignInWithProviderPage();
 DV.Auth.SignInWithPasskeyPage();
 ```
+
+An application with no accounts turns them off, and its server then serves no
+account page and no auth endpoint (every `/api/auth/*` route answers 404):
+
+```yaml
+dartvel:
+  auth: false          # no accounts at all
+  # auth:
+  #   signUp: false    # accounts, but nobody opens one through the API
+  #   pages: false     # your own sign-in pages; the endpoints stay
+```
+
+`pages: false` only removes the prebuilt pages, so on its own a public
+`POST /api/auth/sign-up` still opens an account. Studio is unaffected by
+either: it signs people in on its own mount.
 
 An account with a second factor stops halfway through sign-in and asks for a
 code. TOTP enrollment, recovery codes and device sessions are on `DV.Auth` too:
