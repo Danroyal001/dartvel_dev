@@ -47,6 +47,10 @@ abstract class DVBackfillable {
   /// Builds a little more of what is waiting. False once nothing is left,
   /// and it is dropped.
   bool backfillStep();
+
+  /// Whether its next step is free -- letting go of what it has read, or
+  /// waiting for a frame -- and does not count against a step's share.
+  bool get backfillCostless;
 }
 
 abstract final class DVLazyBackfill {
@@ -59,14 +63,17 @@ abstract final class DVLazyBackfill {
   static const int quietMs = 300;
 
   /// The most waiting things one step takes a little of.
-  static const int perStep = 8;
+  static const int perStep = 16;
 
   /// How long the frame a step causes may take, in milliseconds: the next
   /// step takes fewer things when it took longer, more when it was quick.
-  /// Half a frame at 60 Hz. A debug build's frames say nothing about a
+  /// A frame at 60 Hz: the page is idle, nothing on it moves, and every
+  /// frame costs a raster of the whole screen however little changed (on a
+  /// phone's software GL that raster, not the build, was most of the cost),
+  /// so fewer, fuller frames are cheaper than many small ones. A debug build's frames say nothing about a
   /// release build's (a frame of one paragraph takes 30-50 ms in a debug
   /// build in Chrome), so there every step takes [perStep].
-  static const double frameBudgetMs = 8;
+  static const double frameBudgetMs = 16;
 
   /// How many render objects rows read while idle may keep built, across
   /// the app; a row past it is let go after it is read.
@@ -78,6 +85,10 @@ abstract final class DVLazyBackfill {
   static final Set<DVBackfillable> _waiting = <DVBackfillable>{};
 
   static bool _armed = false;
+
+  /// How much the next step takes, from 1 to [perStep]: a lazy list grows
+  /// its cache by this many pairs of screens.
+  static int get stride => kDebugMode ? perStep : _take;
 
   /// Whether anything is waiting.
   static bool get pending => _waiting.isNotEmpty;
@@ -99,8 +110,12 @@ abstract final class DVLazyBackfill {
     final int take = kDebugMode ? perStep : _take;
     int done = 0;
     for (final DVBackfillable item in _waiting.toList()) {
-      if (done >= take) break;
       if (!_waiting.contains(item)) continue;
+      if (item.backfillCostless) {
+        if (!item.backfillStep()) _waiting.remove(item);
+        continue;
+      }
+      if (done >= take) continue;
       if (!item.backfillStep()) _waiting.remove(item);
       done++;
     }

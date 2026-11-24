@@ -88,6 +88,10 @@ enum _Phase {
   /// Built, not laid out, for one frame: its words are being read.
   reading,
 
+  /// Read, and let go in the next step's frame: letting it go is a frame,
+  /// and the next rows are read in the same one.
+  readPending,
+
   /// Read and let go: its words stand in for it.
   read,
 
@@ -140,8 +144,15 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
   }
 
   @override
+  bool get backfillCostless => _phase == _Phase.reading || _phase == _Phase.readPending;
+
+  @override
   bool backfillStep() {
     if (!mounted || _phase == _Phase.built || _phase == _Phase.read) return false;
+    if (_phase == _Phase.readPending) {
+      setState(() => _phase = _Phase.read);
+      return false;
+    }
     if (_phase == _Phase.waiting) {
       setState(() => _phase = _Phase.reading);
       SchedulerBinding.instance.addPostFrameCallback((_) => _read());
@@ -165,12 +176,11 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
       buildNow();
       return;
     }
-    DVLazyBackfill.unregister(this);
-    setState(() {
-      _spoken = reading.spoken;
-      _blocks = reading.blocks;
-      _phase = _Phase.read;
-    });
+    // Let go in the next step, together with the next rows read: no frame
+    // of its own. Until then it is built and not laid out, as it was.
+    _spoken = reading.spoken;
+    _blocks = reading.blocks;
+    _phase = _Phase.readPending;
   }
 
   @override
@@ -258,6 +268,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
           child: _spoken.isEmpty ? null : _StandIn(spoken: _spoken, open: _open),
         );
       case _Phase.reading:
+      case _Phase.readPending:
       case _Phase.built:
         // Its own layer, as each row of a Flutter ListView has: once built,
         // the row stays in the page, and without a boundary the scroll view
@@ -268,7 +279,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
         // While it is read, nothing that measures the page may see it: its
         // paragraphs stay out of the page's selection and its controls out
         // of the focus order, as neither has a size yet.
-        final bool reading = _phase == _Phase.reading;
+        final bool reading = _phase != _Phase.built;
         return RepaintBoundary(
           child: _DVRowHost(
             mode: reading ? _HostMode.reading : _HostMode.built,

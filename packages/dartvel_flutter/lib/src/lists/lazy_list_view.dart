@@ -7,7 +7,8 @@
 /// footer, the bottom of a long page -- out of reach of a screen reader's
 /// line-by-line reading and of the browser's find after a navigation inside
 /// the app (Tori and Learnacer, Dartvel 3.47.7). So when the page is idle the
-/// cache extent grows a couple of screens at a time until it covers the whole
+/// cache extent grows a couple of screens or more at a time (as many as the
+/// last idle step had room for) until it covers the whole
 /// list (backfill.dart); from then on every row is built and stays built,
 /// and Flutter reports every row's semantics, the ones off screen marked
 /// hidden as it always does. The first frame builds exactly what it did.
@@ -78,6 +79,9 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
   }
 
   @override
+  bool get backfillCostless => false;
+
+  @override
   bool backfillStep() {
     if (!mounted) return false;
     final ScrollPosition? position = _position();
@@ -91,7 +95,7 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
     final double whole = position.maxScrollExtent - position.minScrollExtent;
     final double now = _cacheExtent ?? RenderAbstractViewport.defaultCacheExtent;
     if (now >= whole) return false;
-    setState(() => _cacheExtent = now + screen * 2);
+    setState(() => _cacheExtent = now + screen * 2 * DVLazyBackfill.stride);
     return true;
   }
 
