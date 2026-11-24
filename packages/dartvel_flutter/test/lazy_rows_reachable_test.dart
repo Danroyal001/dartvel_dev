@@ -239,6 +239,29 @@ void main() {
         reason: 'a card read is not left in the tree');
   });
 
+  // A page that is itself one scrollable list of heavy rows: sigmadev.digital's
+  // home, a section a row. Growing the list's cache built and laid out every
+  // section and kept it; the rows the cache grows into are read instead, as
+  // a long collection's are, and become real as the page scrolls to them.
+  testWidgets('a scrollable list of heavy rows is read for its words past the screen, not kept built', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await tester.pumpWidget(screen(DVBox.list(<Widget>[
+      for (int i = 0; i < 200; i++) ToolCardForTest(i),
+    ], spacing: 12).scrollable()));
+    await tester.pumpAndSettle();
+    expect(semanticsText(tester), isNot(contains('Tool 199')), reason: 'the first frame is as lazy as it was');
+
+    await idle(tester);
+    expect(semanticsText(tester), contains('What tool 199 does, in a sentence.'));
+    expect(foundText(), contains('What tool 199 does, in a sentence.'));
+    expect(find.byType(ToolCardForTest, skipOffstage: false).evaluate().length, lessThan(60),
+        reason: 'rows past the screen read for their words, not kept built');
+
+    await tester.dragUntilVisible(find.text('What tool 120 does, in a sentence.'), find.byType(Scrollable).first, const Offset(0, -400));
+    expect(find.text('What tool 120 does, in a sentence.'), findsOneWidget, reason: 'built when scrolled to');
+    semantics.dispose();
+  });
+
   testWidgets('a card read for its words reads as the link it is', (WidgetTester tester) async {
     final SemanticsHandle semantics = tester.ensureSemantics();
     await tester.pumpWidget(screen(catalogue(200)));
