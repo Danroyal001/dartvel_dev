@@ -11,8 +11,9 @@
 ///
 /// On the web a row still waiting is read while the page is idle
 /// (backfill.dart), so a screen reader and the browser's find reach it
-/// without anyone scrolling. Reading it builds the row without laying it
-/// out, painting it or shaping its text, takes its words, links and headings,
+/// without anyone scrolling. Reading it builds the row apart from the page --
+/// its render objects attached to nothing, so nothing is laid out, painted or
+/// shaped, and no frame is asked for -- takes its words, links and headings,
 /// and lets the row go again: what stays is a stand-in of the same height
 /// whose semantics say what the row says, links included, and whose words
 /// the find runtime searches. Keeping every row built instead took
@@ -85,14 +86,11 @@ enum _Phase {
   /// A place held at the estimated height.
   waiting,
 
-  /// Built, not laid out, for one frame: its words are being read.
-  reading,
+  /// Read, still a place held: what it read lands in the page with the
+  /// other rows read, in one frame.
+  landing,
 
-  /// Read, and let go in the next step's frame: letting it go is a frame,
-  /// and the next rows are read in the same one.
-  readPending,
-
-  /// Read and let go: its words stand in for it.
+  /// Read: its words stand in for it.
   read,
 
   /// Built, as a row scrolled to is.
@@ -144,28 +142,22 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
   }
 
   @override
-  bool get backfillCostless => _phase == _Phase.reading || _phase == _Phase.readPending;
+  bool get backfillFrameless => true;
 
+  /// Reads the row apart from the page, now: no frame. What it read lands
+  /// in the page with the other rows read ([DVLazyBackfill.land]): a cheap
+  /// row is built for good, any other leaves a stand-in.
   @override
   bool backfillStep() {
-    if (!mounted || _phase == _Phase.built || _phase == _Phase.read) return false;
-    if (_phase == _Phase.readPending) {
-      setState(() => _phase = _Phase.read);
-      return false;
-    }
-    if (_phase == _Phase.waiting) {
-      setState(() => _phase = _Phase.reading);
-      SchedulerBinding.instance.addPostFrameCallback((_) => _read());
-    }
-    // Still waiting for the frame that builds it to be read.
-    return true;
-  }
-
-  /// The row was built for reading: take what it says, then keep it if it is
-  /// cheap and let it go if it is not.
-  void _read() {
-    if (!mounted || _phase != _Phase.reading) return;
-    final _Reading reading = _Reading.of(context);
+    if (!mounted || _phase != _Phase.waiting) return false;
+    _DVReadingAnchorElement? anchor;
+    (context as Element).visitChildElements((Element child) {
+      if (child is _DVReadingAnchorElement) anchor = child;
+    });
+    // Not built yet: another step looks again.
+    if (anchor == null) return true;
+    final _Reading reading = anchor!.read(widget.child);
+    _phase = _Phase.landing;
     if (reading.needsLayout || (reading.renderObjects <= DVLazyBackfill.keepBudget - _kept)) {
       // Cheap, or its words are only there once it is laid out (a
       // LayoutBuilder builds its child during layout): built for good.
@@ -173,14 +165,18 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
         _keeping = reading.renderObjects;
         _kept += _keeping;
       }
-      buildNow();
-      return;
+      DVLazyBackfill.land(buildNow);
+      return false;
     }
-    // Let go in the next step, together with the next rows read: no frame
-    // of its own. Until then it is built and not laid out, as it was.
     _spoken = reading.spoken;
     _blocks = reading.blocks;
-    _phase = _Phase.readPending;
+    DVLazyBackfill.land(_land);
+    return false;
+  }
+
+  void _land() {
+    if (!mounted || _phase != _Phase.landing) return;
+    setState(() => _phase = _Phase.read);
   }
 
   @override
@@ -257,9 +253,12 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => _DVReadingAnchor(child: _row(context));
+
+  Widget _row(BuildContext context) {
     switch (_phase) {
       case _Phase.waiting:
+      case _Phase.landing:
         return _DVRowHost(mode: _HostMode.placeholder, estimatedHeight: widget.estimatedHeight);
       case _Phase.read:
         return _DVRowHost(
@@ -267,31 +266,89 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
           estimatedHeight: widget.estimatedHeight,
           child: _spoken.isEmpty ? null : _StandIn(spoken: _spoken, open: _open),
         );
-      case _Phase.reading:
-      case _Phase.readPending:
       case _Phase.built:
         // Its own layer, as each row of a Flutter ListView has: once built,
         // the row stays in the page, and without a boundary the scroll view
-        // repainted every row built so far on every frame of a scroll. The
-        // same shape while it is read, so a cheap row kept after reading is
-        // not built a second time.
-        //
-        // While it is read, nothing that measures the page may see it: its
-        // paragraphs stay out of the page's selection and its controls out
-        // of the focus order, as neither has a size yet.
-        final bool reading = _phase != _Phase.built;
+        // repainted every row built so far on every frame of a scroll.
         return RepaintBoundary(
           child: _DVRowHost(
-            mode: reading ? _HostMode.reading : _HostMode.built,
+            mode: _HostMode.built,
             estimatedHeight: widget.estimatedHeight,
             child: SelectionRegistrarScope(
-              registrar: reading ? const _NoSelection() : (SelectionContainer.maybeOf(context) ?? const _NoSelection()),
-              child: ExcludeFocus(excluding: reading, child: widget.child),
+              registrar: SelectionContainer.maybeOf(context) ?? const _NoSelection(),
+              child: widget.child,
             ),
           ),
         );
     }
   }
+}
+
+/// Where a row is read from: its elements under the row's own, so it sees
+/// the theme, the media query and everything else the row would, and its
+/// render objects under a root attached to nothing.
+class _DVReadingAnchor extends ProxyWidget {
+  const _DVReadingAnchor({required super.child});
+
+  @override
+  Element createElement() => _DVReadingAnchorElement(this);
+}
+
+class _DVReadingAnchorElement extends ProxyElement {
+  _DVReadingAnchorElement(_DVReadingAnchor super.widget);
+
+  @override
+  void notifyClients(ProxyWidget oldWidget) {}
+
+  /// Builds [row] apart from the page, reads it and lets it go, all before
+  /// returning. Its paragraphs register for no selection and its controls
+  /// for no focus, as neither will ever have a size.
+  _Reading read(Widget row) {
+    late Element root;
+    owner!.buildScope(this, () {
+      root = inflateWidget(
+        _DVDetached(
+          child: SelectionRegistrarScope(registrar: const _NoSelection(), child: ExcludeFocus(child: row)),
+        ),
+        _detachedSlot,
+      );
+    });
+    final _Reading reading;
+    try {
+      reading = _Reading.of(root);
+    } finally {
+      owner!.lockState(() => deactivateChild(root));
+    }
+    // What was read is unmounted now, not at the end of a frame that is not
+    // coming.
+    owner!.finalizeTree();
+    return reading;
+  }
+}
+
+/// The slot a row being read occupies: never one the anchor's own child has.
+const Object _detachedSlot = Object();
+
+/// The root of a row being read: its render object is attached to nothing,
+/// so nothing under it is laid out, painted or asks for a frame.
+class _DVDetached extends SingleChildRenderObjectWidget {
+  const _DVDetached({super.child});
+
+  @override
+  SingleChildRenderObjectElement createElement() => _DVDetachedElement(this);
+
+  @override
+  RenderProxyBox createRenderObject(BuildContext context) => RenderProxyBox();
+}
+
+class _DVDetachedElement extends SingleChildRenderObjectElement {
+  _DVDetachedElement(_DVDetached super.widget);
+
+  @override
+  void attachRenderObject(Object? newSlot) {}
+
+  @override
+  void detachRenderObject() {}
 }
 
 /// What a row built for reading says, read from its elements: it has not
@@ -450,11 +507,10 @@ class _StandIn extends StatelessWidget {
       );
 }
 
-enum _HostMode { placeholder, reading, standIn, built }
+enum _HostMode { placeholder, standIn, built }
 
 /// The box a row lives in: its estimated height until it is built, with the
-/// row inside it built but never laid out while it is read, or the stand-in
-/// laid out at that height once it has been.
+/// stand-in laid out at that height once it has been read.
 class _DVRowHost extends SingleChildRenderObjectWidget {
   const _DVRowHost({required this.mode, required this.estimatedHeight, super.child});
 
@@ -492,8 +548,6 @@ class _RenderRowHost extends RenderProxyBox {
 
   bool get _real => _mode == _HostMode.built;
 
-  /// The child is laid out, painted and read only when it is the row or its
-  /// stand-in; while the row is being read it is only built.
   bool get _childIsLaidOut => child != null && (_mode == _HostMode.built || _mode == _HostMode.standIn);
 
   @override
