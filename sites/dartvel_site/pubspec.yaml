@@ -90,10 +90,10 @@ dartvel:
     /docs/install: /docs
     /docs/installation: /docs
 
-  # No account pages: no /login, /sign-up or /account. Studio signs its one
+  # No accounts: no /login, /sign-up or /account and no /api/auth/* endpoint
+  # (pages: false alone left POST /api/auth/sign-up open). Studio signs its one
   # granted person in at its own /__studio/login.
-  auth:
-    pages: false
+  auth: false
 
   # Studio at /__studio, in the release build, with its own sign-in at
   # /__studio/login. It opens only for a person granted Studio.access with
