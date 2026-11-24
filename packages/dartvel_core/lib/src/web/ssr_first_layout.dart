@@ -286,6 +286,9 @@ class _Node {
   /// Per width: its box (controls).
   final Map<int, List<double>> boxes = <int, List<double>>{};
   _Node? container;
+
+  /// A control the semantics host reported a box for at some width.
+  bool captured = false;
   int subIndex = 0;
   int controlZ = 0;
 }
@@ -611,6 +614,34 @@ class _Layout {
         node.boxes[w] = queue.removeAt(0).rect;
       }
     }
+    // A box with nothing painted in it is a control that is laid out and not
+    // on screen: a closed menu's links. Placed, they would sit on top of the
+    // page and take its clicks and its Tab stops. A field keeps its box: its
+    // border is drawn by a painter the snapshot cannot read.
+    for (final (_Node node, String _, _Token _) in _docControls) {
+      if (node.kind == 'field') continue;
+      if (node.boxes.isNotEmpty) node.captured = true;
+      for (final int w in node.boxes.keys.toList()) {
+        if (!_paintedIn(node, w)) node.boxes.remove(w);
+      }
+    }
+  }
+
+  /// Whether anything is painted inside [control]'s box at width [w]: one of
+  /// its own runs, or a piece of the layer (an icon, an image, a surface).
+  bool _paintedIn(_Node control, int w) {
+    for (final _Node run in runs) {
+      if (run.container == control && run.items[w] != null) return true;
+    }
+    final List<double> box = control.boxes[w]!;
+    for (final _Item item in widths[w].items) {
+      final List<double> r = item.rect;
+      if (r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
+          r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _buildLayer() {
@@ -1026,7 +1057,15 @@ class _Layout {
     ({double from, int a, int b, int near}) range,
   ) {
     final (List<double>, bool)? near = _boxAt(node, range.near);
-    if (near == null) return null;
+    final bool control = node.kind == 'control' || node.kind == 'field';
+    if (near == null) {
+      // A link not placed at this width whose text is painted: in the flow,
+      // so its text is placed on its own.
+      if (control && runs.any((_Node run) => run.container == node && run.items[range.near] != null)) {
+        return (box: '', display: 'inline', position: 'static', z: null);
+      }
+      return null;
+    }
     final (List<double>, bool)? a = _boxAt(node, range.a);
     final (List<double>, bool)? b = _boxAt(node, range.b);
     // Moves linearly between the two widths when it is on screen, and placed
@@ -1052,7 +1091,6 @@ class _Layout {
         item.kind == 't' &&
         (item.json['ml'] as num? ?? 0) > 1 &&
         item.json['ell'] == true;
-    final bool control = node.kind == 'control' || node.kind == 'field';
     final bool fixed = control
         ? pinned
         : pinned && node.container?.boxes[range.near] == null;
@@ -1078,6 +1116,10 @@ class _Layout {
       for (final ({double from, int a, int b, int near}) range in ranges)
         _placement(node, range),
     ];
+    // A control the capture found no box for at any width is left alone.
+    if ((node.kind == 'control' || node.kind == 'field') && !node.captured) {
+      return List<String?>.filled(ranges.length, null);
+    }
     final bool sayDisplay = placed.any(
       (p) => p == null || p.display != 'block',
     );
@@ -1102,7 +1144,7 @@ class _Layout {
       }
       out.add(
         <String>[
-          p.box,
+          if (p.box.isNotEmpty) p.box,
           if (sayDisplay) 'display:${p.display}',
           if (sayPosition) 'position:${p.position}',
           if (p.z != null && p.z != lastZ) 'z-index:${p.z}',

@@ -163,6 +163,39 @@ void main() {
       expect(out, contains('#${link.group(2)}{left:20px;top:10px;width:100px;height:20px'));
     });
 
+    test('a link with nothing painted in its box is not placed: a closed menu', () {
+      // The semantics host reports a box for a link in a menu that is laid
+      // out but invisible; placed, it would sit on top of the page and take
+      // its clicks and its Tab stops.
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40], z: 1),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[20, 100, 200, 40]},
+          ]),
+        ]),
+      );
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      expect(out, contains('#$link{display:none}'));
+    });
+
+    test('a link whose box was not found keeps its painted text on screen', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('See pricing', <num>[40, 300, 100, 20], z: 5),
+          ]),
+        ]),
+      );
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      final String run = RegExp(r'<span id="(dvr\d+)">See pricing').firstMatch(out)!.group(1)!;
+      expect(out, isNot(contains('#$link{display:none}')));
+      expect(out, contains('#$run{left:40px;top:300px'));
+    });
+
     test('what a narrower width pinned is placed again, not left pinned, at the next', () {
       // At 400 the link has no box and its text is pinned like an app bar; at
       // 1000 the link has a box and its text sits inside it. The wider range
