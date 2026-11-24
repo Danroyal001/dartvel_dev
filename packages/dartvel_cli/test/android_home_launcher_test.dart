@@ -300,4 +300,115 @@ class MainActivity : FlutterActivity() {
       }
     });
   });
+  group('what a standard launcher needs from its activity', () {
+    // Every standard Android launcher (Pixel, Lawnchair, Nova, Niagara) shows
+    // an app's own shortcuts on a long press, follows installs and
+    // uninstalls at once, pulls the notification shade down on a swipe and
+    // can lock the screen on a double tap. Android gives each of these to
+    // the home app's own process, so the build writes them into the
+    // MainActivity and the app asks over dev.dartvel/home_app.
+    final String out = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\nclass MainActivity : FlutterActivity()\n', enabled: true)!;
+
+    test('an app\'s shortcuts come from LauncherApps, and only the home app may read them', () {
+      expect(out, contains('"shortcuts.list:"'));
+      expect(out, contains('android.content.pm.LauncherApps'));
+      expect(out, contains('hasShortcutHostPermission()'));
+      expect(out, contains('"denied"'), reason: 'DVApps.shortcuts tells the app it must be the home app first');
+      expect(out, contains('FLAG_MATCH_MANIFEST'));
+      expect(out, contains('FLAG_MATCH_DYNAMIC'));
+      expect(out, contains('getShortcutIconDrawable('));
+      expect(out, contains('"shortcuts.open:"'));
+      expect(out, contains('startShortcut('));
+      expect(out, contains('Build.VERSION.SDK_INT < 25'), reason: 'LauncherApps shortcuts arrived in Android 7.1');
+    });
+
+    test('installs, uninstalls and updates are told to the app as they happen', () {
+      for (final String action in <String>['ACTION_PACKAGE_ADDED', 'ACTION_PACKAGE_REMOVED', 'ACTION_PACKAGE_CHANGED', 'ACTION_PACKAGE_REPLACED']) {
+        expect(out, contains('android.content.Intent.$action'), reason: action);
+      }
+      expect(out, contains('addDataScheme("package")'));
+      expect(out, contains('EXTRA_REPLACING'), reason: 'an update is one "replaced", not a removal and an install');
+      expect(out, contains('dartvelSystemKey("package"'));
+      expect(out, contains('unregisterReceiver(dartvelPackages)'));
+    });
+
+    test('the shade is pulled down by StatusBarManager, and the manifest asks for it', () {
+      expect(out, contains('"notifications.expand"'));
+      expect(out, contains('expandNotificationsPanel'));
+      expect(dvAndroidHomeLauncherManifest(_manifest, enabled: true), contains('android.permission.EXPAND_STATUS_BAR'));
+      expect(dvAndroidHomeLauncherManifest(dvAndroidHomeLauncherManifest(_manifest, enabled: true), enabled: false), _manifest, reason: 'turning it off removes the permission too');
+    });
+
+    test('the screen is locked through the opt-in accessibility service, when it is on', () {
+      expect(out, contains('"screen.lock"'));
+      expect(out, contains('var dartvelGlobalAction'));
+      final String service = dvAndroidRecentsServiceSource('com.example.home');
+      expect(service, contains('MainActivity.dartvelGlobalAction = { action -> performGlobalAction(action) }'));
+      expect(service, contains('override fun onServiceConnected()'));
+      expect(service, contains('MainActivity.dartvelGlobalAction = null'), reason: 'a service turned off locks nothing');
+      expect(dvAndroidRecentsServiceStrings('Dev Launcher'), contains('lock'), reason: 'Settings says what the service can do before it is turned on');
+    });
+
+    test('notification counts are read from the badge service and its settings opened', () {
+      expect(out, contains('"badges.current"'));
+      expect(out, contains('"badges.isOn"'));
+      expect(out, contains('"badges.settings"'));
+      expect(out, contains('enabled_notification_listeners'));
+      expect(out, contains('ACTION_NOTIFICATION_LISTENER_SETTINGS'));
+      expect(out, contains('var dartvelNotificationCounts'));
+    });
+
+    test('every addition lands in the activity, and the question switch stays one kind', () {
+      // The activity is the 3.47.8 one with additions spliced in; a splice that
+      // missed would leave Kotlin that does not compile or never runs.
+      expect(out, contains('                when {\n'), reason: 'the switch takes conditions now');
+      expect(out, isNot(contains('when (question)')));
+      expect(out, isNot(contains(RegExp(r'^\s+"[\w.]+" ->', multiLine: true))), reason: 'a bare string in a condition switch does not compile');
+      expect(out, contains('question == "recentsService.isOn" ->'));
+      expect(out, contains('question == "recentsService.settings" ->'));
+      expect(out, contains('registerReceiver(dartvelPackages, packages'));
+      expect(out, contains('private val dartvelPackages'));
+      expect(out, contains('@JvmStatic var dartvelHomeFromServiceUntil = 0L'));
+      expect(out.indexOf('private val dartvelPackages'), lessThan(out.indexOf('override fun onCreate(')));
+    });
+
+    test('an activity written by Dartvel 3.47.8 is brought up to date', () {
+      final String? updated = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\n${dvAndroidHomeLauncherActivity3478ForTest}\n', enabled: true);
+      expect(updated, isNotNull);
+      expect(updated, contains('"shortcuts.list:"'));
+      expect(dvAndroidHomeLauncherActivity(updated!, enabled: false), contains('class MainActivity : FlutterActivity()\n'));
+    });
+  });
+
+  group('notification badges (dartvel.android.notificationBadges: true)', () {
+    test('read from dartvel.android.notificationBadges, and only with the launcher on', () {
+      expect(dvAndroidBadgeServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'launcher': true, 'notificationBadges': true}}), isTrue);
+      expect(dvAndroidBadgeServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'notificationBadges': true}}), isFalse);
+      expect(dvAndroidBadgeServiceEnabled(<Object?, Object?>{'android': <Object?, Object?>{'launcher': true}}), isFalse);
+    });
+
+    test('the manifest declares the listener, bound only by the system, and turning it off removes it', () {
+      final String launcher = dvAndroidHomeLauncherManifest(_manifest, enabled: true);
+      final String declared = dvAndroidBadgeServiceManifest(launcher, enabled: true);
+      expect(declared, contains('android:name=".DartvelBadgeService"'));
+      expect(declared, contains('android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"'));
+      expect(declared, contains('android.service.notification.NotificationListenerService'));
+      expect(declared.indexOf('DartvelBadgeService'), lessThan(declared.indexOf('</application>')));
+      expect(dvAndroidBadgeServiceManifest(declared, enabled: true), declared);
+      expect(dvAndroidBadgeServiceManifest(declared, enabled: false), launcher);
+    });
+
+    test('the service counts what a badge shows and tells the MainActivity', () {
+      final String source = dvAndroidBadgeServiceSource('com.example.home');
+      expect(source, startsWith('package com.example.home\n'));
+      expect(source, contains('class DartvelBadgeService : android.service.notification.NotificationListenerService()'));
+      expect(source, contains('isOngoing'), reason: 'music and downloads are not unread');
+      expect(source, contains('FLAG_GROUP_SUMMARY'), reason: 'a group summary is not one more message');
+      expect(source, contains('canShowBadge()'), reason: 'a channel with badges off shows none, as on Pixel');
+      expect(source, contains('MainActivity.dartvelNotificationCounts ='));
+      expect(source, contains('dartvelSystemKey("badges"'));
+      expect(source, contains('override fun onNotificationRemoved('));
+      expect(dvAndroidBadgeServiceStrings('Dev Launcher'), contains('Dev Launcher'));
+    });
+  });
 }

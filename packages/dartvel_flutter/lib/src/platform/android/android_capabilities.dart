@@ -94,6 +94,8 @@ const Set<String> dvAndroidImplementedBindings = <String>{
   'apps.defaultFor',
   'apps.homePressedAt',
   'apps.recentsPressedAt',
+  'apps.pickWallpaper',
+  'apps.openSystemSettings',
 
   // Lock task mode, held on the running Activity. Reached through
   // Application.registerActivityLifecycleCallbacks, because the application

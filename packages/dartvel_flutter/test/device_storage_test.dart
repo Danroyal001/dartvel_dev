@@ -36,6 +36,17 @@ void main() {
     expect(await DV.Platform.fileStorage.exists('notes/today.txt'), isFalse);
   });
 
+  test('adapters a test gave are kept when the app starts and declares itself', () async {
+    // A test sets its adapters, then pumps the app, whose generated start calls
+    // declare(): the app must keep writing where the test pointed it, never to
+    // the real device directory (where it leaks into the next test run).
+    DVDeviceStorage.declare(appId: 'some_app');
+    await DV.Platform.fileStorage.put('kept.txt', <int>[7]);
+    expect(File(p.join(root.path, 'files', 'kept.txt')).readAsBytesSync(), <int>[7]);
+    await DV.Platform.fileStorage.cache.put('cached.txt', <int>[8]);
+    expect(File(p.join(root.path, 'cache', 'cached.txt')).readAsBytesSync(), <int>[8]);
+  });
+
   test("the app's default adapter does not move it", () async {
     final DVMemoryFileStorageAdapter bucket = DVMemoryFileStorageAdapter();
     DV.FileStorage.configure(bucket);

@@ -86,6 +86,8 @@ String dvAndroidHomeLauncherManifest(String manifest, {required bool enabled}) {
       '        <intent><action android:name="android.settings.MANAGE_DEFAULT_APPS_SETTINGS"/></intent>\n'
       '        <intent><action android:name="android.app.role.action.REQUEST_ROLE"/></intent>\n'
       '    </queries>\n'
+      '    <!-- Pulling the notification shade down on a swipe (DV.Platform.apps.expandNotifications). -->\n'
+      '    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR"/>\n'
       // A TV has no touchscreen; required features would keep it off one.
       '    <uses-feature android:name="android.software.leanback" android:required="false"/>\n'
       '    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>\n'
@@ -149,7 +151,9 @@ const String _wallpaperAndBack = '    // dartvel.android.launcher: the phone\'s 
     '    // The home app is never closed by Back: Back on its first page does nothing,\n'
     '    // as on every launcher, and the next press of home is not a cold start.\n'
     '    override fun popSystemNavigator(): Boolean = true\n';
-const String _transparentActivity = 'class MainActivity : FlutterActivity() {\n'
+/// The activity Dartvel 3.47.8 wrote: Home, Recents and the signals around them,
+/// before app shortcuts, package changes, the shade, the lock and badges.
+const String _activity3478 = 'class MainActivity : FlutterActivity() {\n'
     '$_wallpaperAndBack'
     '\n'
     '    // What the system tells a home app, told to the app as it happens over the\n'
@@ -334,9 +338,10 @@ const String dvAndroidHomeLauncherActivity01351ForTest = _activity01351;
 
 /// What earlier Dartvel versions wrote, recognised as Dartvel's own so a
 /// build brings it up to date rather than reporting it as someone's edit.
-const List<String> _earlierActivities = <String>[
+final List<String> _earlierActivities = <String>[
   'class MainActivity : FlutterActivity() {\n$_wallpaperAndBack}',
   _activity01351,
+  _activity3478,
 ];
 
 /// [activity] (MainActivity.kt) with a transparent Flutter surface, or as
@@ -419,7 +424,7 @@ String dvAndroidRecentsServiceStrings(String appName) {
       '<resources>\n'
       '    <string name="dartvel_recents_service_label">$name Recents</string>\n'
       '    <string name="dartvel_recents_service_summary">Show $name\\\'s recent apps when you press Recents</string>\n'
-      '    <string name="dartvel_recents_service_description">While $name is your home app, pressing the Recents button shows $name\\\'s own recent apps instead of the phone\\\'s. It only notices the Recents button and which window opens. It does not read what is on your screen or what you type.</string>\n'
+      '    <string name="dartvel_recents_service_description">While $name is your home app, pressing the Recents button shows $name\\\'s own recent apps instead of the phone\\\'s. It can also lock the screen when you double-tap the home screen. It only notices the Recents button and which window opens. It does not read what is on your screen or what you type.</string>\n'
       '</resources>\n';
 }
 
@@ -440,6 +445,18 @@ String dvAndroidRecentsServiceSource(String package) => 'package $package\n'
     '        if (id == 0) null else android.content.ComponentName.unflattenFromString(system.getString(id))?.packageName\n'
     '    }\n'
     '    private var replacedAt = 0L\n'
+    '\n'
+    '    // While the person has the service on, the app can lock the screen through it\n'
+    '    // (DV.Platform.apps.lockScreen); turned off, nothing is left to call.\n'
+    '    override fun onServiceConnected() {\n'
+    '        super.onServiceConnected()\n'
+    '        MainActivity.dartvelGlobalAction = { action -> performGlobalAction(action) }\n'
+    '    }\n'
+    '\n'
+    '    override fun onUnbind(intent: android.content.Intent?): Boolean {\n'
+    '        MainActivity.dartvelGlobalAction = null\n'
+    '        return super.onUnbind(intent)\n'
+    '    }\n'
     '\n'
     '    private fun isHomeApp(): Boolean {\n'
     '        val home = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME)\n'
@@ -492,4 +509,224 @@ String dvAndroidRecentsServiceSource(String package) => 'package $package\n'
     '    } catch (notThere: android.content.pm.PackageManager.NameNotFoundException) { null }\n'
     '\n'
     '    override fun onInterrupt() {}\n'
+    '}\n';
+
+/// [_activity3478], for the test that an activity it wrote is updated.
+const String dvAndroidHomeLauncherActivity3478ForTest = _activity3478;
+
+// What every standard launcher needs from its own process, added to the
+// activity 3.47.8 wrote: an app's shortcuts (LauncherApps answers the home app
+// only), installs and uninstalls as they happen, the notification shade, the
+// screen lock (through the opt-in accessibility service) and notification
+// counts (from the badge service).
+
+const String _companionAdditions = '        @JvmStatic var dartvelHomeFromServiceUntil = 0L\n'
+    '        // The opt-in accessibility service\'s performGlobalAction while it is on\n'
+    '        // (the screen lock); null while it is off.\n'
+    '        @JvmStatic var dartvelGlobalAction: ((Int) -> Boolean)? = null\n'
+    '        // What the badge service counts, by package, as JSON.\n'
+    '        @JvmStatic var dartvelNotificationCounts = "{}"\n';
+
+const String _packageReceiver = '    // Installs, uninstalls, updates and changes, told to the app as they happen\n'
+    '    // (DV.Platform.apps.packageChanges). An update arrives as a removal and an\n'
+    '    // install marked EXTRA_REPLACING, then REPLACED: told once, as "replaced".\n'
+    '    private val dartvelPackages = object : android.content.BroadcastReceiver() {\n'
+    '        override fun onReceive(context: android.content.Context, broadcast: android.content.Intent) {\n'
+    '            val changed = broadcast.data?.schemeSpecificPart ?: return\n'
+    '            val replacing = broadcast.getBooleanExtra(android.content.Intent.EXTRA_REPLACING, false)\n'
+    '            val kind = when (broadcast.action) {\n'
+    '                android.content.Intent.ACTION_PACKAGE_ADDED -> if (replacing) null else "added"\n'
+    '                android.content.Intent.ACTION_PACKAGE_REMOVED -> if (replacing) null else "removed"\n'
+    '                android.content.Intent.ACTION_PACKAGE_REPLACED -> "replaced"\n'
+    '                android.content.Intent.ACTION_PACKAGE_CHANGED -> "changed"\n'
+    '                else -> null\n'
+    '            } ?: return\n'
+    '            dartvelSystemKey("package", detail = "\$kind:\$changed")\n'
+    '        }\n'
+    '    }\n'
+    '\n'
+    '    // An app\'s own shortcuts as JSON [{id, label, icon}]: those in its manifest,\n'
+    '    // then the ones it publishes, in its order, at most five, as launchers show\n'
+    '    // them. LauncherApps answers only the phone\'s home app ("denied" otherwise).\n'
+    '    private fun dartvelShortcuts(target: String): String {\n'
+    '        if (android.os.Build.VERSION.SDK_INT < 25) return "[]"\n'
+    '        val apps = getSystemService(android.content.pm.LauncherApps::class.java) ?: return "[]"\n'
+    '        if (!apps.hasShortcutHostPermission()) return "denied"\n'
+    '        val query = android.content.pm.LauncherApps.ShortcutQuery().setPackage(target)\n'
+    '            .setQueryFlags(android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or android.content.pm.LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC)\n'
+    '        val found = try { apps.getShortcuts(query, android.os.Process.myUserHandle()) } catch (refused: Exception) { null } ?: return "[]"\n'
+    '        val out = org.json.JSONArray()\n'
+    '        for (info in found.filter { it.isEnabled }.sortedWith(compareBy({ if (it.isDeclaredInManifest) 0 else 1 }, { it.rank })).take(5)) {\n'
+    '            val item = org.json.JSONObject().put("id", info.id).put("label", (info.shortLabel ?: info.longLabel ?: "").toString())\n'
+    '            val icon = try { apps.getShortcutIconDrawable(info, resources.displayMetrics.densityDpi) } catch (noIcon: Exception) { null }\n'
+    '            if (icon != null) dartvelPng(icon)?.let { item.put("icon", it) }\n'
+    '            out.put(item)\n'
+    '        }\n'
+    '        return out.toString()\n'
+    '    }\n'
+    '\n'
+    '    private fun dartvelOpenShortcut(target: String, id: String): Boolean {\n'
+    '        if (android.os.Build.VERSION.SDK_INT < 25) return false\n'
+    '        return try {\n'
+    '            getSystemService(android.content.pm.LauncherApps::class.java)?.startShortcut(target, id, null, null, android.os.Process.myUserHandle()) != null\n'
+    '        } catch (refused: Exception) { false }\n'
+    '    }\n'
+    '\n'
+    '    // A drawable as base64 PNG, the size an app icon is drawn at.\n'
+    '    private fun dartvelPng(drawable: android.graphics.drawable.Drawable): String? = try {\n'
+    '        val bitmap = android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888)\n'
+    '        drawable.setBounds(0, 0, 144, 144)\n'
+    '        drawable.draw(android.graphics.Canvas(bitmap))\n'
+    '        val bytes = java.io.ByteArrayOutputStream()\n'
+    '        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bytes)\n'
+    '        bitmap.recycle()\n'
+    '        android.util.Base64.encodeToString(bytes.toByteArray(), android.util.Base64.NO_WRAP)\n'
+    '    } catch (notDrawn: Exception) { null }\n'
+    '\n'
+    '    // Pulls the notification shade down, as a swipe down on a launcher does.\n'
+    '    // StatusBarManager.expandNotificationsPanel has no public signature; the\n'
+    '    // EXPAND_STATUS_BAR permission in the manifest lets a launcher call it.\n'
+    '    @android.annotation.SuppressLint("WrongConstant")\n'
+    '    private fun dartvelExpandNotifications(): Boolean = try {\n'
+    '        val bar = getSystemService("statusbar")\n'
+    '        Class.forName("android.app.StatusBarManager").getMethod("expandNotificationsPanel").invoke(bar)\n'
+    '        true\n'
+    '    } catch (refused: Exception) { false }\n'
+    '\n';
+
+const String _packageRegistration = '        val packages = android.content.IntentFilter().apply {\n'
+    '            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)\n'
+    '            addAction(android.content.Intent.ACTION_PACKAGE_REMOVED)\n'
+    '            addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)\n'
+    '            addAction(android.content.Intent.ACTION_PACKAGE_CHANGED)\n'
+    '            addDataScheme("package")\n'
+    '        }\n'
+    '        // Sent only by the system (protected broadcasts).\n'
+    '        if (android.os.Build.VERSION.SDK_INT >= 33) {\n'
+    '            registerReceiver(dartvelPackages, packages, android.content.Context.RECEIVER_EXPORTED)\n'
+    '        } else {\n'
+    '            registerReceiver(dartvelPackages, packages)\n'
+    '        }\n';
+
+const String _newQuestions = '                when {\n'
+    '                    question != null && question.startsWith("shortcuts.list:") -> reply.reply(dartvelShortcuts(question.removePrefix("shortcuts.list:")))\n'
+    '                    question != null && question.startsWith("shortcuts.open:") -> {\n'
+    '                        val rest = question.removePrefix("shortcuts.open:")\n'
+    '                        val colon = rest.indexOf(\':\')\n'
+    '                        reply.reply(if (colon > 0 && dartvelOpenShortcut(rest.substring(0, colon), rest.substring(colon + 1))) "true" else "false")\n'
+    '                    }\n'
+    '                    question == "notifications.expand" -> reply.reply(if (dartvelExpandNotifications()) "true" else "false")\n'
+    '                    // AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN (8), Android 9 and later.\n'
+    '                    question == "screen.lock" -> reply.reply(if (android.os.Build.VERSION.SDK_INT >= 28 && dartvelGlobalAction?.invoke(8) == true) "true" else "false")\n'
+    '                    question == "badges.current" -> reply.reply(dartvelNotificationCounts)\n'
+    '                    question == "badges.isOn" -> {\n'
+    '                        val on = android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners") ?: ""\n'
+    '                        reply.reply(if (on.split(\':\').any { it.startsWith("\$packageName/") && it.endsWith("DartvelBadgeService") }) "true" else "false")\n'
+    '                    }\n'
+    '                    question == "badges.settings" -> {\n'
+    '                        val declared = try {\n'
+    '                            packageManager.getServiceInfo(android.content.ComponentName(packageName, "\$packageName.DartvelBadgeService"), 0); true\n'
+    '                        } catch (notBuilt: android.content.pm.PackageManager.NameNotFoundException) { false }\n'
+    '                        if (declared) startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))\n'
+    '                        reply.reply(if (declared) "true" else "false")\n'
+    '                    }\n';
+
+/// What `dartvel.android.launcher: true` writes as the MainActivity now.
+final String _transparentActivity = _activity3478
+    .replaceFirst('        @JvmStatic var dartvelHomeFromServiceUntil = 0L\n', _companionAdditions)
+    .replaceFirst('    override fun onCreate(savedInstanceState: android.os.Bundle?) {\n', '$_packageReceiver    override fun onCreate(savedInstanceState: android.os.Bundle?) {\n')
+    .replaceFirst('            registerReceiver(dartvelSystemKeys, filter)\n        }\n', '            registerReceiver(dartvelSystemKeys, filter)\n        }\n$_packageRegistration')
+    .replaceFirst('        try { unregisterReceiver(dartvelSystemKeys) } catch (alreadyGone: IllegalArgumentException) {}\n        if (dartvelCurrent', '        try { unregisterReceiver(dartvelSystemKeys) } catch (alreadyGone: IllegalArgumentException) {}\n        try { unregisterReceiver(dartvelPackages) } catch (alreadyGone: IllegalArgumentException) {}\n        if (dartvelCurrent')
+    .replaceFirst('                when (question) {\n', _newQuestions)
+    .replaceFirst('                    "recentsService.isOn" ->', '                    question == "recentsService.isOn" ->')
+    .replaceFirst('                    "recentsService.settings" ->', '                    question == "recentsService.settings" ->');
+
+// Notification badges. A launcher shows a dot (or a count) on an app with
+// unread notifications. Android keeps the shade's notifications for itself
+// and the apps' NotificationListenerService: the person grants this app
+// notification access once, and the service counts what each app shows.
+
+const String _badgeStart = '        <!-- dartvel.android.notificationBadges: begin -->';
+const String _badgeEnd = '        <!-- dartvel.android.notificationBadges: end -->';
+
+/// Whether `dartvel.android.notificationBadges` is true in [dartvel], on an
+/// app that is also a home app (`dartvel.android.launcher: true`).
+bool dvAndroidBadgeServiceEnabled(Map<Object?, Object?> dartvel) {
+  final Object? android = dartvel['android'];
+  return android is Map && android['launcher'] == true && android['notificationBadges'] == true;
+}
+
+/// [manifest] with the badge service declared in `<application>`, or without
+/// it when [enabled] is false.
+String dvAndroidBadgeServiceManifest(String manifest, {required bool enabled}) {
+  final String out = _strip(manifest, _badgeStart, _badgeEnd);
+  if (!enabled) return out;
+  final int close = out.indexOf('</application>');
+  if (close < 0) return out;
+  final int closeLine = out.lastIndexOf('\n', close) + 1;
+  const String service = '$_badgeStart\n'
+      '        <service\n'
+      '            android:name=".DartvelBadgeService"\n'
+      '            android:exported="true"\n'
+      '            android:label="@string/dartvel_badge_service_label"\n'
+      '            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">\n'
+      '            <intent-filter>\n'
+      '                <action android:name="android.service.notification.NotificationListenerService"/>\n'
+      '            </intent-filter>\n'
+      '        </service>\n'
+      '$_badgeEnd\n';
+  return '${out.substring(0, closeLine)}$service${out.substring(closeLine)}';
+}
+
+/// res/values/dartvel_badge_service.xml: the name Settings shows under
+/// notification access. [appName] is the app's own name.
+String dvAndroidBadgeServiceStrings(String appName) {
+  final String name = appName.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll("'", r"\'").replaceAll('"', r'\"');
+  return '<?xml version="1.0" encoding="utf-8"?>\n'
+      '<!-- Written by dartvel build (dartvel.android.notificationBadges). -->\n'
+      '<resources>\n'
+      '    <string name="dartvel_badge_service_label">$name badges</string>\n'
+      '</resources>\n';
+}
+
+/// DartvelBadgeService.kt, in the app's [package], beside its MainActivity.
+String dvAndroidBadgeServiceSource(String package) => 'package $package\n'
+    '\n'
+    '// Written by dartvel build (dartvel.android.notificationBadges). Edits are replaced.\n'
+    '//\n'
+    '// Counts the notifications each app is showing, for badges on its icon\n'
+    '// (DV.Platform.apps.notificationCounts), once the person has given this app\n'
+    '// notification access. Only counts leave this service: never a title, a text\n'
+    '// or who sent it.\n'
+    'class DartvelBadgeService : android.service.notification.NotificationListenerService() {\n'
+    '    private fun publish() {\n'
+    '        val counts = HashMap<String, Int>()\n'
+    '        val active = try { activeNotifications } catch (notReady: Exception) { null } ?: emptyArray()\n'
+    '        val ranking = android.service.notification.NotificationListenerService.Ranking()\n'
+    '        for (shown in active) {\n'
+    '            // Music, downloads and calls in progress are not unread.\n'
+    '            if (shown.isOngoing) continue\n'
+    '            val notification = shown.notification\n'
+    '            // A group summary stands for messages already counted.\n'
+    '            if (notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY != 0) continue\n'
+    '            // A channel the person (or the app) set to show no badge shows none.\n'
+    '            if (android.os.Build.VERSION.SDK_INT >= 26 && currentRanking?.getRanking(shown.key, ranking) == true && !ranking.canShowBadge()) continue\n'
+    '            counts[shown.packageName] = (counts[shown.packageName] ?: 0) + (if (notification.number > 0) notification.number else 1)\n'
+    '        }\n'
+    '        val json = org.json.JSONObject()\n'
+    '        for ((name, count) in counts) json.put(name, count)\n'
+    '        MainActivity.dartvelNotificationCounts = json.toString()\n'
+    '        MainActivity.dartvelCurrent?.dartvelSystemKey("badges", detail = MainActivity.dartvelNotificationCounts)\n'
+    '    }\n'
+    '\n'
+    '    override fun onListenerConnected() = publish()\n'
+    '\n'
+    '    override fun onListenerDisconnected() {\n'
+    '        MainActivity.dartvelNotificationCounts = "{}"\n'
+    '        MainActivity.dartvelCurrent?.dartvelSystemKey("badges", detail = "{}")\n'
+    '    }\n'
+    '\n'
+    '    override fun onNotificationPosted(shown: android.service.notification.StatusBarNotification) = publish()\n'
+    '\n'
+    '    override fun onNotificationRemoved(shown: android.service.notification.StatusBarNotification) = publish()\n'
     '}\n';

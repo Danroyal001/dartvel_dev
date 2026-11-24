@@ -208,6 +208,8 @@ const Map<String, String> dvWebUnavailableBindings = <String, String>{
   'apps.defaultFor': 'a web page cannot see which apps the device opens by default; browsers expose no such list',
   'apps.homePressedAt': 'a web page cannot be the device\'s home screen, so Home never lands on it',
   'apps.recentsPressedAt': 'a web page cannot be the device\'s home screen, so it never hears the Recents button',
+  'apps.pickWallpaper': 'a web page cannot change the device\'s wallpaper; browsers give pages no route to it',
+  'apps.openSystemSettings': 'a web page cannot open the operating system\'s settings; browsers give pages no route into them',
   'associations.opened': 'A browser has no queue of files to collect at start: '
       'an installed web app is handed each file by launchQueue, which '
       'delivers it to DV.Platform.associations.opened as it arrives.',

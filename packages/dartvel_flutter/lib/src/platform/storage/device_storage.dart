@@ -88,12 +88,15 @@ class DVDeviceStorage extends DVStorage {
   static DVFileStorageConfig _config = const DVFileStorageConfig();
   static DVDeviceStorage? _instance;
   static DVDeviceStorage? _cache;
+  // Adapters a test set: kept when the app declares itself at start.
+  static bool _adaptersFromTest = false;
 
   /// What the generated runtime says at startup: the app's id (its directory
   /// name on desktops) and its `dartvel.fileStorage` declaration.
   static void declare({String? appId, DVFileStorageConfig config = const DVFileStorageConfig()}) {
     _appId = appId;
     _config = config;
+    if (_adaptersFromTest) return;
     _instance = null;
     _cache = null;
   }
@@ -102,13 +105,16 @@ class DVDeviceStorage extends DVStorage {
   static DVFileStorageConfig get config => _config;
 
   /// Replaces the device adapters, for tests. [cache] defaults to [files].
+  /// They stay in force when the app starts and calls [declare], until [reset].
   static void useAdapters(DVFileStorageAdapter files, {DVFileStorageAdapter? cache}) {
+    _adaptersFromTest = true;
     _instance = DVDeviceStorage._(files, 'files');
     _cache = DVDeviceStorage._(cache ?? files, 'cache');
   }
 
   /// Back to the real device directories.
   static void reset() {
+    _adaptersFromTest = false;
     _instance = null;
     _cache = null;
   }

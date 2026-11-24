@@ -112,6 +112,17 @@ void main() {
     expect(widgets, contains('{final bool onDark = false, super.key}'));
   });
 
+  test('a default that ends in a brace keeps it when more parameters follow', () async {
+    // `const <String, int>{}` ends in `}`, which was taken for the end of the
+    // named parameters and cut off, leaving `const <String, int>{` and a
+    // generated widget that does not compile.
+    final String widgets = await widgetsFor('$_imports'
+        '@DVFunctionalWidget()\n'
+        'Widget _grid(String title, {Map<String, int> badges = const <String, int>{}, bool onDark = false}) => DVText(title);\n');
+
+    expect(widgets, contains('{final Map<String, int> badges = const <String, int>{}, final bool onDark = false, super.key}'));
+  });
+
   test('a BuildContext parameter is supplied by build, not by the caller',
       () async {
     // A widget already has a context. Making it a constructor field would ask
