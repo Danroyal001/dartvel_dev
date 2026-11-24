@@ -9,6 +9,7 @@
 import 'dart:convert';
 
 import 'package:dartvel_flutter/src/seo/paint_snapshot.dart';
+import 'package:dartvel_flutter/src/widgets/described_paint.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -324,6 +325,237 @@ void main() {
         (Map<String, Object?> item) => item['k'] == 'b' && item['bg'] == '#123456');
     expect(pill['rad'], <double>[20, 20, 20, 20]);
   });
+
+  // -- Paint the capture cannot read from a painter or a shader, described.
+
+  testWidgets('a described painter: its gradients, top first, as CSS layers',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 400,
+          height: 200,
+          child: CustomPaint(
+            painter: DVGradientPainter(<Gradient>[
+              DVRadialGradient(
+                center: Alignment(0.7, -1),
+                radiusX: 0.6,
+                radiusY: 0.8,
+                colors: <Color>[Color.fromRGBO(163, 163, 163, 0.28), Color.fromRGBO(163, 163, 163, 0)],
+                stops: <double>[0, 0.6],
+              ),
+              DVRadialGradient(
+                center: Alignment.bottomLeft,
+                radiusX: 0.5,
+                radiusY: 0.7,
+                colors: <Color>[Color.fromRGBO(212, 212, 212, 0.14), Color.fromRGBO(212, 212, 212, 0)],
+                stops: <double>[0, 0.6],
+              ),
+            ]),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> glow = _items(dvPaintSnapshot())
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'b' && item['g'] != null);
+    expect(_rect(glow), <double>[0, 0, 400, 200]);
+    // CSS paints the first layer on top: the painter's last gradient first.
+    expect(
+      glow['g'],
+      'radial-gradient(50% 70% at 0% 100%,rgba(212,212,212,0.141) 0%,rgba(212,212,212,0) 60%),'
+      'radial-gradient(60% 80% at 85% 0%,rgba(163,163,163,0.278) 0%,rgba(163,163,163,0) 60%)',
+    );
+  });
+
+  testWidgets('a painter that describes nothing paints no box', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(width: 100, height: 100, child: CustomPaint(painter: _Opaque())),
+      ),
+    ));
+    expect(_items(dvPaintSnapshot()).where((Map<String, Object?> item) => item['k'] == 'b'), isEmpty);
+  });
+
+  testWidgets('a radial gradient keeps its radius; a linear one its angle on the box',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
+          SizedBox(
+            width: 200,
+            height: 100,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  radius: 0.5,
+                  colors: <Color>[Color(0xFFFF0000), Color(0xFF0000FF)],
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 200,
+            height: 100,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[Color(0xFF000000), Color(0xFFFFFFFF)],
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    ));
+    final List<Map<String, Object?>> boxes = _items(dvPaintSnapshot())
+        .where((Map<String, Object?> item) => item['g'] != null)
+        .toList();
+    // Half the shorter side: a 50 px circle.
+    expect(boxes[0]['g'], 'radial-gradient(circle 50px at 50% 50%,#ff0000 0%,#0000ff 100%)');
+    // Corner to corner of a 200 x 100 box: the direction is atan2(200, 100),
+    // 63.43 degrees, and CSS's line for it is exactly the corner-to-corner
+    // projection, so the stops stay at 0 and 100.
+    expect(boxes[1]['g'], 'linear-gradient(116.57deg,#000000 0%,#ffffff 100%)');
+  });
+
+  testWidgets('a gradient run of text: its gradient on its run, CSS-angled',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 300,
+          child: DVGradientText(
+            TextSpan(text: 'We build it, ', children: <InlineSpan>[
+              DVGradientSpan(
+                text: 'and keep it running.',
+                gradient: LinearGradient(
+                  begin: Alignment(-0.866, -0.5),
+                  end: Alignment(0.866, 0.5),
+                  colors: <Color>[Color(0xFFFFFFFF), Color(0xFFD4D4D4), Color(0xFFA3A3A3)],
+                  stops: <double>[0, 0.55, 1],
+                ),
+              ),
+            ]),
+            style: TextStyle(fontSize: 20, color: Color(0xFFFFFFFF)),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> paragraph =
+        _text(dvPaintSnapshot(), 'We build it, and keep it running.');
+    final List<Map<String, Object?>> runs =
+        (paragraph['runs']! as List<Object?>).cast<Map<String, Object?>>();
+    expect(runs[0].containsKey('g'), isFalse);
+    expect(runs[1]['t'], 'and keep it running.');
+    expect(runs[1]['g'], 'linear-gradient(120deg,#ffffff 0%,#d4d4d4 55%,#a3a3a3 100%)');
+    expect(find.byType(ShaderMask), findsOneWidget);
+  });
+
+  testWidgets('a text field\'s outline border is a box at the field', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 240,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Email',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF888888), width: 1.5),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFF777777), width: 1.5),
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF4F4F4),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Rect field = tester.getRect(find.byType(InputDecorator));
+    final Map<String, Object?> border = _items(dvPaintSnapshot())
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'b' && item['bd'] != null);
+    expect(_rect(border), <double>[field.left, field.top, field.width, field.height]);
+    expect(border['bd'], <Object?>[1.5, '#777777']);
+    expect(border['rad'], <double>[10, 10, 10, 10]);
+    expect(border['bg'], '#f4f4f4');
+  });
+
+  testWidgets('a multi-line field\'s border is round the whole field, not its scroller',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: 300,
+              child: TextField(
+                minLines: 6,
+                maxLines: null,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Rect field = tester.getRect(find.byType(InputDecorator));
+    final List<Map<String, Object?>> borders = _items(dvPaintSnapshot())
+        .where((Map<String, Object?> item) => item['k'] == 'b' && item['bd'] != null)
+        .toList();
+    expect(borders, hasLength(1));
+    expect(_rect(borders.single), <double>[field.left, field.top, field.width, field.height]);
+    // On the desktop and the web a multi-line field draws a scrollbar with a
+    // painter of its own, inside the border.
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
+  testWidgets('a default text field: Material 3\'s underline, in the theme\'s colour',
+      (WidgetTester tester) async {
+    final ThemeData theme = ThemeData(colorSchemeSeed: const Color(0xFF225588));
+    await tester.pumpWidget(MaterialApp(
+      theme: theme,
+      home: const Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: 240, child: TextField(decoration: InputDecoration(hintText: 'Name'))),
+        ),
+      ),
+    ));
+    final Map<String, Object?> border = _items(dvPaintSnapshot())
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'b' && item['bd'] != null);
+    final List<Object?> value = border['bd']! as List<Object?>;
+    expect(value[1], dvCssColor(theme.colorScheme.outline));
+    expect(value[2], <double>[0, 0, 1, 0]);
+  });
+}
+
+/// A painter that draws something it does not describe.
+class _Opaque extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) =>
+      canvas.drawCircle(size.center(Offset.zero), 10, Paint()..color = const Color(0xFFFF0000));
+
+  @override
+  bool shouldRepaint(_Opaque oldDelegate) => false;
 }
 
 void idleTests() {

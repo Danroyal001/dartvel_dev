@@ -85,6 +85,10 @@ class _Item {
   final int z;
   final bool scrolls;
   _Item? dark;
+
+  /// The same item in the capture at a second screen height, when there is
+  /// one: how far it moves and grows with the screen's height.
+  _Item? tall;
   bool used = false;
 
   String get text => json['text'] as String? ?? '';
@@ -107,6 +111,9 @@ class _Control {
 
   final String key;
   final List<double> rect;
+
+  /// Its box at the second screen height.
+  List<double>? tall;
   bool used = false;
 }
 
@@ -131,7 +138,7 @@ List<double> _rect(Object? value) {
 }
 
 class _Width {
-  _Width(this.width, this.height, this.items, this.controls);
+  _Width(this.width, this.height, this.items, this.controls, [this.tallHeight]);
 
   factory _Width.fromJson(Map<String, Object?> json) {
     List<_Item> itemsOf(Object? snapshot) => <_Item>[
@@ -152,15 +159,69 @@ class _Width {
       final List<_Item>? same = byPlace[_place(item)];
       if (same != null && same.isNotEmpty) item.dark = same.removeAt(0);
     }
+    final List<_Control> controls = <_Control>[
+      for (final Object? control
+          in (json['controls'] as List<Object?>? ?? const <Object?>[]))
+        if (control is Map) _Control(control.cast<String, Object?>()),
+    ];
+    final double height = (json['height'] as num?)?.toDouble() ?? 0;
+    // The same width at a second screen height (light only: the layout does
+    // not change with the scheme). Each item and control is paired with its
+    // own by what it is and its place among its kind, and only when it is
+    // as wide there: a lazy list that built another row or a layout that
+    // switched is left as it is at the first height.
+    double? tallHeight;
+    final Object? tall = json['tall'];
+    if (tall is Map && tall['height'] is num) {
+      final double second = (tall['height']! as num).toDouble();
+      if ((second - height).abs() >= 1) {
+        tallHeight = second;
+        final Map<String, List<_Item>> byKind = <String, List<_Item>>{};
+        for (final Object? item
+            in (tall['items'] as List<Object?>? ?? const <Object?>[])) {
+          if (item is! Map) continue;
+          final _Item other = _Item(item.cast<String, Object?>());
+          byKind.putIfAbsent(_identity(other), () => <_Item>[]).add(other);
+        }
+        final Map<String, int> seen = <String, int>{};
+        for (final _Item item in light) {
+          final String key = _identity(item);
+          final int index = seen[key] = (seen[key] ?? -1) + 1;
+          final List<_Item>? same = byKind[key];
+          if (same == null || index >= same.length) continue;
+          final _Item other = same[index];
+          if ((other.rect[0] - item.rect[0]).abs() < 1 &&
+              (other.rect[2] - item.rect[2]).abs() < 1) {
+            item.tall = other;
+          }
+        }
+        final Map<String, List<List<double>>> controlsByKey =
+            <String, List<List<double>>>{};
+        for (final Object? control
+            in (tall['controls'] as List<Object?>? ?? const <Object?>[])) {
+          if (control is! Map) continue;
+          final _Control other = _Control(control.cast<String, Object?>());
+          controlsByKey.putIfAbsent(other.key, () => <List<double>>[]).add(other.rect);
+        }
+        final Map<String, int> seenControls = <String, int>{};
+        for (final _Control control in controls) {
+          final int index = seenControls[control.key] =
+              (seenControls[control.key] ?? -1) + 1;
+          final List<List<double>>? same = controlsByKey[control.key];
+          if (same == null || index >= same.length) continue;
+          if ((same[index][0] - control.rect[0]).abs() < 1 &&
+              (same[index][2] - control.rect[2]).abs() < 1) {
+            control.tall = same[index];
+          }
+        }
+      }
+    }
     return _Width(
       (json['width'] as num?)?.toDouble() ?? 0,
-      (json['height'] as num?)?.toDouble() ?? 0,
+      height,
       light,
-      <_Control>[
-        for (final Object? control
-            in (json['controls'] as List<Object?>? ?? const <Object?>[]))
-          if (control is Map) _Control(control.cast<String, Object?>()),
-      ],
+      controls,
+      tallHeight,
     );
   }
 
@@ -169,9 +230,20 @@ class _Width {
   final List<_Item> items;
   final List<_Control> controls;
 
+  /// The second screen height the width was captured at, if any.
+  final double? tallHeight;
+
   int get topZ =>
       items.fold<int>(0, (int top, _Item item) => math.max(top, item.z));
 }
+
+/// What an item is, apart from where: paired across screen heights by it.
+String _identity(_Item item) => switch (item.kind) {
+  't' => 't|${item.text}',
+  'b' => 'b|${item.json['bg']}|${item.json['g']}|${item.json['bd']}',
+  'i' => 'i|${item.json['src']}',
+  _ => '${item.kind}|',
+};
 
 String _place(_Item item) =>
     '${item.kind}|${item.rect.map((double v) => v.round()).join(',')}|${item.kind == 't' ? item.text : ''}';
@@ -285,6 +357,9 @@ class _Node {
 
   /// Per width: its box (controls).
   final Map<int, List<double>> boxes = <int, List<double>>{};
+
+  /// Per width: its box at the second screen height (controls).
+  final Map<int, List<double>> tallBoxes = <int, List<double>>{};
   _Node? container;
 
   /// A control the semantics host reported a box for at some width.
@@ -330,8 +405,10 @@ class _Layout {
     }
 
     final List<_TextNode> texts = _readDocument(tokens);
+    _assignControlBoxes();
     _matchText(texts);
     _matchControls();
+    _markReaderControls();
     _buildLayer();
     _wrapText(texts);
 
@@ -514,9 +591,28 @@ class _Layout {
       }
       final List<String> keys = queues.keys.toList()
         ..sort((String a, String b) => b.length.compareTo(a.length));
-      final List<List<(int, int, _Item)>> found = <List<(int, int, _Item)>>[];
-      for (final _TextNode text in texts) {
-        final List<(int, int, _Item)> pieces = <(int, int, _Item)>[];
+      final int w = perWidth.length;
+      final List<List<(int, int, _Item)>> found =
+          List<List<(int, int, _Item)>>.generate(texts.length, (_) => <(int, int, _Item)>[]);
+      // Text in a control the semantics host found at some width and not at
+      // this one (a menu link while the menu is closed) is matched last: the
+      // same words painted at this width are more likely something else's,
+      // a footer heading's, and taking them first would leave that without
+      // its text and the link a Tab stop of no size.
+      bool late(_TextNode text) {
+        final _Node? control = text.control?.node;
+        return control != null && control.boxes.isNotEmpty && control.boxes[w] == null;
+      }
+
+      final List<int> order = <int>[
+        for (int index = 0; index < texts.length; index++)
+          if (!late(texts[index])) index,
+        for (int index = 0; index < texts.length; index++)
+          if (late(texts[index])) index,
+      ];
+      for (final int textIndex in order) {
+        final _TextNode text = texts[textIndex];
+        final List<(int, int, _Item)> pieces = found[textIndex];
         final String value = text.norm;
         final List<String> candidates = <String>[
           for (final String key in keys)
@@ -561,7 +657,6 @@ class _Layout {
           ));
           at = bestStart + best.length;
         }
-        found.add(pieces);
       }
       perWidth.add(found);
     }
@@ -602,7 +697,9 @@ class _Layout {
     }
   }
 
-  void _matchControls() {
+  /// Each control's box at each width, off the semantics host, before the
+  /// text is matched.
+  void _assignControlBoxes() {
     for (int w = 0; w < widths.length; w++) {
       final Map<String, List<_Control>> captured = <String, List<_Control>>{};
       for (final _Control control in widths[w].controls) {
@@ -611,9 +708,25 @@ class _Layout {
       for (final (_Node node, String key, _Token _) in _docControls) {
         final List<_Control>? queue = captured[key];
         if (queue == null || queue.isEmpty) continue;
-        node.boxes[w] = queue.removeAt(0).rect;
+        final _Control control = queue.removeAt(0);
+        node.boxes[w] = control.rect;
+        if (control.tall != null) node.tallBoxes[w] = control.tall!;
       }
     }
+  }
+
+  /// A control the layout never places (no box at any width, nothing of it
+  /// painted) is kept for readers, its text hidden from the eye; it is still
+  /// a Tab stop, so it is marked to show itself when focused.
+  void _markReaderControls() {
+    for (final (_Node node, String _, _Token token) in _docControls) {
+      if (node.kind == 'field' || node.captured) continue;
+      if (runs.any((_Node run) => run.container == node)) continue;
+      token.source = _withClass(token.source, 'dvf');
+    }
+  }
+
+  void _matchControls() {
     // A box with nothing painted in it is a control that is laid out and not
     // on screen: a closed menu's links. Placed, they would sit on top of the
     // page and take its clicks and its Tab stops. A field keeps its box: its
@@ -881,6 +994,14 @@ class _Layout {
         '.dvl input,.dvl textarea{background:transparent;border:0;color:inherit;font:inherit;'
         'box-sizing:border-box}',
       );
+    // Glyphs cut out of a gradient are drawn again when selected, in the
+    // selection's own colour, so a selection never hides them.
+    final bool gradientText = widths.any((_Width width) => width.items.any(
+          (_Item item) => item.runs.any((Map<String, Object?> run) => run['g'] is String),
+        ));
+    if (gradientText) {
+      gated.write('.dvl [id^=dvr]::selection{-webkit-text-fill-color:currentcolor}');
+    }
     for (final _Node node in layer) {
       if (node.kind != 'decor') continue;
       gated.write(
@@ -913,7 +1034,7 @@ class _Layout {
         final StringBuffer dark = StringBuffer();
         // The scroll height.
         final String height =
-            'height:${_value(range, (int w) => <double>[_contentHeight(w)], 0)}';
+            'height:${_heightAware(_value(range, (int w) => <double>[_contentHeight(w)], 0), _contentSlope(range.near), range.near, _contentHeight, a: range.a, b: range.b)}';
         if (withHeight && lastGeometry['.dvl'] != height) {
           block.write('.dvl{$height}');
           lastGeometry['.dvl'] = height;
@@ -978,7 +1099,17 @@ class _Layout {
     out.write(
       '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated'
       '.dvl .dvu{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);'
-      'white-space:nowrap}}}',
+      'white-space:nowrap}'
+      // A link or field kept only for readers (a closed menu's) is still a
+      // Tab stop; when the keyboard reaches it, it shows itself where the
+      // reader can see it rather than taking an invisible stop.
+      '.dvl .dvu:focus-within,.dvl .dvf:focus'
+      '{position:fixed!important;left:8px!important;top:8px!important;width:auto!important;'
+      'height:auto!important;display:block!important;'
+      'overflow:visible;clip-path:none;white-space:normal;z-index:2147483647;padding:8px 12px;'
+      'background:Canvas;color:CanvasText;outline:2px solid Highlight;border-radius:4px}'
+      '.dvl .dvf:focus .dvu{position:static;width:auto;'
+      'height:auto;overflow:visible;clip-path:none;white-space:normal}}}',
     );
     final String rest = later.isEmpty
         ? ''
@@ -998,6 +1129,70 @@ class _Layout {
       if (box[1] < widths[w].height * 2) return true;
     }
     return false;
+  }
+
+  /// How much the scroll height grows per pixel of screen height at [w].
+  double _contentSlope(int w) {
+    final double? tall = widths[w].tallHeight;
+    if (tall == null) return 0;
+    double bottom = tall;
+    for (final _Item item in widths[w].items) {
+      if (!item.scrolls) continue;
+      // Not found at the second height: taken to stay where it is.
+      final List<double> rect = item.tall?.rect ?? item.rect;
+      bottom = math.max(bottom, rect[1] + rect[3]);
+    }
+    return (bottom - _contentHeight(w)) / (tall - widths[w].height);
+  }
+
+  /// How each of a node's box values grows per pixel of screen height at
+  /// [w], from the capture at a second height; null when it does not.
+  List<double>? _heightSlope(_Node node, int w) {
+    final double? tall = widths[w].tallHeight;
+    if (tall == null) return null;
+    final double span = tall - widths[w].height;
+    List<double>? base;
+    List<double>? other;
+    if (node.kind == 'control' || node.kind == 'field') {
+      base = node.boxes[w];
+      other = node.tallBoxes[w];
+    } else {
+      final _Item? item = node.items[w];
+      base = item?.rect;
+      other = item?.tall?.rect;
+      final _Node? container = node.container;
+      final List<double>? outer = container?.boxes[w];
+      if (outer != null && base != null && other != null) {
+        final List<double>? outerTall = container!.tallBoxes[w];
+        if (outerTall == null) return null;
+        base = <double>[base[0] - outer[0], base[1] - outer[1], base[2], base[3]];
+        other = <double>[other[0] - outerTall[0], other[1] - outerTall[1], other[2], other[3]];
+      }
+    }
+    if (base == null || other == null) return null;
+    final List<double> slope = <double>[
+      for (int index = 0; index < 4; index++) (other[index] - base[index]) / span,
+    ];
+    return slope.every((double value) => value.abs() < 0.001) ? null : slope;
+  }
+
+  /// A length that grows by [slope] per pixel of screen height: [plain] when
+  /// it does not, otherwise each captured value taken back to a screen of no
+  /// height (so the heights two widths were captured at are not read as a
+  /// change with width), moved linearly between widths [a] and [b] when both
+  /// are given, plus the screen's height in `dvh`.
+  String _heightAware(String plain, double slope, int near, double Function(int w) at, {int? a, int? b}) {
+    if (slope.abs() < 0.001) return plain;
+    double level(int w) => at(w) - slope * widths[w].height;
+    double px, vw = 0;
+    if (a != null && b != null && a != b) {
+      final double wA = widths[a].width, wB = widths[b].width;
+      vw = (level(b) - level(a)) / (wB - wA) * 100;
+      px = level(a) - vw / 100 * wA;
+    } else {
+      px = level(near);
+    }
+    return _lengths(px, vw, slope * 100);
   }
 
   double _contentHeight(int w) {
@@ -1084,6 +1279,15 @@ class _Layout {
             b.$1[index],
           )
         : '${_num(near.$1[index])}px';
+    final List<double>? slope = _heightSlope(node, range.near);
+    String placed(int index) => _heightAware(
+      v(index),
+      slope == null ? 0 : slope[index],
+      range.near,
+      (int w) => (w == range.a ? a : w == range.b ? b : near)!.$1[index],
+      a: linear ? range.a : null,
+      b: linear ? range.b : null,
+    );
     final bool pinned = near.$2;
     final _Item? item = node.items[range.near];
     final bool clamp =
@@ -1095,7 +1299,7 @@ class _Layout {
         ? pinned
         : pinned && node.container?.boxes[range.near] == null;
     return (
-      box: 'left:${v(0)};top:${v(1)};width:${v(2)};height:${v(3)}',
+      box: 'left:${placed(0)};top:${placed(1)};width:${placed(2)};height:${placed(3)}',
       display: clamp ? '-webkit-box' : 'block',
       position: fixed ? 'fixed' : 'absolute',
       z: control ? node.controlZ : item?.z,
@@ -1225,7 +1429,15 @@ class _Layout {
       case 'sub':
         if (node.subIndex >= dark.runs.length) return '';
         final String? colour = _colour(dark.runs[node.subIndex]['c']);
-        return colour == null ? '' : 'color:$colour';
+        final Object? gradient = dark.runs[node.subIndex]['g'];
+        final Object? lightGradient = node.subIndex < light.runs.length
+            ? light.runs[node.subIndex]['g']
+            : null;
+        return <String>[
+          if (colour != null) 'color:$colour',
+          if (gradient is String && gradient != lightGradient)
+            'background-image:${_cssValue(gradient)}',
+        ].join(';');
       case 'box':
         final String lightStyle = _boxStyle(light);
         final String darkStyle = _boxStyle(dark);
@@ -1277,6 +1489,15 @@ class _Layout {
     if (run['d'] is String)
       'text-decoration:${_cssWords(run['d'] as String)}${_colour(run['dc']) == null ? '' : ' ${_colour(run['dc'])}'}',
     if (run['sh'] is String) 'text-shadow:${_cssValue(run['sh'] as String)}',
+    // Filled with a gradient (DVGradientSpan): still the text itself, its
+    // glyphs cut out of the gradient, which runs along its line pieces laid
+    // end to end as the app paints it.
+    if (run['g'] is String) ...<String>[
+      'background-image:${_cssValue(run['g'] as String)}',
+      '-webkit-background-clip:text',
+      'background-clip:text',
+      '-webkit-text-fill-color:transparent',
+    ],
   ];
 
   String _font(Map<String, Object?> run, Object? lineHeight) {
@@ -1379,6 +1600,20 @@ String _linear(double wA, double vA, double wB, double vB) {
   final double viewport = (slope * 100 * 10000).roundToDouble() / 10000;
   if (viewport == 0) return '${_num(vA)}px';
   return 'calc(${_num(intercept)}px + ${_num(viewport)}vw)';
+}
+
+/// `px + vw + vh` as CSS, the screen's height in `dvh` (the height it has
+/// now, toolbars and all, which is the height the app lays out in).
+String _lengths(double px, double vw, double vh) {
+  double round(double value) => (value * 10000).roundToDouble() / 10000;
+  final double width = round(vw), height = round(vh);
+  final List<String> terms = <String>[
+    if (_num(px) != '0' || (width == 0 && height == 0)) '${_num(px)}px',
+    if (width != 0) '${_num(width)}vw',
+    if (height != 0) '${_num(height)}dvh',
+  ];
+  if (terms.length == 1) return terms.single;
+  return 'calc(${terms.join(' + ')})';
 }
 
 String _num(double value) {

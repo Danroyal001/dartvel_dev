@@ -371,13 +371,68 @@ the app; *size* and *colour* count blocks whose glyph size or ink differ.
 Every block on screen in both pictures is now in the app's font at its
 size; the tool still lists as "not found" the text the document keeps for
 screen readers only (a link's name, a menu that is closed), which is a 1 px
-clipped box and paints nothing. What the pixel diff still sees: glyph
+clipped box and paints nothing. What the pixel diff still saw then: glyph
 antialiasing (the browser and Flutter rasterise the same font differently),
-the home page's two radial glows behind the hero, which the site paints
+the home page's two radial glows behind the hero, which the site painted
 with a `CustomPainter`, and its headline's fade, a `ShaderMask`. Neither a
-custom painter nor a shader can be read back from the render tree, so a page
-that relies on them still changes there at the handover; everything built
-from boxes, text and images does not.
+custom painter nor a shader can be read back from the render tree.
+
+#### The last gaps (24 November 2026)
+
+- **Glows and gradient text.** `DVRadialGradient` (an elliptical radial
+  gradient sized to the box), `DVGradientPainter` (gradients stacked over a
+  box; any painter can implement `DVDescribedPainter`) and `DVGradientSpan`
+  in a `DVGradientText` (text filled with a gradient along its line pieces)
+  paint in Flutter and are read back by the snapshot, so the document draws
+  them in CSS: the glows as `radial-gradient` layers, the faded run as the
+  document's own text with `background-clip: text` (still selectable and
+  findable; a selection shows its glyphs). sigmadev.digital's hero now uses
+  them. Linear gradients also keep their angle and stops on a box of any
+  shape, and radial ones their radius.
+- **Text fields.** Material draws a field's border and fill with a painter
+  of its own; the snapshot works them out from the `InputDecoration` and
+  the theme as `InputDecorator` does (Material 3 and 2 defaults included).
+- **Screen height.** Each width is read again at a screen a quarter
+  taller; what moves or grows between the two gets a `dvh` term. The heights
+  two widths were captured at are taken out before moving between widths,
+  so they are not read as a change with width.
+- **Tab.** A link in a closed menu could take the same words painted
+  elsewhere at that width (sigmadev's header "Tools" took the footer
+  heading's at 390), leaving a Tab stop of no size; such text is now
+  matched last. A control the layout never places shows itself where the
+  reader can see it when focused.
+- **Triple-click** already selected the paragraph in Chrome; the earlier
+  report came from a check that clicked after Tab had scrolled the page.
+  The browser test still triple-clicks.
+
+Measured the same way, on the same sigmadev commit built twice as a
+web-server binary (before: Dartvel at #294; after: this change, with the
+site's hero on the new primitives). The tools pages are their own hosts
+(`tools.` and `base64.tools.`), reached with `--host-rules` and
+`--secure-origins`.
+
+| Page | Width | Scheme | Pixel diff, before → now |
+|---|---|---|---|
+| Home | 390 | light | 10.5 % → 3.1 % |
+| Home | 390 | dark | 12.2 % → 3.4 % |
+| Home | 1024 | light | 11.2 % → 5.0 % |
+| Home | 1024 | dark | 12.3 % → 4.4 % |
+| Home | 1366 | light | 8.1 % → 3.2 % |
+| Home | 1366 | dark | 9.1 % → 2.9 % |
+| Pricing | 390 | light / dark | 3.5 / 4.4 % → 1.3 / 1.8 % |
+| Pricing | 1024 | light / dark | 4.4 / 6.0 % → 2.4 / 3.6 % |
+| Pricing | 1366 | light / dark | 2.9 / 4.3 % → 1.2 / 2.2 % |
+| Tools | 390, 1024, 1366 | light / dark | 2.2-4.7 % → 2.2-4.5 % |
+| Base64 tool | 390, 1024, 1366 | light / dark | 1.2-4.0 % → 1.2-3.7 % |
+
+Median text offsets stay at 0-1 px (6 px on the base64 tool at 390, as
+before). What is left is glyph antialiasing and, on the tool pages, a
+dropdown's chosen value (the capture reads the page before the tool fills
+it) and checkboxes, which Material paints itself.
+
+Cost: about 0.3 KB more compressed on the home page (the gradient layers,
+the `dvh` terms and the focus rule), and three more reads per route at
+build time (nine instead of six).
 
 Cost: the home page went from 8 KB to about 11 KB compressed before its
 first screen can paint (the first stylesheet), and about 24 KB in all; the

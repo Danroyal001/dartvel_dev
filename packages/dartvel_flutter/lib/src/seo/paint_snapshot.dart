@@ -37,9 +37,12 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart' show ColorScheme, InputBorder, InputDecorationTheme, InputDecorator, OutlineInputBorder, Theme, ThemeData, UnderlineInputBorder, WidgetState, WidgetStateProperty;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+
+import '../widgets/described_paint.dart';
 
 /// The paint snapshot of the app as it is on screen now.
 Map<String, Object?> dvPaintSnapshot() {
@@ -133,6 +136,10 @@ class _Snapshot {
     final Widget widget = element.widget;
     if (widget is Image) next = next.copyWith(image: widget.image);
     if (widget is Scrollable) next = next.copyWith(axis: axisDirectionToAxis(widget.axisDirection));
+    // A text field's border and fill: Material draws them with a painter of
+    // its own, so they are worked out from the decoration as it does.
+    if (widget is InputDecorator && next.opacity > 0.004) _inputBorder(element, widget, next);
+    (Object, Rect)? foregroundAfter;
 
     if (element is RenderObjectElement) {
       final RenderObject object = element.renderObject;
@@ -171,6 +178,10 @@ class _Snapshot {
             _paragraph(object, rect, next);
           } else if (object is RenderImage) {
             _image(object, rect, next);
+          } else if (object is RenderCustomPaint) {
+            _described(object.painter, rect, next);
+            final CustomPainter? foreground = object.foregroundPainter;
+            if (foreground is DVDescribedPainter) foregroundAfter = (foreground!, rect);
           }
 
           // What the children inherit: a narrower clip, the page scroller.
@@ -229,6 +240,8 @@ class _Snapshot {
     } else {
       element.debugVisitOnstageChildren((Element child) => visit(child, inherited));
     }
+    // A described foreground painter paints over what is inside it.
+    if (foregroundAfter != null) _described(foregroundAfter.$1, foregroundAfter.$2, next);
   }
 
   /// The common fields, or null when [rect] is clipped away or empty.
@@ -314,7 +327,7 @@ class _Snapshot {
       final List<BoxShadow>? shadows = decoration.boxShadow;
       _box(rect, state,
           background: decoration.color,
-          gradient: _gradient(decoration.gradient),
+          gradient: _gradient(decoration.gradient, rect),
           radii: radii,
           border: borderValue,
           shadow: shadows == null || shadows.isEmpty
@@ -334,11 +347,144 @@ class _Snapshot {
     } else if (decoration is ShapeDecoration) {
       _box(rect, state,
           background: decoration.color,
-          gradient: _gradient(decoration.gradient),
+          gradient: _gradient(decoration.gradient, rect),
           radii: _shapeRadii(decoration.shape, rect),
           shadow: decoration.shadows == null || decoration.shadows!.isEmpty
               ? null
               : decoration.shadows!.map(_boxShadow).join(','));
+    }
+  }
+
+  /// A painter that says which gradients it paints: one box with them, top
+  /// layer first as CSS lists them. Anything else is code the capture cannot
+  /// read, and paints nothing here.
+  void _described(Object? painter, Rect rect, _State state) {
+    if (painter is! DVDescribedPainter) return;
+    final List<Gradient> layers =
+        painter.describePaint(rect.size);
+    final List<String> css = <String>[
+      for (final Gradient layer in layers.reversed)
+        if (_gradient(layer, rect) case final String value) value,
+    ];
+    if (css.isEmpty) return;
+    _box(rect, state, gradient: css.join(','));
+  }
+
+  /// A text field's border and fill, as [InputDecorator] resolves them in
+  /// its resting state (enabled or disabled, with or without an error, not
+  /// focused): the decoration with the theme's defaults, then Material's own
+  /// default border when the decoration names none. Placed on the box the
+  /// border is drawn round (the decorator's container, which leaves out the
+  /// helper and error text under it).
+  void _inputBorder(Element element, InputDecorator widget, _State state) {
+    final ThemeData theme = Theme.of(element);
+    final decoration = widget.decoration.applyDefaults(InputDecorationTheme.of(element));
+    if (decoration.isCollapsed ?? false) return;
+    final bool error = decoration.errorText != null || decoration.error != null;
+    final bool enabled = decoration.enabled;
+    final Set<WidgetState> states = <WidgetState>{
+      if (!enabled) WidgetState.disabled,
+      if (error) WidgetState.error,
+    };
+    InputBorder? border = !enabled
+        ? (error ? decoration.errorBorder : decoration.disabledBorder)
+        : (error ? decoration.errorBorder : decoration.enabledBorder);
+    if (border == null) {
+      final InputBorder base =
+          WidgetStateProperty.resolveAs<InputBorder?>(decoration.border, states) ??
+              const UnderlineInputBorder();
+      if (decoration.border is WidgetStateProperty<InputBorder> ||
+          base.borderSide == BorderSide.none) {
+        border = base;
+      } else {
+        final ColorScheme colours = theme.colorScheme;
+        final bool filled = decoration.filled ?? false;
+        final BorderSide side;
+        if (theme.useMaterial3) {
+          final Color colour = !enabled
+              ? colours.onSurface.withValues(alpha: filled ? 0.38 : 0.12)
+              : error
+                  ? colours.error
+                  : filled
+                      ? colours.onSurfaceVariant
+                      : colours.outline;
+          final BorderSide? themed = filled
+              ? WidgetStateProperty.resolveAs<BorderSide?>(
+                  InputDecorationTheme.of(element).activeIndicatorBorder, states)
+              : null;
+          side = themed ?? BorderSide(color: colour);
+        } else {
+          side = BorderSide(
+            color: error
+                ? colours.error
+                : colours.onSurface.withValues(alpha: filled ? 0.42 : 0.38),
+          );
+        }
+        border = base.copyWith(borderSide: side);
+      }
+    }
+    // The container: the CustomPaint Material draws the border with. The
+    // text being edited is skipped (a multi-line field's scrollbar is a
+    // foreground painter too, inside the border), and of what is left the
+    // largest is the border's.
+    RenderBox? container;
+    double containerArea = -1;
+    void find(Element child) {
+      final Widget widget = child.widget;
+      if (widget is EditableText) return;
+      if (widget is CustomPaint && widget.foregroundPainter != null) {
+        final RenderObject? object = child.renderObject;
+        if (object is RenderBox && object.hasSize) {
+          final double area = object.size.width * object.size.height;
+          if (area > containerArea) {
+            container = object;
+            containerArea = area;
+          }
+        }
+      }
+      child.visitChildren(find);
+    }
+
+    element.visitChildren(find);
+    final RenderBox? box = container ?? element.renderObject as RenderBox?;
+    if (box == null) return;
+    final Rect? rect = _rectOf(box);
+    if (rect == null) return;
+    Color? fill;
+    if (decoration.filled ?? false) {
+      fill = WidgetStateProperty.resolveAs<Color?>(decoration.fillColor, states) ??
+          (theme.useMaterial3
+              ? (enabled
+                  ? theme.colorScheme.surfaceContainerHighest
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.04))
+              : (theme.brightness == Brightness.dark
+                  ? const Color(0x1AFFFFFF)
+                  : const Color(0x0A000000)));
+    }
+    final BorderSide side = border.borderSide;
+    final bool drawn = side.style != BorderStyle.none && side.width > 0;
+    if (border is OutlineInputBorder) {
+      _box(rect, state,
+          background: fill,
+          radii: _radii(border.borderRadius),
+          border: drawn ? <Object?>[_round(side.width), dvCssColor(side.color)] : null);
+    } else if (border is UnderlineInputBorder) {
+      _box(rect, state,
+          background: fill,
+          radii: fill == null
+              ? null
+              : _radii(BorderRadius.only(
+                  topLeft: border.borderRadius.topLeft,
+                  topRight: border.borderRadius.topRight)),
+          border: drawn
+              ? <Object?>[
+                  _round(side.width),
+                  dvCssColor(side.color),
+                  <double>[0, 0, _round(side.width), 0],
+                ]
+              : null);
+    } else if (fill != null) {
+      _box(rect, state, background: fill);
     }
   }
 
@@ -354,7 +500,7 @@ class _Snapshot {
       final TextStyle style = current.style == null ? inherited : inherited.merge(current.style);
       if (current is TextSpan) {
         final String? own = current.text;
-        if (own != null && own.isNotEmpty) runs.add(_run(own, style, scaler));
+        if (own != null && own.isNotEmpty) runs.add(_run(current, own, style, scaler));
         for (final InlineSpan child in current.children ?? const <InlineSpan>[]) {
           walk(child, style);
         }
@@ -410,7 +556,7 @@ class _Snapshot {
   }
 }
 
-Map<String, Object?> _run(String text, TextStyle style, TextScaler scaler) {
+Map<String, Object?> _run(TextSpan span, String text, TextStyle style, TextScaler scaler) {
   final double size = scaler.scale(style.fontSize ?? 14);
   final Map<String, Object?> run = <String, Object?>{
     't': text,
@@ -419,6 +565,10 @@ Map<String, Object?> _run(String text, TextStyle style, TextScaler scaler) {
     'fw': (style.fontWeight ?? FontWeight.w400).value,
   };
   if (style.fontStyle == FontStyle.italic) run['it'] = true;
+  if (span is DVGradientSpan) {
+    final String? gradient = _gradient(span.gradient);
+    if (gradient != null) run['g'] = gradient;
+  }
   final Color? colour = style.color ?? style.foreground?.color;
   run['c'] = dvCssColor(colour ?? const Color(0xFF000000));
   if (style.letterSpacing != null && style.letterSpacing != 0) {
@@ -465,7 +615,7 @@ String dvCssColor(Color color) {
     String hex(int v) => v.toRadixString(16).padLeft(2, '0');
     return '#${hex(r)}${hex(g)}${hex(b)}';
   }
-  return 'rgba($r,$g,$b,${_round(a / 255, 1000)})';
+  return 'rgba($r,$g,$b,${_trim(_round(a / 255, 1000))})';
 }
 
 String _boxShadow(BoxShadow shadow) =>
@@ -482,26 +632,72 @@ String _elevationShadow(double elevation, Color colour) {
       '0px ${_px(elevation * 0.25)} ${_px(elevation * 0.5)} 0px $ambient';
 }
 
-String? _gradient(Gradient? gradient) {
+/// [gradient] as a CSS image over [box] (its size decides a linear
+/// gradient's angle and a circle's radius), or null for one CSS cannot draw.
+/// [box] null: the gradient on a run of text, which CSS lays over the run's
+/// line pieces end to end; a linear one is then angled the way
+/// `DVGradientSpan` paints it.
+String? _gradient(Gradient? gradient, [Rect? box]) {
   if (gradient == null) return null;
-  final List<String> stops = <String>[
-    for (int index = 0; index < gradient.colors.length; index++)
-      gradient.stops == null
-          ? dvCssColor(gradient.colors[index])
-          : '${dvCssColor(gradient.colors[index])} ${_round(gradient.stops![index] * 100)}%',
-  ];
+  final int count = gradient.colors.length;
+  if (count == 0) return null;
+  double stopAt(int index) =>
+      gradient.stops != null && index < gradient.stops!.length
+          ? gradient.stops![index]
+          : (count == 1 ? 0 : index / (count - 1));
+  String stops([double Function(double)? map]) => <String>[
+        for (int index = 0; index < count; index++)
+          '${dvCssColor(gradient.colors[index])} '
+              '${_trim(_round((map == null ? stopAt(index) : map(stopAt(index))) * 100))}%',
+      ].join(',');
+  String at(Alignment centre) =>
+      'at ${_trim(_round((centre.x + 1) * 50))}% ${_trim(_round((centre.y + 1) * 50))}%';
   if (gradient is LinearGradient) {
-    final Alignment begin = gradient.begin.resolve(TextDirection.ltr);
-    final Alignment end = gradient.end.resolve(TextDirection.ltr);
-    // CSS angles run clockwise from "to top".
-    final double degrees =
-        math.atan2(end.x - begin.x, -(end.y - begin.y)) * 180 / math.pi;
-    return 'linear-gradient(${_round((degrees + 360) % 360)}deg,${stops.join(',')})';
+    if (box == null || box.isEmpty) {
+      return 'linear-gradient(${_trim(_round(dvCssGradientAngle(gradient)))}deg,${stops()})';
+    }
+    // Flutter's line runs from begin to end on the box; CSS's runs through
+    // the centre at an angle, as long as the box projects onto it. Same
+    // direction, so each stop is moved to where it falls on CSS's line.
+    final Size size = box.size;
+    final Offset begin = gradient.begin.resolve(TextDirection.ltr).alongSize(size);
+    final Offset end = gradient.end.resolve(TextDirection.ltr).alongSize(size);
+    final Offset line = end - begin;
+    final double length = line.distance;
+    if (length <= 0) return null;
+    final double radians = math.atan2(line.dx, -line.dy);
+    final Offset direction = Offset(math.sin(radians), -math.cos(radians));
+    final double cssLength =
+        size.width * direction.dx.abs() + size.height * direction.dy.abs();
+    if (cssLength <= 0) return null;
+    final Offset cssStart = size.center(Offset.zero) - direction * (cssLength / 2);
+    final Offset fromStart = begin - cssStart;
+    final double offset = fromStart.dx * direction.dx + fromStart.dy * direction.dy;
+    final double degrees = (radians * 180 / math.pi + 360) % 360;
+    return 'linear-gradient(${_trim(_round(degrees))}deg,'
+        '${stops((double t) => (offset + t * length) / cssLength)})';
+  }
+  if (gradient is DVRadialGradient) {
+    final Alignment centre = gradient.center.resolve(TextDirection.ltr);
+    return 'radial-gradient(${_trim(_round(gradient.radiusX * 100))}% '
+        '${_trim(_round(gradient.radiusY * 100))}% ${at(centre)},${stops()})';
   }
   if (gradient is RadialGradient) {
+    if (gradient.focal != null || gradient.transform != null) return null;
     final Alignment centre = gradient.center.resolve(TextDirection.ltr);
-    return 'radial-gradient(circle at ${_round((centre.x + 1) * 50)}% '
-        '${_round((centre.y + 1) * 50)}%,${stops.join(',')})';
+    final String size = box == null || box.isEmpty
+        ? 'closest-side'
+        : '${_trim(_round(gradient.radius * box.shortestSide))}px';
+    return 'radial-gradient(circle $size ${at(centre)},${stops()})';
+  }
+  if (gradient is SweepGradient) {
+    if (gradient.transform != null) return null;
+    final Alignment centre = gradient.center.resolve(TextDirection.ltr);
+    // Flutter sweeps from 3 o'clock, CSS from 12; both clockwise.
+    final double from = gradient.startAngle * 180 / math.pi + 90;
+    final double span = (gradient.endAngle - gradient.startAngle) / (2 * math.pi);
+    return 'conic-gradient(from ${_trim(_round(from))}deg ${at(centre)},'
+        '${stops((double t) => t * span)})';
   }
   return null;
 }

@@ -203,6 +203,35 @@ void main() {
       expect(out, contains('#$link{display:none}'));
     });
 
+    test('a menu link off screen at a width does not take the same words painted elsewhere', () {
+      // "Tools" is a header link (in a closed menu at 390) and a footer
+      // heading. At 390 only the heading is painted; the link must not claim
+      // it, or the link becomes a zero-size Tab stop and the heading loses
+      // its text.
+      const String doc = '<nav><a href="/tools" aria-label="Tools">Tools</a></nav>\n'
+          '<footer><h3>Tools</h3></footer>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Tools', <num>[20, 2000, 40, 15], z: 3),
+          ]),
+          _width(1366, <Map<String, Object?>>[
+            _text('Tools', <num>[600, 20, 40, 20], z: 2, scrolls: false),
+            _text('Tools', <num>[20, 1500, 40, 15], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/tools', 'name': 'Tools', 'r': <num>[598, 18, 44, 24]},
+          ]),
+        ]),
+      );
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      final String heading = RegExp(r'<h3><span id="(dvr\d+)">Tools').firstMatch(out)!.group(1)!;
+      // At 390 (the first range) the link is not on screen, and the heading
+      // is where the app paints it: 2000 px down at 390, 1500 at 1366.
+      expect(out, contains('#$link{display:none}'));
+      expect(out, contains('#$heading{left:20px;top:calc(2199.8px + -51.23vw)'));
+    });
+
     test('a link whose box was not found keeps its painted text on screen', () {
       final String out = dvSsrFirstLayout(
         _doc,
@@ -411,6 +440,144 @@ void main() {
       // The minifier reads nested rules as declarations; nothing written may
       // depend on a space it would take out.
       expect(dvMinifyCss(style(out)), style(out));
+    });
+
+    test('a run filled with a gradient is real text clipped to its gradient', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40], runs: <Map<String, Object?>>[
+              <String, Object?>{'t': 'Ship ', 'f': 'Inter', 'fs': 32, 'fw': 700, 'c': '#ffffff'},
+              <String, Object?>{
+                't': 'faster',
+                'f': 'Inter',
+                'fs': 32,
+                'fw': 700,
+                'c': '#ffffff',
+                'g': 'linear-gradient(120deg,#ffffff 0%,#a3a3a3 100%)',
+              },
+            ]),
+          ]),
+        ]),
+      );
+      expect(out, contains('<h1><span id="dvr'));
+      expect(_visibleText(out), _visibleText(_doc));
+      final String sub = RegExp(r'<span id="(dvr[\d-]+)">faster</span>').firstMatch(out)!.group(1)!;
+      final RegExp rule = RegExp('#$sub[^{]*\\{([^}]*)\\}');
+      final String style = rule.firstMatch(out)!.group(1)!;
+      expect(style, contains('background-image:linear-gradient(120deg,#ffffff 0%,#a3a3a3 100%)'));
+      expect(style, contains('-webkit-background-clip:text'));
+      expect(style, contains('-webkit-text-fill-color:transparent'));
+      // Selected, the glyphs show again.
+      expect(out, contains('::selection{-webkit-text-fill-color:'));
+    });
+
+    test('a section the height of the screen grows with the screen', () {
+      // Captured at 800 and 1000 high: the hero is the screen's height, the
+      // headline sits in its middle and the next section starts below it.
+      Map<String, Object?> at(num height) => <String, Object?>{
+            'height': height,
+            'items': <Map<String, Object?>>[
+              <String, Object?>{'k': 'b', 'r': <num>[0, 0, 390, height], 'z': 0, 's': true, 'bg': '#000000'},
+              _text('Ship faster', <num>[20, height / 2 - 20, 350, 40], z: 1),
+              _text('Build once.', <num>[20, height + 40, 200, 24], z: 2),
+            ],
+            'controls': <Object?>[],
+          };
+      final Map<String, Object?> width = _width(390, (at(800)['items']! as List<Object?>).cast())
+        ..['tall'] = at(1000);
+      final String out = dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[width]));
+      String id(String text) => RegExp('<span id="(dvr\\d+)">$text').firstMatch(out)!.group(1)!;
+      expect(out, contains('#${id('Ship faster')}{left:20px;top:calc(-20px + 50dvh);'));
+      expect(out, contains('#${id('Build once.')}{left:20px;top:calc(40px + 100dvh);'));
+      final String hero = RegExp(r'<i id="(dvp\d+)">').firstMatch(out)!.group(1)!;
+      expect(out, contains('#$hero{left:0px;top:0px;width:390px;height:100dvh'));
+      expect(out, contains('.dvl{height:calc(64px + 100dvh)}'));
+      // What does not depend on the height is written as before.
+      expect(out, contains('left:20px;top:calc(-20px + 50dvh);width:350px;height:40px'));
+    });
+
+    test('widths captured at different heights: the height is not read as width', () {
+      // 360 is captured 800 high and 390 844 high; the page is the screen's
+      // height at both, which is no change with width at all.
+      Map<String, Object?> at(int width, num height) {
+        List<Map<String, Object?>> items(num h) => <Map<String, Object?>>[
+              <String, Object?>{'k': 'b', 'r': <num>[0, 0, width, h], 'z': 0, 's': false, 'bg': '#000000'},
+              _text('Ship faster', <num>[20, h - 60, 300, 40], z: 1, scrolls: false),
+            ];
+        return <String, Object?>{
+          'width': width,
+          'height': height,
+          'light': <String, Object?>{'width': width, 'height': height, 'items': items(height)},
+          'controls': <Object?>[],
+          'tall': <String, Object?>{'height': height * 1.25, 'items': items(height * 1.25), 'controls': <Object?>[]},
+        };
+      }
+
+      final String out = dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[at(360, 800), at(390, 844)]));
+      final String hero = RegExp(r'<i id="(dvp\d+)">').firstMatch(out)!.group(1)!;
+      final String id = RegExp(r'<span id="(dvr\d+)">Ship faster').firstMatch(out)!.group(1)!;
+      expect(out, isNot(contains('146.67vw')));
+      expect(out, contains('#$hero{left:0px;top:0px;width:calc(0px + 100vw);height:100dvh'));
+      expect(out, contains('#$id{left:20px;top:calc(-60px + 100dvh);width:300px;height:40px'));
+    });
+
+    test('what is not paired at the second height still counts in the scroll height', () {
+      // The footer at 3000 is not found at the taller screen (a lazy list
+      // built differently): the scroll height must not shrink with the screen.
+      final Map<String, Object?> width = _width(390, <Map<String, Object?>>[
+        _text('Ship faster', <num>[20, 100, 350, 40]),
+        <String, Object?>{'k': 'b', 'r': <num>[0, 2900, 390, 100], 'z': 2, 's': true, 'bg': '#222222'},
+      ])
+        ..['tall'] = <String, Object?>{
+          'height': 1000,
+          'items': <Map<String, Object?>>[_text('Ship faster', <num>[20, 100, 350, 40])],
+          'controls': <Object?>[],
+        };
+      final String out = dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[width]));
+      expect(out, contains('.dvl{height:3000px}'));
+    });
+
+    test('a capture with no second height is laid out as before', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[_text('Ship faster', <num>[20, 100, 350, 40])]),
+        ]),
+      );
+      expect(out, isNot(contains('dvh')));
+    });
+
+    test('a link kept only for readers shows itself when the keyboard reaches it', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[_text('Ship faster', <num>[20, 100, 350, 40])]),
+        ]),
+      );
+      // "See pricing" is not painted: kept for readers, hidden from the eye,
+      // and no Tab stop is ever invisible.
+      expect(out, contains('<span class="dvu">See pricing</span>'));
+      expect(out, contains('.dvu:focus-within'));
+      expect(out, matches(RegExp(r'\.dvl \.dvu:focus-within[,{][^}]*clip-path:none')));
+      // A link whose own text is kept only for readers shows itself too.
+      expect(out, matches(RegExp(r'<a [^>]*class="dvf"[^>]*href="/pricing"|<a [^>]*href="/pricing"[^>]*class="dvf"')));
+      expect(out, matches(RegExp(r'\.dvl \.dvf:focus[,{][^}]*clip-path:none')));
+    });
+
+    test('a placed link with nothing but a picture in it keeps its place when focused', () {
+      final String out = dvSsrFirstLayout(
+        '<a href="/" aria-label="Home"><img src="logo.png" alt=""></a>\n',
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{'k': 'i', 'r': <num>[20, 16, 80, 40], 'z': 1, 's': false, 'src': 'logo.png', 'fit': 'contain'},
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/', 'name': 'Home', 'r': <num>[20, 16, 80, 40]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('class="dvf"')));
     });
 
     test('no capture for a width: the document is returned as it was', () {

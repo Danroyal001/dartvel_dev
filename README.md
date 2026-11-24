@@ -583,7 +583,11 @@ light and dark, and the document's own text, links and fields are placed at
 those boxes in the app's fonts and colours, over a layer that draws its
 surfaces and images. It is still the real document (selection, find, Tab and
 screen readers work on it), and Flutter takes over in place at its first
-frame. See docs/web-performance.md.
+frame. Each width is also read at a taller screen, so a section the height
+of the screen fits any screen. A custom painter or shader is code the build
+cannot read; draw glows with `DVRadialGradient`/`DVGradientPainter` and
+gradient-filled text with `DVGradientSpan` in a `DVGradientText`, and the
+document draws them too. See docs/web-performance.md.
 
 Earlier releases (0.13.22 to 0.13.24) showed a picture of each page, captured
 at build time, before the app loaded. It was removed: it looked finished but

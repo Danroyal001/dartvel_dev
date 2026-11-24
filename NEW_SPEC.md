@@ -573,10 +573,34 @@ The table is the contract. Each row says which entries a target has, what
   `Text` defaults, Material's own surfaces and every third-party widget, and
   would need a CSS re-implementation of Flutter's layout. The render tree
   after layout is the answer itself, for every widget, and the capture that
-  produces it already exists. *Limits:* a viewport height other than the
-  captured one (a hero sized to the screen), a width far from a captured
-  one where the layout is not linear, custom painters, shaders and blurs,
-  and a slot the server fills with longer text than the build's.
+  produces it already exists.
+  *Screen height.* Each width is also read at a screen a quarter taller
+  (light only: the layout does not change with the scheme). A box that moves
+  or grows between the two -- a hero the height of the screen, what follows
+  it, a bar pinned to the bottom -- gets a `dvh` term
+  (`calc(Apx + Bvw + Cdvh)`), so the document fits a screen of any height as
+  the app does; one that does not is written as before.
+  *Paint the render tree cannot say.* A `CustomPainter` and a `ShaderMask`
+  are code: the snapshot sees their box, not what they drew. Three DV
+  primitives draw the common cases from values it can read, and the document
+  draws them in CSS: `DVRadialGradient` (an elliptical radial gradient sized
+  to the box, CSS's `radial-gradient(60% 80% at 85% 0%, ...)`, usable
+  wherever a `Gradient` is), `DVGradientPainter` (gradients stacked over a
+  box, as a `CustomPaint` painter; any painter can implement
+  `DVDescribedPainter` to say which gradients it draws) and
+  `DVGradientSpan` in a `DVGradientText` (text filled with a gradient that
+  runs along its line pieces laid end to end, which the document draws as
+  its own text with `background-clip: text`, still selectable and findable).
+  A text field's border and fill, which Material paints itself, are worked
+  out from its `InputDecoration` and the theme as `InputDecorator` does.
+  Linear gradients keep their angle and stops on a box of any shape, radial
+  ones their radius.
+  *Tab.* A link or field the document keeps only for readers (a closed
+  menu's) shows itself where the reader can see it when the keyboard
+  reaches it, so no Tab stop is invisible.
+  *Limits:* a width far from a captured one where the layout is not linear,
+  painters that are not described, other shaders, blurs, and a slot the
+  server fills with longer text than the build's.
 - **The splash and its bar on a device too.** On Android, iOS, macOS, Windows
   and Linux the launch screen the platform draws stays up until Flutter's first
   frame, and nothing can move on it. `DV.run` draws the application's own

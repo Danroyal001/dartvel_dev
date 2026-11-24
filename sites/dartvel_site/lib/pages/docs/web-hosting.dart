@@ -115,9 +115,13 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'readers can select it, search it, tab through it and follow '
           'its links, which open as normal pages. The loading bar stays '
           'at the top. When the app has drawn its first screen it takes '
-          'over in place. Drawings your app paints itself (a custom '
-          'painter, a blur) are not copied, so it is off unless you turn '
-          'it on.',
+          'over in place. A section as tall as the screen fits every '
+          'screen height. A custom painter, a shader or a blur is code '
+          'the build cannot read, so it appears only when the app takes '
+          'over; draw glows with DVRadialGradient or DVGradientPainter and '
+          'gradient text with DVGradientSpan in a DVGradientText, and the '
+          'page draws those from the start. It is off unless you turn it '
+          'on.',
         ),
         DocsShell(<String>[
           '# pubspec.yaml',
