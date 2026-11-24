@@ -492,6 +492,42 @@ void main() {
     expect(border['bg'], '#f4f4f4');
   });
 
+  testWidgets('a multi-line field\'s border is round the whole field, not its scroller',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: 300,
+              child: TextField(
+                minLines: 6,
+                maxLines: null,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Rect field = tester.getRect(find.byType(InputDecorator));
+    final List<Map<String, Object?>> borders = _items(dvPaintSnapshot())
+        .where((Map<String, Object?> item) => item['k'] == 'b' && item['bd'] != null)
+        .toList();
+    expect(borders, hasLength(1));
+    expect(_rect(borders.single), <double>[field.left, field.top, field.width, field.height]);
+    // On the desktop and the web a multi-line field draws a scrollbar with a
+    // painter of its own, inside the border.
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+
   testWidgets('a default text field: Material 3\'s underline, in the theme\'s colour',
       (WidgetTester tester) async {
     final ThemeData theme = ThemeData(colorSchemeSeed: const Color(0xFF225588));

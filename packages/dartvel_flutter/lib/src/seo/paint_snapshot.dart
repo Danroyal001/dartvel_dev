@@ -423,15 +423,24 @@ class _Snapshot {
         border = base.copyWith(borderSide: side);
       }
     }
-    // The container: the CustomPaint Material draws the border with.
+    // The container: the CustomPaint Material draws the border with. The
+    // text being edited is skipped (a multi-line field's scrollbar is a
+    // foreground painter too, inside the border), and of what is left the
+    // largest is the border's.
     RenderBox? container;
+    double containerArea = -1;
     void find(Element child) {
-      if (container != null) return;
       final Widget widget = child.widget;
+      if (widget is EditableText) return;
       if (widget is CustomPaint && widget.foregroundPainter != null) {
         final RenderObject? object = child.renderObject;
-        if (object is RenderBox) container = object;
-        return;
+        if (object is RenderBox && object.hasSize) {
+          final double area = object.size.width * object.size.height;
+          if (area > containerArea) {
+            container = object;
+            containerArea = area;
+          }
+        }
       }
       child.visitChildren(find);
     }
