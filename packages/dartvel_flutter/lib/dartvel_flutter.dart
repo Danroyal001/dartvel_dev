@@ -4388,6 +4388,21 @@ class DVText extends StatelessWidget {
     final DVGestureSet? gestures = modifier?.gestureSet;
     if (gestures != null) result = gestures.announce(gestures.wrap(result));
 
+    // A tooltip on text nobody presses: a field, or a status word. The
+    // pressable above already shows its own; the box half below is built
+    // with the interaction cleared, so without this the words given to
+    // .tooltip() were dropped and a field named that way showed nothing.
+    // Never on a long press in a field, where a long press selects text.
+    final String? tooltip = modifier?.tooltipValue?.trim();
+    if (modifier != null && !textPressable && tooltip != null && tooltip.isNotEmpty) {
+      result = DVTooltipTarget(
+        label: tooltip,
+        required: false,
+        longPressShows: modifier.inputValue != true,
+        child: result,
+      );
+    }
+
     if (modifier != null && modifier.hasBoxStyling) {
       result = DVBox(result).modifier(
         modifier._copyWith(clearInteraction: true),
