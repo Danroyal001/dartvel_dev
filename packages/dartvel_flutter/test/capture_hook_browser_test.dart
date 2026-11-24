@@ -96,6 +96,16 @@ void main() {
         isTrue);
   });
 
+  testWidgets('idle() and brightness() say when a picture is worth reading',
+      (WidgetTester tester) async {
+    final GoRouter app = router();
+    dvInstallCaptureHook(app, automated: true);
+    await tester.pumpWidget(MaterialAppShim(app));
+    await tester.pumpAndSettle();
+    expect(hook()!.callMethod<JSBoolean>('idle'.toJS).toDart, isTrue);
+    expect(<String>['light', 'dark'], contains(hook()!.callMethod<JSString>('brightness'.toJS).toDart));
+  });
+
   testWidgets('a browser a person is using gets no hook', (WidgetTester tester) async {
     dvInstallCaptureHook(router(), automated: false);
     expect(hook(), isNull);
