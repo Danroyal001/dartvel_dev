@@ -27,8 +27,9 @@ import 'package:flutter/foundation.dart';
 
 import 'browser_clicks_stub.dart' if (dart.library.js_interop) 'browser_clicks_web.dart' as platform;
 
-/// Hears a run of [count] clicks ending at [position], in logical pixels.
-typedef DVBrowserClickListener = void Function(int count, Offset position);
+/// Hears a run of [count] clicks ending at [position], in logical pixels;
+/// true when it was on that listener's page and it selected.
+typedef DVBrowserClickListener = bool Function(int count, Offset position);
 
 abstract final class DVBrowserClicks {
   static final List<DVBrowserClickListener> _listeners = <DVBrowserClickListener>[];
@@ -47,8 +48,10 @@ abstract final class DVBrowserClicks {
   @visibleForTesting
   static void report(int count, Offset position) {
     if (count < 2) return;
-    for (final DVBrowserClickListener listener in List<DVBrowserClickListener>.of(_listeners)) {
-      listener(count, position);
+    // The last page built first: a page shell nested in another is the one
+    // the click landed in, and only one page selects.
+    for (final DVBrowserClickListener listener in List<DVBrowserClickListener>.of(_listeners).reversed) {
+      if (listener(count, position)) return;
     }
   }
 }

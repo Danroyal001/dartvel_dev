@@ -37,7 +37,6 @@ import 'package:meta/meta.dart';
 
 import 'src/accessibility/browser_clicks.dart';
 import 'src/accessibility/keyboard_scroll.dart';
-import 'src/lists/lazy_list_view.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/selection_mirror.dart';
@@ -59,6 +58,7 @@ import 'src/display_platform.dart'
     as display_platform;
 import 'src/find/find_in_page.dart';
 import 'src/lists/lazy_lists.dart';
+import 'src/lists/lazy_list_view.dart';
 import 'src/lists/near_screen.dart';
 import 'src/find/find_platform_stub.dart'
     if (dart.library.js_interop) 'src/find/find_platform_web.dart'
@@ -11783,16 +11783,16 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   /// A run of clicks the browser counted and Flutter may not have: selects
   /// the word or the paragraph under the last one, as Flutter does with a
   /// run it counts. See browser_clicks.dart.
-  void _browserClicks(int count, Offset position) {
-    if (!mounted || !_onTop) return;
+  bool _browserClicks(int count, Offset position) {
+    if (!mounted || !_onTop) return false;
     final SelectableRegionState? region = _selectionAreaKeys[DVBrowserMenu.nativeMenuOn.value]?.currentState?.selectableRegion;
-    if (region == null || !region.mounted) return;
+    if (region == null || !region.mounted) return false;
     // Only on this page's text, and never in a field being typed in: a
     // field selects its own words.
     final RenderObject? box = region.context.findRenderObject();
-    if (box is! RenderBox || !box.hasSize || !box.size.contains(box.globalToLocal(position))) return;
+    if (box is! RenderBox || !box.hasSize || !box.size.contains(box.globalToLocal(position))) return false;
     final BuildContext? focused = FocusManager.instance.primaryFocus?.context;
-    if (focused != null && (focused.widget is EditableText || focused.findAncestorWidgetOfExactType<EditableText>() != null)) return;
+    if (focused != null && (focused.widget is EditableText || focused.findAncestorWidgetOfExactType<EditableText>() != null)) return false;
     SelectionContainerDelegate? delegate;
     void visit(Element element) {
       if (delegate != null) return;
@@ -11806,7 +11806,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
 
     (region.context as Element).visitChildElements(visit);
     final SelectionContainerDelegate? found = delegate;
-    if (found == null) return;
+    if (found == null) return false;
     // Cleared first: a paragraph already holding the collapsed caret the
     // last click left counts as selected, and would not be selected again.
     region.clearSelection();
@@ -11816,6 +11816,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     final SelectedContent? content = found.getSelectedContent();
     _selected = content;
     DVSelectionMirror.write(content?.plainText);
+    return true;
   }
 
   /// The selection menu on screen, if one is, so Esc can close it.
