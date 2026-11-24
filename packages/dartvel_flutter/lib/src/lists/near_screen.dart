@@ -33,9 +33,43 @@ class DVNearScreen extends StatefulWidget {
   State<DVNearScreen> createState() => _DVNearScreenState();
 }
 
-class _DVNearScreenState extends State<DVNearScreen> {
+/// A row [DVNearScreen] holds a place for and has not built yet.
+///
+/// Read by keyboard traversal (lazy_traversal.dart): a row that is not built
+/// has no focus node, so Tab would jump over it to whatever is built after
+/// it. Traversal builds the rows between the focus and the next control
+/// first.
+abstract class DVUnbuiltRow {
+  /// The placeholder's element, for where it is on screen.
+  BuildContext get context;
+
+  /// Builds the row now, wherever the page is scrolled.
+  void buildNow();
+}
+
+/// The rows waiting to be built, in no particular order.
+Iterable<DVUnbuiltRow> get dvUnbuiltRows => _DVNearScreenState._waiting;
+
+class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow {
+  static final Set<_DVNearScreenState> _waiting = <_DVNearScreenState>{};
+
   bool _built = DVLazyLists.buildWhole;
   ScrollPosition? _position;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_built) _waiting.add(this);
+  }
+
+  @override
+  void buildNow() {
+    if (_built || !mounted) return;
+    _waiting.remove(this);
+    _position?.removeListener(_check);
+    _position = null;
+    setState(() => _built = true);
+  }
 
   @override
   void didChangeDependencies() {
@@ -44,6 +78,7 @@ class _DVNearScreenState extends State<DVNearScreen> {
     final ScrollPosition? position = Scrollable.maybeOf(context)?.position;
     if (position == null) {
       _built = true;
+      _waiting.remove(this);
       return;
     }
     if (!identical(position, _position)) {
@@ -64,13 +99,12 @@ class _DVNearScreenState extends State<DVNearScreen> {
     final double screen = position.viewportDimension;
     final bool near = top < position.pixels + screen * 3 && top + box.size.height > position.pixels - screen * 2;
     if (!near) return;
-    _position?.removeListener(_check);
-    _position = null;
-    setState(() => _built = true);
+    buildNow();
   }
 
   @override
   void dispose() {
+    _waiting.remove(this);
     _position?.removeListener(_check);
     super.dispose();
   }

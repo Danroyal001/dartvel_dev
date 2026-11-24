@@ -30,7 +30,9 @@ import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/keyboard_scroll.dart';
+import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
+import 'src/accessibility/selection_mirror.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
 import 'src/analytics/consent_ui.dart' show DVConsentBanner;
@@ -11769,6 +11771,10 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   late final DVPageDismissAction _dismiss =
       DVPageDismissAction(outside: () => context, menu: _menu);
 
+  /// The page's answers to Tab and Shift+Tab. See lazy_traversal.dart.
+  final DVLazyNextFocusAction _nextFocus = DVLazyNextFocusAction();
+  final DVLazyPreviousFocusAction _previousFocus = DVLazyPreviousFocusAction();
+
   /// The page's answer to Ctrl+C. See _DVPageCopyAction.
   late final _DVPageCopyAction _copy = _DVPageCopyAction(() => _selected);
 
@@ -11832,6 +11838,8 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     DVBrowserMenu.nativeMenuOn.removeListener(_browserMenuSwitched);
     DVFindInPage.unregister(this);
     _addressed?.routeInformationProvider.removeListener(_followAddress);
+    // What this page had selected goes with it.
+    if (_selected != null) DVSelectionMirror.write(null);
     _selectionFocusNode.dispose();
     super.dispose();
   }
@@ -12026,8 +12034,12 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
                       region: selection,
                       child: _selectionMenu(context, selection),
                     ),
-            onSelectionChanged: (SelectedContent? content) =>
-                _selected = content,
+            // And told to the document, so the browser sees it too: see
+            // selection_mirror.dart.
+            onSelectionChanged: (SelectedContent? content) {
+              _selected = content;
+              DVSelectionMirror.write(content?.plainText);
+            },
             child: _DVSelectionWhileOnTop(
               onTop: onTop,
               everOnTop: _everOnTop,
@@ -12044,12 +12056,23 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
           ),
           )
         : reachable;
+    // Tab and Shift+Tab reach the controls a lazy list has not built yet:
+    // what is in the way is built before the focus moves on. See
+    // lazy_traversal.dart. Round everything the page draws, layouts
+    // included, so a footer is reached as well as the page.
+    final Widget traversable = Actions(
+      actions: <Type, Action<Intent>>{
+        NextFocusIntent: _nextFocus,
+        PreviousFocusIntent: _previousFocus,
+      },
+      child: selectionWrapped,
+    );
     // Inside the safe area, the page's screen is the safe box. See
     // DVPageSafeBox: a page that sized itself from the screen ran under the
     // navigation bar by exactly the insets the SafeArea had taken away.
     final Widget safe = spec.safeArea
-        ? SafeArea(child: DVPageSafeBox(child: selectionWrapped))
-        : selectionWrapped;
+        ? SafeArea(child: DVPageSafeBox(child: traversable))
+        : traversable;
     // The consent banner, over the page and outside its scroll view and its
     // layouts, so it sits at the bottom of the screen whatever the page is.
     // It was placed inside the page, where a layout's scroll view sized it to
