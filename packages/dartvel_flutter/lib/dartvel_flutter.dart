@@ -6300,15 +6300,6 @@ class DVInstalledApp {
   final Uint8List? icon;
 }
 
-/// The apps installed on this device that can be launched, and opening them.
-///
-/// Android only, through JNI: no other platform lets one app see and start
-/// the others. Elsewhere [isSupported] is false and the calls throw
-/// [UnsupportedError], so an application can show its own message rather
-/// than an empty list that looks like a device with no apps.
-///
-/// Seeing other apps needs the `<queries>` declaration Android 11 requires,
-/// which `dartvel.android.launcher: true` writes into the manifest.
 /// One of another app's own shortcuts, as a launcher shows them when that
 /// app's icon is long-pressed: "New chat", "Scan a document". Android's
 /// LauncherApps lists them for the phone's home app only.
@@ -6429,6 +6420,15 @@ abstract final class _DVSystemKeys {
   }
 }
 
+/// The apps installed on this device that can be launched, and opening them.
+///
+/// Android only, through JNI: no other platform lets one app see and start
+/// the others. Elsewhere [isSupported] is false and the calls throw
+/// [UnsupportedError], so an application can show its own message rather
+/// than an empty list that looks like a device with no apps.
+///
+/// Seeing other apps needs the `<queries>` declaration Android 11 requires,
+/// which `dartvel.android.launcher: true` writes into the manifest.
 class DVApps {
   const DVApps();
 

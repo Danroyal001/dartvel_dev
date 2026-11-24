@@ -358,6 +358,20 @@ class MainActivity : FlutterActivity() {
       expect(out, contains('var dartvelNotificationCounts'));
     });
 
+    test('every addition lands in the activity, and the question switch stays one kind', () {
+      // The activity is the 3.47.8 one with additions spliced in; a splice that
+      // missed would leave Kotlin that does not compile or never runs.
+      expect(out, contains('                when {\n'), reason: 'the switch takes conditions now');
+      expect(out, isNot(contains('when (question)')));
+      expect(out, isNot(contains(RegExp(r'^\s+"[\w.]+" ->', multiLine: true))), reason: 'a bare string in a condition switch does not compile');
+      expect(out, contains('question == "recentsService.isOn" ->'));
+      expect(out, contains('question == "recentsService.settings" ->'));
+      expect(out, contains('registerReceiver(dartvelPackages, packages'));
+      expect(out, contains('private val dartvelPackages'));
+      expect(out, contains('@JvmStatic var dartvelHomeFromServiceUntil = 0L'));
+      expect(out.indexOf('private val dartvelPackages'), lessThan(out.indexOf('override fun onCreate(')));
+    });
+
     test('an activity written by Dartvel 3.47.8 is brought up to date', () {
       final String? updated = dvAndroidHomeLauncherActivity('package com.example.home\n\nimport io.flutter.embedding.android.FlutterActivity\n\n${dvAndroidHomeLauncherActivity3478ForTest}\n', enabled: true);
       expect(updated, isNotNull);
