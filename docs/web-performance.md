@@ -392,6 +392,13 @@ custom painter nor a shader can be read back from the render tree.
 - **Text fields.** Material draws a field's border and fill with a painter
   of its own; the snapshot works them out from the `InputDecoration` and
   the theme as `InputDecorator` does (Material 3 and 2 defaults included).
+  The text a field starts with is painted by its editable, not a paragraph,
+  so the snapshot read none of it and every field stood empty until the app
+  took over (sigmadev.digital's tools: the QR code's link, the price list's
+  rows). It is now read (never from a password field) and becomes the
+  input's `value`, in the app's font, colour and inner padding; a field
+  the document has no input for, such as a menu that picks a value, has its
+  text drawn with the layer.
 - **Screen height.** Each width is read again at a screen a quarter
   taller; what moves or grows between the two gets a `dvh` term. The heights
   two widths were captured at are taken out before moving between widths,
