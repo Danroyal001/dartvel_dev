@@ -384,6 +384,13 @@ class _Layout {
   final Set<String> families = <String>{};
   int _ids = 0;
 
+  /// The lowest z-index of anything painted inside a link or field, at any
+  /// width; null when no control holds anything painted.
+  int? _firstControlContentZ;
+
+  /// What lifts a pinned piece above every control: one past the highest.
+  int _lift = 0;
+
   String run(String html) {
     final List<_Token> tokens = <_Token>[];
     int cursor = 0;
@@ -971,6 +978,24 @@ class _Layout {
     for (final _Node control in controls) {
       control.controlZ = nextControlZ++;
     }
+    // Every control is stacked above everything painted, so its text and
+    // focus ring are never under a box. What the app pins to the screen and
+    // paints after the page's links -- a consent banner, a bottom sheet, an
+    // app bar -- has to be above them too, or a link scrolled under it shows
+    // through (sigmadev.digital's hero buttons through its consent banner,
+    // Dartvel 3.47.9): such a piece, and every pinned control, is lifted
+    // above all controls, keeping its own order. A pinned piece painted
+    // before any control's content -- a background -- stays where it is.
+    _lift = nextControlZ;
+    final Set<_Node> controlSet = controls.toSet();
+    int? first;
+    for (final _Node node in <_Node>[...runs, ...layer]) {
+      if (!controlSet.contains(node.container)) continue;
+      for (final _Item item in node.items.values) {
+        first = first == null ? item.z : math.min(first, item.z);
+      }
+    }
+    _firstControlContentZ = first;
 
     gated
       ..write('.dv-fallback:has(>.dvl){padding:0;scrollbar-width:none}')
@@ -1298,11 +1323,15 @@ class _Layout {
     final bool fixed = control
         ? pinned
         : pinned && node.container?.boxes[range.near] == null;
+    final int? z = control ? node.controlZ : item?.z;
+    final int? first = _firstControlContentZ;
+    // Pinned over the page's links: see _css.
+    final bool lifted = fixed && z != null && first != null && (control || z > first);
     return (
       box: 'left:${placed(0)};top:${placed(1)};width:${placed(2)};height:${placed(3)}',
       display: clamp ? '-webkit-box' : 'block',
       position: fixed ? 'fixed' : 'absolute',
-      z: control ? node.controlZ : item?.z,
+      z: lifted ? z + _lift : z,
     );
   }
 
