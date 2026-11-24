@@ -17,6 +17,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import 'backfill.dart';
 import 'lazy_lists.dart';
 
 class DVNearScreen extends StatefulWidget {
@@ -50,7 +51,7 @@ abstract class DVUnbuiltRow {
 /// The rows waiting to be built, in no particular order.
 Iterable<DVUnbuiltRow> get dvUnbuiltRows => _DVNearScreenState._waiting;
 
-class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow {
+class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DVBackfillable {
   static final Set<_DVNearScreenState> _waiting = <_DVNearScreenState>{};
 
   bool _built = DVLazyLists.buildWhole;
@@ -59,13 +60,25 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow {
   @override
   void initState() {
     super.initState();
-    if (!_built) _waiting.add(this);
+    if (!_built) {
+      _waiting.add(this);
+      // And built when the page is idle, on the web, so a screen reader and
+      // the browser's find reach it without scrolling: see backfill.dart.
+      DVLazyBackfill.register(this);
+    }
+  }
+
+  @override
+  bool backfillStep() {
+    buildNow();
+    return false;
   }
 
   @override
   void buildNow() {
     if (_built || !mounted) return;
     _waiting.remove(this);
+    DVLazyBackfill.unregister(this);
     _position?.removeListener(_check);
     _position = null;
     setState(() => _built = true);
@@ -79,6 +92,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow {
     if (position == null) {
       _built = true;
       _waiting.remove(this);
+      DVLazyBackfill.unregister(this);
       return;
     }
     if (!identical(position, _position)) {
@@ -105,6 +119,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow {
   @override
   void dispose() {
     _waiting.remove(this);
+    DVLazyBackfill.unregister(this);
     _position?.removeListener(_check);
     super.dispose();
   }

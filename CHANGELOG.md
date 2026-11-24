@@ -1,3 +1,9 @@
+## Unreleased
+
+- Screen readers and the browser's find reach the whole of a long page on the web. A row a lazy list had not built had no semantics node and no text, so a screen reader reading line by line (a virtual cursor) stopped at the last row built and never read the footer of a layout that is one scrollable `DVBox.list`, and Ctrl+F after a navigation inside the app missed the same rows. Once the page is idle the rows still waiting are now built a few at a time (a scrollable list grows its cache until it covers the list); the first frame is as lazy as before, and nothing changes off the web.
+- A `DVNavLink` sitting directly among a page's paragraphs is announced by its own words. Its semantics merged into the page body's node, so a screen reader read the whole page as the link's name and, on the web, its `<a>` covered the page (a drag that started on the page dragged the link). A link is now a semantics node of its own.
+- A triple-click selects the paragraph, and a double-click the word, at the pace the system allows. Flutter gives up on a run of clicks after 300 ms between them, the browser counts with the system's double-click time (500 ms on Windows by default), so clicks 300-500 ms apart selected nothing and Ctrl+C copied nothing. On the web the page now follows the browser's count.
+
 ## 3.47.8 — 2026-11-24
 
 - Keyboard and selection after the app takes over a web page: Tab now reaches controls a lazy list has not built yet (a footer under a long scrollable page, rows past `DVNearScreen` placeholders), Shift+Tab too; before, Tab went back to the top. And the browser sees Flutter's selection: after a drag, double- or triple-click, `window.getSelection()` and the browser's own Copy have the selected text (`DVSelectionMirror`, a clipped `aria-hidden` element that follows Flutter's selection).

@@ -13,7 +13,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show OrdinalSortKey, Selectable, SelectedContent, SelectionRegistrar;
+    show
+        OrdinalSortKey,
+        Selectable,
+        SelectedContent,
+        SelectParagraphSelectionEvent,
+        SelectionRegistrar,
+        SelectWordSelectionEvent;
 import 'package:flutter/services.dart'
     show Clipboard,
         ServicesBinding,
@@ -29,6 +35,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:meta/meta.dart';
 
+import 'src/accessibility/browser_clicks.dart';
 import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
@@ -51,6 +58,7 @@ import 'src/display_platform.dart'
     as display_platform;
 import 'src/find/find_in_page.dart';
 import 'src/lists/lazy_lists.dart';
+import 'src/lists/lazy_list_view.dart';
 import 'src/lists/near_screen.dart';
 import 'src/find/find_platform_stub.dart'
     if (dart.library.js_interop) 'src/find/find_platform_web.dart'
@@ -3516,13 +3524,12 @@ class DVBox<T> extends StatelessWidget {
       return across == null ? child : Align(alignment: across, child: child);
     }
 
-    if (_spacing <= 0) {
-      return ListView.builder(itemCount: children.length, itemBuilder: (BuildContext context, int index) => row(index));
-    }
-    return ListView.separated(
+    // On the web the rows not built yet are built while the page is idle,
+    // for screen readers and the browser's find: see lazy_list_view.dart.
+    return DVLazyListView(
       itemCount: children.length,
       itemBuilder: (BuildContext context, int index) => row(index),
-      separatorBuilder: (BuildContext context, int index) => SizedBox(height: _spacing),
+      separatorBuilder: _spacing <= 0 ? null : (BuildContext context, int index) => SizedBox(height: _spacing),
     );
   }
 
@@ -11678,6 +11685,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     DVBrowserMenu.nativeMenuOn.addListener(_browserMenuSwitched);
     DVFindInPage.register(this);
     find_platform.dvFindInstall();
+    DVBrowserClicks.listen(_browserClicks);
     WidgetsBinding.instance.addPostFrameCallback((_) => _followAddress());
   }
 
@@ -11764,6 +11772,53 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   /// What is selected, kept as it changes so the menu can copy it.
   SelectedContent? _selected;
 
+  /// The selection area, one key for each shape it has (see
+  /// DVBrowserMenu.nativeMenuOn): a new key is a new area, as switching
+  /// needs, and the page reaches the area it has.
+  final Map<bool, GlobalKey<SelectionAreaState>> _selectionAreaKeys = <bool, GlobalKey<SelectionAreaState>>{
+    true: GlobalKey<SelectionAreaState>(),
+    false: GlobalKey<SelectionAreaState>(),
+  };
+
+  /// A run of clicks the browser counted and Flutter may not have: selects
+  /// the word or the paragraph under the last one, as Flutter does with a
+  /// run it counts. See browser_clicks.dart.
+  bool _browserClicks(int count, Offset position) {
+    if (!mounted || !_onTop) return false;
+    final SelectableRegionState? region = _selectionAreaKeys[DVBrowserMenu.nativeMenuOn.value]?.currentState?.selectableRegion;
+    if (region == null || !region.mounted) return false;
+    // Only on this page's text, and never in a field being typed in: a
+    // field selects its own words.
+    final RenderObject? box = region.context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.size.contains(box.globalToLocal(position))) return false;
+    final BuildContext? focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null && (focused.widget is EditableText || focused.findAncestorWidgetOfExactType<EditableText>() != null)) return false;
+    SelectionContainerDelegate? delegate;
+    void visit(Element element) {
+      if (delegate != null) return;
+      final Widget widget = element.widget;
+      if (widget is SelectionContainer && widget.delegate != null) {
+        delegate = widget.delegate;
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    (region.context as Element).visitChildElements(visit);
+    final SelectionContainerDelegate? found = delegate;
+    if (found == null) return false;
+    // Cleared first: a paragraph already holding the collapsed caret the
+    // last click left counts as selected, and would not be selected again.
+    region.clearSelection();
+    found.dispatchSelectionEvent(count == 2
+        ? SelectWordSelectionEvent(globalPosition: position)
+        : SelectParagraphSelectionEvent(globalPosition: position));
+    final SelectedContent? content = found.getSelectedContent();
+    _selected = content;
+    DVSelectionMirror.write(content?.plainText);
+    return true;
+  }
+
   /// The selection menu on screen, if one is, so Esc can close it.
   final DVSelectionMenuTracker _menu = DVSelectionMenuTracker();
 
@@ -11837,6 +11892,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
   void dispose() {
     DVBrowserMenu.nativeMenuOn.removeListener(_browserMenuSwitched);
     DVFindInPage.unregister(this);
+    DVBrowserClicks.unlisten(_browserClicks);
     _addressed?.routeInformationProvider.removeListener(_followAddress);
     // What this page had selected goes with it.
     if (_selected != null) DVSelectionMirror.write(null);
@@ -12020,7 +12076,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
             // containers registered with it -- a null-check failure in a
             // release build when one of them left. The page beneath keeps its
             // state through _contentKey. See DVBrowserMenu.nativeMenuOn.
-            key: ValueKey<bool>(DVBrowserMenu.nativeMenuOn.value),
+            key: _selectionAreaKeys[DVBrowserMenu.nativeMenuOn.value],
             // skipTraversal, because a SelectionArea is focusable and would
             // otherwise take the first tab stop on every page: the first Tab
             // went to the page instead of the first link, and every

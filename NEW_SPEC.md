@@ -1075,6 +1075,16 @@ control, or the next screen of a list with no control left built in that
 direction -- and then moves the focus in Flutter's own order, scrolling it into
 view. A footer after a long lazy page is reached, and Shift+Tab goes back up
 through rows the list had let go.
+On the web the rest of a lazy list is also built while the page is idle: once
+the first frame is drawn and nothing is pending, animating or scrolling, the
+placeholders still waiting are built a few at a time, and a scrollable list
+grows its cache a couple of screens at a time until it covers the whole list.
+The first frame is exactly as lazy as before; afterwards every row has its
+semantics node and its text, so a screen reader reading line by line (a
+virtual cursor) reaches the footer of a long page without scrolling, and the
+browser's find, after a navigation inside the app, searches the whole page.
+Off the web nothing is built ahead: there the platform's screen reader scrolls
+a list when it reaches the end of what is built, and there is no browser find.
 
 Explicit `DVBox.wrapLine([...])` or `.wrapLine()` is a layout mode for
 collections. It is not the removed automatic wrapper behavior for arbitrary
@@ -1433,6 +1443,10 @@ the way:
   selection get the same text Flutter copies. Flutter's handles and menu are
   unchanged, a text field being typed in keeps its caret, and leaving the page
   or clearing the selection clears it.
+- **A run of clicks is counted as the browser counts it.** Flutter ends a run
+  after 300 ms between clicks, the browser after the system's double-click
+  time; on the web a double- or triple-click the browser counted selects the
+  word or paragraph under it even when Flutter saw single clicks.
 
 ---
 
@@ -1818,7 +1832,9 @@ XSL stylesheet and does not list `/sitemap` itself.
 ### DV.Navigation and DVNavLink
 
 A link to a config route is a link: an anchor in the semantics tree, keyboard
-focus, middle click to a new tab. Preload has nothing of its own to fetch —
+focus, middle click to a new tab. The link is a semantics node of its own,
+named by its own words: a link directly in a page body is never merged with the
+paragraphs around it. Preload has nothing of its own to fetch —
 there is no deferred library — so it is the web document prefetch every
 route gets. Every route has a preview. An open route's preview builds its
 screen for the location the link names, parameters included (`/orders/9`

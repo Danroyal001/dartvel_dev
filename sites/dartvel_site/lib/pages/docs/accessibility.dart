@@ -84,6 +84,12 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               'Tab and Shift+Tab reach every control on a long page, including '
                   'rows a lazy list has not built yet and the footer after them: '
                   'what is in the way is built before the focus moves on.',
+              'On the web those rows are also built while the page is idle, so '
+                  'a screen reader reading line by line reaches the end of a long '
+                  'page without scrolling, and the browser\'s find searches all of '
+                  'it, on the first page and after moving to another.',
+              'A link is named by its own words, even when it sits directly '
+                  'among the paragraphs of a page.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
               'A password field starts with a Show password toggle button, '
@@ -170,6 +176,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                 'web the browser sees the selection too: window.getSelection() '
                 'and the browser\'s own Copy get the text you selected by drag, '
                 'double-click or triple-click.'),
+            DocsText('A double-click selects a word and a triple-click a '
+                'paragraph at the pace your system\'s double-click setting '
+                'allows, and Ctrl+C copies it.'),
             DocsText('Beside a '
                 'sidebar, rail or list pane of separate items, wrap the sidebar '
                 'in DVSelectionColumn, so a drag across the content next to it '
