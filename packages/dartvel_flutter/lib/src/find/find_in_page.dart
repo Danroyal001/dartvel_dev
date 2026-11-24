@@ -21,6 +21,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../lists/near_screen.dart';
+
 /// A page the browser's find can reach: what `DVPageShell` registers.
 abstract class DVFindPage {
   /// Whether the page lets the browser's find reach it.
@@ -80,8 +82,10 @@ abstract final class DVFindInPage {
   ///
   /// Read from the render tree rather than from the page source: this is the
   /// text a reader can see, including text that arrived with data after the
-  /// build captured the page. A row a lazy list has not built is not here;
-  /// that is section 3 of the proposal, not this.
+  /// build captured the page. A row of a long collection that has been read
+  /// while the page was idle but not built (near_screen.dart) is here too, by
+  /// the words it was read for, at the place it holds; a row nothing has
+  /// read yet is not.
   static List<DVFoundParagraph> paragraphs() {
     final DVFindPage? page = active;
     if (page == null || !page.findable) return const <DVFoundParagraph>[];
@@ -94,6 +98,15 @@ abstract final class DVFindInPage {
       // What the page keeps built and does not show -- a tab behind another,
       // a step not reached -- is not what the reader is searching.
       if (widget is Offstage && widget.offstage) return;
+      if (element is StatefulElement && element.state is DVReadRow) {
+        final List<DVFindBlock>? read = (element.state as DVReadRow).findBlocks;
+        if (read != null) {
+          for (final DVFindBlock block in read) {
+            found.add(DVFoundParagraph(element, block));
+          }
+          return;
+        }
+      }
       int? level = heading;
       if (widget is Semantics) {
         final int? declared = widget.properties.headingLevel;
@@ -156,7 +169,33 @@ abstract final class DVFindInPage {
       }
     }
     if (index == null) return false;
-    final BuildContext target = found[index!].context;
+    // A row read for its words and not built: built now, and the paragraph
+    // looked for again in the real row.
+    final BuildContext landed = found[index].context;
+    if (landed is StatefulElement && landed.state is DVReadRow && (landed.state as DVReadRow).findBlocks != null) {
+      (landed.state as DVReadRow).buildNow();
+      await SchedulerBinding.instance.endOfFrame;
+      // The rows around it are only read too, each holding an estimated
+      // height: going there builds them, and the page moves as they take
+      // their real heights. Jump until it holds still, then scroll as usual.
+      for (int settle = 0; settle < 4; settle++) {
+        found = paragraphs();
+        index = match();
+        if (index == null) return false;
+        final BuildContext near = found[index].context;
+        final RenderObject? box = near.findRenderObject();
+        final double? before = box is RenderBox && box.attached ? box.localToGlobal(Offset.zero).dy : null;
+        await Scrollable.ensureVisible(near, alignment: 0.25);
+        await SchedulerBinding.instance.endOfFrame;
+        if (!near.mounted) continue;
+        final RenderObject? after = near.findRenderObject();
+        if (before != null && after is RenderBox && after.attached && after.localToGlobal(Offset.zero).dy == before) break;
+      }
+      found = paragraphs();
+      index = match();
+      if (index == null) return false;
+    }
+    final BuildContext target = found[index].context;
 
     // The reader's own answer about motion, where they gave one.
     final bool still = MediaQuery.maybeDisableAnimationsOf(target) ?? false;

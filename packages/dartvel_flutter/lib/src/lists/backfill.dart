@@ -11,10 +11,22 @@
 /// Learnacer, Dartvel 3.47.7).
 ///
 /// So once the first frame is drawn and the page is idle -- no frame
-/// pending, nothing animating, no scroll under way -- the rows still waiting
-/// are built a few at a time, one step per idle moment, until none are left.
-/// A row built this way stays built, as a row scrolled to does. The first
-/// frame is exactly as lazy as before; only the idle time after it is spent.
+/// pending, nothing animating, no scroll under way, and the browser saying
+/// it has time to spare (requestIdleCallback) -- the rows still waiting are
+/// taken a few at a time, one step per idle moment, until none are left.
+/// A long collection's row (DVNearScreen) is read rather than kept: built
+/// without layout, its words, links and headings taken, and let go, with a
+/// stand-in carrying them to the screen reader and to find; only cheap rows,
+/// up to [DVLazyBackfill.keepBudget] render objects, stay built. A lazy
+/// ListView's cache grows to cover it. Each step takes as many things as
+/// the last one's frame says fit in [frameBudgetMs], never more than
+/// [DVLazyBackfill.perStep]. The first frame is exactly as lazy as before;
+/// only the idle time after it is spent.
+///
+/// Building every row instead, four per step, cost sigmadev.digital's 177-
+/// tool catalogue on a phone a JS heap of 50-58 MB against 15-21 MB, and
+/// 4-7 frames a second for the fifteen seconds after the first frame against
+/// 39-48 (Dartvel 3.47.9 risk check).
 ///
 /// On the web only, where the page is read from the document. On Android and
 /// iOS the platform's screen reader scrolls a list itself when it reaches the
@@ -46,8 +58,22 @@ abstract final class DVLazyBackfill {
   /// the page must be still before a step runs.
   static const int quietMs = 300;
 
-  /// How many waiting things one step builds a little of.
-  static const int perStep = 4;
+  /// The most waiting things one step takes a little of.
+  static const int perStep = 8;
+
+  /// How long the frame a step causes may take, in milliseconds: the next
+  /// step takes fewer things when it took longer, more when it was quick.
+  /// Half a frame at 60 Hz. A debug build's frames say nothing about a
+  /// release build's (a frame of one paragraph takes 30-50 ms in a debug
+  /// build in Chrome), so there every step takes [perStep].
+  static const double frameBudgetMs = 8;
+
+  /// How many render objects rows read while idle may keep built, across
+  /// the app; a row past it is let go after it is read.
+  static const int keepBudget = 400;
+
+  /// How many things the next step takes, from 1 to [perStep].
+  static int _take = 1;
 
   static final Set<DVBackfillable> _waiting = <DVBackfillable>{};
 
@@ -69,12 +95,27 @@ abstract final class DVLazyBackfill {
   /// Builds a little of the first [perStep] things waiting. True when more
   /// is left for another step. The frame the step asked for draws it.
   static bool step() {
+    final Stopwatch frame = Stopwatch();
+    final int take = kDebugMode ? perStep : _take;
     int done = 0;
     for (final DVBackfillable item in _waiting.toList()) {
-      if (done >= perStep) break;
+      if (done >= take) break;
       if (!_waiting.contains(item)) continue;
       if (!item.backfillStep()) _waiting.remove(item);
       done++;
+    }
+    if (done > 0) {
+      // What the step's frame cost, from its start to its end: build,
+      // layout, paint and semantics, not the wait for it.
+      SchedulerBinding.instance.scheduleFrameCallback((_) => frame.start());
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        final double ms = frame.elapsedMicroseconds / 1000;
+        if (ms > frameBudgetMs) {
+          _take = take > 1 ? take ~/ 2 : 1;
+        } else if (ms < frameBudgetMs / 2) {
+          _take = take * 2 > perStep ? perStep : take * 2;
+        }
+      });
     }
     return _waiting.isNotEmpty;
   }
@@ -85,7 +126,7 @@ abstract final class DVLazyBackfill {
     platform.dvBackfillLater(quietMs, _tick);
   }
 
-  static void _tick() {
+  static void _tick(bool idle) {
     _armed = false;
     if (!enabled || _waiting.isEmpty) return;
     final SchedulerBinding scheduler = SchedulerBinding.instance;
@@ -97,7 +138,7 @@ abstract final class DVLazyBackfill {
         scheduler.transientCallbackCount > 0 ||
         scheduler.schedulerPhase != SchedulerPhase.idle ||
         !WidgetsBinding.instance.sendFramesToEngine;
-    if (!busy) step();
+    if (!busy && idle) step();
     _arm();
   }
 
@@ -106,6 +147,7 @@ abstract final class DVLazyBackfill {
   static void reset() {
     _waiting.clear();
     _armed = false;
+    _take = 1;
     enabled = kIsWeb;
   }
 }
