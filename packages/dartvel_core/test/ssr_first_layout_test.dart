@@ -469,6 +469,31 @@ void main() {
       expect(out, contains('left:20px;top:calc(-20px + 50dvh);width:350px;height:40px'));
     });
 
+    test('widths captured at different heights: the height is not read as width', () {
+      // 360 is captured 800 high and 390 844 high; the page is the screen's
+      // height at both, which is no change with width at all.
+      Map<String, Object?> at(int width, num height) {
+        List<Map<String, Object?>> items(num h) => <Map<String, Object?>>[
+              <String, Object?>{'k': 'b', 'r': <num>[0, 0, width, h], 'z': 0, 's': false, 'bg': '#000000'},
+              _text('Ship faster', <num>[20, h - 60, 300, 40], z: 1, scrolls: false),
+            ];
+        return <String, Object?>{
+          'width': width,
+          'height': height,
+          'light': <String, Object?>{'width': width, 'height': height, 'items': items(height)},
+          'controls': <Object?>[],
+          'tall': <String, Object?>{'height': height * 1.25, 'items': items(height * 1.25), 'controls': <Object?>[]},
+        };
+      }
+
+      final String out = dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[at(360, 800), at(390, 844)]));
+      final String hero = RegExp(r'<i id="(dvp\d+)">').firstMatch(out)!.group(1)!;
+      final String id = RegExp(r'<span id="(dvr\d+)">Ship faster').firstMatch(out)!.group(1)!;
+      expect(out, isNot(contains('146.67vw')));
+      expect(out, contains('#$hero{left:0px;top:0px;width:calc(0px + 100vw);height:100dvh'));
+      expect(out, contains('#$id{left:20px;top:calc(-60px + 100dvh);width:300px;height:40px'));
+    });
+
     test('a capture with no second height is laid out as before', () {
       final String out = dvSsrFirstLayout(
         _doc,

@@ -998,7 +998,7 @@ class _Layout {
         final StringBuffer dark = StringBuffer();
         // The scroll height.
         final String height =
-            'height:${_withHeight(_value(range, (int w) => <double>[_contentHeight(w)], 0), _contentSlope(range.near), range.near)}';
+            'height:${_heightAware(_value(range, (int w) => <double>[_contentHeight(w)], 0), _contentSlope(range.near), range.near, _contentHeight, a: range.a, b: range.b)}';
         if (withHeight && lastGeometry['.dvl'] != height) {
           block.write('.dvl{$height}');
           lastGeometry['.dvl'] = height;
@@ -1136,20 +1136,22 @@ class _Layout {
     return slope.every((double value) => value.abs() < 0.001) ? null : slope;
   }
 
-  /// [value] (a length the stylesheet writes) plus [slope] times how far the
-  /// screen is from the height captured at [w].
-  String _withHeight(String value, double slope, int w) {
-    if (slope.abs() < 0.001) return value;
-    double px = 0, vw = 0;
-    final RegExpMatch? calc =
-        RegExp(r'^calc\((-?[0-9.]+)px \+ (-?[0-9.]+)vw\)$').firstMatch(value);
-    if (calc != null) {
-      px = double.parse(calc.group(1)!);
-      vw = double.parse(calc.group(2)!);
+  /// A length that grows by [slope] per pixel of screen height: [plain] when
+  /// it does not, otherwise each captured value taken back to a screen of no
+  /// height (so the heights two widths were captured at are not read as a
+  /// change with width), moved linearly between widths [a] and [b] when both
+  /// are given, plus the screen's height in `dvh`.
+  String _heightAware(String plain, double slope, int near, double Function(int w) at, {int? a, int? b}) {
+    if (slope.abs() < 0.001) return plain;
+    double level(int w) => at(w) - slope * widths[w].height;
+    double px, vw = 0;
+    if (a != null && b != null && a != b) {
+      final double wA = widths[a].width, wB = widths[b].width;
+      vw = (level(b) - level(a)) / (wB - wA) * 100;
+      px = level(a) - vw / 100 * wA;
     } else {
-      px = double.parse(value.replaceFirst('px', ''));
+      px = level(near);
     }
-    px -= slope * widths[w].height;
     return _lengths(px, vw, slope * 100);
   }
 
@@ -1238,8 +1240,14 @@ class _Layout {
           )
         : '${_num(near.$1[index])}px';
     final List<double>? slope = _heightSlope(node, range.near);
-    String placed(int index) =>
-        _withHeight(v(index), slope == null ? 0 : slope[index], range.near);
+    String placed(int index) => _heightAware(
+      v(index),
+      slope == null ? 0 : slope[index],
+      range.near,
+      (int w) => (w == range.a ? a : w == range.b ? b : near)!.$1[index],
+      a: linear ? range.a : null,
+      b: linear ? range.b : null,
+    );
     final bool pinned = near.$2;
     final _Item? item = node.items[range.near];
     final bool clamp =
