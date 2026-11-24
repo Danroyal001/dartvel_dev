@@ -1595,10 +1595,16 @@ class _Layout {
         ? run['f'] as String
         : dvLayoutDefaultFamily;
     families.add(family);
+    // Only the fallbacks the app bundles: Flutter on the web draws with
+    // those and its own fallback fonts, never the visitor's system fonts.
+    // The theme's list is the capture host's platform default (Material's
+    // Linux list on a Linux build box: Ubuntu, Cantarell, DejaVu Sans...);
+    // named here, each missing one cost a font lookup before the first
+    // paint, and one present drew in a font the app never shows.
     final List<String> fallback = <String>[
       for (final Object? name
           in (run['ff'] as List<Object?>? ?? const <Object?>[]))
-        if (name is String && name.isNotEmpty) name,
+        if (name is String && name.isNotEmpty && fonts.containsKey(name)) name,
     ];
     families.addAll(fallback);
     return <String>[

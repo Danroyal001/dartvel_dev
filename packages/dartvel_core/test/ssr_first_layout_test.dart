@@ -502,6 +502,41 @@ void main() {
       expect(RegExp(r'font:400 16px/24px "Roboto"').hasMatch(out), isTrue);
     });
 
+    test('a fallback family the app does not bundle is not named: the app cannot draw with it', () {
+      // Flutter on the web draws only with the fonts the app bundles (and its
+      // own fallbacks), never the visitor's system fonts. The capture's
+      // theme still lists the capture host's platform fallbacks (Material's
+      // Linux list on a Linux build box); named in the stylesheet, each one
+      // missing cost the browser a font lookup before the first paint, and
+      // one present drew in a font the app never shows.
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40], runs: <Map<String, Object?>>[
+              <String, Object?>{
+                't': 'Ship faster',
+                'f': 'Inter',
+                'fs': 16,
+                'fw': 700,
+                'c': '#111111',
+                'ff': <String>['Ubuntu', 'Adwaita Sans', 'NotoEmoji', 'Cantarell'],
+              },
+            ]),
+          ]),
+        ]),
+        fonts: <String, List<DVLayoutFont>>{
+          'Inter': <DVLayoutFont>[const DVLayoutFont('assets/fonts/inter.abc.woff2')],
+          'NotoEmoji': <DVLayoutFont>[const DVLayoutFont('assets/fonts/emoji.abc.woff2')],
+        },
+      );
+      expect(out, contains('font:700 16px/24px "Inter","NotoEmoji",sans-serif'), reason: out);
+      for (final String missing in <String>['Ubuntu', 'Adwaita Sans', 'Cantarell']) {
+        expect(out, isNot(contains(missing)));
+      }
+      expect(out, contains('@font-face{font-family:"NotoEmoji"'));
+    });
+
     test('a slot keeps the shape the server fills on each request', () {
       const String slotted = '<p><span data-dv-slot="today">Monday</span></p>\n';
       final String out = dvSsrFirstLayout(
