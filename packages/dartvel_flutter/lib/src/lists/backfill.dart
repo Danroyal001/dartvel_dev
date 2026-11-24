@@ -90,11 +90,13 @@ abstract final class DVLazyBackfill {
     if (!enabled || _waiting.isEmpty) return;
     final SchedulerBinding scheduler = SchedulerBinding.instance;
     // Not while the page is busy: a frame is coming (a scroll, a drag, an
-    // animation, a build), or nothing has been drawn yet.
+    // animation, a build), or the first frame is still held back (the
+    // splash, a page waiting for its data): what is built then lands in the
+    // first frame and makes it slower.
     final bool busy = scheduler.hasScheduledFrame ||
         scheduler.transientCallbackCount > 0 ||
         scheduler.schedulerPhase != SchedulerPhase.idle ||
-        !WidgetsBinding.instance.firstFrameRasterized;
+        !WidgetsBinding.instance.sendFramesToEngine;
     if (!busy) step();
     _arm();
   }
