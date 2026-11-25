@@ -10,6 +10,8 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'support/tooltip_finder.dart';
+
 DVAnalyticsSettings settings({Map<String, Object?>? banner}) =>
     DVAnalyticsSettings.fromConfig(<String, Object?>{
       'consent': <String, Object?>{
@@ -129,7 +131,7 @@ void main() {
       'Settings',
       'Close',
     ]) {
-      expect(find.byTooltip(label), findsOneWidget, reason: label);
+      expect(find.dvTooltip(label), findsOneWidget, reason: label);
     }
     expect(find.bySemanticsLabel('Close'), findsWidgets);
   });

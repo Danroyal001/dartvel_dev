@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'support/tooltip_finder.dart';
+
 const DVMediaSource film = DVMediaSource.url('https://cdn.test/film.mp4');
 
 Widget host(Widget child) =>
@@ -81,10 +83,10 @@ void main() {
     final DVBox<Object?> box = await mounted(tester,
         captions: DVCaptions.track(
             'en', const DVMediaSource.url('https://cdn.test/film.en.vtt')));
-    await tester.tap(find.byTooltip('Captions: en'));
+    await tester.tap(find.dvTooltip('Captions: en'));
     await tester.pump();
     expect(box.controller.captionTrack.value, isNull);
-    await tester.tap(find.byTooltip('Turn captions on'));
+    await tester.tap(find.dvTooltip('Turn captions on'));
     await tester.pump();
     await tester.pump();
     expect(box.controller.captionTrack.value, 'en');
@@ -93,8 +95,8 @@ void main() {
   testWidgets('a player with no captions offers no captions button',
       (WidgetTester tester) async {
     await mounted(tester);
-    expect(find.byTooltip('Turn captions on'), findsNothing);
-    expect(find.byTooltip('Mute'), findsOneWidget);
+    expect(find.dvTooltip('Turn captions on'), findsNothing);
+    expect(find.dvTooltip('Mute'), findsOneWidget);
   });
 
   testWidgets('the scrubber says where playback is in words',
@@ -120,10 +122,10 @@ void main() {
   testWidgets('mute sets the volume to zero and back',
       (WidgetTester tester) async {
     await mounted(tester);
-    await tester.tap(find.byTooltip('Mute'));
+    await tester.tap(find.dvTooltip('Mute'));
     await tester.pump();
     expect(created.single.volumes.last, 0);
-    await tester.tap(find.byTooltip('Unmute'));
+    await tester.tap(find.dvTooltip('Unmute'));
     await tester.pump();
     expect(created.single.volumes.last, 1);
   });
@@ -151,7 +153,7 @@ void main() {
   testWidgets('picture-in-picture is offered only where the target has it',
       (WidgetTester tester) async {
     await mounted(tester);
-    expect(find.byTooltip('Picture-in-picture'), findsNothing);
+    expect(find.dvTooltip('Picture-in-picture'), findsNothing);
   });
 
   group('camera', () {
@@ -196,13 +198,13 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(box.camera.state.value, DVCameraState.ready);
-      expect(find.byTooltip('Take photo'), findsOneWidget);
-      expect(find.byTooltip('Record video'), findsOneWidget);
-      expect(find.byTooltip('Switch camera (now back)'), findsOneWidget);
-      expect(find.byTooltip('Flash: off'), findsOneWidget);
-      expect(find.byTooltip('Torch on'), findsOneWidget);
+      expect(find.dvTooltip('Take photo'), findsOneWidget);
+      expect(find.dvTooltip('Record video'), findsOneWidget);
+      expect(find.dvTooltip('Switch camera (now back)'), findsOneWidget);
+      expect(find.dvTooltip('Flash: off'), findsOneWidget);
+      expect(find.dvTooltip('Torch on'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Flash: off'));
+      await tester.tap(find.dvTooltip('Flash: off'));
       await tester.pump();
       expect(box.camera.flash.value, DVFlashMode.auto);
     });

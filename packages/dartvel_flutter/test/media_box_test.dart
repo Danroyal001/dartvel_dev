@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'support/tooltip_finder.dart';
+
 const DVMediaSource launch = DVMediaSource.url('https://cdn.test/launch.mp4');
 const DVMediaSource trailer = DVMediaSource.url('https://cdn.test/trailer.mp4');
 
@@ -77,17 +79,17 @@ void main() {
 
     created.single.emit(const DVMediaReady(duration: Duration(minutes: 2)));
     await tester.pump();
-    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(find.dvTooltip('Play'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Play'));
+    await tester.tap(find.dvTooltip('Play'));
     await tester.pump();
     expect(created.single.calls, contains('play'));
     // Asked, not playing: the button does not flip until the backend says.
-    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(find.dvTooltip('Play'), findsOneWidget);
 
     created.single.emit(const DVMediaPlaying());
     await tester.pump();
-    expect(find.byTooltip('Pause'), findsOneWidget);
+    expect(find.dvTooltip('Pause'), findsOneWidget);
   });
 
   testWidgets('leaving the page releases the player and audio focus',
@@ -96,7 +98,7 @@ void main() {
     await tester.pumpWidget(host(box));
     created.single.emit(const DVMediaReady(duration: Duration(minutes: 2)));
     await tester.pump();
-    await tester.tap(find.byTooltip('Play'));
+    await tester.tap(find.dvTooltip('Play'));
     await tester.pump();
     expect(focusBackend.held, isTrue);
 
@@ -205,7 +207,7 @@ void main() {
     expect(box.controller.state.value, DVPlaybackState.failed);
     expect(box.controller.error.value, contains('no media player'));
     expect(find.byType(DVImageView), findsOneWidget);
-    expect(find.byTooltip('Play'), findsNothing);
+    expect(find.dvTooltip('Play'), findsNothing);
   });
 
   testWidgets('the terminal shows the poster and opens no player',
@@ -306,7 +308,7 @@ void main() {
         b.emit(const DVMediaReady(duration: Duration(minutes: 2)));
       }
       await tester.pump();
-      await tester.tap(find.byTooltip('Play').first);
+      await tester.tap(find.dvTooltip('Play').first);
       await tester.pump();
       created.first.emit(const DVMediaPlaying());
       await tester.pump();

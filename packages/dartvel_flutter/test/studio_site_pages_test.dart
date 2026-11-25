@@ -12,6 +12,8 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'support/tooltip_finder.dart';
+
 /// A project's route manifest, as the generator writes one.
 const List<DVRouteInfo> _shopRoutes = <DVRouteInfo>[
   DVRouteInfo(path: '/', page: 'indexPage', directory: 'lib/pages/index.dart'),
@@ -181,7 +183,7 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.byTooltip('Studio copy')),
+          matching: find.dvTooltip('Studio copy')),
       findsOneWidget,
     );
     expect(
@@ -199,7 +201,7 @@ void main() {
     expect(
       find.descendant(
           of: _key('dv-studio-route-kind-/about'),
-          matching: find.byTooltip('Code')),
+          matching: find.dvTooltip('Code')),
       findsOneWidget,
     );
     expect(find.text('Written in code'), findsOneWidget);
