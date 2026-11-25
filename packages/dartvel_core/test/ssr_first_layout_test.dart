@@ -751,6 +751,87 @@ void main() {
       expect(out, isNot(contains('class="dvf"')));
     });
 
+    // A sentence with links in it (DVWidgetSpan) is one <p> with its links
+    // inline. The app paints its words as one paragraph with a gap for each
+    // link (placeholders, not in the paragraph's text) and each link's words
+    // as a paragraph of their own in that gap. Each piece was placed on its
+    // own: the paragraph's words drawn by the layer, the document's words
+    // hidden, and the links at their boxes on top, so the page showed "Our ,
+    // and explain" with the links floating over it, and find and a selection
+    // stopped at every link (sigmadev.digital/about, Dartvel 3.47.8).
+    const String sentence = '<p>Questions, or a project in mind? '
+        '<a href="/contact" title="Get a free quote" aria-label="Get a free quote">Get a free quote</a>. Our '
+        '<a href="/privacy" title="privacy policy" aria-label="privacy policy">privacy policy</a> '
+        'explain how we handle your data.</p>\n';
+    Map<String, Object?> sentenceWidth(int width, List<num> rect, List<num> quote, List<num> privacy) =>
+        _width(width, <Map<String, Object?>>[
+          _text('Questions, or a project in mind? . Our  explain how we handle your data.', rect, z: 3, runs:
+              <Map<String, Object?>>[
+            <String, Object?>{'t': 'Questions, or a project in mind?', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+            <String, Object?>{'t': ' ', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+            <String, Object?>{'t': '. Our', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+            <String, Object?>{'t': ' ', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+            <String, Object?>{'t': ' ', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+            <String, Object?>{'t': 'explain how we handle your data.', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#111111'},
+          ])..['nw'] = false..['lines'] = 2,
+          _text('Get a free quote', quote, z: 4, runs: <Map<String, Object?>>[
+            <String, Object?>{'t': 'Get a free quote', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#1d4ed8', 'd': 'underline'},
+          ]),
+          _text('privacy policy', privacy, z: 5, runs: <Map<String, Object?>>[
+            <String, Object?>{'t': 'privacy policy', 'f': 'Inter', 'fs': 16, 'fw': 400, 'c': '#1d4ed8', 'd': 'underline'},
+          ]),
+        ], controls: <Map<String, Object?>>[
+          <String, Object?>{'k': 'a', 'href': '/contact', 'name': 'Get a free quote', 'r': quote},
+          <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'privacy policy', 'r': privacy},
+        ]);
+
+    test('a sentence with links is one text block, its links inline in it', () {
+      final String out = dvSsrFirstLayout(
+        sentence,
+        _capture(<Map<String, Object?>>[
+          sentenceWidth(390, <num>[20, 300, 350, 48], <num>[270, 300, 120, 24], <num>[60, 324, 100, 24]),
+        ]),
+      );
+      // One run holds the whole sentence, words and links, as the document
+      // reads it: nothing of it hidden, nothing of it drawn by the layer.
+      final RegExpMatch block = RegExp(r'<p><span id="(dvr\d+)">(.*?)</span></p>', dotAll: true).firstMatch(out)!;
+      final String id = block.group(1)!;
+      final String inside = block.group(2)!;
+      expect(_visibleText(inside), 'Questions, or a project in mind? Get a free quote. Our privacy policy explain how we handle your data.');
+      expect(inside, isNot(contains('dvu')));
+      expect(out, isNot(contains('content:"Questions')));
+      // Placed at the paragraph's box, wrapping as the app wraps it.
+      expect(out, contains('#$id{left:20px;top:300px;width:350px;height:48px'));
+      expect(out, matches(RegExp('#$id[,{][^}]*white-space:pre-wrap')));
+      // Each link flows in the line, styled in place: no box of its own.
+      final List<RegExpMatch> links = RegExp(r'<a id="(dva\d+)" href="[^"]+"[^>]*><span id="(dvr\d+)">').allMatches(inside).toList();
+      expect(links, hasLength(2));
+      for (final RegExpMatch link in links) {
+        expect(out, isNot(matches(RegExp('#${link.group(1)}\\{left:'))));
+        expect(out, isNot(matches(RegExp('#${link.group(2)}\\{left:'))));
+        expect(out, isNot(matches(RegExp('#${link.group(1)}\\{[^}]*position:absolute'))));
+        expect(out, matches(RegExp('#${link.group(2)}[,{][^}]*text-decoration:underline')));
+        expect(out, matches(RegExp('#${link.group(2)}[,{][^}]*color:#1d4ed8')));
+      }
+    });
+
+    test('a sentence the app does not paint as one keeps its pieces as before', () {
+      // Nothing painted matches the sentence's words: its text and links are
+      // matched one by one, as any other.
+      final String out = dvSsrFirstLayout(
+        sentence,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Get a free quote', <num>[40, 300, 120, 24], z: 5),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/contact', 'name': 'Get a free quote', 'r': <num>[40, 300, 120, 24]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('<p><span id="dvr')));
+      expect(out, matches(RegExp(r'#dva\d+\{left:40px;top:300px')));
+    });
+
     test('no capture for a width: the document is returned as it was', () {
       expect(dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[])), _doc);
     });

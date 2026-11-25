@@ -374,12 +374,49 @@ class _Node {
   /// Per width: a field's inner padding, left and right, where the app
   /// starts its text.
   final Map<int, (double, double)> pads = <int, (double, double)>{};
+
+  /// In the line of a sentence placed as one block: a link, or its words,
+  /// that flows with the sentence's text rather than sitting at a box of
+  /// its own. Styled in place, never positioned.
+  bool inline = false;
 }
 
 class _Element {
   _Element(this.node);
   final _Node node;
 }
+
+/// A paragraph of the document with links in its line (`<p>words <a>link</a>
+/// words</p>`): what the build writes for a sentence the app lays out with
+/// DVWidgetSpan. The app paints its words as one paragraph with a gap for
+/// each link, and each link's words in that gap; the document's paragraph is
+/// placed as that one block, its links flowing in it.
+class _Sentence {
+  _Sentence(this.open, this.close, this.words, this.links, this.container);
+  final _Token open;
+  final _Token close;
+
+  /// Its own text nodes, outside its links, in order.
+  final List<_TextNode> words;
+
+  /// Its links.
+  final List<_Node> links;
+
+  /// What the paragraph itself sits in.
+  final _Node? container;
+  _Node? node;
+}
+
+/// A paragraph holds no block of its own; one of these inside it means it is
+/// not a single line of text.
+const Set<String> _blocks = <String>{
+  'address', 'article', 'aside', 'blockquote', 'button', 'details', 'div',
+  'dl', 'fieldset', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5',
+  'h6', 'header', 'hr', 'iframe', 'img', 'input', 'li', 'main', 'nav', 'ol',
+  'p', 'pre', 'section', 'select', 'table', 'textarea', 'ul', 'video', 'audio',
+};
+
+String _stripped(String text) => text.replaceAll(RegExp(r'\s+'), '');
 
 class _Layout {
   _Layout(this.widths, this.fonts);
@@ -419,14 +456,25 @@ class _Layout {
       tokens.add(_Token(html.substring(cursor), isTag: false));
     }
 
-    final List<_TextNode> texts = _readDocument(tokens);
+    final List<_TextNode> all = _readDocument(tokens);
     _assignControlBoxes();
     _fillFields();
+    // A sentence placed as one block takes its own words out of the
+    // piece-by-piece matching: they are its text, in its line.
+    final Set<_TextNode> inSentences = _matchSentences(_findSentences(tokens, all));
+    final List<_TextNode> texts = <_TextNode>[
+      for (final _TextNode text in all)
+        if (!inSentences.contains(text)) text,
+    ];
     _matchText(texts);
+    for (final _Node run in runs) {
+      if (run.container?.inline ?? false) run.inline = true;
+    }
     _matchControls();
     _markReaderControls();
     _buildLayer();
     _wrapText(texts);
+    _wrapSentences();
 
     final StringBuffer body = StringBuffer();
     for (final _Token token in tokens) {
@@ -568,6 +616,145 @@ class _Layout {
     );
   }
 
+  // -- Sentences: a paragraph with links in its line.
+
+  final List<_Sentence> _sentences = <_Sentence>[];
+
+  /// Each `<p>` that is one line of text with links in it: words and links
+  /// only, no block inside, at least one link and some words of its own.
+  List<_Sentence> _findSentences(List<_Token> tokens, List<_TextNode> texts) {
+    final Map<_Token, _TextNode> byToken = <_Token, _TextNode>{
+      for (final _TextNode text in texts) text.token: text,
+    };
+    final Map<_Token, _Node> linkByToken = <_Token, _Node>{
+      for (final (_Node node, String key, _Token token) in _docControls)
+        if (key.startsWith('a|')) token: node,
+    };
+    final List<_Sentence> found = <_Sentence>[];
+    for (int index = 0; index < tokens.length; index++) {
+      final _Token open = tokens[index];
+      if (!open.isTag || open.closing || open.name != 'p') continue;
+      final List<_TextNode> words = <_TextNode>[];
+      final List<_Node> links = <_Node>[];
+      final Set<_Node> linkSet = <_Node>{};
+      _Token? close;
+      bool plain = true;
+      int end = index + 1;
+      for (; end < tokens.length; end++) {
+        final _Token token = tokens[end];
+        if (token.isTag) {
+          if (token.name == 'p') {
+            if (token.closing) close = token;
+            break;
+          }
+          if (_blocks.contains(token.name) ||
+              token.source.contains('data-dv-slot=')) {
+            plain = false;
+          }
+          final _Node? link = linkByToken[token];
+          if (link != null) {
+            links.add(link);
+            linkSet.add(link);
+          }
+          continue;
+        }
+        final _TextNode? text = byToken[token];
+        if (text == null) continue;
+        if (text.control != null && linkSet.contains(text.control!.node)) continue;
+        words.add(text);
+      }
+      index = end - 1;
+      if (close == null || !plain || links.isEmpty || words.isEmpty) continue;
+      found.add(_Sentence(open, close, words, links, words.first.control?.node));
+    }
+    return found;
+  }
+
+  /// Each sentence the app paints as one paragraph at some width: the
+  /// painted words are the sentence's own, its links being gaps in them
+  /// (placeholders) or runs of them. Returns the text nodes the matched
+  /// sentences hold.
+  Set<_TextNode> _matchSentences(List<_Sentence> sentences) {
+    final Set<_TextNode> held = <_TextNode>{};
+    for (final _Sentence sentence in sentences) {
+      final String own = _stripped(
+        sentence.words.map((_TextNode text) => text.raw).join(),
+      );
+      if (own.isEmpty) continue;
+      final _Node node = _Node('dvr${_ids++}', 'run')
+        ..container = sentence.container;
+      for (int w = 0; w < widths.length; w++) {
+        for (final _Item item in widths[w].items) {
+          if (item.used || item.kind != 't') continue;
+          if (_stripped(item.text) != own) continue;
+          node.items[w] = item;
+          item.used = true;
+          break;
+        }
+      }
+      if (node.items.isEmpty) continue;
+      sentence.node = node;
+      runs.add(node);
+      _sentences.add(sentence);
+      held.addAll(sentence.words);
+      for (final _Node link in sentence.links) {
+        link.inline = true;
+      }
+    }
+    return held;
+  }
+
+  /// Each matched sentence wrapped in its run, and each stretch of its words
+  /// styled unlike its first run in a span of its own, as [_subRuns] does
+  /// for a paragraph with no links.
+  void _wrapSentences() {
+    for (final _Sentence sentence in _sentences) {
+      final _Node node = sentence.node!;
+      sentence.open.replacement = '${sentence.open.source}<span id="${node.id}">';
+      sentence.close.replacement = '</span>${sentence.close.source}';
+      final List<Map<String, Object?>> styles = node.items.values.first.runs;
+      // Which run each visible character of the painted words is in: the
+      // sentence's words are those characters in order, whatever the spaces.
+      final List<int> owner = <int>[
+        for (int run = 0; run < styles.length; run++)
+          for (final String char in (styles[run]['t'] as String? ?? '').split(''))
+            if (char.trim().isNotEmpty) run,
+      ];
+      final String base = styles.isEmpty ? '' : _inlineStyle(styles.first);
+      final Map<int, int> uses = <int, int>{};
+      int at = 0;
+      for (final _TextNode text in sentence.words) {
+        final StringBuffer out = StringBuffer();
+        int? open;
+        int run = 0;
+        bool styled = false;
+        for (int index = 0; index < text.raw.length; index++) {
+          final String char = text.raw[index];
+          if (char.trim().isNotEmpty && at < owner.length) run = owner[at++];
+          final bool differs = run > 0 && run < styles.length && _inlineStyle(styles[run]) != base;
+          final int? want = differs ? run : null;
+          if (want != open) {
+            if (open != null) out.write('</span>');
+            if (want != null) {
+              final int use = uses[want] = (uses[want] ?? -1) + 1;
+              final _Node sub = _Node('${node.id}-$want${use == 0 ? '' : 'x$use'}', 'sub')
+                ..container = node
+                ..subIndex = want;
+              sub.items.addAll(node.items);
+              runs.add(sub);
+              out.write('<span id="${sub.id}">');
+              styled = true;
+            }
+            open = want;
+          }
+          out.write(_elementText.convert(char));
+        }
+        if (open != null) out.write('</span>');
+        if (styled) text.token.replacement = out.toString();
+      }
+    }
+  }
+
   // -- Matching the document's text to the painted paragraphs.
 
   void _matchText(List<_TextNode> texts) {
@@ -606,7 +793,7 @@ class _Layout {
     for (final _Width width in widths) {
       final Map<String, List<_Item>> queues = <String, List<_Item>>{};
       for (final _Item item in width.items) {
-        if (item.kind != 't' || item.norm.isEmpty) continue;
+        if (item.used || item.kind != 't' || item.norm.isEmpty) continue;
         queues.putIfAbsent(item.norm, () => <_Item>[]).add(item);
       }
       final List<String> keys = queues.keys.toList()
@@ -1092,7 +1279,7 @@ class _Layout {
     };
     final Map<String, List<String?>> geometries = <String, List<String?>>{
       for (final _Node node in all)
-        if (node.kind != 'sub') node.id: _geometries(node, ranges),
+        if (node.kind != 'sub' && !node.inline) node.id: _geometries(node, ranges),
     };
     void placeAll(
       Iterable<_Node> nodes,
@@ -1114,7 +1301,7 @@ class _Layout {
         final Map<String, List<String>> styleGroups = <String, List<String>>{};
         final Map<String, List<String>> darkGroups = <String, List<String>>{};
         for (final _Node node in nodes) {
-          if (node.kind != 'sub') {
+          if (node.kind != 'sub' && !node.inline) {
             final String? geometry = geometries[node.id]![rangeIndex];
             if (geometry != null) block.write('#${node.id}{$geometry}');
           }
@@ -1458,6 +1645,10 @@ class _Layout {
   // -- Styles.
 
   String _style(_Node node, _Item item) {
+    // In a sentence's line: styled as a run inside it, its line the sentence's.
+    if (node.inline) {
+      return node.kind == 'run' && item.runs.isNotEmpty ? _inlineStyle(item.runs.first) : '';
+    }
     switch (node.kind) {
       case 'run':
         return _textStyle(

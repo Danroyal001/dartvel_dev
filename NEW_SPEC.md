@@ -555,7 +555,18 @@ The table is the contract. Each row says which entries a target has, what
   drawn by an `aria-hidden` layer of empty elements (text through CSS
   `content`, so it is not selectable, findable or indexed twice). Text the
   document carries that the app does not paint (a button's label for a
-  screen reader) is kept for readers and hidden from the eye. The fonts are
+  screen reader) is kept for readers and hidden from the eye. A paragraph
+  with links in its line (`<p>words <a>link</a> words</p>`, what the build
+  writes for a sentence laid out with `DVWidgetSpan`) is placed as one
+  block: the app paints its words as one paragraph with a gap for each link
+  (a placeholder, not in the paragraph's text) and each link's words in
+  that gap, so the document's paragraph takes that paragraph's box, line
+  height and wrapping, and its links flow inline in it in their own style
+  (colour, underline) with no box of their own. Find and a selection run
+  across the links, and the line breaks fall where the browser wraps the
+  same words at the same width, as for any other paragraph. The snapshot
+  counts a paragraph's lines by line box (`BoxHeightStyle.max`), so a link
+  taller than the text, or a larger run, is not read as a line of its own. The fonts are
   the app's own files from FontManifest.json, by the family names the
   snapshot reports (a missing family falls back to Roboto, as the engine
   does), with `font-display:swap`: every box is fixed, so a late font can
