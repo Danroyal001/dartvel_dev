@@ -6,7 +6,7 @@
 // does is printed with an OTA-PROBE prefix, which is what the device check
 // reads. See tool/ci/android_ota_check.dart.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const String probeVersion = 'OTA-PROBE-ONE';
 

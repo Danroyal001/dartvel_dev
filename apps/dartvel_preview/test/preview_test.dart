@@ -6,7 +6,7 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_preview/components/open_panel.dart';
 import 'package:dartvel_preview/components/preview_decision.dart';
 import 'package:dartvel_preview/components/preview_launch.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Uri pairingLink() => DVDevClientPairing(

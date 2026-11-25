@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 
 /// Brew guides read as articles: nothing around them but the page.

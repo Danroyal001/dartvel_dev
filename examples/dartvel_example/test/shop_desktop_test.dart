@@ -1,5 +1,5 @@
 // The shop on a desktop or a browser window: a side rail instead of tabs.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'shop_test_support.dart';
