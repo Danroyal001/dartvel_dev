@@ -539,7 +539,11 @@ The table is the contract. Each row says which entries a target has, what
   is lost and typing never waits. A field never touched keeps the app's
   value. A `role="button"` pressed before the handover is marked
   `aria-busy` and pressed again on the app's semantics button of the same
-  name once `data-dv-app` is set.
+  name once `data-dv-app` is set. The document keeps taking presses during
+  the fade: links navigate, buttons queue, any other press is replayed on the
+  element at that point (the app's semantics node) after `data-dv-app`; keys
+  typed while focus is between the document field and the app's text input
+  are typed into the app's field.
 - **SSR-first in the app's own look.** With `ssrFirst` on, the document is
   laid out the way the app's first frame draws the page, so the handover
   changes nothing a visitor can see. How: the build's capture already runs

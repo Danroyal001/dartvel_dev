@@ -332,6 +332,13 @@ What a visitor sees at the handover, checked in Chrome at 390 px, light and dark
 - A button pressed before the app loads shows it is busy, and its press is
   made on the app's button of the same name once the app has taken over.
   Buttons are Tab stops and take Enter and Space.
+- Nothing pressed during the 200 ms fade is dropped: the document keeps
+  taking presses while it fades (it lies exactly over the app), so a link
+  navigates, a button queues, and any other press (a field, a card) is made
+  again on what the app has at that point once it has the page. Keys typed
+  in the moment after the document field lets go of the keyboard and before
+  the app's text input has it go into the app's field (measured on
+  sigmadev.digital: without this, three keys typed in that moment were lost).
 
 Scripts: `measure.mjs` (with readable, clickable and CLS added),
 `ssrproxy.mjs`, `matrix.sh`, `table.mjs`.
