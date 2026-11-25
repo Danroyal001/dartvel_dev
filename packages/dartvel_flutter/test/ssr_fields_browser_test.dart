@@ -59,6 +59,7 @@ void _type(web.HTMLTextAreaElement field, String value) {
 
 void main() {
   setUpAll(_installHead);
+  setUp(() => web.document.documentElement!.removeAttribute('data-dv-app'));
   // The browser runner shows print, not the console dump: the failure is
   // printed as well as reported.
   final TestExceptionReporter report = reportTestException;

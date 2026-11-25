@@ -580,7 +580,7 @@ void main() {
     }""");
     // Before: a press on the button.
     await page.mouse.click(const Point<num>(100, 712));
-    expect(await page.evaluate<String?>('() => document.querySelector("[aria-label=\\"Add to order\\"]").getAttribute("aria-busy")'),
+    expect(await page.evaluate<String?>('() => document.querySelector(".dv-fallback [aria-label=\\"Add to order\\"]").getAttribute("aria-busy")'),
         'true');
     // The app has drawn: the handover starts, and a tap lands on the field
     // while the document fades.
@@ -598,6 +598,10 @@ void main() {
   test('a link clicked during the handover navigates', () async {
     final Page page = await browser.newPage();
     await page.setViewport(DeviceViewport(width: 390, height: 800));
+    // The fade is the window: with reduced motion there is none.
+    await page.devTools.client.send('Emulation.setEmulatedMedia', <String, Object?>{
+      'features': <Map<String, String>>[<String, String>{'name': 'prefers-reduced-motion', 'value': 'no-preference'}],
+    });
     await page.goto('http://127.0.0.1:${server.port}/form', wait: Until.load);
     await page.evaluate('() => window.dispatchEvent(new Event("dartvel-first-frame"))');
     await Future.wait(<Future<void>>[
