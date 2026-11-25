@@ -4806,8 +4806,9 @@ class BuildCommand extends Command<void> {
     // SSR-first: laid out as the app's first frame draws the page, from what
     // the capture recorded at each width, in the app's own fonts.
     if (!DVSplash.of(root).ssrFirst) return html;
-    return dvApplySsrFirstLayout(root, route, html,
-        dvLayoutFonts(p.join(root, 'build', 'web')));
+    final String web = p.join(root, 'build', 'web');
+    return dvApplySsrFirstLayout(root, route, html, dvLayoutFonts(web),
+        webRoot: web);
   }
 
   /// Each route's page, as both targets render it: `dartvel build web` at

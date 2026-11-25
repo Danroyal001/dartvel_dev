@@ -15,7 +15,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVLayoutFont, dvSsrFirstLayout;
+import 'package:dartvel_core/dartvel.dart' show DVLayoutFont, DVLayoutImageReader, dvSsrFirstLayout;
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 
@@ -271,13 +271,16 @@ Map<String, List<DVLayoutFont>> dvLayoutFonts(String webRoot) {
 }
 
 /// [html], the semantic HTML of [route], laid out from its layout capture
-/// when there is one; as it was otherwise.
+/// when there is one; as it was otherwise. [webRoot] is the web build the
+/// page ships with: a small image on the first screen is read from it and
+/// written into the page, so the first frame has it.
 String dvApplySsrFirstLayout(
   String projectRoot,
   String route,
   String html,
-  Map<String, List<DVLayoutFont>> fonts,
-) {
+  Map<String, List<DVLayoutFont>> fonts, {
+  String? webRoot,
+}) {
   final File file = File(dvLayoutCapturePathFor(projectRoot, route));
   if (!file.existsSync()) return html;
   final Object? capture;
@@ -287,5 +290,25 @@ String dvApplySsrFirstLayout(
     return html;
   }
   if (capture is! Map) return html;
-  return dvSsrFirstLayout(html, capture.cast<String, Object?>(), fonts: fonts);
+  return dvSsrFirstLayout(html, capture.cast<String, Object?>(),
+      fonts: fonts, readImage: webRoot == null ? null : dvLayoutImageReader(webRoot));
+}
+
+/// Reads an image the layout names from under [webRoot], and from nowhere
+/// else: a path that leaves it, or names no file, reads as nothing.
+DVLayoutImageReader dvLayoutImageReader(String webRoot) {
+  final String base = p.normalize(p.absolute(webRoot));
+  return (String source) {
+    final String relative = Uri.decodeComponent(source.split('?').first.split('#').first)
+        .replaceFirst(RegExp('^/+'), '');
+    final String path = p.normalize(p.join(base, relative));
+    if (!p.isWithin(base, path)) return null;
+    final File file = File(path);
+    if (!file.existsSync()) return null;
+    try {
+      return file.readAsBytesSync();
+    } on FileSystemException {
+      return null;
+    }
+  };
 }

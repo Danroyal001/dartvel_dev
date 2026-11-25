@@ -107,6 +107,42 @@ void main() {
     expect(laid, contains('Pricing</span></h1>'));
   });
 
+  // The header logo of sigmadev.digital came 0.2-3 s after the first frame
+  // (Dartvel 3.47.9): the build now reads a small first-screen image from
+  // the web root it built and writes it into the page.
+  test('a small image on the first screen is read from the web root into the page', () {
+    final Directory root = Directory.systemTemp.createTempSync('dv_layout_img');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String web = p.join(root.path, 'build', 'web');
+    final List<int> png = <int>[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3];
+    File(p.join(web, 'assets', 'logo.png'))
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(png);
+    File(p.join(root.path, 'secret.png')).writeAsBytesSync(png);
+    Map<String, Object?> image(String src, num x) =>
+        <String, Object?>{'k': 'i', 'r': <num>[x, 10, 32, 32], 'z': 1, 's': false, 'src': src, 'fit': 'contain'};
+    File(dvLayoutCapturePathFor(root.path, '/'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(jsonEncode(<String, Object?>{
+        'widths': <Object?>[
+          <String, Object?>{
+            'width': 390,
+            'height': 844,
+            'light': <String, Object?>{
+              'items': <Object?>[image('assets/logo.png', 10), image('/assets/logo.png', 60), image('../../secret.png', 110)],
+            },
+            'controls': <Object?>[],
+          },
+        ],
+      }));
+    final String laid = dvApplySsrFirstLayout(root.path, '/', '<h1>Home</h1>', const {}, webRoot: web);
+    final String data = 'data:image/png;base64,${base64Encode(png)}';
+    expect(RegExp(RegExp.escape('src="$data"')).allMatches(laid).length, 2, reason: laid);
+    expect(laid, contains('src="../../secret.png"'), reason: 'nothing outside the web root is read');
+    expect(dvApplySsrFirstLayout(root.path, '/', '<h1>Home</h1>', const {}), isNot(contains('data:')),
+        reason: 'no web root, nothing read');
+  });
+
   group('a slow scheme switch', _laggingSchemeTests);
   group('an app that says when it is idle', _idleTests);
 

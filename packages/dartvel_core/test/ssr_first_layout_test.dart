@@ -3,6 +3,8 @@
 // build's capture took at each width, so the handover changes nothing a
 // visitor can see. The document itself stays what it was: same elements,
 // same text, same order.
+import 'dart:convert';
+
 import 'package:dartvel_core/dartvel.dart';
 import 'package:test/test.dart';
 
@@ -843,6 +845,125 @@ void main() {
           '<div class="dvl"><style class="dvl-style">a{}</style><div class="dvp" aria-hidden="true"><i id="dvp1"></i></div><p>Text</p></div>');
       expect(out, contains('<style class="dvl-style">a{}</style><div class="dvp" aria-hidden="true"><i id="dvp1"></i></div>'
           '<section hidden="until-found" data-dv-anchor="0"><p>Text</p></section>'));
+    });
+  });
+
+  // sigmadev.digital, Dartvel 3.47.9, SSR-first: the first painted frame was
+  // the whole first screen but the header logo arrived 0.2 s (light) to 3 s
+  // (dark) later. The <img> was decoded asynchronously and fetched after the
+  // first paint, and the dark logo was a CSS content:url() found only once
+  // the stylesheet applied. A small image on the first screen is now part of
+  // the document's bytes, so the first frame has it.
+  group('images on the first screen', () {
+    // A 1x1 PNG.
+    const List<int> png = <int>[
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52, //
+      0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89,
+    ];
+    Map<String, Object?> image(String src, List<num> rect, {int z = 1, bool scrolls = false}) =>
+        <String, Object?>{'k': 'i', 'r': rect, 'z': z, 's': scrolls, 'src': src, 'fit': 'contain'};
+    String layerOf(String out) =>
+        RegExp(r'<div class="dvp" aria-hidden="true">.*?</div>', dotAll: true).firstMatch(out)!.group(0)!;
+
+    test('a small one is inlined, decoded with the first frame, in light and dark', () {
+      final List<String> asked = <String>[];
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[image('assets/logo-black.png', <num>[16, 12, 96, 32])],
+              dark: <Map<String, Object?>>[image('assets/logo-white.png', <num>[16, 12, 96, 32])]),
+        ]),
+        readImage: (String source) {
+          asked.add(source);
+          return png;
+        },
+      );
+      final String data = 'data:image/png;base64,${base64Encode(png)}';
+      final String layer = layerOf(out);
+      expect(layer, contains('src="$data"'));
+      expect(layer, isNot(contains('decoding="async"')),
+          reason: 'an async decode may leave it out of the first frame');
+      expect(layer, isNot(contains('loading="lazy"')));
+      expect(out, contains('content:url("$data")'), reason: 'the dark logo too');
+      expect(out, isNot(contains('logo-white.png')));
+      expect(asked, containsAll(<String>['assets/logo-black.png', 'assets/logo-white.png']));
+    });
+
+    test('one below the first screen stays a lazy URL', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[image('assets/icon.png', <num>[16, 1600, 32, 32], scrolls: true)]),
+        ]),
+        readImage: (String source) => png,
+      );
+      final String layer = layerOf(out);
+      expect(layer, contains('src="assets/icon.png"'));
+      expect(layer, contains('loading="lazy"'));
+      expect(layer, isNot(contains('data:')));
+    });
+
+    test('a big one is never inlined: it is fetched first, and first paint does not wait for it', () {
+      final List<int> big = <int>[...png, ...List<int>.filled(dvLayoutInlineImageBytes, 0)];
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[image('assets/hero.jpg', <num>[0, 80, 390, 300], scrolls: true)]),
+        ]),
+        readImage: (String source) => big,
+      );
+      final String layer = layerOf(out);
+      expect(layer, contains('src="assets/hero.jpg"'));
+      expect(layer, contains('fetchpriority="high"'));
+      expect(layer, isNot(contains('data:')));
+      expect(layer, isNot(contains('loading="lazy"')));
+    });
+
+    test('a page inlines at most its budget, the rest stay URLs', () {
+      final List<int> mid = <int>[...png, ...List<int>.filled(dvLayoutInlineImageBytes - png.length, 0)];
+      final int fits = dvLayoutInlineImageBudget ~/ dvLayoutInlineImageBytes;
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            for (int index = 0; index < fits + 2; index++)
+              image('assets/icon$index.png', <num>[index * 40, 12, 32, 32], z: index + 1),
+          ]),
+        ]),
+        readImage: (String source) => mid,
+      );
+      final String layer = layerOf(out);
+      expect(RegExp('src="data:').allMatches(layer).length, fits);
+      expect(layer, contains('src="assets/icon${fits + 1}.png"'));
+    });
+
+    test('only images under the site are read; a remote one stays a URL', () {
+      final List<String> asked = <String>[];
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            image('https://cdn.example.com/logo.png', <num>[16, 12, 96, 32]),
+            image('//cdn.example.com/mark.png', <num>[120, 12, 32, 32], z: 2),
+          ]),
+        ]),
+        readImage: (String source) {
+          asked.add(source);
+          return png;
+        },
+      );
+      expect(asked, isEmpty);
+      expect(layerOf(out), contains('src="https://cdn.example.com/logo.png"'));
+    });
+
+    test('with nothing to read them from, images stay as they were', () {
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[image('assets/logo.png', <num>[16, 12, 96, 32])]),
+        ]),
+      );
+      expect(layerOf(out), contains('src="assets/logo.png"'));
     });
   });
 }

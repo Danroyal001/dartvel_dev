@@ -50,6 +50,22 @@ class DVLayoutFont {
 /// the SSR-first head holds the first paint until it is parsed.
 const String dvFirstScreenId = 'dv-first-screen';
 
+/// The largest image, in bytes, the layout writes into the page itself when
+/// it is on the first screen: a logo or an icon. The first frame then has
+/// it, where an image fetched separately arrives after the first paint (the
+/// header logo of sigmadev.digital, 0.2 s to 3 s after the page, Dartvel
+/// 3.47.9). Anything bigger stays a URL fetched first, so the first paint
+/// never waits on a photograph over a slow line.
+const int dvLayoutInlineImageBytes = 8 * 1024;
+
+/// The most image bytes one page writes into itself: past it, the rest of
+/// the first screen's images stay URLs.
+const int dvLayoutInlineImageBudget = 24 * 1024;
+
+/// Reads an image the layout names, [source] being its path under the site
+/// (`assets/logo.png`): its bytes, or null when there is no such file.
+typedef DVLayoutImageReader = List<int>? Function(String source);
+
 /// The family the engine draws with when a style names none.
 const String dvLayoutDefaultFamily = 'Roboto';
 
@@ -58,11 +74,15 @@ const HtmlEscape _elementText = HtmlEscape(HtmlEscapeMode.element);
 
 /// [html] laid out from [capture]: `{"widths": [{"width", "height", "light",
 /// "dark", "controls"}]}`, `light` and `dark` being paint snapshots. [fonts]
-/// is FontManifest.json by family. Unchanged when [capture] has no width.
+/// is FontManifest.json by family. [readImage] reads an image under the site,
+/// so a small one on the first screen is written into the page
+/// ([dvLayoutInlineImageBytes]); without it every image stays a URL.
+/// Unchanged when [capture] has no width.
 String dvSsrFirstLayout(
   String html,
   Map<String, Object?> capture, {
   Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
+  DVLayoutImageReader? readImage,
 }) {
   final List<_Width> widths = <_Width>[
     for (final Object? entry
@@ -70,7 +90,7 @@ String dvSsrFirstLayout(
       if (entry is Map) _Width.fromJson(entry.cast<String, Object?>()),
   ]..sort((_Width a, _Width b) => a.width.compareTo(b.width));
   if (widths.isEmpty) return html;
-  return _Layout(widths, fonts).run(html);
+  return _Layout(widths, fonts, readImage).run(html);
 }
 
 // ---------------------------------------------------------------------------
@@ -419,10 +439,23 @@ const Set<String> _blocks = <String>{
 String _stripped(String text) => text.replaceAll(RegExp(r'\s+'), '');
 
 class _Layout {
-  _Layout(this.widths, this.fonts);
+  _Layout(this.widths, this.fonts, this.readImage);
 
   final List<_Width> widths;
   final Map<String, List<DVLayoutFont>> fonts;
+  final DVLayoutImageReader? readImage;
+
+  /// Each source written into the page, as its data URI.
+  final Map<String, String> _inline = <String, String>{};
+
+  /// Each source written into the page, by its size in bytes.
+  final Map<String, int> _inlineBytes = <String, int>{};
+
+  /// The images on the first screen, written into the page or not.
+  final Set<_Node> _firstScreenImages = <_Node>{};
+
+  /// The first screen's images written into the page.
+  final Set<_Node> _inlinedImages = <_Node>{};
   final List<_Node> runs = <_Node>[];
   final List<_Node> controls = <_Node>[];
   final List<_Node> layer = <_Node>[];
@@ -473,6 +506,7 @@ class _Layout {
     _matchControls();
     _markReaderControls();
     _buildLayer();
+    _chooseInlineImages();
     _wrapText(texts);
     _wrapSentences();
 
@@ -1146,6 +1180,64 @@ class _Layout {
     return out.toString();
   }
 
+  /// Whether [node] shows on the first screen at some width: pinned, or
+  /// starting above the bottom of the screen.
+  bool _onFirstScreen(_Node node) {
+    for (final MapEntry<int, _Item> entry in node.items.entries) {
+      if (!entry.value.scrolls) return true;
+      if (entry.value.rect[1] < widths[entry.key].height) return true;
+    }
+    return false;
+  }
+
+  /// Picks the images on the first screen small enough to write into the
+  /// page, light and dark, in paint order until the page's budget is spent.
+  /// An image is written in only when every variant it shows fits, so a
+  /// reader in dark mode never waits for a logo a reader in light mode has.
+  void _chooseInlineImages() {
+    int spent = 0;
+    for (final _Node node in layer) {
+      if (node.kind != 'image' || !_onFirstScreen(node)) continue;
+      _firstScreenImages.add(node);
+      final DVLayoutImageReader? read = readImage;
+      if (read == null) continue;
+      final Set<String> sources = <String>{
+        for (final _Item item in node.items.values) ...<String?>[
+          _safeSource(item.json['src']),
+          if (item.dark != null) _safeSource(item.dark!.json['src']),
+        ].whereType<String>(),
+      };
+      if (sources.isEmpty) continue;
+      final Map<String, String> uris = <String, String>{};
+      // Every copy is bytes in the page, so a source written in twice
+      // counts twice.
+      int cost = 0;
+      for (final String source in sources) {
+        String? uri = _inline[source];
+        int? size = _inlineBytes[source];
+        if (uri == null || size == null) {
+          final String? type = _localImageType(source);
+          final List<int>? bytes = type == null ? null : read(source);
+          if (bytes == null || bytes.isEmpty || bytes.length > dvLayoutInlineImageBytes) break;
+          uri = 'data:$type;base64,${base64Encode(bytes)}';
+          size = bytes.length;
+          _inlineBytes[source] = size;
+        }
+        uris[source] = uri;
+        cost += size;
+      }
+      if (uris.length != sources.length || spent + cost > dvLayoutInlineImageBudget) continue;
+      spent += cost;
+      _inline.addAll(uris);
+      _inlinedImages.add(node);
+    }
+  }
+
+  /// [source] as [node] names it: its data URI when [node] is written into
+  /// the page.
+  String _imageSource(_Node node, String source) =>
+      _inlinedImages.contains(node) ? _inline[source] ?? source : source;
+
   String _layerHtml() {
     if (layer.isEmpty) return '';
     final StringBuffer out = StringBuffer(
@@ -1154,13 +1246,19 @@ class _Layout {
     for (final _Node node in layer) {
       if (node.kind == 'image') {
         final _Item first = node.items.values.first;
-        final bool belowFold = node.items.entries.every(
-          (MapEntry<int, _Item> entry) =>
-              entry.value.rect[1] > widths[entry.key].height,
-        );
+        final String source = _safeSource(first.json['src'])!;
+        // Written into the page: decoded with the first frame, which an
+        // async decode may leave it out of. On the first screen but too big
+        // to write in: fetched before anything else, never waited for.
+        // Further down: fetched when the reader gets near it.
+        final String loading = _inlinedImages.contains(node)
+            ? ' decoding="sync"'
+            : _firstScreenImages.contains(node)
+            ? ' decoding="async" fetchpriority="high"'
+            : ' decoding="async" loading="lazy"';
         out.write(
-          '<img id="${node.id}" src="${_attribute.convert(_safeSource(first.json['src'])!)}" alt=""'
-          ' decoding="async"${belowFold ? ' loading="lazy"' : ''}>',
+          '<img id="${node.id}" src="${_attribute.convert(_imageSource(node, source))}" alt=""'
+          '$loading>',
         );
       } else {
         out.write('<i id="${node.id}"></i>');
@@ -1727,7 +1825,7 @@ class _Layout {
         final String? source = _safeSource(dark.json['src']);
         return source == null || source == _safeSource(light.json['src'])
             ? ''
-            : 'content:url("${_cssString(source)}")';
+            : 'content:url("${_cssString(_imageSource(node, source))}")';
       default:
         return '';
     }
@@ -1969,4 +2067,26 @@ String? _safeSource(Object? value) {
     return null;
   }
   return source;
+}
+
+/// The media type of an image under the site the layout may write into the
+/// page: null for anything remote (`https://`, `//host/`), anything with a
+/// query, and anything that is not an image by its extension.
+String? _localImageType(String source) {
+  final Uri? uri = Uri.tryParse(source);
+  if (uri == null || uri.hasScheme || uri.hasAuthority || source.startsWith('//')) return null;
+  if (uri.hasQuery || uri.path.split('/').contains('..')) return null;
+  final String path = uri.path.toLowerCase();
+  final int dot = path.lastIndexOf('.');
+  if (dot < 0) return null;
+  return switch (path.substring(dot + 1)) {
+    'png' => 'image/png',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif',
+    'webp' => 'image/webp',
+    'avif' => 'image/avif',
+    'svg' => 'image/svg+xml',
+    'ico' => 'image/x-icon',
+    _ => null,
+  };
 }
