@@ -45,10 +45,28 @@ META_CONVERSIONS_API_TOKEN=...
 The token is never a setting. A mount's `config:` is compiled into the
 client, so `accessToken:` there is refused by name.
 
+The pixel id can live on the server too. Leave `pixelId` empty and set
+`META_PIXEL_ID` beside the token: the backend uses it, and a browser or
+device asks the backend which pixel to load (once per page load, and only
+after the visitor consents), so setting the two secrets turns the pixel on
+with no code change or rebuild.
+
+```
+META_PIXEL_ID=1234567890
+META_CONVERSIONS_API_TOKEN=...
+```
+
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `PageView`.
-  The page shell reports them; no page calls anything. The landing page's
+  The page shell reports them; no page calls anything. Each goes out once
+  from the browser and once to the Conversions API with one event id, so
+  Meta counts it once: the pixel's own automatic `PageView` on every
+  `history.pushState` (which has no event id, so Meta could not
+  de-duplicate it) is switched off with `fbq.disablePushState`, and
+  `fbq.allowDuplicatePageViews` lets the module's views of later routes
+  through, which `fbevents.js` would otherwise drop after the first of a
+  page load. The landing page's
   view carries the `utm_*` parameters it arrived with as event data.
 - **The framework's standard events.** `DV.Analytics.track(...)` with a
   `DVStandardEvent` is sent as Meta's standard event the moment it is
@@ -173,7 +191,7 @@ Under `dartvel.modules.metaPixel.config`, or as `MetaPixelConfig` passed to
 
 | Setting | Default | |
 |---|---|---|
-| `pixelId` | none | The pixel's id. Without it the module does nothing. The server also reads `META_PIXEL_ID`. |
+| `pixelId` | none | The pixel's id. Without it the module does nothing. Leave it empty (or out) to use the server's `META_PIXEL_ID`: the backend reads it, and a browser or device asks the backend for it once, after consent, so the pixel turns on by setting the secret, with no rebuild. |
 | `consent` | `marketing` | The consent category to wait for. |
 | `serverEvents` | `true` | Send a client's events through the backend to the Conversions API. |
 | `apiVersion` | `v27.0` | The Graph API version. |

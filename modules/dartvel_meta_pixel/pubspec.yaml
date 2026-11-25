@@ -81,3 +81,9 @@ dartvel:
         native: { compat: backend }
         web: { compat: backend }
         backend: real
+      # Internal: which pixel the server's META_PIXEL_ID names, for a client
+      # whose mount left pixelId empty (a browser has no environment).
+      settings:
+        native: { compat: backend }
+        web: { compat: backend }
+        backend: real

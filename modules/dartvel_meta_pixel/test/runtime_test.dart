@@ -114,6 +114,51 @@ void main() {
       expect(relayed.single['source'], 'website');
     });
 
+    test('every event goes out once each way, the browser\'s and the '
+        'server\'s with the same id, route changes included', () async {
+      final MetaPixelRuntime pixel = runtime();
+      await pixel.pageShown(page('/'));
+      await pixel.pageShown(page('/tools/word-counter'));
+      await pixel.track(MetaPixelEvent.viewContent(contentName: 'Word counter'));
+      await pixel.track(MetaPixelEvent.lead(contentName: 'Word counter'));
+      await pixel.standardEvent(<String, Object?>{
+        'name': 'begin_checkout',
+        'params': <String, Object?>{'currency': 'NGN', 'value': 25000},
+      });
+      await pixel.standardEvent(<String, Object?>{
+        'name': 'generate_lead',
+        'params': <String, Object?>{'lead_source': 'whatsapp'},
+      });
+      await pixel.standardEvent(<String, Object?>{
+        'name': 'purchase',
+        'params': <String, Object?>{
+          'currency': 'NGN',
+          'value': 25000,
+          'transaction_id': 'T-1',
+        },
+      });
+
+      final List<List<String>> browserEvents = <List<String>>[
+        for (final String line in browser.log)
+          if (line.startsWith('track'))
+            <String>[line.split(' ')[1], line.split(' ').last],
+      ];
+      final List<List<String>> serverEvents = <List<String>>[
+        for (final Map<String, Object?> event in relayed)
+          <String>['${event['name']}', '${event['id']}'],
+      ];
+      expect(browserEvents, <List<String>>[
+        <String>['PageView', 'id-1'],
+        <String>['PageView', 'id-2'],
+        <String>['ViewContent', 'id-3'],
+        <String>['Lead', 'id-4'],
+        <String>['InitiateCheckout', 'id-5'],
+        <String>['Lead', 'id-6'],
+        <String>['Purchase', 'purchase.T-1'],
+      ]);
+      expect(serverEvents, browserEvents);
+    });
+
     test('the pixel is loaded once, however many events follow', () async {
       final MetaPixelRuntime pixel = runtime();
       await pixel.pageShown(page('/'));
