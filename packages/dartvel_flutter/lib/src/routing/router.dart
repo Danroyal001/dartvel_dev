@@ -13,8 +13,8 @@ library dartvel_flutter.routing.router;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart'
     show DVPageStore, DVStudioPageRoute, DartvelRouteState, DvDefaultLoading;
@@ -44,8 +44,8 @@ class DVRouter extends GoRouter {
     String? restorationScopeId,
     bool requestFocus = true,
     this.pending,
-  }) : _errorBuilder = errorBuilder,
-       _errorPageBuilder = errorPageBuilder,
+  }) : _errorBuilder = errorPageBuilder == null ? null : errorBuilder,
+       _errorPageBuilder = errorPageBuilder ?? _materialPage(errorBuilder),
        _observers = observers,
        _restorationScopeId = restorationScopeId,
        _requestFocus = requestFocus,
@@ -59,8 +59,8 @@ class DVRouter extends GoRouter {
              redirectLimit: redirectLimit,
            ),
          ),
-         errorBuilder: errorBuilder,
-         errorPageBuilder: errorPageBuilder,
+         errorBuilder: errorPageBuilder == null ? null : errorBuilder,
+         errorPageBuilder: errorPageBuilder ?? _materialPage(errorBuilder),
          observers: observers,
          restorationScopeId: restorationScopeId,
          requestFocus: requestFocus,
@@ -68,6 +68,19 @@ class DVRouter extends GoRouter {
     // A new router has reported nothing yet.
     _shown = null;
   }
+
+  /// [errorBuilder]'s widget on a Material page.
+  ///
+  /// go_router picks the page for an error builder by looking for
+  /// flutter/material's MaterialApp, which the material_ui app Dartvel builds
+  /// is not, and would show the error with no page transition.
+  static GoRouterPageBuilder? _materialPage(GoRouterWidgetBuilder? errorBuilder) =>
+      errorBuilder == null
+          ? null
+          : (BuildContext context, GoRouterState state) => MaterialPage<void>(
+              key: state.pageKey,
+              child: errorBuilder(context, state),
+            );
 
   /// [redirect], asked only about locations this host shows.
   ///
