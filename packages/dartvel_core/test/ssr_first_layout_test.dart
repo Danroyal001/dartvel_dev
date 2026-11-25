@@ -428,6 +428,112 @@ void main() {
       expect(out, contains('content:"QR code"'), reason: 'drawn, where the document has no input');
     });
 
+    // sigmadev.digital's keyword density checker, live on Dartvel 3.47.9: the
+    // "Your content" box was painted where the app draws it, but the
+    // document's own textarea was never placed there -- it stayed in the
+    // reading column under the painted layer -- so a tap on the box hit the
+    // painting and typing went nowhere until Flutter took over (8-15 s on a
+    // phone). Every field is the document's own input, over its box.
+    test('a field is placed over its painted box, so a tap types into it', () {
+      const String doc = '<p><label for="dv-field-1">Your content</label> '
+          '<textarea id="dv-field-1" name="Your content" data-dv-field="Your content"></textarea></p>\n'
+          '<p><label for="dv-field-2">Phrase length</label> '
+          '<input value="1" id="dv-field-2" type="text" name="Phrase length" data-dv-field="Phrase length"></p>\n';
+      Map<String, Object?> editable(String text, List<num> rect, {bool oneLine = true}) => <String, Object?>{
+            ..._text(text, rect, z: 4, size: 16, colour: '#0a0a0a'),
+            'k': 'e',
+            if (!oneLine) 'nw': null,
+          };
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Your content', <num>[20, 480, 200, 20], z: 1),
+            _box(<num>[20, 504, 350, 260], '#ffffff', z: 2, scrolls: true),
+            editable('', <num>[40, 520, 310, 228], oneLine: false),
+            _text('Phrase length', <num>[20, 790, 200, 20], z: 1),
+            _box(<num>[20, 814, 350, 50], '#ffffff', z: 2, scrolls: true),
+            editable('1', <num>[40, 827, 310, 24]),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Your content', 'r': <num>[20, 504, 350, 260]},
+            <String, Object?>{'k': 'f', 'name': 'Phrase length', 'r': <num>[20, 814, 350, 50]},
+          ]),
+        ]),
+      );
+      for (final (String id, String box) in <(String, String)>[
+        ('dv-field-1', 'left:20px;top:504px;width:350px;height:260px'),
+        ('dv-field-2', 'left:20px;top:814px;width:350px;height:50px'),
+      ]) {
+        final RegExpMatch placed = RegExp('#$id\\{left:[^}]*\\}').firstMatch(out) ??
+            (throw TestFailure('$id is never placed: $out'));
+        expect(placed.group(0), contains(box));
+        expect(placed.group(0), contains('position:absolute'));
+        expect(placed.group(0), contains('z-index:'), reason: 'above what is painted, so the tap is its own');
+      }
+      // An empty field has the style typing takes: the app's font, where the
+      // app starts its text, top and side.
+      final String style = RegExp(r'#dv-field-1\{[^}]*font:[^}]*\}').firstMatch(out)?.group(0) ??
+          (throw TestFailure('no style for the empty field in $out'));
+      expect(style, contains('16px'));
+      expect(style, contains('color:#0a0a0a'));
+      expect(style, contains('padding:16px 20px 16px 20px'), reason: 'text starts where the app starts it');
+      expect(out, contains('<label for="dv-field-1">'), reason: 'the label still names it');
+    });
+
+    test("a textarea starts with the app's text, as its content", () {
+      const String doc = '<p><label for="dv-field-1">Rows</label> '
+          '<textarea id="dv-field-1" name="Rows" data-dv-field="Rows"></textarea></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{..._text('a,b\n1,2', <num>[36, 113, 318, 48], z: 4), 'k': 'e', 'nw': null},
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Rows', 'r': <num>[20, 100, 350, 80]},
+          ]),
+        ]),
+      );
+      expect(out, contains('data-dv-field="Rows">a,b\n1,2</textarea>'));
+      expect(out, isNot(contains('content:"a,b')), reason: 'in the field, not drawn over it');
+    });
+
+    test("an empty field's hint is its placeholder, gone when the visitor types", () {
+      const String doc = '<p><label for="dv-field-1">Link</label> '
+          '<input id="dv-field-1" type="text" name="Link" data-dv-field="Link"></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _box(<num>[20, 100, 350, 50], '#ffffff', z: 2, scrolls: true),
+            <String, Object?>{..._text('', <num>[36, 113, 318, 24], z: 4), 'k': 'e'},
+            _text('https://example.com', <num>[36, 113, 200, 24], z: 4, colour: '#888888'),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Link', 'r': <num>[20, 100, 350, 50]},
+          ]),
+        ]),
+      );
+      final String input = RegExp(r'<input[^>]*>').firstMatch(out)!.group(0)!;
+      expect(input, contains('placeholder="https://example.com"'));
+      expect(out, isNot(contains('content:"https://example.com"')),
+          reason: 'drawn over the field, it stays on top of what is typed');
+      expect(out, contains('#dv-field-1::placeholder{color:#888888'));
+    });
+
+    test('a button is a Tab stop before the app is there', () {
+      const String doc = '<p><strong role="button" title="Analyse" aria-label="Analyse">Analyse</strong></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Analyse', <num>[30, 110, 80, 24], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'b', 'name': 'Analyse', 'r': <num>[20, 100, 100, 44]},
+          ]),
+        ]),
+      );
+      expect(RegExp(r'<strong [^>]*tabindex="0"').hasMatch(out), isTrue, reason: out);
+    });
+
     test('a password field is never given a value', () {
       const String doc = '<p><label for="dv-field-1">Password</label> '
           '<input id="dv-field-1" type="password" name="Password" data-dv-field="Password"></p>\n';

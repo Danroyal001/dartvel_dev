@@ -375,6 +375,15 @@ class _Node {
   /// starts its text.
   final Map<int, (double, double)> pads = <int, (double, double)>{};
 
+  /// Per width: a multi-line field's inner padding, top and bottom, where
+  /// the app starts its first line. A one-line input centres its line as the
+  /// app does, so it has none.
+  final Map<int, (double, double)> verticalPads = <int, (double, double)>{};
+
+  /// Per width: the hint the app paints in an empty field, which the
+  /// document's field shows as its placeholder.
+  final Map<int, _Item> hints = <int, _Item>{};
+
   /// In the line of a sentence placed as one block: a link, or its words,
   /// that flows with the sentence's text rather than sitting at a box of
   /// its own. Styled in place, never positioned.
@@ -496,6 +505,9 @@ class _Layout {
   final List<(_Node node, String key, _Token token)> _docControls =
       <(_Node, String, _Token)>[];
 
+  /// Each `<textarea>` the document leaves empty.
+  final Set<_Token> _emptyTextareas = <_Token>{};
+
   List<_TextNode> _readDocument(List<_Token> tokens) {
     final List<_TextNode> texts = <_TextNode>[];
     final List<(String name, _Element? control)> stack =
@@ -534,6 +546,13 @@ class _Layout {
             'f|${_norm(_attr(token.source, 'data-dv-field') ?? '')}',
             'field',
           );
+          // Empty in the document: the app's starting text goes in after it.
+          if (index + 1 < tokens.length &&
+              tokens[index + 1].isTag &&
+              tokens[index + 1].closing &&
+              tokens[index + 1].name == 'textarea') {
+            _emptyTextareas.add(token);
+          }
         }
         raw = name;
         continue;
@@ -566,6 +585,11 @@ class _Layout {
           'control',
         );
       } else if (name == 'strong' && _attr(token.source, 'role') == 'button') {
+        // A button is a Tab stop and takes Enter and Space like the app's:
+        // the SSR-first head queues the press for the app's button.
+        if (_attr(token.source, 'tabindex') == null) {
+          token.source = _withAttr(token.source, 'tabindex', '0');
+        }
         control = _control(
           token,
           'b|${_norm(_attr(token.source, 'aria-label') ?? '')}',
@@ -923,34 +947,69 @@ class _Layout {
   }
 
   /// The text each field starts with (`e` items: what the app's editable
-  /// paints) goes into the document's input as its value, styled as the app
-  /// draws it, rather than staying empty until Flutter takes over. Text of a
-  /// field the document has no input for is drawn with the layer. A password
-  /// input is never given one.
+  /// paints) goes into the document's field as its value -- an input's
+  /// `value`, a textarea's content -- styled as the app draws it, rather than
+  /// staying empty until Flutter takes over. An empty field's `e` item still
+  /// gives the box and style typing takes; the hint the app paints in it
+  /// becomes the field's placeholder, which goes as the visitor types (drawn
+  /// over the field, it stayed on top of what was typed). Text of a field
+  /// the document has no input for is drawn with the layer. A password
+  /// field is never given a value.
   void _fillFields() {
     for (final (_Node node, String _, _Token token) in _docControls) {
-      if (node.kind != 'field' || token.name != 'input') continue;
+      if (node.kind != 'field') continue;
+      final bool textarea = token.name == 'textarea';
       // The snapshot never reads a password; one that came anyway is
       // swallowed, neither a value nor drawn.
-      final bool secret = (_attr(token.source, 'type') ?? 'text').toLowerCase() == 'password';
+      final bool secret = !textarea &&
+          (_attr(token.source, 'type') ?? 'text').toLowerCase() == 'password';
       String? value;
+      String? hint;
       for (final int w in node.boxes.keys) {
         final List<double> box = node.boxes[w]!;
+        bool within(List<double> r) =>
+            r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
+            r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1;
+        _Item? editable;
         for (final _Item item in widths[w].items) {
-          if (item.used || item.kind != 'e') continue;
-          final List<double> r = item.rect;
-          final bool inside = r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
-              r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1;
-          if (!inside) continue;
+          if (item.used || item.kind != 'e' || !within(item.rect)) continue;
+          editable = item;
+          break;
+        }
+        if (editable == null) continue;
+        editable.used = true;
+        if (secret && editable.text.isNotEmpty) continue;
+        final List<double> r = editable.rect;
+        node.items[w] = editable;
+        node.pads[w] = (math.max(0, r[0] - box[0]), math.max(0, box[0] + box[2] - r[0] - r[2]));
+        if (textarea) {
+          node.verticalPads[w] = (math.max(0, r[1] - box[1]), math.max(0, box[1] + box[3] - r[1] - r[3]));
+        }
+        if (editable.text.isNotEmpty) {
+          value ??= editable.text;
+          continue;
+        }
+        // Empty: the paragraph the app paints where its text would start
+        // is the hint.
+        for (final _Item item in widths[w].items) {
+          if (item.used || item.kind != 't' || item.norm.isEmpty || !within(item.rect)) continue;
+          final List<double> t = item.rect;
+          if (t[1] + t[3] <= r[1] || t[1] >= r[1] + r[3]) continue;
           item.used = true;
-          if (secret) continue;
-          node.items[w] = item;
-          node.pads[w] = (math.max(0, r[0] - box[0]), math.max(0, box[0] + box[2] - r[0] - r[2]));
-          value ??= item.text;
+          node.hints[w] = item;
+          hint ??= item.text;
           break;
         }
       }
-      if (!secret && value != null && _attr(token.source, 'value') == null) {
+      if (hint != null && _attr(token.source, 'placeholder') == null) {
+        token.source = _withAttr(token.source, 'placeholder', hint);
+      }
+      if (secret || value == null) continue;
+      if (textarea) {
+        if (_emptyTextareas.contains(token)) {
+          token.replacement = '${token.source}${_elementText.convert(value)}';
+        }
+      } else if (_attr(token.source, 'value') == null) {
         token.source = _withAttr(token.source, 'value', value);
       }
     }
@@ -973,8 +1032,11 @@ class _Layout {
     // page and take its clicks and its Tab stops. A field keeps its box: its
     // border is drawn by a painter the snapshot cannot read.
     for (final (_Node node, String _, _Token _) in _docControls) {
-      if (node.kind == 'field') continue;
       if (node.boxes.isNotEmpty) node.captured = true;
+      // A field is placed at every box it has: it is where a visitor taps
+      // to type (Dartvel 3.47.8 to 3.47.9 left every field out of the
+      // layout, under the box the app paints for it).
+      if (node.kind == 'field') continue;
       for (final int w in node.boxes.keys.toList()) {
         if (!_paintedIn(node, w)) node.boxes.remove(w);
       }
@@ -1012,6 +1074,7 @@ class _Layout {
         };
         if (kind.isEmpty) continue;
         if (kind == 'image' && _safeSource(item.json['src']) == null) continue;
+        if (kind == 'decor' && item.text.isEmpty) continue;
         final String identity = switch (kind) {
           'box' => 'b|${item.json['bg']}|${item.json['g']}|${item.json['bd']}',
           'image' => 'i',
@@ -1261,6 +1324,20 @@ class _Layout {
     if (gradientText) {
       gated.write('.dvl [id^=dvr]::selection{-webkit-text-fill-color:currentcolor}');
     }
+    // A field's placeholder in the colour the app paints its hint.
+    final StringBuffer darkHints = StringBuffer();
+    for (final _Node node in controls) {
+      if (node.hints.isEmpty) continue;
+      final _Item hint = node.hints.values.first;
+      final String? colour = _colour(hint.runs.isEmpty ? null : hint.runs.first['c']);
+      if (colour != null) gated.write('#${node.id}::placeholder{color:$colour;opacity:1}');
+      final _Item? dark = hint.dark;
+      final String? darkColour = dark == null ? null : _colour(dark.runs.isEmpty ? null : dark.runs.first['c']);
+      if (darkColour != null && darkColour != colour) {
+        darkHints.write('#${node.id}::placeholder{color:$darkColour}');
+      }
+    }
+    if (darkHints.isNotEmpty) gated.write('@media (prefers-color-scheme:dark){$darkHints}');
     for (final _Node node in layer) {
       if (node.kind != 'decor') continue;
       gated.write(
@@ -1663,14 +1740,21 @@ class _Layout {
         final Map<String, Object?> run =
             item.runs.isEmpty ? const <String, Object?>{} : item.runs.first;
         (double, double)? pad;
+        (double, double)? vertical;
         node.items.forEach((int w, _Item own) {
-          if (identical(own, item)) pad = node.pads[w];
+          if (identical(own, item)) {
+            pad = node.pads[w];
+            vertical = node.verticalPads[w];
+          }
         });
         return <String>[
           'font:${_font(run, item.json['lh'])}',
           ..._inlineExtras(run),
           'text-align:${_cssWord(item.json['al']) ?? 'left'}',
-          if (pad != null) 'padding:0 ${_num(pad!.$2)}px 0 ${_num(pad!.$1)}px',
+          if (pad != null)
+            'padding:${_num(vertical?.$1 ?? 0)}${vertical == null ? '' : 'px'} '
+                '${_num(pad!.$2)}px ${_num(vertical?.$2 ?? 0)}${vertical == null ? '' : 'px'} ${_num(pad!.$1)}px',
+          if (item.json['nw'] != true) 'white-space:pre-wrap;resize:none;overflow:auto',
         ].join(';');
       case 'decor':
         return _textStyle(
