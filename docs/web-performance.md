@@ -510,6 +510,38 @@ build reads each route at six widths in two schemes, once each when the
 app says it is idle; the whole capture of sigmadev.digital's 226 routes took
 6 to 9 minutes on the shared build server under load.
 
+### A sentence with links is one block (25 November 2026)
+
+A paragraph with links in its line (`<p>words <a>link</a> words</p>`, what
+the build writes for a sentence laid out with `DVWidgetSpan`) was laid out
+piece by piece. The app paints such a sentence as one paragraph with a gap
+for each link and each link's words in its gap, so no single piece of the
+document matched the painted paragraph: its words were drawn by the
+`aria-hidden` layer (CSS `content`, not text), the document's own words were
+hidden for readers, and each link sat at its own box on top. On
+sigmadev.digital/about it read "Questions, or a project in mind? Our , and
+explain how we handle your data" with the links floating over the line, and
+Ctrl+F and a selection could not run across a link. Now the `<p>` is matched
+to that painted paragraph as a whole (its words, ignoring white space and the
+links), placed as one block at its box, line height and wrapping, and its
+links flow inline in their own colour and underline with no box of their
+own. The paint snapshot also counts a paragraph's lines by line box, so the
+link (a 32 px placeholder next to 24 px glyphs) no longer counts as a line:
+the about page's two 32 px lines had been read as three of 21.33 px.
+
+Measured on sigmadev.digital built as a web-server binary with this change
+against the same branch on Dartvel main before it, /about and /danieleffiong
+at 390, 1024 and 1366, light and dark: every sentence with links shows all
+its words, no link overlaps a word, find matches "free quote. Our privacy
+policy, terms and refund policy explain", a selection reads the sentence with
+its spaces, Tab reaches each link at the app's x. Handover diff: pixel diff
+unchanged on every page, viewport and scheme (the sentences are below the
+first screen); the largest text offset on /about fell from 581 to 36 px on a
+phone and from 282/1489 to 173 px at 1024/1366 (the 173 is the logo's reader
+label, the same before), median offsets the same or 1 px lower. Page text
+(220 sitemap paths) is identical to the build before, apart from the random
+and clock tools.
+
 ## Still to do
 
 Ranked by what they would save:
