@@ -135,6 +135,55 @@ String _extraPage() {
   );
 }
 
+
+/// A sentence with two links in it, as the build writes it (one <p>, its
+/// links inline) and as the app paints it: its words one paragraph with a
+/// gap per link, each link's words a paragraph of their own in its gap.
+const String _sentenceDoc = '<h1>Ship faster</h1>\n<p>Questions, or a project in mind? '
+    '<a href="/contact" title="Get a free quote" aria-label="Get a free quote">Get a free quote</a>. Our '
+    '<a href="/privacy" title="privacy policy" aria-label="privacy policy">privacy policy</a> '
+    'explains how we handle your data and your payments.</p>\n';
+
+String _sentencePage() {
+  Map<String, Object?> link(String text, List<num> rect, int z) => <String, Object?>{
+        ..._text(text, rect, z),
+        'runs': <Object?>[
+          <String, Object?>{'t': text, 'f': null, 'fs': 16, 'fw': 400, 'c': '#1d4ed8', 'd': 'underline'},
+        ],
+      };
+  return dvApplyPageHtml(
+    dvWebSplashApply(
+      _shell,
+      DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', progressColor: '#1D4ED8', ssrFirst: true),
+    ),
+    dvSsrFirstLayout(_sentenceDoc, <String, Object?>{
+      'widths': <Object?>[
+        <String, Object?>{
+          'width': 390,
+          'height': 800,
+          'light': <String, Object?>{
+            'items': <Object?>[
+              _text('Ship faster', <num>[20, 40, 350, 40], 1, size: 32),
+              <String, Object?>{
+                ..._text('Questions, or a project in mind? . Our  explains how we handle your data and your payments.',
+                    <num>[20, 120, 350, 96], 2),
+                'nw': false, 'lines': 4, 'lh': 24,
+              },
+              link('Get a free quote', <num>[20, 144, 130, 24], 3),
+              link('privacy policy', <num>[200, 144, 110, 24], 4),
+            ],
+          },
+          'controls': <Object?>[
+            <String, Object?>{'k': 'a', 'href': '/contact', 'name': 'Get a free quote', 'r': <num>[20, 144, 130, 24]},
+            <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'privacy policy', 'r': <num>[200, 144, 110, 24]},
+          ],
+        },
+      ],
+    }),
+    path: '/sentence',
+  );
+}
+
 Future<List<num>> _box(Page page, String text) async {
   final List<Object?> box = await page.evaluate<List<Object?>>('''(text) => {
     const span = [...document.querySelectorAll('.dv-fallback span[id^=dvr]')]
@@ -165,6 +214,8 @@ void main() {
           ? _page()
           : request.uri.path == '/extra'
               ? _extraPage()
+              : request.uri.path == '/sentence'
+              ? _sentencePage()
               : '<!DOCTYPE html><title>next</title><p id="landed">${request.uri.path}</p>');
       request.response.close();
     });
@@ -276,6 +327,69 @@ void main() {
       page.mouse.click(Point<num>(390 - 95 + 2, 12)),
     ]);
     expect(page.url, endsWith('/pricing'));
+    await page.close();
+  });
+
+  test('a sentence with links is one block of text, its links in its line', () async {
+    // Each piece placed on its own drew the links over the words with gaps
+    // and stray punctuation where they belong ("Our , and explain"), and
+    // find and a selection stopped at every link (sigmadev.digital/about).
+    final Page page = await _open(390, path: '/sentence');
+    final Map<String, Object?> layout = await page.evaluate<Map<String, Object?>>('''() => {
+      const p = [...document.querySelectorAll('.dv-fallback p')].find((el) => el.textContent.includes('Questions'));
+      const rect = (r) => [r.left, r.top, r.right, r.bottom];
+      const words = document.createRange();
+      words.selectNodeContents(p.firstChild.nodeType === 3 ? p.firstChild : p.firstChild.firstChild);
+      const before = [...words.getClientRects()].pop();
+      const quote = p.querySelector('a[href="/contact"]').getClientRects()[0];
+      const privacy = p.querySelector('a[href="/privacy"]').getClientRects()[0];
+      const block = p.querySelector('span[id^=dvr]').getBoundingClientRect();
+      const layer = [...document.querySelectorAll('.dvp > *')]
+          .map((el) => getComputedStyle(el, '::before').content).join(' ');
+      return {before: rect(before), quote: rect(quote), privacy: rect(privacy), block: rect(block), layer,
+              blockText: p.querySelector('span[id^=dvr]').textContent};
+    }''');
+    final List<num> before = (layout['before']! as List<Object?>).cast<num>();
+    final List<num> quote = (layout['quote']! as List<Object?>).cast<num>();
+    final List<num> privacy = (layout['privacy']! as List<Object?>).cast<num>();
+    final List<num> block = (layout['block']! as List<Object?>).cast<num>();
+    // The sentence is where the app paints it, and holds all of itself.
+    expect(block[0], closeTo(20, 0.6));
+    expect(block[1], closeTo(120, 0.6));
+    expect(layout['blockText'], 'Questions, or a project in mind? Get a free quote. Our privacy policy '
+        'explains how we handle your data and your payments.');
+    // Its own words are drawn (not hidden for readers), by the document, not
+    // by the layer.
+    expect(before[2] - before[0], greaterThan(50));
+    expect(layout['layer'] as String, isNot(contains('Questions')));
+    // Each link follows the words before it in the line: never on top of
+    // them, never off on a line of its own.
+    for (final List<num> link in <List<num>>[quote, privacy]) {
+      expect(link[0], greaterThanOrEqualTo(block[0] - 0.5));
+      expect(link[2], lessThanOrEqualTo(block[0] + 350 + 0.5));
+      expect(link[1], greaterThanOrEqualTo(block[1] - 0.5));
+    }
+    final bool sameLine = (quote[1] - before[1]).abs() < 1;
+    expect(sameLine ? quote[0] >= before[2] - 0.5 : quote[1] >= before[3] - 0.5, isTrue,
+        reason: 'the link starts after the words before it: $before, $quote');
+    expect(privacy[1] > quote[1] || privacy[0] >= quote[2], isTrue, reason: 'in reading order');
+    // Find runs across a link, and a selection reads the sentence as it is.
+    expect(await page.evaluate<bool>("() => window.find('free quote. Our privacy policy explains')"), isTrue);
+    await page.evaluate<void>('''() => {
+      const p = [...document.querySelectorAll('.dv-fallback p')].find((el) => el.textContent.includes('Questions'));
+      getSelection().selectAllChildren(p);
+    }''');
+    expect(await page.evaluate<String>('() => getSelection().toString().replace(/\\\\s+/g, " ").trim()'),
+        'Questions, or a project in mind? Get a free quote. Our privacy policy explains how we handle your data and your payments.');
+    // The link is still a link: styled as the app styles it, and it works.
+    final String decoration = await page.evaluate<String>(
+        '() => getComputedStyle(document.querySelector(\'.dv-fallback p a[href="/contact"] span\')).textDecorationLine');
+    expect(decoration, 'underline');
+    await Future.wait(<Future<Object?>>[
+      page.waitForNavigation(),
+      page.mouse.click(Point<num>(quote[0] + 5, (quote[1] + quote[3]) / 2)),
+    ]);
+    expect(page.url, endsWith('/contact'));
     await page.close();
   });
 
