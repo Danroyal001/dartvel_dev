@@ -194,6 +194,71 @@ Future<List<num>> _box(Page page, String text) async {
   return box.cast<num>();
 }
 
+/// A form as sigmadev.digital's keyword density checker draws it: a label
+/// above an empty multi-line field with a hint, and a one-line field the app
+/// starts at "1", as the build writes them and the app paints them.
+const String _formDoc = '<h1>Keyword density</h1>\n'
+    '<p><label for="dv-field-1">Your content</label> '
+    '<textarea id="dv-field-1" name="Your content" data-dv-field="Your content"></textarea></p>\n'
+    '<p><label for="dv-field-2">Phrase length</label> '
+    '<input id="dv-field-2" type="text" name="Phrase length" data-dv-field="Phrase length"></p>\n'
+    '<p><strong role="button" aria-label="Add to order">Add to order</strong></p>\n'
+    '<a href="/menu" aria-label="Menu">Menu</a>\n';
+
+String _formPage() {
+  Map<String, Object?> editable(String text, List<num> rect, {bool oneLine = true}) => <String, Object?>{
+        ..._text(text, rect, 5),
+        'k': 'e',
+        if (!oneLine) 'nw': null,
+      };
+  return dvApplyPageHtml(
+    dvWebSplashApply(
+      _shell,
+      DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', progressColor: '#1D4ED8', ssrFirst: true),
+    ),
+    dvSsrFirstLayout(_formDoc, <String, Object?>{
+      'widths': <Object?>[
+        <String, Object?>{
+          'width': 390,
+          'height': 800,
+          'light': <String, Object?>{
+            'items': <Object?>[
+              <String, Object?>{'k': 'b', 'r': <num>[0, 0, 390, 800], 'z': 0, 's': false, 'bg': '#fafafa'},
+              _text('Keyword density', <num>[20, 40, 350, 40], 1, size: 32),
+              _text('Your content', <num>[20, 280, 200, 20], 2),
+              <String, Object?>{
+                'k': 'b', 'r': <num>[20, 304, 350, 260], 'z': 3, 's': true, 'bg': '#ffffff',
+                'bd': <Object?>[1, '#cccccc'], 'rad': <num>[8, 8, 8, 8],
+              },
+              editable('', <num>[36, 320, 318, 228], oneLine: false),
+              <String, Object?>{
+                ..._text('Paste your page', <num>[36, 320, 200, 24], 5),
+                'runs': <Object?>[<String, Object?>{'t': 'Paste your page', 'f': null, 'fs': 16, 'fw': 400, 'c': '#888888'}],
+              },
+              _text('Phrase length', <num>[20, 590, 200, 20], 2),
+              <String, Object?>{
+                'k': 'b', 'r': <num>[20, 614, 350, 50], 'z': 3, 's': true, 'bg': '#ffffff',
+                'bd': <Object?>[1, '#cccccc'], 'rad': <num>[8, 8, 8, 8],
+              },
+              editable('1', <num>[36, 627, 318, 24]),
+              <String, Object?>{'k': 'b', 'r': <num>[20, 690, 160, 44], 'z': 3, 's': true, 'bg': '#1d4ed8'},
+              _text('Add to order', <num>[40, 700, 120, 24], 4),
+              _text('Menu', <num>[220, 700, 60, 24], 4),
+            ],
+          },
+          'controls': <Object?>[
+            <String, Object?>{'k': 'b', 'name': 'Add to order', 'r': <num>[20, 690, 160, 44]},
+            <String, Object?>{'k': 'a', 'href': '/menu', 'name': 'Menu', 'r': <num>[210, 690, 80, 44]},
+            <String, Object?>{'k': 'f', 'name': 'Your content', 'r': <num>[20, 304, 350, 260]},
+            <String, Object?>{'k': 'f', 'name': 'Phrase length', 'r': <num>[20, 614, 350, 50]},
+          ],
+        },
+      ],
+    }),
+    path: '/form',
+  );
+}
+
 void main() {
   setUpAll(() async {
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -216,6 +281,8 @@ void main() {
               ? _extraPage()
               : request.uri.path == '/sentence'
               ? _sentencePage()
+              : request.uri.path == '/form'
+              ? _formPage()
               : '<!DOCTYPE html><title>next</title><p id="landed">${request.uri.path}</p>');
       request.response.close();
     });
@@ -444,6 +511,100 @@ void main() {
       return getComputedStyle(span).position;
     }''');
     expect(position, 'static');
+    await page.close();
+  });
+  // sigmadev.digital's keyword density checker, live on Dartvel 3.47.9: the
+  // "Your content" box was drawn, but a tap on it hit the painting and typing
+  // went nowhere until Flutter took over (8-15 s on a phone). A click or a
+  // tap on a field's painted box is a click on the document's own field, and
+  // the keyboard types into it.
+  for (final bool touch in <bool>[false, true]) {
+    test('a ${touch ? 'tap' : 'click'} on a field\'s painted box types into it, in the app\'s style', () async {
+      final Page page = await browser.newPage();
+      await page.setViewport(DeviceViewport(width: 390, height: 800, isMobile: touch, hasTouch: touch));
+      await page.goto('http://127.0.0.1:${server.port}/form', wait: Until.load);
+      // Middle of the painted box, well inside it.
+      final Map<String, Object?> hit = await page.evaluate<Map<String, Object?>>("""() => {
+        const el = document.elementFromPoint(195, 430);
+        return {id: el && el.id, tag: el && el.tagName};
+      }""");
+      expect(hit['id'], 'dv-field-1', reason: 'the painting must not take the tap: $hit');
+      if (touch) {
+        await page.touchscreen.tap(const Point<num>(195, 430));
+      } else {
+        await page.mouse.click(const Point<num>(195, 430));
+      }
+      await page.keyboard.type('hello world');
+      final Map<String, Object?> typed = await page.evaluate<Map<String, Object?>>("""() => {
+        const el = document.activeElement, s = getComputedStyle(el), r = el.getBoundingClientRect();
+        return {id: el.id, value: el.value, size: s.fontSize, padTop: s.paddingTop, padLeft: s.paddingLeft,
+          x: r.left, y: r.top, w: r.width, h: r.height, placeholder: el.placeholder};
+      }""");
+      expect(typed['id'], 'dv-field-1');
+      expect(typed['value'], 'hello world');
+      expect(typed['size'], '16px');
+      expect(typed['padTop'], '16px', reason: 'the first line starts where the app starts it');
+      expect(typed['padLeft'], '16px');
+      expect(<num>[typed['x']! as num, typed['y']! as num, typed['w']! as num, typed['h']! as num],
+          <num>[20, 304, 350, 260], reason: 'over the painted box');
+      expect(typed['placeholder'], 'Paste your page');
+      // The one-line field: Tab reaches it, it holds the app's "1".
+      await page.keyboard.press(Key.tab);
+      final Map<String, Object?> next = await page.evaluate<Map<String, Object?>>(
+          '() => ({id: document.activeElement.id, value: document.activeElement.value})');
+      expect(next, <String, Object?>{'id': 'dv-field-2', 'value': '1'});
+      await page.close();
+    });
+  }
+  // ChopDesk on 3G: a tap in the first seconds after load did nothing while
+  // the app took over, and on a desktop the first click on a link sometimes
+  // did nothing. Nothing pressed on the server-rendered page is dropped: a
+  // link navigates, a button pressed before or during the handover is
+  // pressed on the app's button once it is there, a field tapped during the
+  // handover is focused in the app.
+  test('a click before or during the handover is never dropped', () async {
+    final Page page = await browser.newPage();
+    await page.setViewport(DeviceViewport(width: 390, height: 800));
+    await page.goto('http://127.0.0.1:${server.port}/form', wait: Until.load);
+    // The app, as its semantics tree puts it on the page once it has drawn:
+    // the same button and field where the document has them.
+    await page.evaluate("""() => {
+      window.appPresses = []; window.appFocus = null;
+      const host = document.createElement('flt-semantics-host');
+      host.style.cssText = 'position:fixed;left:0;top:0;width:390px;height:800px;z-index:0';
+      host.innerHTML = '<flt-semantics role="button" aria-label="Add to order" style="position:absolute;left:20px;top:690px;width:160px;height:44px;display:block"></flt-semantics>'
+        + '<input aria-label="Your content" style="position:absolute;left:20px;top:304px;width:350px;height:260px">';
+      document.body.prepend(host);
+      host.firstElementChild.addEventListener('click', () => window.appPresses.push('Add to order'));
+      host.lastElementChild.addEventListener('focus', () => window.appFocus = 'Your content');
+    }""");
+    // Before: a press on the button.
+    await page.mouse.click(const Point<num>(100, 712));
+    expect(await page.evaluate<String?>('() => document.querySelector("[aria-label=\\"Add to order\\"]").getAttribute("aria-busy")'),
+        'true');
+    // The app has drawn: the handover starts, and a tap lands on the field
+    // while the document fades.
+    await page.evaluate('() => window.dispatchEvent(new Event("dartvel-first-frame"))');
+    await page.mouse.click(const Point<num>(195, 430));
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    final Map<String, Object?> after = await page.evaluate<Map<String, Object?>>(
+        '() => ({app: document.documentElement.hasAttribute("data-dv-app"), presses: window.appPresses, focus: window.appFocus})');
+    expect(after['app'], isTrue);
+    expect(after['presses'], <Object?>['Add to order'], reason: 'pressed once, on the app');
+    expect(after['focus'], 'Your content', reason: 'the tap during the handover reaches the app');
+    await page.close();
+  });
+
+  test('a link clicked during the handover navigates', () async {
+    final Page page = await browser.newPage();
+    await page.setViewport(DeviceViewport(width: 390, height: 800));
+    await page.goto('http://127.0.0.1:${server.port}/form', wait: Until.load);
+    await page.evaluate('() => window.dispatchEvent(new Event("dartvel-first-frame"))');
+    await Future.wait(<Future<void>>[
+      page.waitForNavigation(timeout: const Duration(seconds: 5)),
+      page.mouse.click(const Point<num>(250, 712)),
+    ]);
+    expect(await page.evaluate<String>('() => location.pathname'), '/menu');
     await page.close();
   });
 }
