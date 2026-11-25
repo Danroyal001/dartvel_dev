@@ -21,6 +21,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../accessibility/reduced_motion.dart';
+
 /// A page the browser's find can reach: what `DVPageShell` registers.
 abstract class DVFindPage {
   /// Whether the page lets the browser's find reach it.
@@ -159,7 +161,7 @@ abstract final class DVFindInPage {
     final BuildContext target = found[index!].context;
 
     // The reader's own answer about motion, where they gave one.
-    final bool still = MediaQuery.maybeDisableAnimationsOf(target) ?? false;
+    final bool still = dvReducedMotion(target);
     await Scrollable.ensureVisible(
       target,
       // A little below the top, so the paragraph is read with what leads
@@ -228,7 +230,7 @@ abstract final class DVFindInPage {
     final int index = ids.indexOf(id);
     if (index < 0) return false;
     final BuildContext target = found[index].context;
-    final bool still = MediaQuery.maybeDisableAnimationsOf(target) ?? false;
+    final bool still = dvReducedMotion(target);
     await Scrollable.ensureVisible(
       target,
       duration: still ? Duration.zero : const Duration(milliseconds: 300),

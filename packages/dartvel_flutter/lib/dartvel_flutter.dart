@@ -37,6 +37,7 @@ import 'package:meta/meta.dart';
 
 import 'src/accessibility/browser_clicks.dart';
 import 'src/accessibility/keyboard_scroll.dart';
+import 'src/accessibility/reduced_motion.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/selection_mirror.dart';
@@ -7142,8 +7143,11 @@ class DVScreenInfo {
 
   final Orientation orientation;
 
-  /// True when the reader has asked for less movement, either through the
-  /// platform setting or an explicit [DVAccessibility.useReducedMotion].
+  /// True when the reader has asked for less movement: Remove animations
+  /// (Android, the web's prefers-reduced-motion), Reduce Motion (iOS,
+  /// `MediaQueryData.reduceMotion`), or an explicit
+  /// [DVAccessibility.useReducedMotion]. Every animation Dartvel runs itself
+  /// jumps to its end state when this is true.
   final bool reducedMotion;
 
   final double textScale;
@@ -7236,8 +7240,10 @@ extension DVScreenContextX on BuildContext {
         size: MediaQuery.sizeOf(this),
         safeArea: MediaQuery.paddingOf(this),
         orientation: MediaQuery.orientationOf(this),
-        reducedMotion: MediaQuery.disableAnimationsOf(this) ||
-            const DVAccessibility().reducedMotion,
+        // Either platform setting -- Remove animations (Android, the web's
+        // prefers-reduced-motion) or Reduce Motion (iOS, Flutter 3.50) -- or
+        // the application's own override.
+        reducedMotion: dvReducedMotion(this),
         textScale: MediaQuery.textScalerOf(this).scale(1),
         folds: <DVFold>[
           for (final ui.DisplayFeature feature
@@ -12578,7 +12584,7 @@ CustomTransitionPage<T> dvTransitionPage<T>({
   required PageTransitionSpec spec,
 }) {
   if (spec.type == DvTransition.none) {
-    return CustomTransitionPage<T>(
+    return _DVTransitionPage<T>(
       key: key,
       child: child,
       transitionsBuilder: (c, a, sA, ch) => ch,
@@ -12625,13 +12631,96 @@ CustomTransitionPage<T> dvTransitionPage<T>({
     }
   }
 
-  return CustomTransitionPage<T>(
+  return _DVTransitionPage<T>(
     key: key,
     child: child,
     transitionsBuilder: builder,
     transitionDuration: spec.duration,
     reverseTransitionDuration: spec.duration,
   );
+}
+
+/// A [CustomTransitionPage] whose route takes no time at all when the reader
+/// has asked for less movement (Remove animations, iOS Reduce Motion or the
+/// application's override): the page is there on the next frame, in its
+/// final place, and leaves the same way.
+///
+/// go_router's own route reads the duration from the page, fixed when the
+/// page was built, with no context to ask; this route asks the navigator's
+/// context as it is pushed and popped.
+class _DVTransitionPage<T> extends CustomTransitionPage<T> {
+  const _DVTransitionPage({
+    super.key,
+    required super.child,
+    required super.transitionsBuilder,
+    super.transitionDuration,
+    super.reverseTransitionDuration,
+  });
+
+  @override
+  PageRoute<T> createRoute(BuildContext context) => _DVTransitionRoute<T>(this);
+}
+
+class _DVTransitionRoute<T> extends PageRoute<T> {
+  _DVTransitionRoute(_DVTransitionPage<T> page) : super(settings: page);
+
+  _DVTransitionPage<T> get _page => settings as _DVTransitionPage<T>;
+
+  bool get _still {
+    final BuildContext? context = navigator?.context;
+    return context != null && dvReducedMotion(context, listen: false);
+  }
+
+  @override
+  Color? get barrierColor => _page.barrierColor;
+
+  @override
+  String? get barrierLabel => _page.barrierLabel;
+
+  @override
+  bool get barrierDismissible => _page.barrierDismissible;
+
+  @override
+  Duration get transitionDuration =>
+      _still ? Duration.zero : _page.transitionDuration;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      _still ? Duration.zero : _page.reverseTransitionDuration;
+
+  @override
+  bool get maintainState => _page.maintainState;
+
+  @override
+  bool get fullscreenDialog => _page.fullscreenDialog;
+
+  @override
+  bool get opaque => _page.opaque;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) =>
+      Semantics(
+        scopesRoute: true,
+        explicitChildNodes: true,
+        child: _page.child,
+      );
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      // Drawn at its end state too, in case the setting came on while the
+      // route was already moving.
+      dvReducedMotion(context)
+          ? child
+          : _page.transitionsBuilder(context, animation, secondaryAnimation, child);
 }
 
 class DvDefaultLoading extends StatelessWidget {
@@ -13174,25 +13263,25 @@ class DVAccessibility {
   /// every app that did not explicitly wire it up. The platform is the source
   /// of truth; an application may override it, and can now take that override
   /// back off again.
-  static bool? _reducedMotionOverride;
-
+  ///
+  /// The platform answers through either of its settings: Remove animations
+  /// (Android, and the web's prefers-reduced-motion) or Reduce Motion (iOS,
+  /// which Flutter 3.50 reports separately and its own animations ignore).
   const DVAccessibility();
 
-  bool get reducedMotion =>
-      _reducedMotionOverride ??
-      ui.PlatformDispatcher.instance.accessibilityFeatures.disableAnimations;
+  bool get reducedMotion => dvPlatformReducedMotion();
 
   /// Switch control, on or off, for the whole application. See
   /// [DVSwitchControl] and [DVAccessibilityToggle].
   DVSwitchControlState get switchControl => DVAccessibilitySwitchControl.state;
 
   void useReducedMotion(bool value) {
-    _reducedMotionOverride = value;
+    dvReducedMotionOverride = value;
   }
 
   /// Drops the override and goes back to following the platform.
   void clearReducedMotion() {
-    _reducedMotionOverride = null;
+    dvReducedMotionOverride = null;
   }
 
   DVContrastCheck contrast({

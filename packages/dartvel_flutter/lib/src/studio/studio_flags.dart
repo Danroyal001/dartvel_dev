@@ -36,6 +36,7 @@ import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
+import '../accessibility/reduced_motion.dart';
 import 'studio_flag_rules.dart';
 import 'studio_review.dart' show studioActionControl, studioBanner;
 
@@ -2130,7 +2131,7 @@ class _OverrideSwitch extends StatelessWidget {
         onTap: onTap,
         builder: (BuildContext context, bool value, Color track) =>
             AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: dvMotionDuration(context, const Duration(milliseconds: 120)),
           width: 36,
           height: 20,
           padding: const .all(2),

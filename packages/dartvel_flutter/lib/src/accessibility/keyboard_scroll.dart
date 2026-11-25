@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editing_focus.dart';
+import 'reduced_motion.dart';
 
 /// Scrolls the page beneath it when the keys a reader expects are pressed.
 ///
@@ -133,6 +134,11 @@ class _DVKeyboardScrollState extends State<DVKeyboardScroll> {
     if (clamped == position.pixels) {
       // Already at that end. Handled anyway, so the key does not fall
       // through to focus traversal and jump somewhere off screen.
+      return KeyEventResult.handled;
+    }
+    // A reader who asked for less movement is put there, not carried.
+    if (dvReducedMotion(context)) {
+      position.jumpTo(clamped);
       return KeyEventResult.handled;
     }
     unawaited(position.animateTo(

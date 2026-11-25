@@ -10,6 +10,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../accessibility/reduced_motion.dart';
 import 'page_viewport.dart' show DVPageViewportScope, DVPageViewportState;
 
 /// Gives the page inside it a scroll controller of its own, and a round
@@ -109,7 +110,7 @@ class DVPageJumpButton extends StatelessWidget {
         toTop: atBottom,
         onTap: () {
           final double target = atBottom ? 0 : position.maxScrollExtent;
-          if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+          if (dvReducedMotion(context)) {
             position.jumpTo(target);
           } else {
             position.animateTo(target, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);

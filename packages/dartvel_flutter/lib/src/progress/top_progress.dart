@@ -8,6 +8,8 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../accessibility/reduced_motion.dart';
+
 /// The loads an application is waiting on, for the bar at the top of the
 /// page. Reached as `DV.progress`.
 class DVTopProgress extends ChangeNotifier {
@@ -72,7 +74,7 @@ class DVTopProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color =
         DVTopProgress.instance.color ?? Theme.of(context).colorScheme.primary;
-    final bool still = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final bool still = dvReducedMotion(context);
     return SizedBox(
       height: height,
       width: double.infinity,
