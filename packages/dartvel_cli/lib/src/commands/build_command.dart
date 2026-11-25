@@ -1430,6 +1430,7 @@ class BuildCommand extends Command<void> {
         // server will guard them.
         studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
         wasm: webWasm,
+        deprecatedJsInterop: _webDeprecatedJsInterop(_projectRoot),
       ),
       ...?variant?.flutterArguments,
       // dartvel.display: how big the app is drawn on a television, a signage
@@ -2640,10 +2641,20 @@ class BuildCommand extends Command<void> {
     return dvWebWasm(web is Map ? web['wasm'] : null);
   }
 
+  /// `dartvel.web.deprecatedJsInterop`: false (refused in dart2js) by default.
+  bool _webDeprecatedJsInterop(String root) {
+    final Object? web = _dartvelSection(root)['web'];
+    return dvWebDeprecatedJsInterop(
+        web is Map ? web['deprecatedJsInterop'] : null);
+  }
+
   /// Why `dartvel.web.wasm` stops a build of [platform], or null.
   String? _webRendererProblem(String root, String platform) {
     try {
       _webWasm(root, platform);
+      if (platform == 'web' || platform == 'web-server') {
+        _webDeprecatedJsInterop(root);
+      }
     } on FormatException catch (error) {
       return error.message;
     }
@@ -6319,6 +6330,7 @@ List<String> resolveFlutterBuildArguments({
   String? exportOptionsPlist,
   bool studio = false,
   bool wasm = false,
+  bool deprecatedJsInterop = false,
 }) {
   final bool bundle = platform == 'android' && format == 'aab';
   final bool ipa = platform == 'ios' && format == 'ipa';
@@ -6388,6 +6400,13 @@ List<String> resolveFlutterBuildArguments({
   // beside the dart2js and CanvasKit one, and flutter.js picks per browser.
   if (command == 'web' && wasm) {
     args.add('--wasm');
+  }
+
+  // dartvel.web.deprecatedJsInterop: dart2js refuses dart:html, dart:js and
+  // dart:js_util as dart2wasm does, unless the application allows them.
+  // Flutter passes it to dart2js only; it has no effect on the wasm app.
+  if (command == 'web' && !deprecatedJsInterop) {
+    args.add('--no-deprecated-js-interop');
   }
 
   if (platform == 'android' && splitPerAbi && !bundle) {

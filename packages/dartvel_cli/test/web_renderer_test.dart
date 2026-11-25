@@ -62,6 +62,53 @@ void main() {
     });
   });
 
+  group('dartvel.web.deprecatedJsInterop', () {
+    test('is off unless the application turns it on', () {
+      // Off means dart2js refuses dart:html, dart:js and dart:js_util, as
+      // dart2wasm always has: an import of one fails the build instead of
+      // working in the dart2js app and failing in the wasm one.
+      expect(dvWebDeprecatedJsInterop(null), isFalse);
+      expect(dvWebDeprecatedJsInterop(false), isFalse);
+      expect(dvWebDeprecatedJsInterop(true), isTrue);
+    });
+
+    test('a value that is not true or false stops the build', () {
+      expect(() => dvWebDeprecatedJsInterop('yes'), throwsFormatException);
+      expect(() => dvWebDeprecatedJsInterop('true'), throwsFormatException);
+      expect(() => dvWebDeprecatedJsInterop(1), throwsFormatException);
+    });
+
+    test('dart2js is built with --no-deprecated-js-interop by default', () {
+      for (final String platform in <String>['web', 'web-server']) {
+        for (final bool wasm in <bool>[true, false]) {
+          expect(
+              resolveFlutterBuildArguments(
+                  platform: platform, buildMode: '--release', wasm: wasm),
+              contains('--no-deprecated-js-interop'),
+              reason: '$platform, wasm: $wasm');
+        }
+      }
+    });
+
+    test('turned on, the compiler default is left alone', () {
+      final List<String> args = resolveFlutterBuildArguments(
+          platform: 'web', buildMode: '--release', deprecatedJsInterop: true);
+      expect(args.where((String a) => a.contains('deprecated-js-interop')),
+          isEmpty);
+    });
+
+    test('nothing but a web build is given it', () {
+      for (final String platform in <String>['android', 'linux', 'ios']) {
+        expect(
+            resolveFlutterBuildArguments(
+                    platform: platform, buildMode: '--release')
+                .where((String a) => a.contains('deprecated-js-interop')),
+            isEmpty,
+            reason: platform);
+      }
+    });
+  });
+
   group('reading what the build produced', () {
     test('a --wasm build is recognised from its build config', () {
       expect(dvBuildCompilesToWasm(wasmBootstrap), isTrue);
