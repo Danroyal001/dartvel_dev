@@ -136,6 +136,7 @@ export 'src/cache/dv_cache.dart'
 export 'src/cache/memcached.dart';
 export 'src/cache/redis.dart';
 export 'src/config/app_shortcuts.dart';
+export 'src/config/theme_config.dart';
 export 'src/config/platforms.dart';
 export 'src/content/content_workflow.dart';
 export 'src/crashes/crashes.dart';
