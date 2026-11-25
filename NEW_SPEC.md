@@ -14720,7 +14720,11 @@ dartvel:
 is on screen -- the first page, each route change, a page pushed over another
 and the one uncovered when it is popped -- through `DVPageViews` in
 `dartvel_core`, and a module that measures them listens. No page calls
-anything, and a page drawn on Studio's canvas is not a view.
+anything, and a page drawn on Studio's canvas is not a view. A page is
+counted once: where a vendor's tag counts the page it loads on by itself
+(Google's does, whatever the page configures), the module leaves that page
+to the tag and reports route changes after it, at the page's own address
+rather than the address bar's, which the router may not have updated yet.
 
 **Modules talk through topics, not imports.** `DV.Modules.publish(topic,
 payload)` hands a payload to every subscriber and `DV.Modules.subscribe(topic,

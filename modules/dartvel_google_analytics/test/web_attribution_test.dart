@@ -83,19 +83,21 @@ void main() {
         'tag is configured', () async {
       await runtime(policy: true).pageShown(
           DVPageView(location: Uri.parse('/'), title: 'Home'));
-      expect(browser.log.take(2), <String>['consent defaults', 'load sendPageView=false']);
+      expect(browser.log.take(2), <String>['consent defaults', 'load sendPageView=true']);
     });
 
     test('with no policy there is nothing to default', () async {
       await runtime().pageShown(DVPageView(location: Uri.parse('/')));
-      expect(browser.log.first, 'load sendPageView=false');
+      expect(browser.log.first, 'load sendPageView=true');
     });
   });
 
   group('page views', () {
     test('carry page_location, page_path and page_title', () async {
+      final GoogleAnalyticsRuntime analytics = runtime();
+      await analytics.pageShown(DVPageView(location: Uri.parse('/')));
       browser.pageUrl = 'https://example.com/services/web';
-      await runtime().pageShown(DVPageView(
+      await analytics.pageShown(DVPageView(
           location: Uri.parse('/services/web'), title: 'Web design'));
       expect(
         browser.log.last,
@@ -104,22 +106,20 @@ void main() {
       );
     });
 
-    test('the landing page carries the campaign; the next page does not',
-        () async {
+    // Google's tag counts the landing page itself, from the address, which
+    // still has the campaign's utm_* parameters; the module adds no copy and
+    // later pages do not repeat the campaign.
+    test('the landing page is the tag\'s own; the next page carries no '
+        'campaign', () async {
       attribution.capture(Uri.parse('https://example.com/?utm_source=facebook'
           '&utm_medium=paid_social&utm_campaign=nov&utm_content=video'
           '&utm_term=web&utm_id=42&fbclid=abc'));
       final GoogleAnalyticsRuntime analytics = runtime();
       await analytics.pageShown(DVPageView(location: Uri.parse('/')));
-      final Map<String, Object?> landing = jsonDecode(
-          browser.log.last.substring('event page_view '.length))
-          as Map<String, Object?>;
-      expect(landing['campaign_source'], 'facebook');
-      expect(landing['campaign_medium'], 'paid_social');
-      expect(landing['campaign_name'], 'nov');
-      expect(landing['campaign_content'], 'video');
-      expect(landing['campaign_term'], 'web');
-      expect(landing['campaign_id'], '42');
+      expect(browser.log.where((String l) => l.startsWith('event page_view')),
+          isEmpty);
+      expect(browser.log.where((String l) => l.contains('sendPageView=true')),
+          hasLength(1));
 
       browser.pageUrl = 'https://example.com/contact';
       await analytics.pageShown(DVPageView(location: Uri.parse('/contact')));
@@ -128,7 +128,9 @@ void main() {
 
     test('a direct visit carries no campaign', () async {
       attribution.capture(Uri.parse('https://example.com/'));
-      await runtime().pageShown(DVPageView(location: Uri.parse('/')));
+      final GoogleAnalyticsRuntime analytics = runtime();
+      await analytics.pageShown(DVPageView(location: Uri.parse('/')));
+      await analytics.pageShown(DVPageView(location: Uri.parse('/next')));
       expect(browser.log.last, isNot(contains('campaign_')));
     });
   });

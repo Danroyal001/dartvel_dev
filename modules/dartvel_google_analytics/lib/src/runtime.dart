@@ -145,10 +145,19 @@ final class GoogleAnalyticsRuntime {
           return;
         }
       case GoogleAnalyticsPageViews.manual:
-        break;
+        // The page Google's tag loads on is counted by the tag itself: it
+        // sends a page_view for it whatever the page's own config says
+        // (with "Ignore duplicate instances of on-page configuration", the
+        // default for new tags, send_page_view: false is ignored), so a copy
+        // from here counted that page twice. Route changes after it are the
+        // module's.
+        if (browser.available && !_loaded) {
+          _guard(_ensureLoaded);
+          return;
+        }
     }
     final String? location = browser.available
-        ? _guardedValue(() => browser.pageUrl)
+        ? _browserLocation(page.location)
         : _deviceLocation(page.location);
     await track(GoogleAnalyticsEvent.pageView(
       location: location,
@@ -196,6 +205,22 @@ final class GoogleAnalyticsRuntime {
       return;
     }
     await track(event);
+  }
+
+  /// A route change's page as a full URL: the page's own address on this
+  /// page's origin. The shell reports a page once its frame is drawn, which
+  /// can be before the router has put the new address in the address bar,
+  /// so the address bar's is not used.
+  String? _browserLocation(Uri location) {
+    final Uri? current =
+        Uri.tryParse(_guardedValue(() => browser.pageUrl) ?? '');
+    if (current == null || !current.hasAuthority) {
+      return location.hasAuthority ? location.toString() : null;
+    }
+    final String path =
+        location.path.startsWith('/') ? location.path : '/${location.path}';
+    return '${current.origin}$path'
+        '${location.hasQuery ? '?${location.query}' : ''}';
   }
 
   /// A device's page as a full URL, which `page_location` has to be.
@@ -418,11 +443,19 @@ final class GoogleAnalyticsRuntime {
   void _ensureLoaded() {
     if (_loaded) return;
     _loaded = true;
+    final bool tagCountsPage = config.pageViews != GoogleAnalyticsPageViews.off;
+    if (tagCountsPage) {
+      // Whatever loads the tag -- the first page, or an event once consent
+      // arrives -- the tag counts the page on screen from its address,
+      // campaign parameters included.
+      _pageSent = true;
+      _campaignSent = true;
+    }
     if (_consentRequired()) browser.consentDefaults();
     browser.load(
       config.resolvedMeasurementId!,
       scriptUrl: scriptUrl,
-      sendPageView: config.pageViews == GoogleAnalyticsPageViews.automatic,
+      sendPageView: tagCountsPage,
     );
   }
 
