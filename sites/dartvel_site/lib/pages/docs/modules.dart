@@ -83,7 +83,9 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
               'standard and custom events through the browser pixel, and the '
               'same events through your backend to the Conversions API with '
               'the same event id, so Meta counts each once and an in-app '
-              'browser that blocks the pixel still reports. The pixel\'s own '
+              'browser that blocks the pixel still reports. Its id can be left '
+              'out of the pubspec and set as META_PIXEL_ID on the server, '
+              'which the browser then asks for. The pixel\'s own '
               'automatic page view on each route change, which has no event '
               'id, is switched off, so a route change is one view.',
           'Google Analytics 4 (DV.Modules.googleAnalytics): gtag in the '
