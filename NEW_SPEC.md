@@ -1454,6 +1454,17 @@ The annotation also takes `path`, `policy`, `mfa` and `sitemap`. App bar
 actions, a leading widget and the rest of the Material and Cupertino scaffold
 options are designed and not yet on the annotation.
 
+`resizeToAvoidBottomInset` decides what the on-screen keyboard does to the
+page, on both shells. `true` (the default) shrinks the page to the room above
+the keyboard. `false` leaves the page its box, on every frame of the
+keyboard's slide: the room above the navigation bar is kept while the keyboard
+covers the bar, so nothing on the page's bottom edge moves. Inside the page,
+`MediaQuery.viewInsetsOf(context).bottom` is then how far the keyboard reaches
+up the page, measured from the page's own bottom edge, and no navigation bar is
+left under it. A column whose list fills the room over a box that tall ends
+exactly at the keyboard, while a dock or a bottom bar stays where it was behind
+it. A home screen or a chat with its own bottom bar takes `false`.
+
 `DVPageShellMode` supports `adaptive`, `material`, `cupertino`, and `none`.
 `adaptive` renders Cupertino page chrome on iOS/macOS and Material page chrome
 elsewhere. `scaffold: false` or `shell: DVPageShellMode.none` disables the

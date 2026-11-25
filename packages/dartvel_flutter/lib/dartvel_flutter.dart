@@ -12307,6 +12307,9 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     if (mode == DVPageShellMode.cupertino) {
       return CupertinoPageScaffold(
         backgroundColor: _color(spec.backgroundColor),
+        // The page's own choice, as on Material: Cupertino's default shrank
+        // every page for the keyboard, whatever it declared.
+        resizeToAvoidBottomInset: spec.resizeToAvoidBottomInset,
         // showAppBar alone. The title is what the browser tab and the SEO
         // head use, so every page has one; treating it as a request for a
         // bar meant showAppBar: false never took effect, and the site shipped
@@ -12496,8 +12499,21 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
     // Inside the safe area, the page's screen is the safe box. See
     // DVPageSafeBox: a page that sized itself from the screen ran under the
     // navigation bar by exactly the insets the SafeArea had taken away.
+    // A page that does not shrink for the on-screen keyboard keeps the room
+    // above the navigation bar while the keyboard covers the bar: Android then
+    // reports the bar's padding as nothing, and the page grew under it, so
+    // whatever sat on its bottom edge -- a dock, a bottom bar -- dropped by the
+    // bar's height as the keyboard came up (owner, 25 Nov 2026, the Dev
+    // Launcher's drawer search). Its insets are then measured from its own box.
+    final bool keepsBox = !spec.resizeToAvoidBottomInset;
     final Widget safe = spec.safeArea
-        ? SafeArea(child: DVPageSafeBox(child: traversable))
+        ? SafeArea(
+            maintainBottomViewPadding: keepsBox,
+            child: DVPageSafeBox(
+              keptBelow: keepsBox ? MediaQuery.viewPaddingOf(context).bottom : null,
+              child: traversable,
+            ),
+          )
         : traversable;
     // The consent banner, over the page and outside its scroll view and its
     // layouts, so it sits at the bottom of the screen whatever the page is.
