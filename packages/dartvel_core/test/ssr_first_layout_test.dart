@@ -519,6 +519,27 @@ void main() {
       expect(out, contains('#dv-field-1::placeholder{color:#888888'));
     });
 
+    // sigmadev.digital's keyword density checker: an icon glyph painted at
+    // the end of an empty field was taken for its hint -- an empty-looking
+    // placeholder, and the icon gone from the page.
+    test("an icon in an empty field is drawn, never taken for the field's hint", () {
+      const String doc = '<p><label for="dv-field-1">Rows</label> '
+          '<textarea id="dv-field-1" name="Rows" data-dv-field="Rows"></textarea></p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{..._text('', <num>[36, 113, 318, 228], z: 4), 'k': 'e', 'nw': null},
+            _text('\u{e5cd}', <num>[312, 300, 20, 20], z: 5, family: 'MaterialIcons'),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'f', 'name': 'Rows', 'r': <num>[20, 100, 350, 260]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('placeholder=')));
+      expect(out, contains(r'content:"\e5cd "'), reason: 'the icon is still drawn');
+    });
+
     test('a button is a Tab stop before the app is there', () {
       const String doc = '<p><strong role="button" title="Analyse" aria-label="Analyse">Analyse</strong></p>\n';
       final String out = dvSsrFirstLayout(

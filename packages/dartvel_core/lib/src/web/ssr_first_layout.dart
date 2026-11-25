@@ -995,6 +995,12 @@ class _Layout {
           if (item.used || item.kind != 't' || item.norm.isEmpty || !within(item.rect)) continue;
           final List<double> t = item.rect;
           if (t[1] + t[3] <= r[1] || t[1] >= r[1] + r[3]) continue;
+          // Where the text starts (or ends, or centres): an icon at the
+          // end of the field, or a glyph of an icon font, is not the hint.
+          final bool aligned = (t[0] - r[0]).abs() <= 2 ||
+              (t[0] + t[2] - r[0] - r[2]).abs() <= 2 ||
+              (t[0] + t[2] / 2 - r[0] - r[2] / 2).abs() <= 2;
+          if (!aligned || !item.text.runes.any(_readable)) continue;
           item.used = true;
           node.hints[w] = item;
           hint ??= item.text;
@@ -2054,3 +2060,10 @@ String? _safeSource(Object? value) {
   }
   return source;
 }
+
+/// A character that reads as text: not a space, and not in a private use
+/// area, where icon fonts put their glyphs.
+bool _readable(int rune) =>
+    !(rune >= 0xE000 && rune <= 0xF8FF) &&
+    !(rune >= 0xF0000) &&
+    String.fromCharCode(rune).trim().isNotEmpty;
