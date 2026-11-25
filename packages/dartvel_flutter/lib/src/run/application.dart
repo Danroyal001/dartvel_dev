@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:dartvel_core/dartvel.dart' show DVAppEntry, DVBoot, DVEmbeddedEntry, DVEntry, DVEntryKindOf;
+import 'package:dartvel_core/dartvel.dart' show DVAppEntry, DVBoot, DVEmbeddedEntry, DVEntry, DVEntryKindOf, DVThemeConfig;
 import 'package:dartvel_core/framework.dart'
     show DVBootStep, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -16,6 +16,10 @@ class const DVAppParts({
   required final GoRouter router,
   final Locale? locale,
   final ThemeMode themeMode = .system,
+  // The application's light and dark themes from `dartvel.theme` (DV.Theme),
+  // for a host root that wants the declared colours: `theme: parts.theme`.
+  final ThemeData? theme,
+  final ThemeData? darkTheme,
   final Iterable<LocalizationsDelegate<dynamic>> localizationsDelegates =
       const [],
   final TransitionBuilder? builder,
@@ -45,6 +49,7 @@ Future<void> dvRunApplication(
   FutureOr<void> Function(List<String>)? launch,
   DVEntry entry = const DVEntry.app(),
   DVStudioSplash? splash,
+  DVThemeConfig theme = DVThemeConfig.dartvel,
 }) async {
   if (_running) {
     DV.log.warn(
@@ -55,6 +60,9 @@ Future<void> dvRunApplication(
   }
   _running = true;
   _args = List.unmodifiable(args);
+  // `dartvel.theme` is in force before the first boot step, so a boot hook
+  // that changes the colours (a tenant's branding) builds on it.
+  DV.Theme.configure(theme);
   final completed = Completer<void>();
   runZonedGuarded(
     () async {
@@ -105,8 +113,9 @@ Future<void> dvRunApplication(
         dvWatchWebFirstFrame();
         runApp(
           MaterialApp(
-            theme: dartvelDefaultTheme(.light),
-            darkTheme: dartvelDefaultTheme(.dark),
+            theme: DV.Theme.data(.light),
+            darkTheme: DV.Theme.data(.dark),
+            themeMode: DV.Theme.mode,
             home: DVBox(DVText('Unable to start the application.')),
           ),
         );

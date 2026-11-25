@@ -80,8 +80,11 @@ class _DVStudioFrameState extends State<DVStudioFrame> {
       return MaterialApp(
         title: widget.title,
         debugShowCheckedModeBanner: false,
-        theme: dartvelDefaultTheme(.light),
-        darkTheme: dartvelDefaultTheme(.dark),
+        // The application's own theme (`dartvel.theme`): Studio has no
+        // palette of its own, even standalone.
+        theme: const DVTheme().data(.light),
+        darkTheme: const DVTheme().data(.dark),
+        themeMode: const DVTheme().mode,
         builder: (BuildContext context, Widget? child) =>
             _keyed(context, child ?? const SizedBox.shrink()),
         home: widget.home,

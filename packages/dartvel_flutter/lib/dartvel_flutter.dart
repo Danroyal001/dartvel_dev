@@ -50,7 +50,7 @@ import 'src/auth/qr_code.dart' show DVQrImage;
 import 'src/auth/session_client.dart';
 // conditional SEO implementation
 import 'src/crashes/crashes.dart';
-import 'src/default_theme.dart' show dvWithPageScrollbars;
+import 'src/default_theme.dart' show DVThemeColors, dvThemeData, dvWithPageScrollbars;
 import 'src/display/display_scale.dart'
     show DVDisplayScaling, DVScreenClass, dvCurrentScreenClass, dvCurrentUiScale, dvDisplayScaling;
 import 'src/display_platform.dart'
@@ -4167,7 +4167,10 @@ class _DVPressableState extends State<_DVPressable> {
                   foregroundDecoration: _focused
                       ? BoxDecoration(
                           border: Border.all(
-                            color: const Color(0xFF1D4ED8),
+                            // The application's focus colour (`dartvel.theme`),
+                            // Dartvel's blue where no theme says.
+                            color: Theme.of(context).extension<DVThemeColors>()?.focus ??
+                                const Color(0xFF1D4ED8),
                             width: 2,
                           ),
                           borderRadius: widget.borderRadius,
@@ -10898,13 +10901,84 @@ class _ProviderAuthPage extends StatelessWidget {
       );
 }
 
+/// `DV.Theme`: the application's colours and appearance, read and changed at
+/// run time.
+///
+/// The colours start as `dartvel.theme` in pubspec.yaml (Dartvel's own when
+/// it declares none), and the appearance as its `mode`. Changing either
+/// redraws the whole application in place: the generated root watches both.
+///
+/// ```dart
+/// DV.Theme.setMode(.dark);
+/// DV.Theme.configure(DV.Theme.config.copyWith(seed: '#1C6B38'));
+/// final DVThemeColors colours = DV.Theme.colors(context);
+/// ```
 class DVTheme {
   const DVTheme();
   static ThemeMode _mode = ThemeMode.system;
+  static DVThemeConfig _config = DVThemeConfig.dartvel;
+  static final Map<Brightness, ThemeData> _built = <Brightness, ThemeData>{};
+  static final ValueNotifier<int> _changes = ValueNotifier<int>(0);
+
+  /// Light, dark, or the device's setting.
   ThemeMode get mode => _mode;
+
+  /// Switches the appearance for the whole application.
   void setMode(ThemeMode mode) {
+    if (_mode == mode) return;
     _mode = mode;
+    _changes.value++;
   }
+
+  /// The colours in force: `dartvel.theme`, or what [configure] set since.
+  DVThemeConfig get config => _config;
+
+  /// Replaces the application's colours, and its appearance with
+  /// [DVThemeConfig.mode]: a tenant's branding, a setting a person chose.
+  void configure(DVThemeConfig config) {
+    _config = config;
+    _mode = switch (config.mode) {
+      .light => ThemeMode.light,
+      .dark => ThemeMode.dark,
+      .system => ThemeMode.system,
+    };
+    _built.clear();
+    _changes.value++;
+  }
+
+  /// The Flutter theme [config] makes for one appearance. What an
+  /// `@DVAppRoot` gets as `parts.theme` and `parts.darkTheme`.
+  ThemeData data(Brightness brightness) => _built[brightness] ??= dvThemeData(brightness, _config);
+
+  /// The colours in force where [context] is, by what they are for. Rebuilds
+  /// the caller when the appearance or the colours change.
+  DVThemeColors colors(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return theme.extension<DVThemeColors>() ?? DVThemeColors.fromTheme(theme);
+  }
+
+  /// Fires when [mode] or [config] changes. For the generated root.
+  Listenable get changes => _changes;
+}
+
+/// Rebuilds [builder] with the application's light and dark themes and its
+/// appearance whenever `DV.Theme` changes. The generated root wraps the
+/// application's `MaterialApp` in it; nothing else needs to.
+class DVAppTheme extends StatelessWidget {
+  const DVAppTheme({super.key, required this.builder});
+
+  final Widget Function(BuildContext context, ThemeData light, ThemeData dark, ThemeMode mode) builder;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: const DVTheme().changes,
+        builder: (BuildContext context, _) => builder(
+          context,
+          const DVTheme().data(.light),
+          const DVTheme().data(.dark),
+          const DVTheme().mode,
+        ),
+      );
 }
 
 class DVAI {
