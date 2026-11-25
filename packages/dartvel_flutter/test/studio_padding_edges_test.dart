@@ -7,7 +7,7 @@
 // EdgeInsets since the beginning and DVModifier has paddingOnly; the page
 // document was the only thing that could not say it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {

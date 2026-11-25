@@ -22,7 +22,7 @@ library;
 
 import 'package:flutter/gestures.dart'
     show LongPressGestureRecognizer, TapGestureRecognizer, kLongPressTimeout;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';

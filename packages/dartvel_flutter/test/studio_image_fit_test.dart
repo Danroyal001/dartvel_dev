@@ -5,7 +5,7 @@
 // took the renderer's default and half of them came out cropped or stretched
 // -- which looks like a bad export rather than a property nobody carried.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {

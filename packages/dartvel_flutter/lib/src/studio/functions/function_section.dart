@@ -10,7 +10,7 @@
 // app's functions, rather than a tab that opens onto nothing.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../dartvel_flutter.dart';
 

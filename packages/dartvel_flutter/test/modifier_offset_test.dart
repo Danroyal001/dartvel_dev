@@ -7,7 +7,7 @@
 // closed. An offset moves the box after layout: it keeps its size, its
 // children keep theirs, and taps land where it is drawn.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const Key panelKey = Key('panel');

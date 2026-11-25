@@ -5,7 +5,7 @@
 // free one put "Backend" on the rail twice. The later one now replaces the
 // earlier where it stood, so the rail keeps its order and has one Backend.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVStudioSection section(String id, String label, String body) =>

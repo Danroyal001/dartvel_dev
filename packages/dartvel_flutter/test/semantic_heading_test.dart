@@ -9,7 +9,7 @@
 // Checked against the built site before writing this: the semantics DOM
 // carried real <a href> anchors and not one heading node.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 

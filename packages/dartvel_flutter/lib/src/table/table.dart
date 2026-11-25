@@ -10,7 +10,7 @@
 /// rendered pixels: what a screen reader is told, and where focus goes.
 library dartvel_flutter.table;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 

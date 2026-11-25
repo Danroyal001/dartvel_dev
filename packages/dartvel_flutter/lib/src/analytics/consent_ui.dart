@@ -10,7 +10,7 @@ library dartvel_flutter.analytics.consent_ui;
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart'
     show DVBox, DVModifier, DVNavLink, DVRouteTarget, DVText;

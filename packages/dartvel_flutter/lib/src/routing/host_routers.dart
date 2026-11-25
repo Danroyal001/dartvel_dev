@@ -29,7 +29,7 @@ import 'dart:async' show unawaited;
 
 import 'package:dartvel_core/dartvel.dart' show dvRoutesOverlap;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:go_router/go_router.dart';
 

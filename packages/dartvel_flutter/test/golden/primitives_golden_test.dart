@@ -16,7 +16,7 @@
 // A golden fails on any visual change, so each of those becomes a picture that
 // differs rather than an exception nobody sees until a device runs it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -12,7 +12,7 @@
 // a dependency and rebuilds, and it sees a MediaQuery an ancestor overrode
 // rather than the raw window behind it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Renders [build] at a given logical size, the way a device would.

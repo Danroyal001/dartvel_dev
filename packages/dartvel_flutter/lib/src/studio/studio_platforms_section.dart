@@ -18,7 +18,7 @@ import 'dart:async';
 
 import 'package:dartvel_core/config.dart'
     show DVDocumentSlot, dvHtmlSnippetProblems, dvWebFileProblem;
-import 'package:flutter/material.dart' show Icons;
+import 'package:material_ui/material_ui.dart' show Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';

@@ -37,7 +37,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSignalReaders,
         DVSignalRef;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final DateTime now = DateTime.utc(2026, 9, 14, 12);

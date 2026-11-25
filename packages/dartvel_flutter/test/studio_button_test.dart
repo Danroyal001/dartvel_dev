@@ -6,7 +6,7 @@
 // it did carry were a modifier the first style replaced, so a button somebody
 // gave a colour stopped being a button to a screen reader.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument _page(DVPageNode node) {

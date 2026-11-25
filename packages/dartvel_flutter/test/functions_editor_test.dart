@@ -1,7 +1,7 @@
 // The workflow editing surface: tree edits into condition branches, undo/redo,
 // and the canvas driven by real drag gestures.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVWorkflowEditorController controllerWith(List<DVWorkflowStep> steps) =>

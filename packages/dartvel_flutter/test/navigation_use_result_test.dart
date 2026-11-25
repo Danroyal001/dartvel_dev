@@ -10,7 +10,7 @@
 // analyzer enforces it. These assert the two calls behave as their names say,
 // so the annotation is documented by behaviour rather than only by a comment.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 GoRouter routerWithPages() => GoRouter(

@@ -21,7 +21,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVDocsSpan,
         DVDocsTable,
         DVDocsTarget;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'docs_style.dart';
 

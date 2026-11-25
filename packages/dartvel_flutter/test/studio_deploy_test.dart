@@ -5,7 +5,7 @@
 // live says Deploy, the word `dartvel deploy` uses, and its menu holds the
 // other ways out: deploy now, or put the page from the last build back.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget host() => const MaterialApp(home: Material(child: DVStudioScreen()));

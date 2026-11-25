@@ -6,7 +6,7 @@
 // scrolled the page instead of typing, the caret would not move, and Enter
 // never submitted a form -- Studio's sign-in included.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

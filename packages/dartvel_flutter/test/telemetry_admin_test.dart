@@ -4,7 +4,7 @@
 // see what happened" — a hosted provider keeps its records elsewhere, and an
 // empty list would claim otherwise.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -5,7 +5,7 @@
 // @DVPage. A compiled page is the entrypoint an app ships with, not a fixture
 // — if it always won, a shipped page could never be edited, only added to.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument documentFor(String route, String text) {

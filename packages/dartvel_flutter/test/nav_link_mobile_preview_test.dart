@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> page(WidgetTester tester, {DVLinkPreview preview = .auto}) async {

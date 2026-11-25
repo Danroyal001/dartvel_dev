@@ -9,7 +9,7 @@ import 'dart:typed_data';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/linux/linux_media_gst.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> until(bool Function() condition,

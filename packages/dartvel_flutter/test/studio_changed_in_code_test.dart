@@ -2,7 +2,7 @@
 // and asks: keep the version in code, or save Studio's over it. It never
 // writes over the code's version on its own.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, Object?> _page(String text) => DVPageDocument(

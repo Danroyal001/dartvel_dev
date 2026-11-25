@@ -7,7 +7,7 @@
 // Two gaps, both of which forced raw Flutter into the one file that should be
 // the showcase for not needing it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> show(WidgetTester tester, Widget child) => tester.pumpWidget(

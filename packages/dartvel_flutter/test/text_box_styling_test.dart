@@ -11,7 +11,7 @@
 // before they were read: the call goes where it naturally goes, and the
 // widget it goes to never looks at it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> pump(WidgetTester tester, Widget child) =>

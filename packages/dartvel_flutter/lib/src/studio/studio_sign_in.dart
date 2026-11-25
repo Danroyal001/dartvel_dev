@@ -10,7 +10,7 @@
 /// the Studio.access grant; nothing here grants anything.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart';
 import '../widgets/password_reveal.dart';

@@ -7,7 +7,7 @@
 // hand-written page reads -- so a heading can be 24 on a phone and 40 on a
 // desktop, and the export carries that into Dart rather than flattening it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument page(DVPageNode node) =>

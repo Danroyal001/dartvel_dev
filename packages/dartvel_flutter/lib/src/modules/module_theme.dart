@@ -10,7 +10,7 @@
 library dartvel_flutter.modules.theme;
 
 import 'package:dartvel_core/dartvel.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Themes declared by modules, by module id.
 ///

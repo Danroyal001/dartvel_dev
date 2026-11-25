@@ -7,7 +7,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/material.dart'
+import 'package:material_ui/material_ui.dart'
     show Icon, IconData, Icons, Material;
 import 'package:flutter/widgets.dart';
 

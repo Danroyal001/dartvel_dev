@@ -10,7 +10,7 @@ import 'dart:convert';
 
 import 'package:dartvel_flutter/src/seo/paint_snapshot.dart';
 import 'package:dartvel_flutter/src/widgets/described_paint.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 List<Map<String, Object?>> _items(Map<String, Object?> snapshot) =>

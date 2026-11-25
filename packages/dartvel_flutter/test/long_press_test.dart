@@ -3,7 +3,7 @@
 // is the action's, not the tooltip's (which still shows on hover and focus),
 // and a screen reader is offered it as a second action.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 

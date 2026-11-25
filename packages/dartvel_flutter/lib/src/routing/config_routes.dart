@@ -20,7 +20,7 @@ library dartvel_flutter.routing.config_routes;
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show dvOrderRoutes;
-import 'package:flutter/material.dart' show MaterialPage;
+import 'package:material_ui/material_ui.dart' show MaterialPage;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 

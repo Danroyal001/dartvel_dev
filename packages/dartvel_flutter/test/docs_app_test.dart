@@ -11,7 +11,7 @@
 library;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A document with one page of every kind, a second page to link to, and a

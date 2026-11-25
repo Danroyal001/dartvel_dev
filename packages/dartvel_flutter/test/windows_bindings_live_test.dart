@@ -20,7 +20,7 @@ import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // INPUT with a KEYBDINPUT, laid out as Win32 x64 has it: the union is 32

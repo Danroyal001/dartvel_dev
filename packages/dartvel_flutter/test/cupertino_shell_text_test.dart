@@ -8,7 +8,7 @@
 // It was found by photographing the running app on macOS and iOS and noticing
 // that both looked wrong in a way Linux, Windows, Android and web did not.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

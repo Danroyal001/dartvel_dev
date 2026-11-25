@@ -5,7 +5,7 @@
 // live. `pageSlot` marks the text; the build writes the mark into the page
 // and the route's page data fills it on every request.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
 

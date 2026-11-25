@@ -8,7 +8,7 @@
 // nothing, a property that falls out of the inspector because nobody put it in
 // a group, an insert that lands in the page instead of the card you selected.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Page > [Column > 'Hello'], 'World'.

@@ -11,7 +11,7 @@
 // default action is taken -- which is what dvKioskRefusesLink answers.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/routing/link_interception.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVKioskPolicy _policy({

@@ -9,9 +9,9 @@ import 'package:dartvel_core/dartvel.dart';
 // The offline queue, which signing out empties. The framework's own, and
 // not re-exported to applications.
 import 'package:dartvel_core/framework.dart' show DVOfflineSync, dvPurgeRenderedPages;
-import 'package:flutter/cupertino.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart'
     show
         OrdinalSortKey,

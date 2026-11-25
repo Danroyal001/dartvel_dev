@@ -6,7 +6,7 @@
 // with it — and the free suite gained one asserting the tab is absent, which
 // is the other half of the same claim.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget host() => MaterialApp(

@@ -2,7 +2,7 @@
 // than merely running. The bundle travels with a release or OTA patch and is
 // applied into the store, from which the override machinery takes over.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument documentFor(String route, String text) {

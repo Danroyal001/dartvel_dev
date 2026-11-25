@@ -10,7 +10,7 @@
 // state they read. An address with nothing at it is still not found, and
 // dartvel.notFoundRedirect still sends it away.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A site layout that lights its links from the router, as dartvel.dev's

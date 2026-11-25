@@ -6,7 +6,7 @@
 // what an inspector shows -- and one call in the export, because it is one
 // modifier.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {

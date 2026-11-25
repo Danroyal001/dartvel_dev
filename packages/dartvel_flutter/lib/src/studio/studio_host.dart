@@ -16,7 +16,7 @@ library;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The page at `path` as its route draws it: the page, its layouts and its
 /// shell. With [content], that widget stands where the page's body goes --

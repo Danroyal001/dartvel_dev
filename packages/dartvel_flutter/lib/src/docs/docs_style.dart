@@ -16,7 +16,7 @@
 /// application must stay light.
 library dartvel_flutter.docs.style;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The measure a page is set to: 64rem, as the stylesheet had it.
 ///

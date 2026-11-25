@@ -4,7 +4,7 @@
 import 'dart:async';
 
 import 'package:dartvel_flutter/src/studio/studio_command_palette.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

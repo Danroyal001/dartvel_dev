@@ -8,7 +8,7 @@
 //
 // The sizes already survive. The positions had nowhere to go.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument pageWith(List<Map<String, Object?>> children) {

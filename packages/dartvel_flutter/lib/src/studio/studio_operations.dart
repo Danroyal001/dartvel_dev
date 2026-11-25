@@ -41,7 +41,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVSignalReadingStatus,
         DVStatusSnapshot;
 import 'package:dartvel_core/dv.dart' as server show DV;
-import 'package:flutter/material.dart' show Icon, IconData, Icons;
+import 'package:material_ui/material_ui.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';

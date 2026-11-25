@@ -10,7 +10,7 @@
 // DVBox has taken spacing, align and crossAlign since it was written. The
 // renderer simply never passed them on.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties, {String layout = 'list'}) {

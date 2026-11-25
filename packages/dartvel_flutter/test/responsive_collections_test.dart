@@ -11,7 +11,7 @@
 // steps down on narrower ones. A developer who needs the old behaviour asks
 // for it with `responsive: false`.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> render(WidgetTester tester, Size size, Widget child) async {

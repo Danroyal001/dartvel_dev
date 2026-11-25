@@ -4,7 +4,7 @@
 import 'dart:convert';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 String _doc(String text) => jsonEncode(DVPageDocument(

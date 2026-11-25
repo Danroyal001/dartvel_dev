@@ -5,7 +5,7 @@
 // database. So the sections keep their functions through the Studio API, the
 // way the page builder keeps pages.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A backend that answers api/functions out of a map.

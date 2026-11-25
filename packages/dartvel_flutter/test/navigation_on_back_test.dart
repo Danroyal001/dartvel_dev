@@ -2,7 +2,7 @@
 // it navigates. The router answers Back first, so an app's own observer
 // never heard it (Dev Launcher's drawer on Android 12, 11 Nov 2026).
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';

@@ -2,7 +2,7 @@
 // box's own action. The tooltip is shown on hover and focus; a long press that
 // the box answers is the box's, as it is on a pressable with a tap.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

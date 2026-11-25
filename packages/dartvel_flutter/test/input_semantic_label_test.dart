@@ -8,7 +8,7 @@
 // semantics on, that empty node sat over the field and took the click, so
 // the box on sigmadev.digital/tools never focused and nothing could be typed.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 

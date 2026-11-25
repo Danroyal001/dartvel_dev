@@ -19,7 +19,7 @@
 import 'package:dartvel_core/dartvel.dart'
     show DVStudioScreenSpec, dvStudioScreens;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Ids Studio has only when the project asked for the runtime behind them.
