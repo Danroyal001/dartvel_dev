@@ -142,6 +142,11 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
               'A redirecting domain serves no pages: every path is sent on with a '
                   'permanent (301) redirect, keeping the query string.',
               'redirects sends exact paths somewhere of their own.',
+              'Each domain has its own robots.txt and sitemap.xml. The pages '
+                  'of a wildcard domain (*.tools.example.com) are also listed '
+                  'by the domain above it (tools.example.com), whose sitemap '
+                  'each of them names in its robots.txt, so search engines '
+                  'find every one.',
               'Hosts on one registrable domain share one sign-in: signed in '
                   'on example.com is signed in on docs.example.com. See Auth, '
                   'Stay signed in across your hosts.',

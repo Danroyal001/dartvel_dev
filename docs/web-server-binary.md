@@ -131,6 +131,11 @@ How a request is answered:
    (`https://example.com/sign-in?from=%2Fdocs%2Fprivate` from `docs.example.com/private`); `from` is the route.
 8. **robots.txt and sitemap.xml.** The build writes one sitemap listing every page at its public URL. Each
    host is answered with the entries on its own origin and a robots.txt whose `Sitemap:` line is its own.
+   A wildcard host (`*.tools.example.com`) is a family nobody can submit one by one, so its pages are also
+   listed by the declared host whose mount contains its mount (`tools.example.com` for `/tools/{label}`, the
+   primary when none does), and its robots.txt names that sitemap as well as its own: the sitemaps.org
+   cross-submission that lets a sitemap list another host's URLs, and what Google accepts without verifying
+   each host in Search Console.
    A host with no route under its mount -- a wildcard label nothing is published for -- answers `404` to
    both. Which host serves what is read from the hosts in the manifest, not from the files.
 

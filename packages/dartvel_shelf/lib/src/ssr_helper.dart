@@ -568,8 +568,9 @@ String? _requestHost(Request req) {
 /// site without hosts, whose files are served as they were built.
 ///
 /// The build writes one sitemap listing every page's public URL. Each host
-/// is answered with the entries on its own origin, and a robots.txt naming
-/// its own sitemap. A host that serves no route at all -- a wildcard label
+/// is answered with the entries on its own origin and on the wildcard hosts
+/// it lists, and a robots.txt naming its own sitemap and, on a wildcard host,
+/// the one that lists it too (dvHostSiteFileFor). A host that serves no route at all -- a wildcard label
 /// nothing is published under -- has neither. An unknown host is the
 /// primary, as it is for pages.
 Future<Response?> dvHostSiteFile(Request req, String spaRoot) async {
