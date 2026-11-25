@@ -1856,7 +1856,11 @@ document says "on Our work." and not "on . Our work". A sentence with
 several links places each with `DVWidgetSpan` instead of `WidgetSpan`:
 two links never share a node, and Flutter reads a plain placeholder that
 is a node after all of its paragraph's text, so "Our privacy policy,
-terms and refund policy" came out as "Our , and" with the links after it. Preload has nothing of its own to fetch —
+terms and refund policy" came out as "Our , and" with the links after it. The
+server-rendered document writes such a sentence as one paragraph with each
+link in it, and a piece that starts with closing punctuation follows the one
+before it directly: "Get a free quote. Our privacy policy, terms and
+refund policy", never "free quote . Our privacy policy ,". Preload has nothing of its own to fetch —
 there is no deferred library — so it is the web document prefetch every
 route gets. Every route has a preview. An open route's preview builds its
 screen for the location the link names, parameters included (`/orders/9`

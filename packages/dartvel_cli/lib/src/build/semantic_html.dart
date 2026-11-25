@@ -30,6 +30,7 @@ class DVSemanticNode {
     this.href,
     this.media,
     this.fieldType,
+    this.inSentence = false,
     this.children = const <DVSemanticNode>[],
   });
 
@@ -53,6 +54,11 @@ class DVSemanticNode {
   /// `password`, ...) or `textarea`. Null for every other node.
   final String? fieldType;
 
+  /// Placed inside a run of text (DVWidgetSpan in dartvel_flutter): its
+  /// parent is a sentence, and the document writes the parent's pieces as one
+  /// paragraph with this one in its place.
+  final bool inSentence;
+
   final List<DVSemanticNode> children;
 
   /// Read a node emitted by the prerender step.
@@ -65,6 +71,7 @@ class DVSemanticNode {
             ? (json['media']! as Map).cast<String, Object?>()
             : null,
         fieldType: json['field'] as String?,
+        inSentence: json['inSentence'] == true,
         children: <DVSemanticNode>[
           for (final Object? child
               in (json['children'] as List<Object?>? ?? const <Object?>[]))
@@ -129,6 +136,18 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
       // running app shows on hover (see tooltips.dart in dartvel_flutter).
       out.writeln('<a href="${_attribute.convert(node.href!)}"'
           '${_nameAttributes(name)}>${_text.convert(name)}</a>');
+      continue;
+    }
+
+    // A paragraph with links placed in it: its runs of text and its links are
+    // the pieces of one sentence, and go out as one paragraph with each link
+    // in its place. As elements of their own they read "Get a free quote .
+    // Our privacy policy ," -- a line per piece in a selection, no match for
+    // "free quote." in the browser's find, and a pause at every piece for a
+    // screen reader.
+    if (node.children.any((DVSemanticNode child) => child.inSentence)) {
+      final String sentence = _sentence(node);
+      if (sentence.isNotEmpty) out.writeln('<p>$sentence</p>');
       continue;
     }
 
@@ -335,5 +354,56 @@ String _flattenRaw(List<DVSemanticNode> nodes) {
   }
 
   walk(nodes);
-  return parts.join(' ').trim();
+  final StringBuffer out = StringBuffer();
+  String? before;
+  for (final String part in parts) {
+    if (before != null && dvSpaceBetween(before, part)) out.write(' ');
+    out.write(part);
+    before = part;
+  }
+  return out.toString().trim();
 }
+
+/// The pieces of a sentence: [node]'s own label, then each child's text or
+/// link, joined the way the sentence reads.
+String _sentence(DVSemanticNode node) {
+  final List<(String words, String html)> pieces = <(String, String)>[];
+  final String? own = node.label?.trim();
+  if (own != null && own.isNotEmpty) pieces.add((own, _text.convert(own)));
+  for (final DVSemanticNode child in node.children) {
+    final String? label = child.label?.trim();
+    final String words = label != null && label.isNotEmpty
+        ? label
+        : _flattenRaw(child.children);
+    if (words.isEmpty) continue;
+    final String? href = child.href;
+    pieces.add((
+      words,
+      href != null && href.isNotEmpty
+          ? '<a href="${_attribute.convert(href)}"${_nameAttributes(words)}>'
+                '${_text.convert(words)}</a>'
+          : _text.convert(words),
+    ));
+  }
+  final StringBuffer out = StringBuffer();
+  String? before;
+  for (final (String words, String html) in pieces) {
+    if (before != null && dvSpaceBetween(before, words)) out.write(' ');
+    out.write(html);
+    before = words;
+  }
+  return out.toString();
+}
+
+/// Marks that close what comes before them: written straight after it, as
+/// in "a free quote." and "privacy policy,".
+final RegExp _closing = RegExp('^[.,;:!?)\\]}…%”’»›]');
+
+/// Marks that open what comes after them: "(see the docs)".
+final RegExp _opening = RegExp('[(\\[{“‘«‹]\$');
+
+/// Whether two pieces of one sentence, each trimmed, are read with a space
+/// between them: always, except before a closing mark and after an opening
+/// one. Words are never glued -- only punctuation decides.
+bool dvSpaceBetween(String before, String after) =>
+    !_closing.hasMatch(after) && !_opening.hasMatch(before);

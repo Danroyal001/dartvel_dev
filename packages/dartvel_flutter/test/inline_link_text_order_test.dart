@@ -162,6 +162,31 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('each link placed in a sentence says so, for the server-rendered document', (WidgetTester tester) async {
+    // The document writes a paragraph's pieces as one <p> only when it can
+    // tell they are one sentence; the identifier is how it tells.
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await pump(
+      tester,
+      DVBox.list(<Widget>[
+        sentenceWithLinks(),
+        const DVNavLink(to: DVRouteTarget('/past-work'), child: DVText('Our work')),
+      ], spacing: 12),
+    );
+
+    final Map<String, String> identifiers = <String, String>{
+      for (final SemanticsData link in links(tester)) link.linkUrl.toString(): link.identifier,
+    };
+    expect(identifiers, <String, String>{
+      '/contact': 'dartvel:in-sentence',
+      '/privacy': 'dartvel:in-sentence',
+      '/terms': 'dartvel:in-sentence',
+      '/refund-policy': 'dartvel:in-sentence',
+      '/past-work': '',
+    });
+    semantics.dispose();
+  });
+
   testWidgets('a link beside paragraphs, not in a sentence, keeps its own node', (WidgetTester tester) async {
     final SemanticsHandle semantics = tester.ensureSemantics();
     await pump(
