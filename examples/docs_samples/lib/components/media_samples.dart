@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 
 import '../dartvel_client/dartvel_client.dart';
@@ -18,3 +20,20 @@ Widget banner() => const DVBox(DVText('Now shipping')).modifier(
       const DVModifier().backgroundImage(DVAsset.hero).padding(48),
     );
 // docs:end
+
+// docs:start media-pick
+Future<void> choosePhoto() async {
+  if (!DV.Platform.media.canPick) return;
+  final DVFile? photo = await DV.Platform.media.pickImage(); // null: cancelled
+  if (photo == null) return;
+  final Uint8List bytes = await DV.Platform.media.readCapture(photo);
+  await uploadPhoto(bytes); // or decode it
+}
+
+Future<List<DVFile>> chooseMenus() => DV.Platform.media.pickFiles(
+      types: <String>['application/pdf', '.csv'],
+      multiple: true,
+    );
+// docs:end
+
+Future<void> uploadPhoto(Uint8List bytes) async {}

@@ -100,3 +100,20 @@ Widget ownToggleField() => DVText('').modifier(
       ),
     );
 // docs:end
+
+// docs:start forms-input-kind
+// What a field holds picks the keyboard a phone opens and what it offers to
+// fill in. Leave it out and the field is the plain text field it was.
+Widget phoneField() => DVText('').modifier(
+      const DVModifier().input(label: 'PHONE', kind: .phone),
+    );
+
+Widget priceField() => DVText('').modifier(
+      const DVModifier().input(label: 'PRICE', kind: .decimal),
+    );
+
+// A password kind also hides what is typed, with the eye.
+Widget newPasswordField() => DVText('').modifier(
+      const DVModifier().input(label: 'PASSWORD', kind: .newPassword),
+    );
+// docs:end
