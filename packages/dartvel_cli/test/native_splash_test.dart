@@ -17,6 +17,8 @@ import 'dart:math' as math;
 
 import 'package:dartvel_cli/src/build/native_splash.dart';
 import 'package:dartvel_cli/src/build/pwa_icons.dart';
+import 'package:dartvel_cli/src/build/web_renderer.dart';
+import 'package:dartvel_core/dartvel.dart' show DVWasmEngines, dvWasmAppRunsHereJs;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -596,6 +598,28 @@ dartvel:
               '_flutter.loader.load({});\n');
       dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')), splash);
       expect(_read('build/web/index.html'), isNot(contains('main.dart.wasm')));
+    });
+
+    test('the app preloaded is the one the loader picks in Safari and Firefox '
+        'too', () {
+      // A build that lets Safari 26.2+ and Firefox 147+ run the wasm app says
+      // so in its bootstrap; preloading main.dart.js there would be the app
+      // the loader does not run.
+      _write('build/web/index.html', _webIndex);
+      _write(
+          'build/web/flutter_bootstrap.js',
+          dvBootstrapWithLoaderConfig(
+              '_flutter.buildConfig = {"engineRevision":"af7e796e16","builds":['
+              '{"compileTarget":"dart2wasm","renderer":"skwasm","mainWasmPath":"main.dart.wasm","jsSupportRuntimePath":"main.dart.mjs"},'
+              '{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};\n'
+              '_flutter.loader.load({});\n',
+              const DVWasmEngines(gecko: false)));
+      dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')), splash);
+      expect(_read('build/web/index.html'),
+          contains(dvWasmAppRunsHereJs(const DVWasmEngines(gecko: false))));
+      // Flutter's bootstrap alone: Chromium only, as flutter.js decides.
+      expect(dvWebSplashApply(_webIndex, splash, wasm: true),
+          contains(dvWasmAppRunsHereJs(DVWasmEngines.chromiumOnly)));
     });
 
     test('disabled, with the loading bar off too, leaves the page alone', () {

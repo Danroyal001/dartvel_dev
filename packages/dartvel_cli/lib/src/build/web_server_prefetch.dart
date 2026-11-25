@@ -20,6 +20,7 @@ import 'route_prefetch.dart'
         DVCapturedImage,
         dvPreloadableParts,
         dvPreloadableWasmModules,
+        dvBuildWasmEngines,
         dvDeferredPrefixes,
         dvNamedByPage,
         dvPrefetchManifestFile,
@@ -37,11 +38,11 @@ int dvWriteWebServerPrefetch({
   required String webRoot,
   required String routerSource,
   required List<String> routes,
-  Map<String, Object?>? wasmDeferredMap,
+  Map<String, List<String>>? wasmModules,
 }) {
   final Map<String, List<String>> parts = dvPreloadableParts(webRoot);
-  final Map<String, List<String>> wasmModules =
-      dvPreloadableWasmModules(webRoot, wasmDeferredMap);
+  final Map<String, List<String>> preloadable =
+      dvPreloadableWasmModules(webRoot, wasmModules);
   final Map<String, String> prefixes = dvDeferredPrefixes(routerSource);
   // What the shell asks for itself -- the splash, the icons -- is requested
   // on every route, so the capture saw it on every route. It is none of
@@ -55,7 +56,7 @@ int dvWriteWebServerPrefetch({
   var naming = 0;
   for (final String route in routes) {
     final List<String> scripts = parts[prefixes[route]] ?? const <String>[];
-    final List<String> wasm = wasmModules[prefixes[route]] ?? const <String>[];
+    final List<String> wasm = preloadable[prefixes[route]] ?? const <String>[];
     final List<DVCapturedImage> images = <DVCapturedImage>[
       for (final DVCapturedImage image
           in dvReadCapturedImages(projectRoot, route))
@@ -73,7 +74,12 @@ int dvWriteWebServerPrefetch({
 
   File(p.join(webRoot, dvPrefetchManifestFile)).writeAsStringSync(
     const JsonEncoder.withIndent('  ')
-        .convert(<String, Object?>{'routes': manifest}),
+        .convert(<String, Object?>{
+      // Which engines run the wasm app: the server names a route's modules
+      // behind the same decision as the page's own scripts.
+      'wasmEngines': dvBuildWasmEngines(webRoot).toJson(),
+      'routes': manifest,
+    }),
   );
   return naming;
 }

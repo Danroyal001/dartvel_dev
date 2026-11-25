@@ -81,52 +81,27 @@ DVStudioPartsResult dvSplitStudioParts({
   return DVStudioPartsResult(parts: own);
 }
 
-/// The library whose deferred imports load Studio's screens and sign-in.
-const String _studioRoutesLibrary = '/src/studio/studio_routes.dart';
-
-/// The modules of a dart2wasm deferred [map] (as `--deferred-map` writes it)
-/// that only Studio's screens load: empty when Studio is not compiled in,
-/// and null when the map does not name the imports (a minified map numbers
-/// them), so nobody can tell which modules are Studio's.
+/// The wasm modules only Studio's screens load, from each deferred import's
+/// modules by prefix ([byImport], as wasm_deferred.dart works them out).
 ///
-/// A module Studio shares with its sign-in or with any other library's
-/// deferred import is public code somebody with no grant needs, and stays.
-List<String>? dvStudioWasmModules(Map<String, Object?> map) {
-  Map<Object?, Object?>? studio;
-  final Set<String> public = <String>{};
-  for (final MapEntry<String, Object?> library in map.entries) {
-    final Object? entry = library.value;
-    final Object? imports = entry is Map ? entry['imports'] : null;
-    if (imports is! Map) continue;
-    if (library.key.startsWith('package:dartvel_flutter/') &&
-        library.key.endsWith(_studioRoutesLibrary)) {
-      // A minified map keys imports by load id and names them in
-      // importPrefixToLoadId; read it back to prefix names.
-      final Object? ids = (entry as Map)['importPrefixToLoadId'];
-      studio = ids is Map
-          ? <Object?, Object?>{
-              for (final MapEntry<Object?, Object?> id in ids.entries)
-                id.key: imports[id.value],
-            }
-          : imports;
-      continue;
-    }
-    for (final Object? modules in imports.values) {
-      if (modules is List) public.addAll(modules.whereType<String>());
-    }
-  }
-  if (studio == null) return const <String>[];
-  final Object? screens = studio[dvStudioDeferredImport];
-  if (screens is! List) return null;
-  for (final MapEntry<Object?, Object?> import in studio.entries) {
-    if (import.key == dvStudioDeferredImport) continue;
-    final Object? modules = import.value;
-    if (modules is List) public.addAll(modules.whereType<String>());
-  }
-  return <String>[
-    for (final String module in screens.whereType<String>())
+/// Empty when Studio is not compiled in. Null when it is and no module is
+/// known to be its alone -- its code is somewhere in the wasm app, and
+/// nobody can say where. A module Studio shares with its sign-in or with any
+/// other import is public code somebody with no grant needs, and stays.
+List<String>? dvStudioWasmModules(Map<String, List<String>> byImport,
+    {required bool compiledIn}) {
+  if (!compiledIn) return const <String>[];
+  final List<String> screens =
+      byImport[dvStudioDeferredImport] ?? const <String>[];
+  final Set<String> public = <String>{
+    for (final MapEntry<String, List<String>> entry in byImport.entries)
+      if (entry.key != dvStudioDeferredImport) ...entry.value,
+  };
+  final List<String> own = <String>[
+    for (final String module in screens)
       if (!public.contains(module)) module,
   ];
+  return own.isEmpty ? null : own;
 }
 
 /// Moves [modules] from [webRoot] into [partsRoot], beside Studio's dart2js

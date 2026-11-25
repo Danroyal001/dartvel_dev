@@ -25,13 +25,14 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dartvel_core/dartvel.dart' show dvSsrFirstHead;
+import 'package:dartvel_core/dartvel.dart'
+    show DVWasmEngines, dvSsrFirstHead, dvWasmAppRunsHereJs;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'pwa_icons.dart';
 import 'ssr_first_capture.dart' show dvSsrFirstDefaultWidths;
-import 'web_renderer.dart' show dvBuildCompilesToWasm;
+import 'web_renderer.dart' show dvBootstrapWasmEngines, dvBuildCompilesToWasm;
 
 /// The light colour when a project declares none anywhere.
 const String dvSplashDefaultColor = '#FFFFFF';
@@ -384,6 +385,7 @@ String dvWebSplashApply(
   String? darkImageUrl,
   int? imageWidth,
   bool wasm = false,
+  DVWasmEngines wasmEngines = DVWasmEngines.chromiumOnly,
 }) {
   final String clean = dvWebSplashRemove(html);
   final int head = clean.indexOf('</head>');
@@ -467,7 +469,7 @@ String dvWebSplashApply(
       // flutter_bootstrap.js has run and asked for it.
       // A --wasm build has two: the page asks for the one the loader will
       // run, by the loader's own WasmGC test.
-      '${wasm ? '<script>$_wasmPreloadScript</script>' : '<link rel="preload" href="main.dart.js" as="script">'}\n'
+      '${wasm ? '<script>${_wasmPreloadScript(wasmEngines)}</script>' : '<link rel="preload" href="main.dart.js" as="script">'}\n'
       '<style id="dartvel-splash-style">$style</style>\n'
       '<noscript><style>${<String>[
         if (splash.enabled) '#dartvel-splash',
@@ -543,13 +545,17 @@ DVSplashResult dvWriteWebSplash(Directory web, DVSplash splash) {
   // What the build compiled, from the config flutter.js chooses by: a --wasm
   // build preloads the app the browser will run, not always main.dart.js.
   final File bootstrap = File(p.join(web.path, 'flutter_bootstrap.js'));
-  final bool wasm = bootstrap.existsSync() &&
-      dvBuildCompilesToWasm(bootstrap.readAsStringSync());
+  final String? bootstrapJs =
+      bootstrap.existsSync() ? bootstrap.readAsStringSync() : null;
+  final bool wasm = bootstrapJs != null && dvBuildCompilesToWasm(bootstrapJs);
   final String after = dvWebSplashApply(before, splash,
       imageUrl: imageUrl,
       darkImageUrl: darkUrl,
       imageWidth: width,
-      wasm: wasm);
+      wasm: wasm,
+      wasmEngines: bootstrapJs == null
+          ? DVWasmEngines.chromiumOnly
+          : dvBootstrapWasmEngines(bootstrapJs));
   _record(result, root, index, _put(index, after));
   return result;
 }
@@ -1152,14 +1158,12 @@ DVSplashResult dvWriteNativeSplash(
 /// what keeps a slow connection from looking like a dead page. With reduced
 /// motion it steps and does not creep.
 /// The compiled app of a `--wasm` build, preloaded the way flutter.js will
-/// load it: on Blink with WasmGC (the loader's default allow list, and its
-/// own detector bytes) the `.mjs` runtime as a module and `main.dart.wasm`
-/// through fetch(), anonymous CORS; everywhere else `main.dart.js`.
-const String _wasmPreloadScript = '(function(){'
-    'var n=navigator,d=document,w=false;'
-    'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
-    '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
-    'catch(e){}'
+/// load it: where the loader runs the wasm app of a build allowing [engines]
+/// ([dvWasmAppRunsHereJs]) the `.mjs` runtime as a module and
+/// `main.dart.wasm` through fetch(), anonymous CORS; everywhere else
+/// `main.dart.js`.
+String _wasmPreloadScript(DVWasmEngines engines) => '(function(){'
+    'var d=document,w=${dvWasmAppRunsHereJs(engines)};'
     'function hint(rel,href,as){var l=d.createElement("link");l.rel=rel;'
     'l.href=href;if(as){l.as=as;l.crossOrigin="anonymous";}'
     'd.head.appendChild(l)}'
