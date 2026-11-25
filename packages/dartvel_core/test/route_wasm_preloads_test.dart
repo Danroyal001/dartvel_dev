@@ -23,9 +23,9 @@ const String manifest = '''
 }}
 ''';
 
-/// The detector the splash uses to preload main.dart.wasm.
-const String wasmDetector = '(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
-    '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))';
+/// The decision the splash makes for main.dart.wasm. A manifest that names no
+/// engines is from a build that let only Chromium run the wasm app.
+final String wasmDetector = dvWasmAppRunsHereJs(DVWasmEngines.chromiumOnly);
 
 void main() {
   final DVRoutePreloads preloads = DVRoutePreloads.parse(manifest);
@@ -45,12 +45,12 @@ void main() {
 
   test('the same script as the static build writes', () {
     expect(preloads.linksFor('/'),
-        '${dvWasmModulePreloads(<String>['main.dart_module3.wasm', 'main.dart_module7.wasm'])}\n');
+        '${dvWasmModulePreloads(<String>['main.dart_module3.wasm', 'main.dart_module7.wasm'], DVWasmEngines.chromiumOnly)}\n');
   });
 
   test('no modules, no script', () {
     expect(preloads.linksFor('/docs'), isNot(contains('<script')));
-    expect(dvWasmModulePreloads(const <String>[]), isEmpty);
+    expect(dvWasmModulePreloads(const <String>[], DVWasmEngines.all), isEmpty);
   });
 
   test('a module name cannot end the script it is in', () {
@@ -61,7 +61,7 @@ void main() {
     // On a slow network every byte competes: preloaded modules shared the
     // line with main.dart.wasm and delayed it by 10 s on Slow 3G. The app and
     // its renderer go first; the rest follows the moment both are in.
-    final String script = dvWasmModulePreloads(<String>['main.dart_module3.wasm']);
+    final String script = dvWasmModulePreloads(<String>['main.dart_module3.wasm'], DVWasmEngines.all);
     expect(script, contains(dvAfterBootDownloadsDetector));
     expect(script.indexOf(dvAfterBootDownloadsDetector),
         lessThan(script.indexOf('main.dart_module3.wasm')));

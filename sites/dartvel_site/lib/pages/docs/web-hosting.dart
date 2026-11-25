@@ -138,11 +138,14 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           '    ssrFirst: true   # the page itself instead of the splash',
         ]),
         DocsText(
-          'Every web build is compiled twice: Chrome, Edge and '
-          'Chrome for Android run the WebAssembly version, other '
+          'Every web build is compiled twice: Chrome, Edge, Chrome for '
+          'Android, Safari 26.2 and later (and every iPhone browser on it) '
+          'and Firefox 147 and later run the WebAssembly version, other '
           'browsers the JavaScript one. Each page loads its own code '
-          'when it is first shown. The page and the splash are the '
-          'same either way.',
+          'once, when it is first shown. The page and the splash are the '
+          'same either way. The JavaScript version refuses the old '
+          'dart:html, dart:js and dart:js_util libraries, as the '
+          'WebAssembly one always has.',
         ),
         DocsText(
           'Each page asks for its own code as soon as the app and its '
@@ -164,6 +167,8 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'dartvel:',
           '  web:',
           '    wasm: false                 # JavaScript only',
+          '    # wasm: {safari: false}     # or keep Safari (or firefox) on JavaScript',
+          '    # deprecatedJsInterop: true # allow dart:html in the JavaScript version',
           '    crossOriginIsolated: false  # never send the two headers',
         ]),
         DocsText(

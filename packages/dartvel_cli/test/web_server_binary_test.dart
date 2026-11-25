@@ -94,8 +94,8 @@ void main() {
   late String buildOutput;
 
   // The project, built once. Not in setUpAll: package:test gives setUpAll a
-  // fixed 12 minutes, and a web-server build compiles the app three times
-  // now (dart2js, dart2wasm, and dart2wasm again with deferred loading). It
+  // fixed 12 minutes, and a web-server build compiles the app twice
+  // (dart2js and dart2wasm, each minutes on this host). It
   // runs as the first test, with that test's own timeout, and every later
   // test waits for the same build.
   Future<void> prepare() async {

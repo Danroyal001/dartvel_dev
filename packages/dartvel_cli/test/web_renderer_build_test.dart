@@ -10,7 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// A project whose `dartvel.web.wasm` is [wasm], or that has none.
-Directory _project(String? wasm) {
+Directory _project(String? wasm, {String extraWeb = ''}) {
   final Directory temp = Directory.systemTemp.createTempSync('dv_web_renderer_');
   File(p.join(temp.path, 'pubspec.yaml')).writeAsStringSync('''
 name: renderer_app
@@ -21,7 +21,7 @@ dependencies:
     sdk: flutter
 dartvel:
   org: com.example
-${wasm == null ? '' : '  web:\n    wasm: $wasm\n'}''');
+${wasm == null && extraWeb.isEmpty ? '' : '  web:\n${wasm == null ? '' : '    wasm: $wasm\n'}$extraWeb'}''');
   Directory(p.join(temp.path, 'lib')).createSync(recursive: true);
   File(p.join(temp.path, 'lib', 'main.dart')).writeAsStringSync('void main() {}');
   Directory(p.join(temp.path, 'web')).createSync();
@@ -84,6 +84,36 @@ void main() {
     final List<String> build = started.singleWhere(
         (List<String> args) => args.take(2).join(' ') == 'build web');
     expect(build, isNot(contains('--wasm')));
+  });
+
+  test('dart2js refuses the deprecated JS interop libraries by default',
+      () async {
+    final Directory root = _project(null);
+    addTearDown(() => root.deleteSync(recursive: true));
+    final List<String> build = (await _build(root)).singleWhere(
+        (List<String> args) => args.take(2).join(' ') == 'build web');
+    expect(build, contains('--no-deprecated-js-interop'));
+  });
+
+  test('dartvel.web.deprecatedJsInterop: true leaves them allowed', () async {
+    final Directory root =
+        _project(null, extraWeb: '    deprecatedJsInterop: true\n');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final List<String> build = (await _build(root)).singleWhere(
+        (List<String> args) => args.take(2).join(' ') == 'build web');
+    expect(build.where((String a) => a.contains('deprecated-js-interop')),
+        isEmpty);
+  });
+
+  test('a deprecatedJsInterop it cannot read is refused before generation',
+      () async {
+    final Directory root =
+        _project(null, extraWeb: '    deprecatedJsInterop: "yes"\n');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final List<List<String>> started = await _build(root);
+    expect(started, isEmpty);
+    expect(_exit, 1);
+    expect(_ran.where((String run) => run.contains('routes')), isEmpty);
   });
 
   test('a value it cannot read is refused before anything is generated', () async {
