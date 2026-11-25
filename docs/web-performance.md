@@ -320,6 +320,18 @@ What a visitor sees at the handover, checked in Chrome at 390 px, light and dark
   served the same way.
 - Focus inside the document moves to the app. A selection in progress
   holds the handover until it ends (at most 10 s).
+- What a visitor typed into a field before the app loaded is in the app's
+  field after it, with the caret or selection and the focus, and typing
+  never waits for the handover: the app carries each field's text into its
+  own field of the same name (its semantics label, which the build wrote as
+  `data-dv-field`; by order when no name matches and both pages have the
+  same fields), moves focus there, and follows every keystroke that still
+  lands in the document's field until its own field has the keyboard. A
+  field the visitor never touched keeps the app's value. A selection inside
+  a field does not hold the handover.
+- A button pressed before the app loads shows it is busy, and its press is
+  made on the app's button of the same name once the app has taken over.
+  Buttons are Tab stops and take Enter and Space.
 
 Scripts: `measure.mjs` (with readable, clickable and CLS added),
 `ssrproxy.mjs`, `matrix.sh`, `table.mjs`.
@@ -396,9 +408,22 @@ custom painter nor a shader can be read back from the render tree.
   so the snapshot read none of it and every field stood empty until the app
   took over (sigmadev.digital's tools: the QR code's link, the price list's
   rows). It is now read (never from a password field) and becomes the
-  input's `value`, in the app's font, colour and inner padding; a field
-  the document has no input for, such as a menu that picks a value, has its
-  text drawn with the layer.
+  input's `value` (a multi-line field's content), in the app's font, colour
+  and inner padding; a field the document has no input for, such as a menu
+  that picks a value, has its text drawn with the layer.
+- **Typing before the app.** From 3.47.8 to 3.47.9 no field was placed: a
+  field's box came from the semantics host, but the change that stopped
+  placing a closed menu's links left fields out of the placed controls, so
+  the document's input stayed in the reading column under the box the app
+  paints and a tap on the box hit the painting (sigmadev.digital's keyword
+  density checker: nothing could be typed for 8-15 s on a phone). Every
+  field with a box is now placed over it, above everything painted, with
+  its label still pointing at it. An empty field is read too (its box and
+  the style typing takes), so it has the app's font, colour and padding --
+  top and bottom as well for a multi-line field -- and the hint the app
+  paints in it becomes the input's `placeholder`, in the hint's colour,
+  gone as the visitor types (drawn with the layer, it stayed on top of the
+  text). The handover then carries what was typed into the app (above).
 - **Screen height.** Each width is read again at a screen a quarter
   taller; what moves or grows between the two gets a `dvh` term. The heights
   two widths were captured at are taken out before moving between widths,

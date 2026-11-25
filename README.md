@@ -583,7 +583,10 @@ light and dark, and the document's own text, links and fields are placed at
 those boxes in the app's fonts and colours, over a layer that draws its
 surfaces and images. It is still the real document (selection, find, Tab and
 screen readers work on it), and Flutter takes over in place at its first
-frame. Each width is also read at a taller screen, so a section the height
+frame. Its fields can be typed in before the app loads; at the handover
+what was typed, the caret and the focus move into the app's field of the
+same name, and a button pressed early is pressed in the app once it is
+there. Each width is also read at a taller screen, so a section the height
 of the screen fits any screen. A custom painter or shader is code the build
 cannot read; draw glows with `DVRadialGradient`/`DVGradientPainter` and
 gradient-filled text with `DVGradientSpan` in a `DVGradientText`, and the
