@@ -1,114 +1,305 @@
 /// Code splitting for the WebAssembly build.
 ///
-/// Every Dartvel page is a deferred library. dart2js splits each into parts
-/// that load when the page is first shown. dart2wasm compiles every one of
-/// them into the single main.dart.wasm unless it is passed
-/// `--enable-deferred-loading`, and `flutter build web` (Flutter 3.47) has no
-/// option that reaches it. The build therefore reruns the exact dart2wasm
-/// command Flutter ran -- read from Flutter's verbose log, so every define
-/// and flag Flutter chose is kept -- with deferred loading on and a map of
-/// which module each deferred import needs.
+/// Every Dartvel page is a deferred library. Flutter 3.50's
+/// `flutter build web --wasm --enable-wasm-deferred-loading` has dart2wasm
+/// write each into modules of its own (`main.dart_module<N>.wasm`), and the
+/// deferred-module loader Dartvel gives flutter.js (see
+/// `dvBootstrapWithLoaderConfig`) fetches each once.
 ///
-/// flutter.js instantiates the app without a module loader, and the first
-/// `loadLibrary()` would throw. [dvWithDeferredModuleLoader] gives
-/// main.dart.mjs a default one that fetches a module from beside itself.
+/// What Flutter does not hand over is which modules each deferred import
+/// needs. dart2wasm writes that only when asked with `--deferred-map`, an
+/// option `flutter build web` cannot pass: its one channel to dart2wasm,
+/// `--extra-front-end-options`, reaches dart2js too, and each compiler
+/// rejects the other's spelling. The build needs it twice -- each page
+/// preloads its route's modules, and Studio's modules are kept out of the
+/// public files -- so it works it out from what the build wrote:
+///
+///  * the build asks for source maps, so each module says which libraries
+///    its code comes from;
+///  * dart2js's table in main.dart.js says exactly which parts each import
+///    loads, and their source maps say which libraries those hold.
+///
+/// A module belongs to the imports whose dart2js parts hold every library of
+/// it that main.dart.js does not ([dvInferWasmModules]). The maps then
+/// leave the site ([dvRemoveCompilerSourceMaps]): they were never part of it.
 library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:path/path.dart' as p;
 
-/// The deferred-loading map the build asks dart2wasm for, kept in the web
-/// output only until the build has read it.
-const String dvWasmDeferredMapFile = 'main.dart.wasm.deferred.json';
+import 'route_prefetch.dart' show dvDeferredParts;
 
-/// The dart2wasm command line in a `flutter build web --wasm -v` log, or
-/// null when there is none.
+/// The libraries a source map names, as absolute paths (or URIs, for a
+/// scheme that is not a file), leaving out the SDK's own (`org-dartlang-sdk:`).
 ///
-/// Flutter logs each process it runs as `executing: <arguments joined by
-/// spaces>`, so an argument containing a space cannot be told apart; the
-/// caller checks the result names files that exist before running it.
-List<String>? dvDart2WasmCommand(String verboseLog) {
-  List<String>? found;
-  for (final String line in const LineSplitter().convert(verboseLog)) {
-    final int at = line.indexOf('executing: ');
-    if (at < 0) continue;
-    final List<String> command = line
-        .substring(at + 'executing: '.length)
-        .trim()
-        .split(RegExp(r'\s+'));
-    if (command.length > 3 &&
-        command[1] == 'compile' &&
-        command[2] == 'wasm') {
-      found = command;
-    }
+/// dart2wasm names `file:` URIs and dart2js paths relative to the map, which
+/// is at [mapPath]; both come out the same. A map that will not parse names
+/// nothing.
+Set<String> dvSourceMapLibraries(String mapJson, String mapPath) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(mapJson);
+  } on FormatException {
+    return const <String>{};
   }
-  return found;
+  if (decoded is! Map) return const <String>{};
+  final Object? sources = decoded['sources'];
+  if (sources is! List) return const <String>{};
+  final Object? root = decoded['sourceRoot'];
+  final String base = p.normalize(p.join(
+      p.dirname(mapPath), root is String && root.isNotEmpty ? root : ''));
+  return <String>{
+    for (final Object? source in sources)
+      if (source is String && source.isNotEmpty)
+        if (_library(source, base) case final String library) library,
+  };
 }
 
-/// [command] with deferred loading on, writing `main.dart.wasm`, its modules
-/// and the deferred map to [outputDirectory] instead of Flutter's build
-/// directory. Flutter's dependency file and recorded uses are left out: they
-/// describe Flutter's own build, and a second writer would mislead its next
-/// incremental one.
-List<String> dvDeferredWasmCommand(
-  List<String> command, {
-  required String outputDirectory,
-  required String deferredMap,
+String? _library(String source, String base) {
+  final Uri? uri = Uri.tryParse(source);
+  if (uri == null) return null;
+  if (uri.scheme == 'org-dartlang-sdk' || uri.scheme == 'dart') return null;
+  if (uri.scheme == 'file') return p.normalize(uri.toFilePath());
+  if (uri.hasScheme && uri.scheme.length > 1) return source;
+  return p.normalize(p.join(base, source));
+}
+
+/// Which wasm modules each deferred import needs, by import prefix, in
+/// module-number order.
+///
+/// [jsParts] is dart2js's own table (prefix to part files), [jsPartLibraries]
+/// what each part's source map names, [jsMainLibraries] what main.dart.js's
+/// names, and [wasmModuleLibraries] what each module's names.
+///
+/// Both compilers split by the set of deferred imports that reach each piece
+/// of code, so a module and the dart2js parts of the same imports hold the
+/// same libraries. What tells a module apart is its libraries main.dart.js
+/// lacks; a library dart2js put in no part (shaken out, or in main) says
+/// nothing and is passed over. A module belongs to every import whose parts
+/// hold all of what is left. A module with nothing left -- dart2wasm's
+/// catch-all for code nothing calls, or code dart2js keeps in main -- belongs
+/// to none: no page preloads it, and Studio never claims it. When no single
+/// import holds all of it (the compilers disagreeing), it belongs to each
+/// import that holds any of it, so Studio never takes a module a page may
+/// load.
+Map<String, List<String>> dvInferWasmModules({
+  required Map<String, List<String>> jsParts,
+  required Map<String, Set<String>> jsPartLibraries,
+  required Set<String> jsMainLibraries,
+  required Map<String, Set<String>> wasmModuleLibraries,
 }) {
-  final List<String> result = <String>[];
-  for (int index = 0; index < command.length; index++) {
-    final String argument = command[index];
-    if (argument.startsWith('--extra-compiler-option=--depfile=') ||
-        argument.startsWith('--recorded-uses=') ||
-        argument == '--enable-deferred-loading' ||
-        argument.startsWith('--extra-compiler-option=--deferred-map=')) {
-      continue;
+  // Which imports load a part holding each library.
+  final Map<String, Set<String>> importsOf = <String, Set<String>>{};
+  for (final MapEntry<String, List<String>> entry in jsParts.entries) {
+    for (final String part in entry.value) {
+      for (final String library
+          in jsPartLibraries[part] ?? const <String>{}) {
+        (importsOf[library] ??= <String>{}).add(entry.key);
+      }
     }
-    if (argument == '-o' && index + 1 < command.length) {
-      index++;
-      continue;
-    }
-    result.add(argument);
   }
-  final String entry = result.removeLast();
-  return <String>[
-    ...result,
-    '--enable-deferred-loading',
-    '--extra-compiler-option=--deferred-map=$deferredMap',
-    '-o',
-    '$outputDirectory/main.dart.wasm',
-    entry,
-  ];
+  final Map<String, List<String>> byImport = <String, List<String>>{};
+  for (final MapEntry<String, Set<String>> module
+      in wasmModuleLibraries.entries) {
+    final List<Set<String>> holders = <Set<String>>[
+      for (final String library in module.value)
+        if (!jsMainLibraries.contains(library))
+          if (importsOf[library] case final Set<String> imports) imports,
+    ];
+    if (holders.isEmpty) continue;
+    Set<String> owners = holders
+        .skip(1)
+        .fold<Set<String>>(<String>{...holders.first},
+            (Set<String> all, Set<String> next) => all.intersection(next));
+    if (owners.isEmpty) {
+      owners = <String>{for (final Set<String> imports in holders) ...imports};
+    }
+    for (final String import in owners) {
+      (byImport[import] ??= <String>[]).add(module.key);
+    }
+  }
+  for (final List<String> modules in byImport.values) {
+    modules.sort((String a, String b) => _moduleNumber(a).compareTo(_moduleNumber(b)));
+  }
+  return byImport;
 }
 
-const String _instantiate =
-    'async instantiate(additionalImports, {loadDeferredModules, loadDeferredId} = {}) {';
+final RegExp _modulePattern = RegExp(r'^main\.dart_module(\d+)\.wasm$');
 
-const String _defaultLoader =
-    '\n    // Dartvel: flutter.js passes no module loader; fetch each deferred'
-    '\n    // module from beside this file, once. Every page library names the'
-    '\n    // shared modules it needs as well as its own, so without the map each'
-    '\n    // page preloaded downloaded, compiled and instantiated them again.'
-    '\n    // A module that failed is forgotten, so the next ask tries again.'
-    '\n    loadDeferredModules ??= ((modules) => (names, load) => Promise.all(names.map((name) => {'
-    '\n      if (!modules.has(name)) {'
-    '\n        modules.set(name, (async () => load(name, await fetch(new URL(name, import.meta.url))))()'
-    '\n          .catch((error) => { modules.delete(name); throw error; }));'
-    '\n      }'
-    '\n      return modules.get(name);'
-    '\n    })))(new Map());';
+int _moduleNumber(String module) =>
+    int.tryParse(_modulePattern.firstMatch(module)?.group(1) ?? '') ?? 0;
 
-/// [mjs] (a dart2wasm `main.dart.mjs`) with a default deferred-module loader,
-/// or null when it does not have the `instantiate` this knows how to patch.
-String? dvWithDeferredModuleLoader(String mjs) {
-  if (mjs.contains('loadDeferredModules ??=')) return mjs;
-  final int at = mjs.indexOf(_instantiate);
-  if (at < 0) return null;
-  final int end = at + _instantiate.length;
-  return '${mjs.substring(0, end)}$_defaultLoader${mjs.substring(end)}';
+/// What [dvReadWasmDeferredImports] found.
+class DVWasmDeferredImports {
+  const DVWasmDeferredImports(
+      {this.byImport = const <String, List<String>>{}, this.problem});
+
+  /// Each deferred import's modules, by prefix ([dvInferWasmModules]).
+  final Map<String, List<String>> byImport;
+
+  /// Why nothing could be read, or null.
+  final String? problem;
+}
+
+/// [dvInferWasmModules] for the build in [webRoot], from main.dart.js's
+/// table and the source maps the build asked for. A module or part without
+/// its map is reported rather than guessed at.
+DVWasmDeferredImports dvReadWasmDeferredImports(String webRoot) {
+  final File mainJs = File(p.join(webRoot, 'main.dart.js'));
+  if (!mainJs.existsSync()) {
+    return const DVWasmDeferredImports(
+        problem: 'The build wrote no main.dart.js to read the deferred '
+            'imports from.');
+  }
+  // dart2js writes its maps in <project>/.dart_tool/flutter_build/<hash>/
+  // and Flutter copies them here unchanged, so their relative paths are
+  // from there; dart2wasm's are absolute file: URIs.
+  final String dart2jsMapDirectory = p.join(p.dirname(p.dirname(webRoot)),
+      '.dart_tool', 'flutter_build', 'build');
+  Set<String>? librariesOf(String file) {
+    final File map = File(p.join(webRoot, '$file.map'));
+    if (!map.existsSync()) return null;
+    return dvSourceMapLibraries(
+        map.readAsStringSync(),
+        file.endsWith('.js')
+            ? p.join(dart2jsMapDirectory, '$file.map')
+            : map.path);
+  }
+
+  final Map<String, List<String>> jsParts =
+      dvDeferredParts(mainJs.readAsStringSync());
+  final List<String> missing = <String>[];
+  final Map<String, Set<String>> partLibraries = <String, Set<String>>{};
+  for (final String part in <String>{
+    for (final List<String> parts in jsParts.values) ...parts,
+  }) {
+    final Set<String>? libraries = librariesOf(part);
+    if (libraries == null) {
+      missing.add(part);
+    } else {
+      partLibraries[part] = libraries;
+    }
+  }
+  final Set<String>? mainLibraries = librariesOf('main.dart.js');
+  if (mainLibraries == null) missing.add('main.dart.js');
+  final Map<String, Set<String>> moduleLibraries = <String, Set<String>>{};
+  for (final FileSystemEntity entity in Directory(webRoot).listSync()) {
+    final String name = p.basename(entity.path);
+    if (entity is! File || !_modulePattern.hasMatch(name)) continue;
+    final Set<String>? libraries = librariesOf(name);
+    if (libraries == null) {
+      missing.add(name);
+    } else {
+      moduleLibraries[name] = libraries;
+    }
+  }
+  if (missing.isNotEmpty) {
+    missing.sort();
+    return DVWasmDeferredImports(
+        problem: 'No source map for ${missing.join(', ')}, so which modules '
+            'each page needs cannot be told.');
+  }
+  return DVWasmDeferredImports(
+    byImport: dvInferWasmModules(
+      jsParts: jsParts,
+      jsPartLibraries: partLibraries,
+      jsMainLibraries: mainLibraries!,
+      wasmModuleLibraries: moduleLibraries,
+    ),
+  );
+}
+
+/// Whether [name] is a file the dart2js or dart2wasm compile wrote.
+bool _compiledApp(String name) =>
+    name == 'main.dart.js' ||
+    name == 'main.dart.mjs' ||
+    name == 'main.dart.wasm' ||
+    _modulePattern.hasMatch(name) ||
+    RegExp(r'^main\.dart\.js_\d+\.part\.js$').hasMatch(name);
+
+final RegExp _jsSourceMapComment =
+    RegExp(r'\n?//# sourceMappingURL=[^\n]*\n?$');
+
+/// Deletes the source maps the compilers wrote into [webRoot] and what names
+/// them: the `//# sourceMappingURL` line of each script and the
+/// `sourceMappingURL` section of each wasm file. flutter.js's own map stays,
+/// as Flutter ships it with every build.
+void dvRemoveCompilerSourceMaps(String webRoot) {
+  final Directory web = Directory(webRoot);
+  if (!web.existsSync()) return;
+  for (final FileSystemEntity entity in web.listSync()) {
+    if (entity is! File) continue;
+    final String name = p.basename(entity.path);
+    if (name.endsWith('.map') &&
+        _compiledApp(name.substring(0, name.length - '.map'.length))) {
+      entity.deleteSync();
+    } else if (_compiledApp(name) && name.endsWith('.wasm')) {
+      final Uint8List bytes = entity.readAsBytesSync();
+      final Uint8List stripped = dvWithoutWasmSourceMapUrl(bytes);
+      if (stripped.length != bytes.length) entity.writeAsBytesSync(stripped);
+    } else if (_compiledApp(name)) {
+      final String source = entity.readAsStringSync();
+      final RegExpMatch? comment = _jsSourceMapComment.firstMatch(source);
+      if (comment == null) continue;
+      // The newline before the comment is the script's own last one when it
+      // had one, and is kept.
+      final String kept = source.substring(0, comment.start);
+      entity.writeAsStringSync(
+          comment.group(0)!.endsWith('\n') && comment.group(0)!.startsWith('\n')
+              ? '$kept\n'
+              : kept);
+    }
+  }
+}
+
+/// [wasm] without its `sourceMappingURL` custom section, every other byte
+/// as it was. Anything that does not parse as a wasm module comes back
+/// unchanged.
+Uint8List dvWithoutWasmSourceMapUrl(Uint8List wasm) {
+  const List<int> header = <int>[0, 0x61, 0x73, 0x6d, 1, 0, 0, 0];
+  if (wasm.length < header.length) return wasm;
+  for (int i = 0; i < header.length; i++) {
+    if (wasm[i] != header[i]) return wasm;
+  }
+  int at = header.length;
+  (int, int)? leb() {
+    int value = 0, shift = 0;
+    while (at < wasm.length && shift < 35) {
+      final int byte = wasm[at++];
+      value |= (byte & 0x7f) << shift;
+      if (byte < 0x80) return (value, at);
+      shift += 7;
+    }
+    return null;
+  }
+
+  final BytesBuilder out = BytesBuilder(copy: false)..add(header);
+  bool removed = false;
+  while (at < wasm.length) {
+    final int start = at;
+    final int id = wasm[at++];
+    final (int, int)? size = leb();
+    if (size == null || size.$2 + size.$1 > wasm.length) return wasm;
+    final int end = size.$2 + size.$1;
+    if (id == 0) {
+      final (int, int)? nameLength = leb();
+      if (nameLength == null || nameLength.$2 + nameLength.$1 > end) return wasm;
+      final String name = utf8.decode(
+          wasm.sublist(nameLength.$2, nameLength.$2 + nameLength.$1),
+          allowMalformed: true);
+      if (name == 'sourceMappingURL') {
+        removed = true;
+        at = end;
+        continue;
+      }
+    }
+    out.add(Uint8List.sublistView(wasm, start, end));
+    at = end;
+  }
+  return removed ? out.takeBytes() : wasm;
 }
 
 /// Takes the WebAssembly app out of the site in [webRoot], leaving the
@@ -144,130 +335,12 @@ void dvDropWasmApp(String webRoot) {
   for (final FileSystemEntity entity in web.listSync()) {
     if (entity is! File) continue;
     final String name = p.basename(entity.path);
-    if (name == 'main.dart.wasm' ||
-        name == 'main.dart.mjs' ||
-        name == 'main.dart.wasm.map' ||
-        name == dvWasmDeferredMapFile ||
-        RegExp(r'^main\.dart_module\d+\.wasm$').hasMatch(name)) {
+    final String stem =
+        name.endsWith('.map') ? name.substring(0, name.length - 4) : name;
+    if (stem == 'main.dart.wasm' ||
+        stem == 'main.dart.mjs' ||
+        _modulePattern.hasMatch(stem)) {
       entity.deleteSync();
     }
   }
-}
-
-/// What [dvSplitWasmModules] did.
-class DVWasmSplit {
-  const DVWasmSplit({this.modules = 0, this.problem});
-
-  /// How many deferred modules the site now has beside main.dart.wasm.
-  final int modules;
-
-  /// Why the site was left as one module, or null when it was split.
-  final String? problem;
-}
-
-/// Runs [executable] with [arguments] and returns its exit code.
-typedef DVWasmCompilerRun = Future<int> Function(
-    String executable, List<String> arguments);
-
-/// Recompiles the wasm app in [webRoot] with deferred loading, from the
-/// dart2wasm command in Flutter's [verboseLog], working in [workRoot].
-///
-/// On success the site's main.dart.wasm and main.dart.mjs are replaced, the
-/// modules are written beside them, and the deferred map is left as
-/// [dvWasmDeferredMapFile] for the build to read. On any failure the site is
-/// left exactly as Flutter wrote it, one module, and the reason is returned:
-/// a site that works without splitting beats one that is half replaced.
-/// Starts dart2wasm on Flutter's [command] with deferred loading on, writing
-/// into a fresh [workRoot], and completes with its exit code.
-///
-/// The build calls this the moment Flutter logs its dart2wasm command, so the
-/// deferred compile runs beside Flutter's own instead of after the whole
-/// `flutter build web`: the two compiles cost one compile's wall time. The
-/// run has started by the time this returns.
-Future<int> dvCompileDeferredWasm({
-  required List<String> command,
-  required String workRoot,
-  required DVWasmCompilerRun run,
-}) {
-  final Directory work = Directory(workRoot);
-  if (work.existsSync()) work.deleteSync(recursive: true);
-  work.createSync(recursive: true);
-  final List<String> deferred = dvDeferredWasmCommand(command,
-      outputDirectory: work.path,
-      deferredMap: p.join(work.path, 'deferred_map.json'));
-  return run(deferred.first, deferred.sublist(1));
-}
-
-/// [compiling] is the deferred compile the build began while Flutter was
-/// still running ([dvCompileDeferredWasm]); without one it is run here.
-Future<DVWasmSplit> dvSplitWasmModules({
-  required String webRoot,
-  required String workRoot,
-  required String verboseLog,
-  required DVWasmCompilerRun run,
-  Future<int>? compiling,
-}) async {
-  final Directory work = Directory(workRoot);
-  final File flutterWasm = File(p.join(webRoot, 'main.dart.wasm'));
-  if (!flutterWasm.existsSync()) {
-    return const DVWasmSplit(problem: 'The build wrote no main.dart.wasm.');
-  }
-  // Which one-module app the split in [work] was made from: Flutter's own
-  // build cache skips dart2wasm when nothing changed and logs no command,
-  // and then the last split is this app's split.
-  final String flutterHash =
-      sha256.convert(flutterWasm.readAsBytesSync()).toString();
-  final File source = File(p.join(work.path, 'flutter-main.dart.wasm.sha256'));
-  final List<String>? command = dvDart2WasmCommand(verboseLog);
-  if (command == null) {
-    if (source.existsSync() && source.readAsStringSync() == flutterHash) {
-      return _installSplit(webRoot, work);
-    }
-    return const DVWasmSplit(
-        problem: "Flutter's log names no dart2wasm command to rerun with "
-            'deferred loading.');
-  }
-  // Begun while Flutter was still building, when the build saw the command;
-  // otherwise now.
-  final int exit = await (compiling ??
-      dvCompileDeferredWasm(command: command, workRoot: workRoot, run: run));
-  if (exit != 0) {
-    return DVWasmSplit(
-        problem: 'dart2wasm with --enable-deferred-loading exited $exit.');
-  }
-  final DVWasmSplit split = _installSplit(webRoot, work);
-  if (split.problem == null) source.writeAsStringSync(flutterHash);
-  return split;
-}
-
-/// Copies the split in [work] over the one-module app in [webRoot].
-DVWasmSplit _installSplit(String webRoot, Directory work) {
-  final String map = p.join(work.path, 'deferred_map.json');
-  final File wasm = File(p.join(work.path, 'main.dart.wasm'));
-  final File mjs = File(p.join(work.path, 'main.dart.mjs'));
-  if (!wasm.existsSync() || !mjs.existsSync() || !File(map).existsSync()) {
-    return const DVWasmSplit(
-        problem: 'dart2wasm with --enable-deferred-loading wrote no '
-            'main.dart.wasm, main.dart.mjs or deferred map.');
-  }
-  final String? loader = dvWithDeferredModuleLoader(mjs.readAsStringSync());
-  if (loader == null) {
-    return const DVWasmSplit(
-        problem: "This dart2wasm's main.dart.mjs has no instantiate() this "
-            'build knows how to give a module loader.');
-  }
-  final List<File> modules = <File>[
-    for (final FileSystemEntity entity in work.listSync())
-      if (entity is File &&
-          RegExp(r'^main\.dart_module\d+\.wasm$')
-              .hasMatch(p.basename(entity.path)))
-        entity,
-  ];
-  for (final File module in modules) {
-    module.copySync(p.join(webRoot, p.basename(module.path)));
-  }
-  wasm.copySync(p.join(webRoot, 'main.dart.wasm'));
-  File(p.join(webRoot, 'main.dart.mjs')).writeAsStringSync(loader);
-  File(map).copySync(p.join(webRoot, dvWasmDeferredMapFile));
-  return DVWasmSplit(modules: modules.length);
 }

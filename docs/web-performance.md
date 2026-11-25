@@ -196,14 +196,44 @@ changed Flutter's own build skips its compile too, so neither is it faster
 there. What Dartvel no longer repeats on a warm build is its own work: the
 read, the backend compile and the encoding.
 
-Not done: Flutter's own one-module dart2wasm still runs beside the deferred
-one (removing it means writing what `--wasm` adds to the output by hand);
-generation still runs as a `dart run` subprocess (7 s); font subsetting is
+Not done then: Flutter's own one-module dart2wasm still ran beside the
+deferred one. Done in Dartvel 3.50 (see "One dart2wasm compile" below):
+Flutter 3.50 splits the wasm app itself and there is no second compile.
+Still not done: generation still runs as a `dart run` subprocess (7 s); font subsetting is
 one font after another (3 s on the sample).
 
 For 221 routes (sigmadev.digital) the read at the sample's rate, six
 windows and one boot each, would be about two minutes; its pages are
 heavier than the sample's, so that is an estimate, not a measurement.
+
+## One dart2wasm compile (Dartvel 3.50, Flutter 3.50.1, November 2026)
+
+Flutter 3.50 splits the wasm app itself (`--enable-wasm-deferred-loading`),
+so the build no longer runs dart2wasm a second time beside Flutter's own
+compile. What the second compile was also for, dart2wasm's deferred map
+(which modules each page and Studio need), `flutter build web` still cannot
+ask for, so the build asks for source maps and matches each module's
+libraries with dart2js's exact table of the parts each import loads
+(`wasm_deferred.dart`); the maps are deleted before anything is published.
+On the `dartvel create` template with a second page, the matched modules and
+each page's preloads are the same files the old deferred map named
+(`/` main.dart_module3.wasm, `/about` main.dart_module1.wasm), and the
+build output has the same files.
+
+`dartvel build web --no-cache`, cold (no `.dart_tool/flutter_build`), same
+host, other agents' builds running beside it (load in brackets, so compare
+with care):
+
+| | Before (rerun) | After (one compile) |
+|---|---|---|
+| `flutter build web --wasm` step | 296.7 s (load 19-24) | 186.8 s (load 11-14) |
+| Whole build | 563.9 s | 366.4 s |
+| dart2wasm processes | 2 (Flutter's and the rerun, side by side) | 1 |
+
+The rerun ran beside Flutter's compile, so most of its cost was CPU and
+memory taken from the rest of the machine rather than wall time; the load
+difference between the two runs accounts for some of the gap too. The
+source maps add some work to both compiles; it was not measured apart.
 
 ## Slow phone networks, first visit (after 3.47.4, November 2026)
 

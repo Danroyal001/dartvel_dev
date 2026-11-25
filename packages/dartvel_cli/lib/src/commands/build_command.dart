@@ -31,6 +31,7 @@ import '../build/minify.dart';
 import 'package:dartvel_core/dartvel.dart'
     show
         DVDevClientManifest,
+        DVWasmEngines,
         dvLegacyPlatformKeys,
         DVHosts,
         DVModuleEnvironment,
@@ -1227,8 +1228,9 @@ class BuildCommand extends Command<void> {
     final bool webWasm = _webWasm(_projectRoot, platform);
     if (webWasm) {
       Logger.log('   WebAssembly: skwasm on Chromium browsers with WasmGC, '
-          'CanvasKit and dart2js elsewhere (dartvel.web.wasm: false to turn '
-          'it off).');
+          'Safari 26.2+ and Firefox 147+, CanvasKit and dart2js elsewhere '
+          '(dartvel.web.wasm: false to turn it off, {safari: false} or '
+          '{firefox: false} to leave one on dart2js).');
       if (platform == 'web-server') {
         if (dvServerOptions(_projectRoot).crossOriginIsolated) {
           Logger.log('   Cross-origin isolated (COOP same-origin, COEP '
@@ -1430,6 +1432,7 @@ class BuildCommand extends Command<void> {
         // server will guard them.
         studio: platform == 'web-server' && _servesStudio(_projectRoot) != null,
         wasm: webWasm,
+        deprecatedJsInterop: _webDeprecatedJsInterop(_projectRoot),
       ),
       ...?variant?.flutterArguments,
       // dartvel.display: how big the app is drawn on a television, a signage
@@ -1526,27 +1529,20 @@ class BuildCommand extends Command<void> {
       }
       Logger.log('   flutter ${args.join(' ')}');
 
-      // A wasm build runs verbose, quietly: the dart2wasm command Flutter
-      // ran is read from the log and rerun with deferred loading, which
-      // `flutter build web` has no option for. The log goes to a file and
-      // only Flutter's own progress lines reach the console.
-      final bool splitWasm = webWasm &&
+      // A wasm build runs verbose, quietly: the whole log, every command
+      // Flutter ran among it, goes to build/flutter_web_build.log, and only
+      // Flutter's own progress lines and the compiler's errors reach the
+      // console.
+      final bool quietLog = webWasm &&
           (platform == 'web' || platform == 'web-server');
       final StringBuffer verboseLog = StringBuffer();
-      final String wasmWork =
-          p.join(_projectRoot, '.dart_tool', 'dartvel_wasm');
-      Future<int> runCompiler(String executable, List<String> arguments) async =>
-          (await _processRun(executable, arguments,
-                  workingDirectory: _projectRoot))
-              .exitCode;
-      Future<int>? earlyWasm;
       Future<List<void>>? streamsDone;
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
       final proc = await (_processStart ?? Process.start)(
         'flutter',
         // -v straight after `build web`, leaving every argument as it was.
-        splitWasm
+        quietLog
             ? <String>[...args.take(2), '-v', ...args.skip(2)]
             : args,
         workingDirectory: _projectRoot,
@@ -1561,21 +1557,9 @@ class BuildCommand extends Command<void> {
               },
       );
 
-      if (splitWasm) {
+      if (quietLog) {
         void keep(String line) {
           verboseLog.writeln(line);
-          // The deferred dart2wasm starts the moment Flutter starts its own,
-          // with the same command, and runs beside it.
-          if (earlyWasm == null) {
-            final List<String>? command = dvDart2WasmCommand(line);
-            if (command != null) {
-              earlyWasm = dvCompileDeferredWasm(
-                command: command,
-                workRoot: wasmWork,
-                run: runCompiler,
-              );
-            }
-          }
           final String shown = dvWithoutLogStamp(line);
           // The compiler's own errors too (`lib/x.dart:3:5: Error: ...`),
           // which start with the file rather than with a word.
@@ -1616,7 +1600,7 @@ class BuildCommand extends Command<void> {
       await streamsDone?.timeout(const Duration(seconds: 30),
           onTimeout: () => <void>[]);
 
-      if (splitWasm) {
+      if (quietLog) {
         final File logFile =
             File(p.join(_projectRoot, 'build', 'flutter_web_build.log'));
         logFile.parent.createSync(recursive: true);
@@ -1642,21 +1626,6 @@ class BuildCommand extends Command<void> {
               stderr.writeln('   $line');
             }
           }
-          // Not left running after a failed build.
-          await earlyWasm;
-        } else {
-          final DVWasmSplit split = await dvSplitWasmModules(
-            webRoot: webOutput.path,
-            workRoot: wasmWork,
-            verboseLog: verboseLog.toString(),
-            run: runCompiler,
-            compiling: earlyWasm,
-          );
-          Logger.log(split.problem == null
-              ? '   WebAssembly: split into main.dart.wasm and '
-                  '${split.modules} deferred module(s); each page loads its '
-                  'own.'
-              : '⚠️  WebAssembly kept as one module: ${split.problem}');
         }
       }
 
@@ -1675,6 +1644,12 @@ class BuildCommand extends Command<void> {
       }
       if (platform == 'web' || platform == 'web-server') {
         final root = _projectRoot;
+        // Before anything reads the bootstrap: the loader options Dartvel
+        // adds -- the wasm allow list (Safari 26.2+, Firefox 147+ unless
+        // dartvel.web.wasm says otherwise) and a deferred-module loader that
+        // fetches each module once -- which the splash, the renderer hints
+        // and the route preloads then decide by.
+        _writeLoaderConfig(root, platform);
         // First, before anything reads build/web or lists its parts: Studio's
         // code comes out of the web root, whose every file is public, and a
         // static build is checked to carry none of it.
@@ -2640,10 +2615,46 @@ class BuildCommand extends Command<void> {
     return dvWebWasm(web is Map ? web['wasm'] : null);
   }
 
+  /// Which engines besides Chromium run the wasm app: `dartvel.web.wasm`,
+  /// Safari 26.2+ and Firefox 147+ unless it turns them off.
+  DVWasmEngines _webWasmEngines(String root) {
+    final Object? web = _dartvelSection(root)['web'];
+    return dvWebWasmEngines(web is Map ? web['wasm'] : null) ??
+        DVWasmEngines.chromiumOnly;
+  }
+
+  /// The loader options Dartvel adds to the bootstrap of a wasm build
+  /// ([dvBootstrapWithLoaderConfig]). A dart2js build is left alone: there
+  /// is no wasm app to allow, and no deferred module to load.
+  void _writeLoaderConfig(String root, String platform) {
+    final File bootstrap =
+        File(p.join(root, 'build', 'web', 'flutter_bootstrap.js'));
+    if (!bootstrap.existsSync()) return;
+    final String before = bootstrap.readAsStringSync();
+    if (!dvBuildCompilesToWasm(before)) return;
+    final DVWasmEngines engines = _webWasmEngines(root);
+    final String after = dvBootstrapWithLoaderConfig(before, engines);
+    if (after != before) bootstrap.writeAsStringSync(after);
+    Logger.log('   WebAssembly: Chromium'
+        '${engines.webkit ? ', Safari 26.2+' : ''}'
+        '${engines.gecko ? ', Firefox 147+' : ''} run the wasm app; each '
+        'deferred module is fetched once.');
+  }
+
+  /// `dartvel.web.deprecatedJsInterop`: false (refused in dart2js) by default.
+  bool _webDeprecatedJsInterop(String root) {
+    final Object? web = _dartvelSection(root)['web'];
+    return dvWebDeprecatedJsInterop(
+        web is Map ? web['deprecatedJsInterop'] : null);
+  }
+
   /// Why `dartvel.web.wasm` stops a build of [platform], or null.
   String? _webRendererProblem(String root, String platform) {
     try {
       _webWasm(root, platform);
+      if (platform == 'web' || platform == 'web-server') {
+        _webDeprecatedJsInterop(root);
+      }
     } on FormatException catch (error) {
       return error.message;
     }
@@ -2996,9 +3007,10 @@ class BuildCommand extends Command<void> {
 
   DVProjectFileAssociations? _declaredFileAssociations;
 
-  /// The wasm app's deferred map, read once when Studio's code is separated
-  /// (the file itself is not published), for each page to name its modules.
-  Map<String, Object?>? _wasmDeferredMap;
+  /// Each deferred import's wasm modules by prefix, read once when Studio's
+  /// code is separated (wasm_deferred.dart), for each page to name its
+  /// modules. Null when they could not be told.
+  Map<String, List<String>>? _wasmModules;
 
   void _writeAndroidFileAssociations(String root) {
     final File manifest = File(
@@ -5029,7 +5041,7 @@ class BuildCommand extends Command<void> {
       webRoot: web.path,
       routerSource: _routerSource(root),
       routes: routes,
-      wasmDeferredMap: _wasmDeferredMap,
+      wasmModules: _wasmModules,
     );
     Logger.log('   Preloads: ${prefetch.pages} page(s) name their own code '
         'and ${prefetch.images} image(s).');
@@ -5113,19 +5125,28 @@ class BuildCommand extends Command<void> {
     final File main = File(p.join(web, 'main.dart.js'));
     final bool compiledIn =
         main.existsSync() && dvStudioCompiledIn(main.readAsStringSync());
-    // The wasm app's deferred map, which only this step reads: it names the
-    // application's libraries and is no file to publish.
-    final File mapFile = File(p.join(web, dvWasmDeferredMapFile));
-    Map<String, Object?>? wasmMap;
-    if (mapFile.existsSync()) {
-      try {
-        final Object? decoded = jsonDecode(mapFile.readAsStringSync());
-        if (decoded is Map<String, Object?>) wasmMap = decoded;
-        _wasmDeferredMap = wasmMap;
-      } on FormatException {
-        wasmMap = null;
+    // Which wasm modules each deferred import needs, read from the source
+    // maps the build asked for, before Studio's parts leave the web root
+    // with theirs; then the maps go, for they name the application's files
+    // and are no part of the site.
+    final File bootstrapFile = File(p.join(web, 'flutter_bootstrap.js'));
+    final bool wasmApp = bootstrapFile.existsSync() &&
+        dvBuildCompilesToWasm(bootstrapFile.readAsStringSync());
+    DVWasmDeferredImports? wasmImports;
+    if (wasmApp) {
+      wasmImports = dvReadWasmDeferredImports(web);
+      _wasmModules = wasmImports.problem == null ? wasmImports.byImport : null;
+      if (wasmImports.problem != null) {
+        Logger.log('⚠️  WebAssembly: ${wasmImports.problem} Pages load their '
+            'modules when shown, without preloading them.');
+      } else {
+        final int modules = <String>{
+          for (final List<String> list in wasmImports.byImport.values) ...list,
+        }.length;
+        Logger.log('   WebAssembly: $modules deferred module(s) matched to '
+            '${wasmImports.byImport.length} deferred import(s).');
       }
-      mapFile.deleteSync();
+      dvRemoveCompilerSourceMaps(web);
     }
     if (platform != 'web-server' || _servesStudio(root) == null) {
       if (compiledIn) {
@@ -5149,13 +5170,14 @@ class BuildCommand extends Command<void> {
     // The wasm app carries Studio too. Its own modules go where its dart2js
     // parts went; when nobody can tell which they are, the wasm app is not
     // shipped and every browser runs dart2js.
-    final File bootstrap = File(p.join(web, 'flutter_bootstrap.js'));
-    if (bootstrap.existsSync() &&
-        dvBuildCompilesToWasm(bootstrap.readAsStringSync())) {
-      final List<String>? modules =
-          wasmMap == null ? null : dvStudioWasmModules(wasmMap);
+    if (wasmApp) {
+      final List<String>? modules = wasmImports?.problem != null
+          ? null
+          : dvStudioWasmModules(wasmImports?.byImport ?? const <String, List<String>>{},
+              compiledIn: compiledIn);
       if (modules == null) {
         dvDropWasmApp(web);
+        _wasmModules = null;
         Logger.log("⚠️  WebAssembly left out of this build: Studio's code "
             'could not be told apart from public code in the wasm app, so '
             'every browser runs dart2js, whose Studio parts are kept back.');
@@ -5445,7 +5467,7 @@ class BuildCommand extends Command<void> {
       webRoot: web.path,
       routerSource: _routerSource(root),
       routes: routes,
-      wasmDeferredMap: _wasmDeferredMap,
+      wasmModules: _wasmModules,
     );
     Logger.log('   Preloads: $preloading route(s) name their own code for '
         'the server to send.');
@@ -6319,6 +6341,7 @@ List<String> resolveFlutterBuildArguments({
   String? exportOptionsPlist,
   bool studio = false,
   bool wasm = false,
+  bool deprecatedJsInterop = false,
 }) {
   final bool bundle = platform == 'android' && format == 'aab';
   final bool ipa = platform == 'ios' && format == 'ipa';
@@ -6388,6 +6411,21 @@ List<String> resolveFlutterBuildArguments({
   // beside the dart2js and CanvasKit one, and flutter.js picks per browser.
   if (command == 'web' && wasm) {
     args.add('--wasm');
+    // Flutter's own deferred loading: each page's code is modules of its
+    // own beside main.dart.wasm. Never with --web-content-hash, which
+    // Flutter refuses with it. Source maps say which libraries each module
+    // holds, which is how the build tells which modules each page and
+    // Studio need (wasm_deferred.dart); they are deleted from the site once
+    // read.
+    args.add('--enable-wasm-deferred-loading');
+    args.add('--source-maps');
+  }
+
+  // dartvel.web.deprecatedJsInterop: dart2js refuses dart:html, dart:js and
+  // dart:js_util as dart2wasm does, unless the application allows them.
+  // Flutter passes it to dart2js only; it has no effect on the wasm app.
+  if (command == 'web' && !deprecatedJsInterop) {
+    args.add('--no-deprecated-js-interop');
   }
 
   if (platform == 'android' && splitPerAbi && !bundle) {

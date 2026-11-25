@@ -15,12 +15,19 @@ library;
 
 import 'dart:convert';
 
+import 'package:dartvel_core/dartvel.dart' show DVWasmEngines, dvWasmAppRunsHereJs;
+
+import 'web_renderer.dart' show dvBootstrapWasmEngines;
+
 const String _open = '<!-- dartvel:renderer -->';
 const String _close = '<!-- /dartvel:renderer -->';
 
 /// Where a build's renderer files are, and whether skwasm is among them.
 class DVRendererSource {
-  const DVRendererSource({required this.base, required this.wasm});
+  const DVRendererSource(
+      {required this.base,
+      required this.wasm,
+      this.engines = DVWasmEngines.chromiumOnly});
 
   /// The directory the loader fetches the renderer from: gstatic's copy for
   /// the engine revision, or the application's own `canvasKitBaseUrl`.
@@ -28,6 +35,10 @@ class DVRendererSource {
 
   /// Whether the build has a dart2wasm/skwasm app the loader may choose.
   final bool wasm;
+
+  /// The engines besides Chromium the build lets run its wasm app, from
+  /// what it wrote into its bootstrap: the hints decide as the loader will.
+  final DVWasmEngines engines;
 
   /// The engine revision when the renderer comes from gstatic's copy, null
   /// when the application serves its own: what a service worker keys its
@@ -102,15 +113,17 @@ DVRendererSource? dvRendererSource(String bootstrapJs) {
     if (base.isEmpty) return null;
     if (!base.endsWith('/')) base = '$base/';
   }
-  return DVRendererSource(base: base, wasm: wasm);
+  return DVRendererSource(
+      base: base, wasm: wasm, engines: dvBootstrapWasmEngines(bootstrapJs));
 }
 
 /// The hints for [source]: a preconnect when the files are on another origin,
 /// and a script that preloads the files the loader will choose.
 ///
 /// A script rather than `<link>`s because the choice depends on the browser,
-/// and the tests are flutter.js's own, condition for condition: skwasm on
-/// Blink with WasmGC when the build has it (`skwasm_heavy` where ImageDecoder
+/// and the tests are flutter.js's own, condition for condition: skwasm where the
+/// loader runs the wasm app ([dvWasmAppRunsHereJs], with the engines the
+/// build allows) when the build has it (`skwasm_heavy` where ImageDecoder
 /// or the ICU break iterators are missing), otherwise CanvasKit (its smaller
 /// `chromium` build where Blink has both). Each file is requested the way the
 /// loader will request it, the `.js` as a module and the `.wasm` through
@@ -136,8 +149,7 @@ String dvRendererHints(DVRendererSource source) {
         'function hint(rel,href,as){var l=d.createElement("link");'
         'l.rel=rel;l.href=href;if(as){l.as=as;}l.crossOrigin="anonymous";'
         'd.head.appendChild(l);}'
-        '${source.wasm ? 'var wasm=false;try{wasm=blink&&WebAssembly.validate('
-            'new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}catch(e){}'
+        '${source.wasm ? 'var wasm=${dvWasmAppRunsHereJs(source.engines)};'
             'if(wasm){var s=base+(chromium?"skwasm":"skwasm_heavy");'
             'hint("modulepreload",s+".js");hint("preload",s+".wasm","fetch");'
             'return;}' : ''}'

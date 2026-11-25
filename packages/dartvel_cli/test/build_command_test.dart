@@ -43,6 +43,7 @@ void main() {
         'web',
         '--release',
         '--tree-shake-icons',
+        '--no-deprecated-js-interop',
       ]);
       expect(args, isNot(contains('--obfuscate')));
       expect(args, isNot(contains('--web-renderer')));

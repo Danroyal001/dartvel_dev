@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVWasmEngines` and `dvWasmAppRunsHereJs`: which engines besides Chromium a build lets run its wasm app (Safari 26.2+, Firefox 147+ by default), and the one JavaScript test every Dartvel script uses to guess the loader's pick. A web-server binary names a route's wasm modules behind the engines the build wrote into `dartvel_prefetch.json` (`wasmEngines`; Chromium only when absent, as builds before did).
+
 ## 3.47.9 — 2026-11-25
 
 - With SSR-first there is no white or blank frame before the page. The browser painted its own white canvas, then a half-laid-out page, before the server-rendered document: `html` is now painted in the splash colours (light and dark), the SSR-first head holds the first paint until the whole first screen is in (`<link rel="expect" blocking="render">` naming a `#dv-first-screen` marker written after the document, with the page's own URL because of `<base href="/">`), and only bundled fallback fonts are named (system fallbacks only cost font lookups before the first layout; Flutter web never draws with them). On sigmadev.digital (Fast 3G, 4x CPU) the first paint is now the whole first screen instead of a blank frame at 0.4-0.5 s.
