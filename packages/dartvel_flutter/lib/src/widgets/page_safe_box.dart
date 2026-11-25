@@ -20,9 +20,21 @@ import 'package:flutter/widgets.dart';
 /// it, so a screen size the shell keeps through a zero-size frame stays the
 /// one the page reads.
 class DVPageSafeBox extends StatelessWidget {
-  const DVPageSafeBox({super.key, required this.child});
+  const DVPageSafeBox({super.key, this.keptBelow, required this.child});
 
   final Widget child;
+
+  /// The room the safe area keeps under the page when the page does not
+  /// shrink for the on-screen keyboard: the navigation bar's height, kept
+  /// while the keyboard covers the bar. Given, the page reads the keyboard
+  /// from its own bottom edge -- `viewInsets.bottom` is how far the keyboard
+  /// reaches up the page -- and no navigation bar is left under it, so a list
+  /// over a box of `viewInsets.bottom` ends exactly at the keyboard's top.
+  /// Android measures the keyboard from the bottom of the screen, which put
+  /// such a list the bar's height above the keyboard. Null for a page that
+  /// shrinks for the keyboard, whose scaffold already leaves none of it over
+  /// the page.
+  final double? keptBelow;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -44,7 +56,15 @@ class DVPageSafeBox extends StatelessWidget {
           }
           // Always a MediaQuery, even when nothing was taken, so the page
           // below keeps its state when an inset comes or goes.
-          return MediaQuery(data: media.copyWith(size: size), child: child);
+          final double? below = keptBelow;
+          final MediaQueryData measured = below == null
+              ? media.copyWith(size: size)
+              : media.copyWith(
+                  size: size,
+                  viewInsets: media.viewInsets.copyWith(bottom: math.max(0, media.viewInsets.bottom - below)),
+                  viewPadding: media.viewPadding.copyWith(bottom: math.max(0, media.viewPadding.bottom - below)),
+                );
+          return MediaQuery(data: measured, child: child);
         },
       );
 }

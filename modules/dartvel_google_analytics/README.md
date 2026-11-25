@@ -46,30 +46,31 @@ GA4_API_SECRET=...
 The secret is never a setting. A mount's `config:` is compiled into the
 client, so `apiSecret:` there is refused by name.
 
-**Two settings in Google Analytics itself.** The module sends the page views
-itself, so Google's tag must not send its own:
+**Who counts which page.** Google's tag counts the page it loads on: it
+sends that `page_view` itself, from the address (campaign `utm_*`
+parameters included), whatever the page's own configuration says. With
+*Ignore duplicate instances of on-page configuration* on (the default for
+new tags, `ignoreDupeGtagConfigCalls` in `gtag/js?id=G-...`) it ignores
+`send_page_view: false`, so the module never sends a copy of that page.
+The module counts every route change after it, at the page's own address:
+the shell reports a page once its frame is drawn, which can be before the
+router has put the new address in the address bar. If consent arrives
+later, whatever loads the tag (the consent itself or an event) leaves the
+page on screen to the tag too.
 
-- Turn off *Page changes based on browser history events* under the web
-  stream's Enhanced Measurement, or each route change is counted twice.
-- Turn off *Ignore duplicate instances of on-page configuration* under the
-  web stream's *Configure tag settings > Settings*. With it on, Google's tag
-  applies its own configuration when it loads and ignores the module's
-  `send_page_view: false`, so the landing page is counted twice: once by the
-  tag, without consent state (no `gcs`) or the campaign parameters, and once
-  by the module. The setting is in the tag Google serves
-  (`ignoreDupeGtagConfigCalls` in `gtag/js?id=G-...`), not in anything the
-  application sends, so no code can turn it off.
+One setting in Google Analytics itself: turn off *Page changes based on
+browser history events* under the web stream's Enhanced Measurement if
+your tag counts route changes on its own, or each route change is counted
+twice. Or set `pageViews: automatic` and let Google's tag count them all.
 
-Or set `pageViews: automatic` and let Google's tag count them.
 
 ## What it does without being called
 
-- **Page views.** The first page and every route change send `page_view`
-  with `page_location`, `page_path` and `page_title`. The landing page's
-  view also carries the campaign the visitor arrived with
-  (`campaign_source`, `campaign_medium`, `campaign_name`,
-  `campaign_content`, `campaign_term`, `campaign_id`), read from its
-  address before the first route change takes it out; see `DV.Analytics.attribution`.
+- **Page views.** One `page_view` per page. Google's tag counts the page it
+  loads on, campaign included (read from the landing address; see
+  `DV.Analytics.attribution`); every route change after it sends `page_view`
+  with `page_location` (the page's own address), `page_path` and
+  `page_title`.
 - **The framework's standard events.** `DV.Analytics.track(DVPurchase(...))`
   and the other `DVStandardEvent`s (`DVViewItem`, `DVAddToCart`,
   `DVBeginCheckout`, `DVSignUp`, `DVLogin`, `DVGenerateLead`) are sent to
@@ -177,7 +178,7 @@ passed to `DV.Modules.googleAnalytics.configure(...)`:
 |---|---|---|
 | `measurementId` | none | The web stream's `G-` id. Without it the module does nothing. The server also reads `GA4_MEASUREMENT_ID`. |
 | `consent` | `product` | The consent category to wait for. |
-| `pageViews` | `manual` | `manual` (the module sends them), `automatic` (Google's tag does) or `off`. |
+| `pageViews` | `manual` | `manual` (the tag counts the first page, the module each route change), `automatic` (Google's tag counts them all) or `off`. |
 | `collectInEu` | `false` | Send Measurement Protocol events to `region1.google-analytics.com`. |
 | `origin` | `app://app` | The address a device's pages are reported under, such as `https://example.com`. |
 | `excludePaths` | `[/__studio]` | Paths that are not page views. |
