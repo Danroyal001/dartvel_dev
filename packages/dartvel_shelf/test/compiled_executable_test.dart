@@ -111,21 +111,27 @@ void main() {
     );
     final List<String> lines = <String>[];
     final Completer<void> first = Completer<void>();
-    process.stdout
+    final Future<void> out = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((String line) {
-      lines.add(line);
-      if (!first.isCompleted) first.complete();
-    });
-    process.stderr
+          lines.add(line);
+          if (!first.isCompleted) first.complete();
+        })
+        .asFuture<void>();
+    final Future<void> err = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen(lines.add);
-    await Future.any(<Future<void>>[
-      first.future,
-      process.exitCode.then((_) {}),
-    ]).timeout(const Duration(seconds: 30));
+        .listen(lines.add)
+        .asFuture<void>();
+    // When the program ends before printing a line, its exit code can arrive
+    // before what it wrote has been read: under load the lines came back
+    // empty. Once it has exited, read both streams to their end.
+    final Future<void> exited = process.exitCode.then(
+      (_) => Future.wait(<Future<void>>[out, err]),
+    );
+    await Future.any(<Future<void>>[first.future, exited])
+        .timeout(const Duration(seconds: 30));
     return (process: process, lines: lines);
   }
 
