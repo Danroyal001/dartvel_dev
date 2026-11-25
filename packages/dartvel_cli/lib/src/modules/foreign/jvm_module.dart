@@ -177,13 +177,13 @@ apply plugin: 'com.android.library'
 
 android {
     namespace 'dev.dartvel.modules.${dvSnake(id)}'
-    compileSdk 35
+    compileSdk = 36
     defaultConfig {
-        minSdk 21
+        minSdk = 24
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 
