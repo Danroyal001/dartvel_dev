@@ -60,9 +60,9 @@ What is not settled:
 
 - **Which Flutter it builds against.** The package uses Flutter's windowing
   API, which is `@internal`, behind a feature flag, and renamed between
-  releases. It is written against Flutter 3.47.5 stable, the version Dartvel's
-  CI pins. Master renames it further (`WindowController`, `Window`); the
-  measurements are in
+  releases. It is written against Flutter 3.50 stable, which renamed
+  `RegularWindowController` and `RegularWindow` to `WindowController` and
+  `Window`; the measurements on 3.47 are in
   [`docs/proposals/2026-09-multiwindow-stable-probe.md`](../../docs/proposals/2026-09-multiwindow-stable-probe.md).
 - **Physical displays and GPUs.** Everything above ran on Mesa's software
   renderer. The window-manager crash it fixes is not specific to software GL

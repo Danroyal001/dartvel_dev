@@ -62,4 +62,4 @@ Not yet: rendering checked on Linux, Android, iOS, macOS and Windows devices;
 environment maps from scene assets (the engine's studio environment lights
 every scene); textures and `.fmat` materials; animations; physics.
 
-Needs Flutter 3.47 (3.47.1 for Flutter GPU in Linux and Windows release builds).
+Needs Flutter 3.50, the floor of every Dartvel package (Flutter GPU in Linux and Windows release builds arrived in 3.47.1).

@@ -72,7 +72,7 @@ chmod +x ~/.dartvel/bin/dartvel
 **For 0.11.5, only the Linux binaries are attached until the CI release
 workflow has run.** Until then, npm on macOS or Windows fails on the download
 and prints the release URL. Use the per-project route below on those hosts,
-using Dart 3.13 or newer.
+using Dart 3.14 or newer.
 
 ### From pub, per project
 
@@ -587,8 +587,8 @@ gone too: build `--profile development` for the platform instead.
 `dartvel init` to add Dartvel to that project.
 
 **`flutter pub get failed` during `create`.** The scaffold is still written.
-Fix what pub reports (usually network or an SDK older than Dart 3.13 /
-Flutter 3.47) and run `flutter pub get` in the project.
+Fix what pub reports (usually network or an SDK older than Dart 3.14 /
+Flutter 3.50) and run `flutter pub get` in the project.
 
 **`dartvel build web` exits 1 with an accessibility finding.** A web build reads
 each page's semantics tree and fails on a page a screen reader cannot use,

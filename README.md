@@ -344,8 +344,8 @@ Embedded and TV targets run through a dedicated Flutter embedder, never plain `f
 Vendor embedders download a prebuilt Flutter engine per version, so a target
 can lag behind Dartvel's Flutter, and bumping a version pin cannot fix that.
 The webOS and eLinux release engines are built from source for this reason. An
-embedder's Flutter can also be too old for Dartvel's floor of Dart 3.13 and
-Flutter 3.47. Details are in [docs/build-targets.md](docs/build-targets.md).
+embedder's Flutter can also be too old for Dartvel's floor of Dart 3.14 and
+Flutter 3.50. Details are in [docs/build-targets.md](docs/build-targets.md).
 
 ---
 
@@ -410,7 +410,7 @@ cache, queues, auth, notifications, AI),
 signals, native platform APIs),
 [`dartvel_shelf`](https://pub.dev/packages/dartvel_shelf) (the Rust runtime),
 [`dartvel_cli`](https://pub.dev/packages/dartvel_cli) (generation, build,
-dev server, deploy). Every package needs Dart 3.13 and Flutter 3.47 or newer.
+dev server, deploy). Every package needs Dart 3.14 and Flutter 3.50 or newer.
 
 To add Dartvel to a Flutter project you already have, run `dartvel init` (or
 `dartvel create`: they are one command). It shows its plan, then adds the
@@ -1667,7 +1667,7 @@ installation, use `dart pub global activate dartvel_cli`. See
 ### Versions
 
 From 3.47.0 a Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel
-release>`: 3.47.x is built on Flutter 3.47, and the last number counts
+release>`: 3.50.x is built on Flutter 3.50 (3.47.x was on Flutter 3.47), and the last number counts
 Dartvel's own releases on it. Every published package and the CLI carry the
 same version. The release before 3.47.0 was 0.13.51, and a caret does not
 cross that line (`^0.13.51` stops below 0.14.0), so an existing project moves
