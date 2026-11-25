@@ -65,9 +65,14 @@ abstract final class DVLazyBackfill {
   /// on the web; tests set it.
   static bool enabled = kIsWeb;
 
-  /// How long after the first frame, or after anything else drew a frame,
-  /// the page must be still before a step runs.
+  /// How long after anything drew a frame the page must be still before a
+  /// step runs.
   static const int quietMs = 300;
+
+  /// How long the page must have drawn nothing before the first step: a page
+  /// that has just arrived is still loading its pictures and fonts and
+  /// answering the reader's first taps, and the reading can wait for it.
+  static const int startAfterMs = 3000;
 
   /// The most rows one step reads.
   static const int perStep = 64;
@@ -75,7 +80,17 @@ abstract final class DVLazyBackfill {
   /// How long rows read but not yet in the page wait for the rest before
   /// they land anyway, in milliseconds: a collection of thousands lands a
   /// part at a time rather than all at the end.
-  static const int landAfterMs = 3000;
+  static const int landAfterMs = 10000;
+
+  /// The most of the main thread the reading takes: after a step that took
+  /// t milliseconds the next waits long enough that reading is this share
+  /// of the time. A row is read whole, and a card of sigmadev.digital's
+  /// catalogue takes about 20 ms on a phone (4x CPU) -- more than the idle
+  /// time between two frames of anything animating -- so each read can cost
+  /// a frame there; spaced like this they cost about one frame in twenty,
+  /// and the catalogue is read in about a minute on that phone and in a few
+  /// seconds on a laptop.
+  static const double readShare = 0.05;
 
   /// How long a lazy list's growth may spend building and laying out the
   /// rows it reaches, in milliseconds. The frame's raster comes on top and
@@ -86,6 +101,11 @@ abstract final class DVLazyBackfill {
   /// the app; a row past it is let go after it is read.
   static const int keepBudget = 400;
 
+  /// The most render objects a row may have and still be kept built after
+  /// it is read: a line or two of text, not a card. Ten cards kept built
+  /// held more of a phone's heap than the 177 stand-ins of the rest.
+  static const int keepRowAtMost = 8;
+
   static final Set<DVBackfillable> _waiting = <DVBackfillable>{};
 
   /// Rows read, landing in the page in the next frame step.
@@ -94,6 +114,10 @@ abstract final class DVLazyBackfill {
 
   static bool _armed = false;
 
+  /// Whether the first step has run, and how long since a frame was drawn.
+  static bool _started = false;
+  static Stopwatch? _sinceFrame;
+
   /// Whether anything is waiting.
   static bool get pending => _waiting.isNotEmpty || _landing.isNotEmpty;
 
@@ -101,7 +125,11 @@ abstract final class DVLazyBackfill {
   static void register(DVBackfillable item) {
     if (!enabled) return;
     _waiting.add(item);
-    _arm(quietMs);
+    if (_sinceFrame == null) {
+      _sinceFrame = Stopwatch()..start();
+      SchedulerBinding.instance.addPersistentFrameCallback((_) => _sinceFrame!.reset());
+    }
+    _arm(_started ? quietMs : startAfterMs);
   }
 
   /// It went away, or was built some other way.
@@ -171,10 +199,18 @@ abstract final class DVLazyBackfill {
       _arm(quietMs);
       return;
     }
+    final int still = _sinceFrame?.elapsedMilliseconds ?? startAfterMs;
+    if (!_started && still < startAfterMs) {
+      _arm(startAfterMs - still);
+      return;
+    }
+    _started = true;
+    final Stopwatch spent = Stopwatch()..start();
     step(budgetMs);
-    // A step that only read asked for no frame: the next one runs in the
-    // next idle moment. One that drew waits for the page to be still again.
-    _arm(scheduler.hasScheduledFrame ? quietMs : 0);
+    // A step that drew waits for the page to be still again; one that only
+    // read rests until the reading is [readShare] of the time.
+    final int rest = (spent.elapsedMicroseconds / 1000 * (1 / readShare - 1)).round();
+    _arm(scheduler.hasScheduledFrame ? (rest > quietMs ? rest : quietMs) : rest);
   }
 
   /// Forgets everything waiting, for tests.
@@ -183,6 +219,7 @@ abstract final class DVLazyBackfill {
     _waiting.clear();
     _landing.clear();
     _armed = false;
+    _started = false;
     enabled = kIsWeb;
   }
 }

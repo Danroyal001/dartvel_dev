@@ -162,7 +162,7 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
       if (_growing) _readRows.add(index);
       if (!_readRows.contains(index)) return _RowClock(onSpent: _spent, onSized: _sized, child: child);
       final double estimate = _builtRows == 0 ? 120 : _builtHeight / _builtRows;
-      return _RowClock(onSpent: _spent, child: DVNearScreen(estimatedHeight: estimate, child: child));
+      return _RowClock(onSpent: _spent, child: DVNearScreen(estimatedHeight: estimate, screensAhead: 1.3, child: child));
     }
 
     if (separator == null) {

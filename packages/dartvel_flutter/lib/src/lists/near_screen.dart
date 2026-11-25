@@ -40,9 +40,17 @@ import 'backfill.dart';
 import 'lazy_lists.dart';
 
 class DVNearScreen extends StatefulWidget {
-  const DVNearScreen({super.key, required this.child, this.estimatedHeight = 120});
+  const DVNearScreen({super.key, required this.child, this.estimatedHeight = 120, this.screensAhead = 3});
 
   final Widget child;
+
+  /// How many screens below the top of the screen it is built: three in a
+  /// page, so a long collection's rows are there before they are seen. A row
+  /// of a lazy list takes a third of a screen past the bottom, about as close
+  /// as the list itself builds, so the rows its cache grew into are read and
+  /// not built: building the row past the bottom of sigmadev.digital's home
+  /// took a frame of 600 ms on a phone.
+  final double screensAhead;
 
   /// The height it holds before it is built, so the page's scroll length is
   /// roughly right. Rows are built two screens before they are seen, so the
@@ -158,7 +166,9 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
     if (anchor == null) return true;
     final _Reading reading = anchor!.read(widget.child);
     _phase = _Phase.landing;
-    if (reading.needsLayout || (reading.renderObjects <= DVLazyBackfill.keepBudget - _kept)) {
+    final bool cheap = reading.renderObjects <= DVLazyBackfill.keepRowAtMost &&
+        reading.renderObjects <= DVLazyBackfill.keepBudget - _kept;
+    if (reading.needsLayout || cheap) {
       // Cheap, or its words are only there once it is laid out (a
       // LayoutBuilder builds its child during layout): built for good.
       if (!reading.needsLayout) {
@@ -237,7 +247,8 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVReadRow, DVBac
     if (viewport == null) return;
     final double top = viewport.getOffsetToReveal(box, 0).offset;
     final double screen = position.viewportDimension;
-    final bool near = top < position.pixels + screen * 3 && top + box.size.height > position.pixels - screen * 2;
+    final bool near = top < position.pixels + screen * widget.screensAhead &&
+        top + box.size.height > position.pixels - screen * (widget.screensAhead - 1);
     if (!near) return;
     buildNow();
   }
@@ -487,95 +498,33 @@ class _NoSelection implements SelectionRegistrar {
 
 /// What a read row says, as semantics only: one node for each paragraph,
 /// heading, link and button, stacked in the row's height so each has a place
-/// on screen, as a node must to be read. Nothing is drawn.
-///
-/// One render object writing its nodes itself, as a paragraph writes the
-/// nodes of its links, not a column of Semantics widgets: a catalogue of 177
-/// read cards held some two thousand elements and render objects for its
-/// stand-ins alone.
-class _StandIn extends LeafRenderObjectWidget {
+/// on screen, as a node must to be read. Nothing is drawn, and nothing is
+/// under each node: a box with no child fills the tight height its Expanded
+/// gives it.
+class _StandIn extends StatelessWidget {
   const _StandIn({required this.spoken, required this.open});
 
   final List<_Spoken> spoken;
   final void Function(_Spoken) open;
 
   @override
-  _RenderStandIn createRenderObject(BuildContext context) =>
-      _RenderStandIn(spoken, open, Directionality.maybeOf(context) ?? TextDirection.ltr);
-
-  @override
-  void updateRenderObject(BuildContext context, _RenderStandIn renderObject) => renderObject
-    ..spoken = spoken
-    ..open = open
-    ..textDirection = Directionality.maybeOf(context) ?? TextDirection.ltr;
-}
-
-class _RenderStandIn extends RenderBox {
-  _RenderStandIn(this._spoken, this.open, this._textDirection);
-
-  List<_Spoken> _spoken;
-  set spoken(List<_Spoken> value) {
-    if (identical(value, _spoken)) return;
-    _spoken = value;
-    markNeedsSemanticsUpdate();
-  }
-
-  void Function(_Spoken) open;
-
-  TextDirection _textDirection;
-  set textDirection(TextDirection value) {
-    if (value == _textDirection) return;
-    _textDirection = value;
-    markNeedsSemanticsUpdate();
-  }
-
-  /// The nodes written last time, reused so a node keeps its id.
-  final List<SemanticsNode> _nodes = <SemanticsNode>[];
-
-  @override
-  bool get sizedByParent => true;
-
-  @override
-  Size computeDryLayout(BoxConstraints constraints) => constraints.biggest;
-
-  @override
-  void describeSemanticsConfiguration(SemanticsConfiguration config) {
-    super.describeSemanticsConfiguration(config);
-    config
-      ..isSemanticBoundary = true
-      ..explicitChildNodes = true;
-  }
-
-  @override
-  void assembleSemanticsNode(SemanticsNode node, SemanticsConfiguration config, Iterable<SemanticsNode> children) {
-    final int count = _spoken.length;
-    while (_nodes.length < count) {
-      _nodes.add(SemanticsNode(showOnScreen: showOnScreen));
-    }
-    _nodes.length = count;
-    final double height = count == 0 ? 0 : size.height / count;
-    for (int index = 0; index < count; index++) {
-      final _Spoken item = _spoken[index];
-      final SemanticsConfiguration said = SemanticsConfiguration()
-        ..label = item.label
-        ..textDirection = _textDirection
-        ..isLink = item.link
-        ..isButton = item.button;
-      if (item.linkUrl != null) said.linkUrl = item.linkUrl;
-      if (item.headingLevel > 0) said.headingLevel = item.headingLevel;
-      if (item.control) said.onTap = () => open(item);
-      _nodes[index]
-        ..updateWith(config: said)
-        ..rect = Rect.fromLTWH(0, height * index, size.width, height);
-    }
-    node.updateWith(config: config, childrenInInversePaintOrder: _nodes);
-  }
-
-  @override
-  void clearSemantics() {
-    super.clearSemantics();
-    _nodes.clear();
-  }
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          for (final _Spoken item in spoken)
+            Expanded(
+              child: Semantics(
+                container: true,
+                label: item.label,
+                link: item.link,
+                linkUrl: item.linkUrl,
+                button: item.button,
+                headingLevel: item.headingLevel == 0 ? null : item.headingLevel,
+                onTap: item.control ? () => open(item) : null,
+              ),
+            ),
+        ],
+      );
 }
 
 enum _HostMode { placeholder, standIn, built }
