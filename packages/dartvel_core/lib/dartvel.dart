@@ -347,6 +347,7 @@ export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
 export 'src/web/ssr_first.dart';
 export 'src/web/ssr_first_layout.dart';
+export 'src/web/document_rows.dart';
 export 'src/web/inline_script_csp.dart';
 export 'src/web/csp_sources.dart';
 export 'src/web/document_slots.dart';
