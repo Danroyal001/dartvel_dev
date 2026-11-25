@@ -24,6 +24,8 @@ class DVLazyListView extends StatefulWidget {
     required this.itemCount,
     required this.itemBuilder,
     this.separatorBuilder,
+    this.itemExtentBuilder,
+    this.separatorExtent = 0,
   });
 
   final int itemCount;
@@ -31,6 +33,15 @@ class DVLazyListView extends StatefulWidget {
 
   /// Between two rows, when the list is spaced.
   final IndexedWidgetBuilder? separatorBuilder;
+
+  /// Each row's extent along the scroll, by row index (separators are not
+  /// counted). Called only for an index below [itemCount].
+  final double Function(int index, SliverLayoutDimensions dimensions)? itemExtentBuilder;
+
+  /// How long a separator is along the scroll, when [itemExtentBuilder] is
+  /// set: Flutter asks a separated list's builder about separators too, and
+  /// this list answers for them itself.
+  final double separatorExtent;
 
   @override
   State<DVLazyListView> createState() => _DVLazyListViewState();
@@ -95,6 +106,23 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
     return true;
   }
 
+  /// [DVLazyListView.itemExtentBuilder] as Flutter asks it: by child
+  /// index, separators included when [separated], and past the end (where
+  /// Flutter wants null).
+  ItemExtentBuilder? _extents({required bool separated}) {
+    final double Function(int, SliverLayoutDimensions)? rows = widget.itemExtentBuilder;
+    if (rows == null) return null;
+    final int count = widget.itemCount;
+    if (!separated) {
+      return (int index, SliverLayoutDimensions dimensions) =>
+          index < count ? rows(index, dimensions) : null;
+    }
+    return (int index, SliverLayoutDimensions dimensions) {
+      if (index >= count * 2 - 1) return null;
+      return index.isEven ? rows(index ~/ 2, dimensions) : widget.separatorExtent;
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final IndexedWidgetBuilder? separator = widget.separatorBuilder;
@@ -104,6 +132,7 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
         cacheExtent: _cacheExtent,
         itemCount: widget.itemCount,
         itemBuilder: widget.itemBuilder,
+        itemExtentBuilder: _extents(separated: false),
       );
     }
     return ListView.separated(
@@ -111,6 +140,7 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
       cacheExtent: _cacheExtent,
       itemCount: widget.itemCount,
       itemBuilder: widget.itemBuilder,
+      itemExtentBuilder: _extents(separated: true),
       separatorBuilder: separator,
     );
   }

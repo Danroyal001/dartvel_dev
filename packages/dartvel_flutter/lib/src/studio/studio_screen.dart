@@ -16,6 +16,7 @@ import 'package:material_ui/material_ui.dart'
     show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
 
 import '../../dartvel_flutter.dart';
+import '../accessibility/reduced_motion.dart';
 import 'studio_command_palette.dart';
 import 'studio_flags.dart';
 import 'studio_formula.dart';
@@ -3219,7 +3220,7 @@ class _DVStudioPageCardState extends State<_DVStudioPageCard> {
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: dvMotionDuration(context, const Duration(milliseconds: 120)),
           decoration: BoxDecoration(
             color: DVStudioStyle.surface,
             border: Border.all(

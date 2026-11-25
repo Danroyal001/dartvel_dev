@@ -18,7 +18,8 @@ import 'package:flutter/rendering.dart'
         SelectedContent,
         SelectParagraphSelectionEvent,
         SelectionRegistrar,
-        SelectWordSelectionEvent;
+        SelectWordSelectionEvent,
+        SliverLayoutDimensions;
 import 'package:flutter/services.dart'
     show Clipboard,
         ServicesBinding,
@@ -37,6 +38,7 @@ import 'package:meta/meta.dart';
 
 import 'src/accessibility/browser_clicks.dart';
 import 'src/accessibility/keyboard_scroll.dart';
+import 'src/accessibility/reduced_motion.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/selection_mirror.dart';
@@ -830,7 +832,7 @@ export 'src/admin/telemetry_admin.dart';
 export 'src/ai/web_mcp.dart' show DVWebMcp, DVWebMcpTool;
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
-export 'src/auth/ask_for_code.dart';
+export 'src/auth/ask_for_code.dart' hide dvOneTimeCodeHints;
 export 'src/auth/auth_frame.dart';
 export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
@@ -2232,6 +2234,9 @@ class DVBox<T> extends StatelessWidget {
   final List<T>? _items;
   final Widget Function(BuildContext, T)? _itemBuilder;
 
+  /// For [DVBox.scrollableList]: each row's extent, by row index.
+  final double Function(int index, SliverLayoutDimensions dimensions)? _itemExtentBuilder;
+
   /// The widgets this box was handed, for reading the words on a control
   /// without building it. Not for application code.
   List<Widget> get labelChildren => <Widget>[
@@ -2252,7 +2257,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.list(
     List<Widget> children, {
@@ -2272,7 +2278,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.row(
     List<Widget> children, {
@@ -2294,17 +2301,27 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// A vertical list that scrolls when its children do not fit.
   ///
   /// [DVBox.list] is a plain column: a collection whose length is not known
   /// in advance — every record, every route, every failed job — overflows it
   /// and the overflowing entries simply cannot be seen.
+  ///
+  /// [itemExtentBuilder] gives each row's height (along the scroll) by its
+  /// index among [children], so the list can place a row it has not built
+  /// -- a long jump, a scrollbar drag -- without building every row before
+  /// it (Flutter 3.50's `itemExtentBuilder` on separated lists). It is asked
+  /// only about rows, never about the gaps between them, which are
+  /// [spacing] tall, and never about an index past the end. A row is laid
+  /// out at the height it is given whatever it would have measured.
   const DVBox.scrollableList(
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    double Function(int index, SliverLayoutDimensions dimensions)? itemExtentBuilder,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
@@ -2317,7 +2334,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = true,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = itemExtentBuilder;
 
   /// Canonical wrap layout for a static collection of [children].
   const DVBox.wrapLine(
@@ -2338,7 +2356,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Compatibility alias for [DVBox.wrapLine]; prefer `wrapLine` in new code.
   const DVBox.wrap(
@@ -2359,7 +2378,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.stack(List<Widget> children, {DVModifier? modifier})
       : _child = null,
@@ -2374,7 +2394,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.grid(
     List<Widget> children, {
@@ -2394,7 +2415,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.horizontalScrollable(
     List<Widget> children, {
@@ -2412,7 +2434,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Two panes, one each side of the fold on a foldable.
   ///
@@ -2442,7 +2465,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Three panes, one per panel of a tri-fold.
   ///
@@ -2477,7 +2501,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = oneFold;
+        _oneFold = oneFold,
+        _itemExtentBuilder = null;
 
   const DVBox.masonry(
     List<Widget> children, {
@@ -2497,7 +2522,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// An image, as a box.
   ///
@@ -2655,7 +2681,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = scrollable,
         _items = items,
         _itemBuilder = itemBuilder,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   static DVBox<T> builder<T>(
     Iterable<T> items,
@@ -3538,6 +3565,8 @@ class DVBox<T> extends StatelessWidget {
     return DVLazyListView(
       itemCount: children.length,
       itemBuilder: (BuildContext context, int index) => row(index),
+      itemExtentBuilder: _itemExtentBuilder,
+      separatorExtent: _spacing,
       separatorBuilder: _spacing <= 0 ? null : (BuildContext context, int index) => SizedBox(height: _spacing),
     );
   }
@@ -7142,8 +7171,11 @@ class DVScreenInfo {
 
   final Orientation orientation;
 
-  /// True when the reader has asked for less movement, either through the
-  /// platform setting or an explicit [DVAccessibility.useReducedMotion].
+  /// True when the reader has asked for less movement: Remove animations
+  /// (Android, the web's prefers-reduced-motion), Reduce Motion (iOS,
+  /// `MediaQueryData.reduceMotion`), or an explicit
+  /// [DVAccessibility.useReducedMotion]. Every animation Dartvel runs itself
+  /// jumps to its end state when this is true.
   final bool reducedMotion;
 
   final double textScale;
@@ -7236,8 +7268,10 @@ extension DVScreenContextX on BuildContext {
         size: MediaQuery.sizeOf(this),
         safeArea: MediaQuery.paddingOf(this),
         orientation: MediaQuery.orientationOf(this),
-        reducedMotion: MediaQuery.disableAnimationsOf(this) ||
-            const DVAccessibility().reducedMotion,
+        // Either platform setting -- Remove animations (Android, the web's
+        // prefers-reduced-motion) or Reduce Motion (iOS, Flutter 3.50) -- or
+        // the application's own override.
+        reducedMotion: dvReducedMotion(this),
         textScale: MediaQuery.textScalerOf(this).scale(1),
         folds: <DVFold>[
           for (final ui.DisplayFeature feature
@@ -8787,18 +8821,33 @@ class DVAuth {
   /// [verify] to check it without closing: answer with what to tell the
   /// person, and they can try again. For a flow with a page of its own,
   /// [AskForCodePage] asks the same thing without a dialog.
+  ///
+  /// [sentBy] says how the code went out, so the field offers it from the
+  /// right app: a mailed code ([DVNotificationChannel.email], the default)
+  /// from the mail app on Android, a texted one ([DVNotificationChannel.sms])
+  /// from messages; iOS and the web fill both from `one-time-code`.
+  ///
+  /// [barrierBuilder] draws the barrier behind the dialog (Flutter 3.50's
+  /// `RouteBarrierBuilder`): it is handed the default barrier to wrap -- in a
+  /// blur, say -- or to replace. Whatever it draws, a tap outside still
+  /// dismisses and a screen reader still announces "Dismiss": Dartvel keeps
+  /// a clear barrier with those over what the app drew.
   Future<String?> askForCode(
     BuildContext context, {
     int length = 6,
     String title = 'Enter your code',
     String? message,
     DVCodeCheck? verify,
+    DVNotificationChannel sentBy = DVNotificationChannel.email,
+    RouteBarrierBuilder? barrierBuilder,
   }) => dvAskForCode(
     context,
     length: length,
     title: title,
     message: message,
     verify: verify,
+    sentBy: sentBy,
+    barrierBuilder: barrierBuilder,
   );
 
   /// The same question as a whole page.
@@ -8807,11 +8856,13 @@ class DVAuth {
     int length = 6,
     String title = 'Enter your code',
     String? message,
+    DVNotificationChannel sentBy = DVNotificationChannel.email,
     required Future<String?> Function(String code) onCode,
   }) => DVAskForCodePage(
     length: length,
     title: title,
     message: message,
+    sentBy: sentBy,
     onCode: onCode,
   );
 
@@ -10556,7 +10607,7 @@ class _ProfilePageState extends State<_ProfilePage> {
           controller: _code,
           decoration: const InputDecoration(labelText: 'Code from the e-mail'),
           keyboardType: TextInputType.number,
-          autofillHints: const <String>[AutofillHints.oneTimeCode],
+          autofillHints: dvOneTimeCodeHints(DVNotificationChannel.email),
           textInputAction: .done,
           onSubmitted: (_) => unawaited(_run(() async {
                 await widget.auth.confirmEmailChange(_code.text.trim());
@@ -12578,7 +12629,7 @@ CustomTransitionPage<T> dvTransitionPage<T>({
   required PageTransitionSpec spec,
 }) {
   if (spec.type == DvTransition.none) {
-    return CustomTransitionPage<T>(
+    return _DVTransitionPage<T>(
       key: key,
       child: child,
       transitionsBuilder: (c, a, sA, ch) => ch,
@@ -12625,13 +12676,96 @@ CustomTransitionPage<T> dvTransitionPage<T>({
     }
   }
 
-  return CustomTransitionPage<T>(
+  return _DVTransitionPage<T>(
     key: key,
     child: child,
     transitionsBuilder: builder,
     transitionDuration: spec.duration,
     reverseTransitionDuration: spec.duration,
   );
+}
+
+/// A [CustomTransitionPage] whose route takes no time at all when the reader
+/// has asked for less movement (Remove animations, iOS Reduce Motion or the
+/// application's override): the page is there on the next frame, in its
+/// final place, and leaves the same way.
+///
+/// go_router's own route reads the duration from the page, fixed when the
+/// page was built, with no context to ask; this route asks the navigator's
+/// context as it is pushed and popped.
+class _DVTransitionPage<T> extends CustomTransitionPage<T> {
+  const _DVTransitionPage({
+    super.key,
+    required super.child,
+    required super.transitionsBuilder,
+    super.transitionDuration,
+    super.reverseTransitionDuration,
+  });
+
+  @override
+  PageRoute<T> createRoute(BuildContext context) => _DVTransitionRoute<T>(this);
+}
+
+class _DVTransitionRoute<T> extends PageRoute<T> {
+  _DVTransitionRoute(_DVTransitionPage<T> page) : super(settings: page);
+
+  _DVTransitionPage<T> get _page => settings as _DVTransitionPage<T>;
+
+  bool get _still {
+    final BuildContext? context = navigator?.context;
+    return context != null && dvReducedMotion(context, listen: false);
+  }
+
+  @override
+  Color? get barrierColor => _page.barrierColor;
+
+  @override
+  String? get barrierLabel => _page.barrierLabel;
+
+  @override
+  bool get barrierDismissible => _page.barrierDismissible;
+
+  @override
+  Duration get transitionDuration =>
+      _still ? Duration.zero : _page.transitionDuration;
+
+  @override
+  Duration get reverseTransitionDuration =>
+      _still ? Duration.zero : _page.reverseTransitionDuration;
+
+  @override
+  bool get maintainState => _page.maintainState;
+
+  @override
+  bool get fullscreenDialog => _page.fullscreenDialog;
+
+  @override
+  bool get opaque => _page.opaque;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) =>
+      Semantics(
+        scopesRoute: true,
+        explicitChildNodes: true,
+        child: _page.child,
+      );
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      // Drawn at its end state too, in case the setting came on while the
+      // route was already moving.
+      dvReducedMotion(context)
+          ? child
+          : _page.transitionsBuilder(context, animation, secondaryAnimation, child);
 }
 
 class DvDefaultLoading extends StatelessWidget {
@@ -13174,25 +13308,25 @@ class DVAccessibility {
   /// every app that did not explicitly wire it up. The platform is the source
   /// of truth; an application may override it, and can now take that override
   /// back off again.
-  static bool? _reducedMotionOverride;
-
+  ///
+  /// The platform answers through either of its settings: Remove animations
+  /// (Android, and the web's prefers-reduced-motion) or Reduce Motion (iOS,
+  /// which Flutter 3.50 reports separately and its own animations ignore).
   const DVAccessibility();
 
-  bool get reducedMotion =>
-      _reducedMotionOverride ??
-      ui.PlatformDispatcher.instance.accessibilityFeatures.disableAnimations;
+  bool get reducedMotion => dvPlatformReducedMotion();
 
   /// Switch control, on or off, for the whole application. See
   /// [DVSwitchControl] and [DVAccessibilityToggle].
   DVSwitchControlState get switchControl => DVAccessibilitySwitchControl.state;
 
   void useReducedMotion(bool value) {
-    _reducedMotionOverride = value;
+    dvReducedMotionOverride = value;
   }
 
   /// Drops the override and goes back to following the platform.
   void clearReducedMotion() {
-    _reducedMotionOverride = null;
+    dvReducedMotionOverride = null;
   }
 
   DVContrastCheck contrast({

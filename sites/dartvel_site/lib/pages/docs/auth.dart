@@ -150,8 +150,14 @@ Widget _docsAuthPage(BuildContext context) => const DocsArticle(
             DocsCode('auth-ask-for-code-page'),
             Bullets(<String>[
               'The field takes digits only, as many as the code has.',
-              'It offers the code a phone shows above the keyboard, through '
-                  'the one-time-code autofill hint.',
+              'It offers the code a phone shows above the keyboard. sentBy '
+                  'says how the code went out: a mailed code (the default) is '
+                  'offered from the mail app on Android, a texted one '
+                  '(DVNotificationChannel.sms) from messages; iOS and the web '
+                  'fill both from their one-time-code hint.',
+              'barrierBuilder draws your own barrier behind the modal, such as '
+                  'a blur. Tapping outside still dismisses it and a screen '
+                  'reader still announces Dismiss, whatever you draw.',
             ]),
           ],
         ),

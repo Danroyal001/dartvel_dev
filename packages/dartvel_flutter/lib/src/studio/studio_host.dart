@@ -18,6 +18,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:material_ui/material_ui.dart';
 
+import '../accessibility/reduced_motion.dart';
+
 /// The page at `path` as its route draws it: the page, its layouts and its
 /// shell. With [content], that widget stands where the page's body goes --
 /// how Studio draws a document it is editing inside the page's own chrome.
@@ -334,7 +336,7 @@ class _DVPulsingLineState extends State<_DVPulsingLine>
         letterSpacing: 0.5,
       ),
     );
-    if (MediaQuery.disableAnimationsOf(context)) return line;
+    if (dvReducedMotion(context)) return line;
     return FadeTransition(opacity: _pulse, child: line);
   }
 }

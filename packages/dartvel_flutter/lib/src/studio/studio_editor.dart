@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart'
     show Icon, IconData, Icons, PopupMenuItem, showMenu;
 
 import '../../dartvel_flutter.dart';
+import '../accessibility/reduced_motion.dart';
 
 /// Editing state for one page document: what is selected, what changed, and
 /// how to undo it.
@@ -2588,7 +2589,7 @@ class _DVStudioInspectorToggle extends StatelessWidget {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: dvMotionDuration(context, const Duration(milliseconds: 120)),
           width: 34,
           height: 20,
           padding: const .all(2),
@@ -2597,7 +2598,7 @@ class _DVStudioInspectorToggle extends StatelessWidget {
             borderRadius: .circular(999),
           ),
           child: AnimatedAlign(
-            duration: const Duration(milliseconds: 120),
+            duration: dvMotionDuration(context, const Duration(milliseconds: 120)),
             alignment: value ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               width: 16,

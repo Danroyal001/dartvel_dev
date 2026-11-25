@@ -409,6 +409,13 @@ void main() {
         expect(current.text, 'ada@example.com');
         expect(find.byKey(const ValueKey<String>('dv-profile-pending')), findsOneWidget);
         expect(tester.takeException(), isNull);
+        // The code came by e-mail, and Android (the test platform) can offer
+        // one from the mail app: emailOTPCode, Flutter 3.50.
+        expect(
+            tester
+                .widget<TextField>(find.byKey(const ValueKey<String>('dv-profile-email-code')))
+                .autofillHints,
+            <String>[AutofillHints.emailOTPCode]);
 
         await tester.enterText(
             find.byKey(const ValueKey<String>('dv-profile-email-code')), '123456');
