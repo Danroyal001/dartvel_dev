@@ -26,6 +26,8 @@ const Map<String, String> dvDesignImportAllowed = <String, String>{
       'the fixtures of the application the upgrade moves',
   'packages/dartvel_cli/test/project_upgrade_test.dart':
       'the fixtures of the application the upgrade moves',
+  'packages/dartvel_cli/test/upgrade_plan_test.dart':
+      'the fixtures of the application the upgrade plan reads',
   'packages/dartvel_cli/test/scaffold_version_test.dart':
       'asserts the scaffold and generated client never write them',
 };

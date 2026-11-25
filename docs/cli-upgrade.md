@@ -60,6 +60,8 @@ project without Flutter).
   in each module that imports either library. It keeps every `show`, `hide`
   and prefix. A failed fix, or an import it left behind (one written inside a
   string, say), is named and the command exits 1; the packages stay resolved.
+  `dartvel upgrade --plan` lists the files that still import either library
+  under "design libraries".
 
 It applies the dependency part of the plan only. Source rewrites are
 `dartvel migrate-code --apply`; generated code is rewritten by the next build.
