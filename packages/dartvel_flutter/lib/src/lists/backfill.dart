@@ -10,20 +10,23 @@
 /// navigation inside the app, searched only what was on screen (Tori and
 /// Learnacer, Dartvel 3.47.7).
 ///
-/// So once the first frame is drawn and the page is idle -- no frame
-/// pending, nothing animating, no scroll under way, and the browser saying
-/// it has time to spare (requestIdleCallback) -- what is still waiting is
-/// taken a little at a time, until none is left.
+/// So once the page has drawn nothing for [DVLazyBackfill.startAfterMs] and
+/// is idle -- no frame pending, nothing animating, no scroll under way, and
+/// the browser saying it has time to spare (requestIdleCallback) -- what is
+/// still waiting is taken a little at a time, until none is left, never more
+/// than [DVLazyBackfill.readShare] of the main thread.
 ///
 /// A long collection's row (DVNearScreen) is read rather than kept: built
 /// apart from the page, never laid out or painted, its words, links and
 /// headings taken, and let go, all within the idle moment the browser gave.
 /// Reading draws nothing, so it asks for no frame. The rows read land in the
-/// page together, in one frame, as stand-ins that carry their words to the
-/// screen reader and to find; only cheap rows, up to
-/// [DVLazyBackfill.keepBudget] render objects, are built for good. A lazy
-/// ListView's cache grows to cover it, as many screens a frame as its last
-/// growth says fit in [DVLazyBackfill.growBudgetMs].
+/// page together, in one frame (or one every [DVLazyBackfill.landAfterMs]
+/// for a very long collection), as stand-ins that carry their words to the
+/// screen reader and to find; only rows of a line or two
+/// ([DVLazyBackfill.keepRowAtMost]) are built for good. A lazy ListView's
+/// cache grows to cover it, as many screens a frame as its last growth says
+/// fit in [DVLazyBackfill.growBudgetMs], and the rows it grows into are read
+/// the same way.
 ///
 /// Frames are what cost: every frame on the web rasters the whole screen,
 /// however little changed, about 100 ms on sigmadev.digital at 390 px with

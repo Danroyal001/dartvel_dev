@@ -19,8 +19,9 @@
 /// the find runtime searches. Keeping every row built instead took
 /// sigmadev.digital's phone heap from 15-21 MB to 50-58 MB and its frame
 /// rate after the first frame from 39-48 to 4-7 (Dartvel 3.47.9 risk check).
-/// A row that turns out to be cheap -- a paragraph, a line of text -- stays
-/// built, up to [DVLazyBackfill.keepBudget] render objects across the app.
+/// A row that turns out to be cheap -- a line of text, no more than
+/// [DVLazyBackfill.keepRowAtMost] render objects -- stays built, up to
+/// [DVLazyBackfill.keepBudget] render objects across the app.
 ///
 /// A stand-in becomes the real row the moment anything needs the row itself:
 /// the page scrolls near it, Tab reaches it (lazy_traversal.dart), find

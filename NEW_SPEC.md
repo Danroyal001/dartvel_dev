@@ -1076,31 +1076,32 @@ direction -- and then moves the focus in Flutter's own order, scrolling it into
 view. A footer after a long lazy page is reached, and Shift+Tab goes back up
 through rows the list had let go.
 On the web the rest of a lazy list is also reached while the page is idle:
-once the first frame is drawn, nothing is pending, animating or scrolling,
-and the browser reports idle time (`requestIdleCallback`), the rows still
-waiting are taken as many as fit in that idle time. A row of a long collection
-in a page is *read*, not kept: built apart from the page (its render objects
-attached to nothing, so nothing is laid out, painted or shaped and no frame
-is asked for), its words, headings and links taken, and let go. The rows read
-land in the page together, in one frame, each as a stand-in of the same
-height whose semantics say what the row says (a link stays a link, with its
-address) and whose words the find runtime searches. A scrollable list grows
-its cache until it covers the whole list, first by four screens, then by as
-many as the last growth's build and layout say fit in 40 ms. Every frame on
-the web rasters the whole screen however little changed, so the work is done
-in as few frames as possible. Rows that turn out
-to be cheap -- a paragraph, a line of text -- stay built, up to a budget of
-render objects for the whole app. A stand-in becomes the real row when the
-page scrolls near it, Tab reaches it, find lands in it, or a screen reader
-opens one of its links, which then opens the real link. The first frame is
-exactly as lazy as before; afterwards every row has its semantics and its
-text, so a screen reader reading line by line (a virtual cursor) reaches the
-footer of a long page without scrolling, and the browser's find, after a
-navigation inside the app, searches the whole page. Building every row
-instead cost sigmadev.digital's 177-tool catalogue on a phone (390 px, 4x CPU
-throttle) a JS heap of 50-58 MB against 15-21 MB and 4-7 frames a second for
-the fifteen seconds after the first frame against 39-48, and reading a row or
-two a frame still took forty seconds at 3 frames a second.
+once the page has drawn nothing for three seconds, nothing is pending,
+animating or scrolling, and the browser reports idle time
+(`requestIdleCallback`), the rows still waiting are taken as many as fit in
+that idle time, and the reading never takes more than a twentieth of the main
+thread. A row is *read*, not kept: built apart from the page (its render
+objects attached to nothing, so nothing is laid out, painted or shaped and no
+frame is asked for), its words, headings and links taken, and let go. The
+rows read land in the page together in one frame (one every ten seconds for a
+very long collection), each as a stand-in of the same height whose semantics
+say what the row says (a link stays a link, with its address) and whose words
+the find runtime searches. A scrollable list grows its cache until it covers
+the whole list, first by four screens, then by as many as the last growth's
+cost says fit in 40 ms, and the rows it grows into are read the same way,
+held at the height of the rows built so far. Rows of a line or two stay
+built. A stand-in becomes the real row when the page scrolls near it, Tab
+reaches it, find lands in it, or a screen reader opens one of its links,
+which then opens the real link. The first frame is exactly as lazy as before;
+afterwards every row has its semantics and its text, so a screen reader
+reading line by line (a virtual cursor) reaches the footer of a long page
+without scrolling, and the browser's find, after a navigation inside the app,
+searches the whole page. Every web frame rasters the whole screen however
+little changed, so the work avoids frames. Building every row instead cost
+sigmadev.digital's 177-tool catalogue on a phone (390 px, 4x CPU throttle) a
+JS heap of 50-58 MB against 15-21 MB and 4-7 frames a second for the fifteen
+seconds after the first frame against 39-48, and reading a row or two a frame
+still took forty seconds at 3 frames a second.
 Off the web nothing is built ahead: there the platform's screen reader scrolls
 a list when it reaches the end of what is built, and there is no browser find.
 
