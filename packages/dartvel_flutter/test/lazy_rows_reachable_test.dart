@@ -10,7 +10,9 @@
 // from what the page drew, and missed the same rows.
 //
 // On the web the rows still waiting are now built while the page is idle
-// (backfill.dart). These tests turn that on, as the web has it, and drive it
+// (backfill.dart) when the application opts in (dartvel.web.lazyBackfill:
+// true; off by default since 3.47.9). These tests turn it on, as an
+// opted-in web app has it, and drive it
 // a step at a time.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/find/find_in_page.dart';
