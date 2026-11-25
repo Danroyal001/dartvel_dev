@@ -92,7 +92,10 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'among the paragraphs of a page; a link inside a sentence is '
                   'read in its place in the sentence. For two or more links in one '
                   'sentence, place each with DVWidgetSpan instead of '
-                  'WidgetSpan, so every one is read where it is written.',
+                  'WidgetSpan, so every one is read where it is written. In the '
+                  'server-rendered page the sentence is one paragraph with its '
+                  'links in it, so it selects as one line and the browser\'s find '
+                  'matches across a link and the full stop after it.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
               'A password field starts with a Show password toggle button, '

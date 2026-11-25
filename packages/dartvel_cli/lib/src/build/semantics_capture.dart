@@ -78,6 +78,11 @@ const String _extract = r"""() => {
         try { media = JSON.parse(declared.slice(bar + 1)); } catch (e) {}
         declared = declared.slice(0, bar);
       }
+      // A link (or anything) DVWidgetSpan placed inside a run of text. It
+      // keeps its own role -- the identifier says where it sits, not what it
+      // is -- and the document writes it inside its sentence.
+      const inSentence = declared === 'in-sentence';
+      if (inSentence) declared = null;
       // A text field: Flutter puts a real <input> (or <textarea>) inside the
       // node, named by its own aria-label. Skipping it, as the walk did, left
       // every form out of the document -- a sign-in page went out as its
@@ -100,11 +105,13 @@ const String _extract = r"""() => {
           : labelOf(child),
         href: child.getAttribute('href'),
         media: media,
+        inSentence: inSentence,
         children: walk(child),
       };
       // Nothing to say, nowhere to go, nothing inside.
       if (!node.label && !node.href && !node.media
           && node.children.length === 0) continue;
+      if (!node.inSentence) delete node.inSentence;
       out.push(node);
     }
     return out;

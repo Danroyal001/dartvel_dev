@@ -48,12 +48,16 @@ class DVWidgetSpan extends WidgetSpan {
     super.style,
   }) : super(child: _InSentence(child: child));
 
+  /// The semantics identifier of each widget placed in a sentence, and of the
+  /// placeholder that asks the paragraph for nodes of its own.
+  static const String inSentenceIdentifier = 'dartvel:in-sentence';
+
   /// A placeholder that tells the paragraph to give each of its pieces a node
   /// of its own (the identifier is what asks; it names nothing).
   static const InlineSpanSemanticsInformation _ownNodes = InlineSpanSemanticsInformation(
     '￼',
     isPlaceholder: true,
-    semanticsIdentifier: 'dartvel:in-sentence',
+    semanticsIdentifier: inSentenceIdentifier,
   );
 
   @override
@@ -73,7 +77,16 @@ class _InSentence extends StatelessWidget {
   Widget build(BuildContext context) {
     final double? place = dvPlaceInSentence(context);
     if (place == null) return child;
-    return Semantics(container: true, sortKey: OrdinalSortKey(place), child: child);
+    // The identifier tells the server-rendered document that this node sits
+    // in a sentence, so it writes the sentence as one paragraph with the
+    // link in its place (semantic_html.dart in dartvel_cli). It names
+    // nothing a reader hears.
+    return Semantics(
+      container: true,
+      sortKey: OrdinalSortKey(place),
+      identifier: DVWidgetSpan.inSentenceIdentifier,
+      child: child,
+    );
   }
 }
 

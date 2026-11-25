@@ -58,4 +58,18 @@ void main() {
     expect(nodes.where((n) => n['label'] == '' && n['level'] == null && n['href'] == null && (n['children']! as List).isEmpty), isEmpty);
     expect(nodes.where((n) => n['label'] == 'Only'), hasLength(1));
   });
+
+  test('a link placed in a sentence keeps its role and says it is in the sentence', () async {
+    // DVWidgetSpan marks the node it places with the identifier
+    // dartvel:in-sentence. It is still a link (the audit checks links by role),
+    // and the document writes it inside its sentence.
+    final nodes = await capture(
+        '<flt-semantics><flt-semantics><span>Questions? </span></flt-semantics>'
+        '<a href="/contact" flt-semantics-identifier="dartvel:in-sentence">Get a free quote</a>'
+        '<flt-semantics><span>. Our</span></flt-semantics></flt-semantics>');
+    final link = nodes.singleWhere((n) => n['href'] == '/contact');
+    expect(link['role'], 'link');
+    expect(link['inSentence'], isTrue);
+    expect(nodes.where((n) => n['inSentence'] == true), hasLength(1));
+  });
 }
