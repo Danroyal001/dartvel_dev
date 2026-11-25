@@ -19,7 +19,8 @@ import 'package:flutter/rendering.dart'
         SelectedContent,
         SelectParagraphSelectionEvent,
         SelectionRegistrar,
-        SelectWordSelectionEvent;
+        SelectWordSelectionEvent,
+        SliverLayoutDimensions;
 import 'package:flutter/services.dart'
     show Clipboard,
         ServicesBinding,
@@ -831,7 +832,7 @@ export 'src/admin/telemetry_admin.dart';
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
 export 'src/seo/capture_hold.dart' show DVCaptureHold;
-export 'src/auth/ask_for_code.dart';
+export 'src/auth/ask_for_code.dart' hide dvOneTimeCodeHints;
 export 'src/auth/auth_frame.dart';
 export 'src/auth/qr_code.dart';
 export 'src/auth/session_client.dart';
@@ -2233,6 +2234,9 @@ class DVBox<T> extends StatelessWidget {
   final List<T>? _items;
   final Widget Function(BuildContext, T)? _itemBuilder;
 
+  /// For [DVBox.scrollableList]: each row's extent, by row index.
+  final double Function(int index, SliverLayoutDimensions dimensions)? _itemExtentBuilder;
+
   /// The widgets this box was handed, for reading the words on a control
   /// without building it. Not for application code.
   List<Widget> get labelChildren => <Widget>[
@@ -2253,7 +2257,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.list(
     List<Widget> children, {
@@ -2273,7 +2278,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.row(
     List<Widget> children, {
@@ -2295,17 +2301,27 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// A vertical list that scrolls when its children do not fit.
   ///
   /// [DVBox.list] is a plain column: a collection whose length is not known
   /// in advance — every record, every route, every failed job — overflows it
   /// and the overflowing entries simply cannot be seen.
+  ///
+  /// [itemExtentBuilder] gives each row's height (along the scroll) by its
+  /// index among [children], so the list can place a row it has not built
+  /// -- a long jump, a scrollbar drag -- without building every row before
+  /// it (Flutter 3.50's `itemExtentBuilder` on separated lists). It is asked
+  /// only about rows, never about the gaps between them, which are
+  /// [spacing] tall, and never about an index past the end. A row is laid
+  /// out at the height it is given whatever it would have measured.
   const DVBox.scrollableList(
     List<Widget> children, {
     DVModifier? modifier,
     double spacing = 8,
+    double Function(int index, SliverLayoutDimensions dimensions)? itemExtentBuilder,
   })  : _child = null,
         _children = children,
         _modifier = modifier,
@@ -2318,7 +2334,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = true,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = itemExtentBuilder;
 
   /// Canonical wrap layout for a static collection of [children].
   const DVBox.wrapLine(
@@ -2339,7 +2356,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Compatibility alias for [DVBox.wrapLine]; prefer `wrapLine` in new code.
   const DVBox.wrap(
@@ -2360,7 +2378,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.stack(List<Widget> children, {DVModifier? modifier})
       : _child = null,
@@ -2375,7 +2394,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.grid(
     List<Widget> children, {
@@ -2395,7 +2415,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   const DVBox.horizontalScrollable(
     List<Widget> children, {
@@ -2413,7 +2434,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Two panes, one each side of the fold on a foldable.
   ///
@@ -2443,7 +2465,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// Three panes, one per panel of a tri-fold.
   ///
@@ -2478,7 +2501,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = oneFold;
+        _oneFold = oneFold,
+        _itemExtentBuilder = null;
 
   const DVBox.masonry(
     List<Widget> children, {
@@ -2498,7 +2522,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = false,
         _items = null,
         _itemBuilder = null,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   /// An image, as a box.
   ///
@@ -2656,7 +2681,8 @@ class DVBox<T> extends StatelessWidget {
         _scrollable = scrollable,
         _items = items,
         _itemBuilder = itemBuilder,
-        _oneFold = DVThreePaneFold.firstAlone;
+        _oneFold = DVThreePaneFold.firstAlone,
+        _itemExtentBuilder = null;
 
   static DVBox<T> builder<T>(
     Iterable<T> items,
@@ -3539,6 +3565,8 @@ class DVBox<T> extends StatelessWidget {
     return DVLazyListView(
       itemCount: children.length,
       itemBuilder: (BuildContext context, int index) => row(index),
+      itemExtentBuilder: _itemExtentBuilder,
+      separatorExtent: _spacing,
       separatorBuilder: _spacing <= 0 ? null : (BuildContext context, int index) => SizedBox(height: _spacing),
     );
   }
@@ -8793,18 +8821,33 @@ class DVAuth {
   /// [verify] to check it without closing: answer with what to tell the
   /// person, and they can try again. For a flow with a page of its own,
   /// [AskForCodePage] asks the same thing without a dialog.
+  ///
+  /// [sentBy] says how the code went out, so the field offers it from the
+  /// right app: a mailed code ([DVNotificationChannel.email], the default)
+  /// from the mail app on Android, a texted one ([DVNotificationChannel.sms])
+  /// from messages; iOS and the web fill both from `one-time-code`.
+  ///
+  /// [barrierBuilder] draws the barrier behind the dialog (Flutter 3.50's
+  /// `RouteBarrierBuilder`): it is handed the default barrier to wrap -- in a
+  /// blur, say -- or to replace. Whatever it draws, a tap outside still
+  /// dismisses and a screen reader still announces "Dismiss": Dartvel keeps
+  /// a clear barrier with those over what the app drew.
   Future<String?> askForCode(
     BuildContext context, {
     int length = 6,
     String title = 'Enter your code',
     String? message,
     DVCodeCheck? verify,
+    DVNotificationChannel sentBy = DVNotificationChannel.email,
+    RouteBarrierBuilder? barrierBuilder,
   }) => dvAskForCode(
     context,
     length: length,
     title: title,
     message: message,
     verify: verify,
+    sentBy: sentBy,
+    barrierBuilder: barrierBuilder,
   );
 
   /// The same question as a whole page.
@@ -8813,11 +8856,13 @@ class DVAuth {
     int length = 6,
     String title = 'Enter your code',
     String? message,
+    DVNotificationChannel sentBy = DVNotificationChannel.email,
     required Future<String?> Function(String code) onCode,
   }) => DVAskForCodePage(
     length: length,
     title: title,
     message: message,
+    sentBy: sentBy,
     onCode: onCode,
   );
 
@@ -10562,7 +10607,7 @@ class _ProfilePageState extends State<_ProfilePage> {
           controller: _code,
           decoration: const InputDecoration(labelText: 'Code from the e-mail'),
           keyboardType: TextInputType.number,
-          autofillHints: const <String>[AutofillHints.oneTimeCode],
+          autofillHints: dvOneTimeCodeHints(DVNotificationChannel.email),
           textInputAction: .done,
           onSubmitted: (_) => unawaited(_run(() async {
                 await widget.auth.confirmEmailChange(_code.text.trim());

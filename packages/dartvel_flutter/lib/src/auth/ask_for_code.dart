@@ -7,12 +7,29 @@
 /// or as a whole page for a flow that has one, `DV.Auth.AskForCodePage`.
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVNotificationChannel;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// Checks a code. Returns null when it is right, or what to tell the person
 /// when it is not.
 typedef DVCodeCheck = Future<String?> Function(String code);
+
+/// The autofill hints for a field taking a code that went out by [sentBy].
+///
+/// Android has a hint for each: an e-mailed code is `emailOTPCode` (Flutter
+/// 3.50), which the mail app can offer, and a texted one `oneTimeCode`, which
+/// the messages app offers. iOS and the web read only the first hint and know
+/// only `oneTimeCode` (`autocomplete="one-time-code"`), which they fill from
+/// mail and messages alike, so there it stays.
+List<String> dvOneTimeCodeHints(DVNotificationChannel sentBy) {
+  final bool android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  if (android && sentBy == DVNotificationChannel.email) {
+    return const <String>[AutofillHints.emailOTPCode];
+  }
+  return const <String>[AutofillHints.oneTimeCode];
+}
 
 /// The field, the button and the message, shared by the modal and the page.
 class DVCodeEntry extends StatefulWidget {
@@ -22,6 +39,7 @@ class DVCodeEntry extends StatefulWidget {
     this.message,
     this.confirmLabel = 'Continue',
     this.onCancel,
+    this.sentBy = DVNotificationChannel.email,
     required this.onSubmit,
   });
 
@@ -38,6 +56,11 @@ class DVCodeEntry extends StatefulWidget {
 
   /// Answers null when the code is accepted, or what to say when it is not.
   final DVCodeCheck onSubmit;
+
+  /// How the code went out, so the field offers it from the right app:
+  /// [DVNotificationChannel.email] (the default) or
+  /// [DVNotificationChannel.sms]. See [dvOneTimeCodeHints].
+  final DVNotificationChannel sentBy;
 
   @override
   State<DVCodeEntry> createState() => _DVCodeEntryState();
@@ -91,7 +114,7 @@ class _DVCodeEntryState extends State<DVCodeEntry> {
           textAlign: .center,
           // The code is what somebody's password manager and their phone's
           // keyboard both offer to fill in.
-          autofillHints: const <String>[AutofillHints.oneTimeCode],
+          autofillHints: dvOneTimeCodeHints(widget.sentBy),
           maxLength: widget.length,
           style: theme.textTheme.headlineSmall?.copyWith(letterSpacing: 8),
           inputFormatters: <TextInputFormatter>[
@@ -124,16 +147,17 @@ Future<String?> dvAskForCode(
   String title = 'Enter your code',
   String? message,
   DVCodeCheck? verify,
+  DVNotificationChannel sentBy = DVNotificationChannel.email,
+  RouteBarrierBuilder? barrierBuilder,
 }) {
-  return showDialog<String>(
-    context: context,
-    builder: (BuildContext dialog) => AlertDialog(
+  Widget dialogFor(BuildContext dialog) => AlertDialog(
       title: Text(title),
       content: SizedBox(
         width: 320,
         child: DVCodeEntry(
           length: length,
           message: message,
+          sentBy: sentBy,
           onCancel: () => Navigator.of(dialog).pop(),
           onSubmit: (String code) async {
             final String? problem = await verify?.call(code);
@@ -143,8 +167,75 @@ Future<String?> dvAskForCode(
           },
         ),
       ),
-    ),
-  );
+    );
+  if (barrierBuilder == null) {
+    return showDialog<String>(context: context, builder: dialogFor);
+  }
+  // The same route showDialog pushes, with the app's barrier drawn in it.
+  final NavigatorState navigator = Navigator.of(context, rootNavigator: true);
+  return navigator.push<String>(_DVBarrierDialogRoute<String>(
+    context: context,
+    builder: dialogFor,
+    barrierBuilder: barrierBuilder,
+    barrierColor: DialogTheme.of(context).barrierColor ??
+        Theme.of(context).dialogTheme.barrierColor ??
+        Colors.black54,
+    themes: InheritedTheme.capture(from: context, to: navigator.context),
+  ));
+}
+
+/// A material dialog route whose barrier the application draws.
+///
+/// What it draws is only drawn: it gets no taps and no semantics. Over it
+/// sits a clear ModalBarrier carrying what the default barrier carried --
+/// the tap outside that dismisses, the "Dismiss" a screen reader announces,
+/// Escape -- so an app that replaces the barrier outright, rather than
+/// wrapping the one it is handed, cannot make the dialog impossible to leave
+/// or silent to a screen reader.
+class _DVBarrierDialogRoute<T> extends DialogRoute<T> {
+  _DVBarrierDialogRoute({
+    required super.context,
+    required super.builder,
+    required RouteBarrierBuilder barrierBuilder,
+    required super.barrierColor,
+    super.themes,
+  }) : _drawBarrier = barrierBuilder,
+       super(traversalEdgeBehavior: TraversalEdgeBehavior.closedLoop);
+
+  // Not named barrierBuilder: that would override RawDialogRoute's own
+  // field, and its buildModalBarrier would run the builder a second time.
+  final RouteBarrierBuilder _drawBarrier;
+
+  @override
+  Widget buildModalBarrier() {
+    final Widget drawn = super.buildModalBarrier();
+    return Builder(
+      builder: (BuildContext context) => Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          ExcludeSemantics(
+            child: IgnorePointer(
+              child: _drawBarrier(
+                context,
+                RouteBarrierDetails(
+                  animation: animation!,
+                  barrierColor: barrierColor,
+                  barrierLabel: barrierLabel,
+                  barrierDismissible: barrierDismissible,
+                ),
+                drawn,
+              ),
+            ),
+          ),
+          ModalBarrier(
+            dismissible: barrierDismissible,
+            semanticsLabel: barrierLabel,
+            barrierSemanticsDismissible: semanticsDismissible,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// The same question as a page. See `DV.Auth.AskForCodePage`.
@@ -154,8 +245,12 @@ class DVAskForCodePage extends StatelessWidget {
     this.length = 6,
     this.title = 'Enter your code',
     this.message,
+    this.sentBy = DVNotificationChannel.email,
     required this.onCode,
   });
+
+  /// How the code went out; see [DVCodeEntry.sentBy].
+  final DVNotificationChannel sentBy;
 
   final int length;
   final String title;
@@ -176,6 +271,7 @@ class DVAskForCodePage extends StatelessWidget {
               child: DVCodeEntry(
                 length: length,
                 message: message,
+                sentBy: sentBy,
                 onSubmit: onCode,
               ),
             ),
