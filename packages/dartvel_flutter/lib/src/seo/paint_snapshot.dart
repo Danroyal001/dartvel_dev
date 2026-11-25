@@ -546,12 +546,15 @@ class _Snapshot {
   /// paragraph: kind `e`, so the layout puts it in the document's own
   /// input (or draws it, where the document has none) instead of matching
   /// it to the document's text. A password is never read.
+  ///
+  /// An empty field is read too, with no text: its box and the style typing
+  /// takes, so the document's input is styled and padded as the app's
+  /// before a visitor types into it.
   void _editable(RenderEditable editable, Rect rect, _State state) {
     if (editable.obscureText) return;
     final InlineSpan? span = editable.text;
     if (span == null) return;
     final String text = span.toPlainText(includeSemanticsLabels: false, includePlaceholders: false);
-    if (text.trim().isEmpty) return;
     final Map<String, Object?>? item = _item('e', rect, state);
     if (item == null) return;
     final List<Map<String, Object?>> runs = <Map<String, Object?>>[];
@@ -567,6 +570,9 @@ class _Snapshot {
     }
 
     walk(span, const TextStyle());
+    if (runs.isEmpty && span is TextSpan) {
+      runs.add(_run(span, '', span.style ?? const TextStyle(), editable.textScaler));
+    }
     final bool rtl = editable.textDirection == TextDirection.rtl;
     final int lines = editable.maxLines == 1 ? 1 : math.max(1, '\n'.allMatches(text).length + 1);
     item
