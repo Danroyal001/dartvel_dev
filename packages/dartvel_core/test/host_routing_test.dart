@@ -24,6 +24,8 @@ DVHosts example() {
 }
 
 void main() {
+  group('sitemaps for wildcard hosts', _sitemapsForWildcardHosts);
+
   group('DVHosts.parse', () {
     test('reads every entry with its mount, siteUrl, name and description', () {
       final DVHosts hosts = example();
@@ -577,3 +579,108 @@ bool _isRoute(String path) => const <String>{
   '/apps/foo/settings',
   '/pricing',
 }.contains(path);
+
+/// A primary, a mounted index host whose pages each live on a wildcard host
+/// below it, and a wildcard host straight under the primary.
+DVHosts _indexed() {
+  final parsed = DVHosts.parse(<String, Object?>{
+    'example.com': <String, Object?>{'siteUrl': 'https://example.com'},
+    'tools.example.com': <String, Object?>{
+      'mount': '/tools',
+      'siteUrl': 'https://tools.example.com',
+    },
+    '*.tools.example.com': <String, Object?>{
+      'mount': '/tools/{label}',
+      'siteUrl': 'https://{label}.tools.example.com',
+    },
+    '*.apps.example.com': <String, Object?>{
+      'mount': '/apps/{label}',
+      'siteUrl': 'https://{label}.apps.example.com',
+    },
+  });
+  expect(parsed.problems, isEmpty);
+  return parsed.hosts;
+}
+
+const List<String> _indexedRoutes = <String>[
+  '/',
+  '/pricing',
+  '/tools',
+  '/tools/base64',
+  '/tools/base64/help',
+  '/tools/json',
+  '/apps/foo',
+];
+
+String _indexedSitemap(DVHosts hosts) =>
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    '${_indexedRoutes.map((String r) => '  <url>\n    <loc>${hosts.publicUrl(r)}</loc>\n  </url>\n').join()}'
+    '</urlset>\n';
+
+List<String> _locs(String xml) => <String>[
+  for (final RegExpMatch m in RegExp('<loc>([^<]*)</loc>').allMatches(xml))
+    m[1]!,
+];
+
+void _sitemapsForWildcardHosts() {
+  DVHostSiteFile file(String host, String path) {
+    final DVHosts hosts = _indexed();
+    return dvHostSiteFileFor(
+      hosts,
+      host: host,
+      path: path,
+      patterns: _indexedRoutes,
+      robots: dvRobotsTxt(siteUrl: 'https://example.com'),
+      sitemap: _indexedSitemap(hosts),
+    )!;
+  }
+
+  test('the host above a wildcard host lists every page of every label', () {
+    expect(_locs(file('tools.example.com', '/sitemap.xml').body), <String>[
+      'https://tools.example.com',
+      'https://base64.tools.example.com',
+      'https://base64.tools.example.com/help',
+      'https://json.tools.example.com',
+    ]);
+  });
+
+  test('a wildcard host still has a sitemap of its own pages only', () {
+    expect(
+      _locs(file('base64.tools.example.com', '/sitemap.xml').body),
+      <String>[
+        'https://base64.tools.example.com',
+        'https://base64.tools.example.com/help',
+      ],
+    );
+  });
+
+  test('a wildcard host under the primary is listed by the primary', () {
+    expect(_locs(file('example.com', '/sitemap.xml').body), <String>[
+      'https://example.com',
+      'https://example.com/pricing',
+      'https://foo.apps.example.com',
+    ]);
+  });
+
+  test("a wildcard host's robots.txt names the sitemap that lists it too", () {
+    // sitemaps.org cross-submission: a sitemap may list another host's URLs
+    // when that host's robots.txt names it.
+    expect(
+      file('base64.tools.example.com', '/robots.txt').body,
+      'User-agent: *\nAllow: /\n\n'
+      'Sitemap: https://base64.tools.example.com/sitemap.xml\n'
+      'Sitemap: https://tools.example.com/sitemap.xml\n',
+    );
+    expect(
+      file('foo.apps.example.com', '/robots.txt').body,
+      'User-agent: *\nAllow: /\n\n'
+      'Sitemap: https://foo.apps.example.com/sitemap.xml\n'
+      'Sitemap: https://example.com/sitemap.xml\n',
+    );
+    expect(
+      file('tools.example.com', '/robots.txt').body,
+      'User-agent: *\nAllow: /\n\nSitemap: https://tools.example.com/sitemap.xml\n',
+    );
+  });
+}

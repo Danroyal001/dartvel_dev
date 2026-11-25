@@ -416,6 +416,37 @@ final class const DVHosts(final List<DVHostEntry> entries, {final List<DVHostRed
     return owner('/$probe').entry;
   }
 
+  /// The host whose sitemap lists the pages of [host]: [host] itself unless
+  /// it matched a wildcard, and for a wildcard host the declared
+  /// (non-wildcard) host with the longest mount containing its mount, the
+  /// primary when none does. A wildcard is an open-ended family of hosts
+  /// nobody can submit one by one, so the host above it enumerates them;
+  /// each still has a sitemap of its own, and its robots.txt names both
+  /// (sitemaps.org cross-submission).
+  DVHostMatch sitemapHostOf(DVHostMatch host) {
+    if (!host.entry.isWildcard) return host;
+    final List<String> below = _segments(host.mount);
+    DVHostEntry? best;
+    int bestLength = -1;
+    for (final DVHostEntry e in entries) {
+      if (e.isWildcard) continue;
+      final List<String> mount = _segments(e.mount);
+      if (mount.length >= below.length || mount.length <= bestLength) continue;
+      bool fits = true;
+      for (int i = 0; i < mount.length; i++) {
+        if (mount[i] != below[i]) {
+          fits = false;
+          break;
+        }
+      }
+      if (fits) {
+        best = e;
+        bestLength = mount.length;
+      }
+    }
+    return best == null ? primaryMatch : DVHostMatch(best);
+  }
+
   /// [internalPath] as an absolute URL on the host that owns it, with
   /// [query] when there is one. The root of a host is written as its origin
   /// with no trailing slash, as every canonical and sitemap URL Dartvel
@@ -613,7 +644,9 @@ typedef DVHostSiteFile = ({int status, String contentType, String body});
 ///
 /// [robots] and [sitemap] are what the build wrote, or null. The sitemap
 /// lists every page's public URL; each host is answered with the entries on
-/// its own origin and a robots.txt naming its own sitemap. A host that
+/// its own origin and on the wildcard hosts it lists
+/// ([DVHosts.sitemapHostOf]), and a robots.txt naming its own sitemap and,
+/// on a wildcard host, the one that lists it too. A host that
 /// serves none of the route [patterns] -- a wildcard label nothing is
 /// published under -- is answered 404 for both. Decided from [hosts], which
 /// the caller parsed from the manifest, never from the files' text.
@@ -633,16 +666,23 @@ DVHostSiteFile? dvHostSiteFileFor(
     return (status: 404, contentType: 'text/plain; charset=utf-8', body: 'Not found');
   }
   if (path == '/robots.txt') {
+    final DVHostMatch listedBy = hosts.sitemapHostOf(match);
     return (
       status: 200,
       contentType: 'text/plain; charset=utf-8',
-      body: dvRobotsTxt(siteUrl: match.origin, sitemap: sitemap != null),
+      body: dvRobotsTxt(
+        siteUrl: match.origin,
+        sitemap: sitemap != null,
+        alsoListedBy: <String>[
+          if (sitemap != null && listedBy.origin != match.origin) listedBy.origin,
+        ],
+      ),
     );
   }
   return (
     status: 200,
     contentType: 'application/xml; charset=utf-8',
-    body: dvSitemapForOrigin(sitemap!, match.origin),
+    body: dvSitemapForHost(sitemap!, hosts, match),
   );
 }
 
@@ -694,22 +734,49 @@ String? dvEffectiveHost({
 }
 
 /// A robots.txt allowing everything and naming [siteUrl]'s sitemap when
-/// [sitemap]. What the build writes, and what the server answers per host.
-String dvRobotsTxt({required String siteUrl, bool sitemap = true}) {
-  final String base = siteUrl.replaceAll(RegExp(r'/+$'), '');
+/// [sitemap], then the sitemap of each origin in [alsoListedBy]: hosts whose
+/// sitemap lists this host's pages too, which naming them here allows
+/// (sitemaps.org cross-submission). What the build writes, and what the
+/// server answers per host.
+String dvRobotsTxt({
+  required String siteUrl,
+  bool sitemap = true,
+  List<String> alsoListedBy = const <String>[],
+}) {
+  String sitemapOf(String origin) =>
+      'Sitemap: ${origin.replaceAll(RegExp(r'/+$'), '')}/sitemap.xml\n';
   const String head =
       'User-agent: *\n'
       'Allow: /\n';
   if (!sitemap) return head;
   return '$head'
       '\n'
-      'Sitemap: $base/sitemap.xml\n';
+      '${sitemapOf(siteUrl)}'
+      '${alsoListedBy.map(sitemapOf).join()}';
 }
 
 /// [sitemap] with only the `<url>` entries whose location is on [origin].
 /// The build writes one sitemap of every page's public URL; each host is
 /// answered with its own part of it.
 String dvSitemapForOrigin(String sitemap, String origin) =>
+    _sitemapWhere(sitemap, (String url) => _origin(url, allowPath: true) == origin);
+
+/// [sitemap] with the `<url>` entries [host] lists: those on its own origin,
+/// and those on each wildcard host whose [DVHosts.sitemapHostOf] it is.
+String dvSitemapForHost(String sitemap, DVHosts hosts, DVHostMatch host) =>
+    _sitemapWhere(sitemap, (String url) {
+      final String? origin = _origin(url, allowPath: true);
+      if (origin == null) return false;
+      if (origin == host.origin) return true;
+      final String? name = Uri.tryParse(origin)?.host;
+      final DVHostMatch? owner = name == null ? null : hosts.match(name);
+      return owner != null &&
+          owner.origin == origin &&
+          owner.entry.isWildcard &&
+          hosts.sitemapHostOf(owner).origin == host.origin;
+    });
+
+String _sitemapWhere(String sitemap, bool Function(String url) keep) =>
     sitemap.replaceAllMapped(
       RegExp(r'[ \t]*<url>.*?</url>[ \t]*\r?\n?', dotAll: true),
       (Match m) {
@@ -719,7 +786,7 @@ String dvSitemapForOrigin(String sitemap, String origin) =>
         ).firstMatch(m[0]!)?.group(1);
         if (loc == null) return '';
         final String url = loc.trim().replaceAll('&amp;', '&');
-        return _origin(url, allowPath: true) == origin ? m[0]! : '';
+        return keep(url) ? m[0]! : '';
       },
     );
 
