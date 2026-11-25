@@ -103,6 +103,37 @@ void main() {
     expect(runs[1]['d'], 'underline');
   });
 
+  testWidgets('a paragraph with a link in its line: its real lines and line height',
+      (WidgetTester tester) async {
+    // A link placed in a sentence (a WidgetSpan) is a box in the line, and
+    // its box and the text's do not share a top. Counted as a line each, a
+    // two-line sentence with one link read as three lines of two thirds the
+    // height (sigmadev.digital/about: 64px reported as 3 x 21.33 for 2 x 32),
+    // and the server-rendered sentence was drawn at the wrong line height.
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Padding(
+          padding: EdgeInsets.only(left: 20, top: 30),
+          child: SizedBox(
+            width: 100,
+            child: Text.rich(
+              TextSpan(children: <InlineSpan>[
+                TextSpan(text: 'aa '),
+                WidgetSpan(child: SizedBox(width: 30, height: 20)),
+                TextSpan(text: ' bbbbbbbbbb cc'),
+              ]),
+              style: TextStyle(fontSize: 10, height: 2),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> item = _text(dvPaintSnapshot(), 'aa  bbbbbbbbbb cc');
+    expect(item['lines'], 3);
+    expect(item['lh'], closeTo(_rect(item)[3] / 3, 0.01));
+    expect(item['nw'], isNull);
+  });
+
   testWidgets('boxes: colour, radii, border and shadow, in paint order',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(

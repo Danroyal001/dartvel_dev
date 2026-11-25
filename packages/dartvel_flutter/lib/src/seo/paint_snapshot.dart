@@ -36,6 +36,7 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' show BoxHeightStyle;
 
 import 'package:flutter/material.dart' show ColorScheme, InputBorder, InputDecorationTheme, InputDecorator, OutlineInputBorder, Theme, ThemeData, UnderlineInputBorder, WidgetState, WidgetStateProperty;
 import 'package:flutter/rendering.dart';
@@ -510,9 +511,14 @@ class _Snapshot {
     }
 
     walk(span, const TextStyle());
-    // Line boxes, from the laid-out paragraph itself.
+    // Line boxes, from the laid-out paragraph itself: each as tall as its
+    // line, so a link placed in the line (a placeholder, whose box does not
+    // share the text's top) or a larger run does not count as a line of its
+    // own. The offsets count each placeholder, the text above does not.
+    final int length = span.toPlainText(includeSemanticsLabels: false).length;
     final List<TextBox> boxes = paragraph.getBoxesForSelection(
-        TextSelection(baseOffset: 0, extentOffset: text.length));
+        TextSelection(baseOffset: 0, extentOffset: length),
+        boxHeightStyle: BoxHeightStyle.max);
     final Set<int> tops = <int>{for (final TextBox box in boxes) (box.top * 2).round()};
     final int lines = math.max(1, tops.length);
     final bool rtl = paragraph.textDirection == TextDirection.rtl;
