@@ -450,6 +450,22 @@ single runs vary by a second):
   Safari ignore the attribute and paint on the app's colour. The same page
   with and without the link, 12 runs each, alternating: first text
   2,070 ms without, 2,246 ms with (within the noise of the host).
+- **A small image on the first screen is in the first frame.** Holding the
+  paint for the first screen did not hold it for images: the header logo of
+  sigmadev.digital came 0.2 s (light) to 3 s (dark) after the first frame.
+  The `<img>` was fetched on its own and decoded asynchronously, and the
+  dark logo was a `content:url()` the browser only found once the
+  stylesheet applied. The build now reads each image on the first screen
+  from the web root it built and writes those up to 8 KB (24 KB a page,
+  both schemes' variants counted) into the page as data URIs with
+  `decoding="sync"`: a data URI loads at once, so the image is drawn in the
+  frame the first screen is. A bigger image stays a URL with
+  `fetchpriority="high"`, never waited for; below the first screen images
+  stay `loading="lazy"`. sigmadev.digital home, Fast 3G, 4x CPU, 390 px,
+  8 runs each alternating (host load ~20): first contentful paint median
+  1,840 ms before / 1,562 ms after (light), 1,368 / 1,392 ms (dark), the
+  page 72 KB / 80 KB compressed; the filmstrip shows the logo in the first
+  painted frame in both schemes.
 - **Fallback fonts the app does not bundle are not named.** The capture's
   theme carries Material's Linux fallback list (Ubuntu, Adwaita Sans,
   Cantarell, DejaVu Sans, Liberation Sans, Arial) from the build box. Flutter

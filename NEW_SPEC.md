@@ -621,7 +621,13 @@ The table is the contract. Each row says which entries a target has, what
   because under `<base href="/">` a bare `#id` names the site root and is
   ignored on every other route. A page with no layout is held until it is
   parsed; a browser without `blocking` paints as before, on the app's
-  colour. Fallback font families are named only when the app bundles them:
+  colour. A small image on the first screen (a logo, an icon: up to 8 KB,
+  24 KB a page, light and dark) is written into the page as a data URI and
+  decoded with the first frame; the build reads it from the web root it
+  built. A bigger one stays a URL fetched with `fetchpriority="high"`, so
+  the first paint never waits on a photograph over a slow line, and an
+  image below the first screen loads lazily as before.
+  Fallback font families are named only when the app bundles them:
   Flutter on the web never draws with the visitor's system fonts, and the
   theme's platform list (Material's Linux list on a Linux build box) cost a
   font lookup each before the first paint.
