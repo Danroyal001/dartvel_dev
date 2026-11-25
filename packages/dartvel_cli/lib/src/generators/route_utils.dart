@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
+import 'backend_parameter_types.dart' show dvDecodedClassName;
 
 class RouteUtils {
   static String routeFor(String rel, String pagesDir) {
@@ -152,7 +153,8 @@ class RouteUtils {
   }
 
   static String coerce(String name, String type,
-      {Iterable<String> declaredModels = const <String>[]}) {
+      {Iterable<String> declaredModels = const <String>[],
+      Map<String, String> classAliases = const <String, String>{}}) {
     final src =
         "(req.params['$name'] ?? req.url.queryParameters['$name'] ?? ((body is Map) ? (body['$name']) : null))";
     final t = type.replaceAll('?', '').trim();
@@ -184,8 +186,57 @@ class RouteUtils {
         return '((body is Map && body["$name"] is List) ? (body["$name"] as List) : (body is List ? body : const [])).map((e) => ${inner}Parser.fromJson(Map<String, Object?>.from(e as Map))).toList()';
       }
     }
+    final String? className = dvDecodedClassName(type);
+    if (className != null && classAliases.containsKey(className)) {
+      final String alias = classAliases[className]!;
+      final bool isNullable = type.trim().endsWith('?');
+      final String refusal = "const core.DVRefusal('\"$name\" is missing or is not a valid $className', status: 400)";
+      // A query string carries the object as JSON text.
+      const String objectOf =
+          'if (json is String) { try { json = conv.jsonDecode(json); } catch (_) {} }';
+      final String whenNull = isNullable ? 'return null;' : 'throw $refusal;';
+      if (type.trim().startsWith('List<')) {
+        return '((){ Object? json = $src; $objectOf if (json == null) { $whenNull } if (json is! List) throw $refusal; return json.map((e) { if (e is! Map) throw $refusal; return $alias.$className.fromJson(Map<String, dynamic>.from(e)); }).toList(); }())';
+      }
+      return '((){ Object? json = $src; $objectOf if (json == null) { $whenNull } if (json is! Map) throw $refusal; return $alias.$className.fromJson(Map<String, dynamic>.from(json)); }())';
+    }
     if (t.endsWith('Request') || t.endsWith('RequestType')) return 'req';
     return src; // fallback
+  }
+
+  /// [list] split at the commas that are not inside `<...>`, `(...)` or a
+  /// quoted string, so `Map<String, Object?>` and `(int, int)` stay whole.
+  static List<String> splitTopLevel(String list) {
+    final List<String> parts = <String>[];
+    final StringBuffer current = StringBuffer();
+    int depth = 0;
+    String? quote;
+    for (int i = 0; i < list.length; i++) {
+      final String c = list[i];
+      if (quote != null) {
+        current.write(c);
+        if (c == r'\' && i + 1 < list.length) {
+          current.write(list[++i]);
+        } else if (c == quote) {
+          quote = null;
+        }
+        continue;
+      }
+      if (c == "'" || c == '"') {
+        quote = c;
+      } else if (c == '<' || c == '(') {
+        depth++;
+      } else if ((c == '>' && !(i > 0 && list[i - 1] == '=')) || c == ')') {
+        if (depth > 0) depth--;
+      } else if (c == ',' && depth == 0) {
+        parts.add(current.toString());
+        current.clear();
+        continue;
+      }
+      current.write(c);
+    }
+    if (current.isNotEmpty) parts.add(current.toString());
+    return parts;
   }
 
   static void extractParams(String rawFull, Function(String, String) onParam,
@@ -195,8 +246,7 @@ class RouteUtils {
     final String uncommented = stripComments(rawFull);
     if (uncommented.contains('{') && onNamed != null) onNamed('1');
     final raw = uncommented.replaceAll(RegExp(r'[\{\}\[\]]'), '');
-    final parts =
-        raw.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+    final parts = splitTopLevel(raw).map((s) => s.trim()).where((s) => s.isNotEmpty);
 
     for (final pstr0 in parts) {
       var pstr = pstr0.replaceAll(RegExp(r'^required\s+'), '');

@@ -40,6 +40,7 @@ import 'package:file/local.dart';
 
 import 'model_names.dart';
 import 'client_type_imports.dart';
+import 'backend_parameter_types.dart';
 import 'function_body.dart';
 import 'raw_path.dart';
 import 'job_generator.dart';
@@ -938,8 +939,7 @@ ${api.signUp ? '''  router.post(cfg.apiBasePath + core.DVAuthEndpoints.signUpPat
                 .split(',')
                 .where((String s) => s.isNotEmpty)
                 .toList(),
-            parameterTypes: (e['ttypes'] ?? '')
-                .split(',')
+            parameterTypes: RouteUtils.splitTopLevel(e['ttypes'] ?? '')
                 .where((String s) => s.isNotEmpty)
                 .toList(),
             returnType: e['rtype'] ?? '',
@@ -1205,6 +1205,36 @@ ${serverBoot.map((DVBootHook hook) => '  ${hook.step},').join('\n')}
     if (pageHooksImport != null && RegExp(r'''import\s+['"]package:flutter/''').hasMatch(pageHooks.readAsStringSync())) {
       throw StateError('DV-PAGE-010: ${p.relative(pageHooks.path, from: root)} imports Flutter, but it is compiled into the server. Read data with package:dartvel_core and the generated server models only.');
     }
+    // The application's own classes the functions take as parameters, with
+    // the alias each is imported under, so a route can decode the argument
+    // with the class's fromJson.
+    final Map<String, Map<String, String>> parameterClassAliases =
+        <String, Map<String, String>>{};
+    final Set<String> parameterClassImports = <String>{};
+    for (final Map<String, String> entry in backendEntries) {
+      final String abs = entry['abs'] ?? '';
+      final String rel = entry['rel'] ?? '';
+      if (abs.isEmpty || rel.isEmpty) continue;
+      final String pkg = entry['pkg'] ?? pkgName;
+      final Map<String, String> classes = dvBackendParameterClassImports(
+        source: entry['src'] ?? '',
+        sourcePath: abs,
+        selfImport: rel.replaceFirst(RegExp(r'^lib/'), 'package:$pkg/'),
+        projectRoot: abs.substring(0, abs.length - rel.length),
+        packageName: pkg,
+        types: RouteUtils.splitTopLevel(entry['ttypes'] ?? ''),
+        alreadyDecoded: declaredModels.toSet(),
+      );
+      if (classes.isEmpty) continue;
+      final Map<String, String> aliases = <String, String>{};
+      var aliasIndex = 0;
+      classes.forEach((String name, String uri) {
+        final String alias = 'dvp${entry['i']}_${aliasIndex++}';
+        aliases[name] = alias;
+        parameterClassImports.add("import '$uri' as $alias;");
+      });
+      parameterClassAliases[entry['i']!] = aliases;
+    }
     final backendRoutes =
         '''
 // GENERATED – do not edit.
@@ -1237,6 +1267,7 @@ import 'package:$pkgName/dartvel_client/privacy.g.dart' show configureDartvelBac
 import 'package:$pkgName/dartvel_client/jobs.g.dart' show dartvelClientOnlyJobHandlers, registerDartvelJobs;
 import 'package:$pkgName/dartvel_client/backend_policies.g.dart' show dartvelRegisterBackendPolicies, dartvelOfflineResources;
 ${authenticates ? "import 'package:$pkgName/dartvel_client/platform_api.g.dart' show dartvelPlatformApi;\n" : ''}${backendImports.join('\n')}
+${parameterClassImports.join('\n')}
 ${declaredModels.isEmpty ? '' : "import 'package:$pkgName/dartvel_client/models.g.dart';\n"}${dvModuleRpcImports(moduleRpcRoutes)}
 
 // The generated OpenAPI document, served at cfg.apiBasePath + '/openapi.json'.
@@ -1700,14 +1731,14 @@ ${backendEntries.map((e) {
                     "return _dvPolicyForbidden('$policy');";
 
           final tparams = (e['tparams'] ?? '').split(',').where((s) => s.isNotEmpty).toList();
-          final ttypes = (e['ttypes'] ?? '').split(',');
+          final ttypes = RouteUtils.splitTopLevel(e['ttypes'] ?? '');
           final tnamed = e['tnamed'] == '1';
 
           final argList = <String>[];
           for (var idx = 0; idx < tparams.length; idx++) {
             final pn = tparams[idx];
             final pt = idx < ttypes.length ? ttypes[idx] : '';
-            final expr = RouteUtils.coerce(pn, pt, declaredModels: declaredModels);
+            final expr = RouteUtils.coerce(pn, pt, declaredModels: declaredModels, classAliases: parameterClassAliases[e['i']] ?? const <String, String>{});
             argList.add(tnamed ? ('$pn: $expr') : expr);
           }
           // The injected context, first and positional, ahead of whatever the
@@ -2977,7 +3008,7 @@ Stream<T> _dvStream<T>(Uri uri, T Function(Object?) fromJson,
           .split(',')
           .where((s) => s.isNotEmpty)
           .toList();
-      final ttypes = (e['ttypes'] ?? '').split(',');
+      final ttypes = RouteUtils.splitTopLevel(e['ttypes'] ?? '');
       final rtype = (e['rtype'] ?? '').trim();
       final clientReturnType = _clientReturnType(rtype);
       if (rtype.isNotEmpty &&
