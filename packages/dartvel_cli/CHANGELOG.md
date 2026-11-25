@@ -1,3 +1,9 @@
+## Unreleased
+
+- New projects, the generated client and `dartvel generate` output import `package:material_ui/material_ui.dart`, never the `package:flutter/material.dart` Flutter 3.50 deprecates, and `dartvel create` writes `material_ui: ^1.11.1` (one constant, `dvMaterialUiVersion`, beside `dartvelPackageVersion`; a test holds it to what dartvel_flutter declares).
+- `dartvel upgrade --project` moves an application onto `material_ui`/`cupertino_ui`. It adds `material_ui` to a Flutter project that depends on dartvel_flutter (and `cupertino_ui` where a source imports `flutter/cupertino.dart`) at the versions Dartvel was tested on, resolves, then runs Flutter's `dart fix --apply --code=migrate_design_widgets` in the project and each local module that imports either library. A failed fix, or an import the fix left behind, is named and the command exits 1. A project already on this release but still on the old imports is moved too.
+- `tool/ci/design_imports_check.dart` fails when any tracked Dart file, generator templates and their strings included, names `flutter/material` or `flutter/cupertino`.
+
 ## 3.47.9 — 2026-11-25
 
 - With SSR-first there is no white or blank frame before the page. The browser painted its own white canvas, then a half-laid-out page, before the server-rendered document: `html` is now painted in the splash colours (light and dark), the SSR-first head holds the first paint until the whole first screen is in (`<link rel="expect" blocking="render">` naming a `#dv-first-screen` marker written after the document, with the page's own URL because of `<base href="/">`), and only bundled fallback fonts are named (system fallbacks only cost font lookups before the first layout; Flutter web never draws with them). On sigmadev.digital (Fast 3G, 4x CPU) the first paint is now the whole first screen instead of a blank frame at 0.4-0.5 s.
