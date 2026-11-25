@@ -1,7 +1,7 @@
 /// Dialogs that open inside the window that asked for them.
 library dartvel_windowing.dialogs;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// [showDialog], kept inside the calling window.
 ///

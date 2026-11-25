@@ -1,6 +1,6 @@
 // showInWindowDialog: a dialog in front of the window that asked for it.
 import 'package:dartvel_windowing/dartvel_windowing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
