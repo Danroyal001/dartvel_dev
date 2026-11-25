@@ -90,7 +90,9 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'it, on the first page and after moving to another.',
               'A link is named by its own words, even when it sits directly '
                   'among the paragraphs of a page; a link inside a sentence is '
-                  'read in its place in the sentence.',
+                  'read in its place in the sentence. For two or more links in one '
+                  'sentence, place each with DVWidgetSpan instead of '
+                  'WidgetSpan, so every one is read where it is written.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
               'A password field starts with a Show password toggle button, '

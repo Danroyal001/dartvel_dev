@@ -961,6 +961,7 @@ export 'src/widgets/described_paint.dart'
 export 'src/widgets/home_widgets.dart';
 export 'src/widgets/shortcuts.dart';
 export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
+export 'src/widgets/widget_span.dart' show DVWidgetSpan;
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';
 export 'src/windowing/displays.dart';
