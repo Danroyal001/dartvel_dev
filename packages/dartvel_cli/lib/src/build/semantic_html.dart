@@ -143,6 +143,21 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
     // would be a second button with the same name.
     if (node.role == 'reveal') continue;
 
+    // A lazy collection and each of its rows, marked while the build
+    // captured the page whole: the running app reads a row it has not built
+    // from these marks instead of building it (document_rows.dart in
+    // dartvel_core). Comments, which the minifier keeps (`dartvel:`), so
+    // nothing a reader, a crawler or a stylesheet sees changes.
+    if (node.role == 'rows' || node.role == 'row') {
+      out.writeln('<!-- dartvel:${node.role} -->');
+      if (hasLabel) {
+        _write(out, <DVSemanticNode>[DVSemanticNode(label: label, headingLevel: node.headingLevel)], depth, fields);
+      }
+      _write(out, node.children, depth, fields);
+      out.writeln('<!-- /dartvel:${node.role} -->');
+      continue;
+    }
+
     if (node.role == 'textbox' && node.fieldType != null) {
       if (hasLabel) {
         _writeField(out, node.fieldType!, label, ++fields.count,
