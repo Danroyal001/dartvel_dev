@@ -89,7 +89,8 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'page without scrolling, and the browser\'s find searches all of '
                   'it, on the first page and after moving to another.',
               'A link is named by its own words, even when it sits directly '
-                  'among the paragraphs of a page.',
+                  'among the paragraphs of a page; a link inside a sentence is '
+                  'read in its place in the sentence.',
               'A refused save is announced in a live region, written under the '
                   'field it names, and given the focus.',
               'A password field starts with a Show password toggle button, '

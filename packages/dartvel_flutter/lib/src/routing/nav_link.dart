@@ -19,6 +19,7 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
@@ -678,6 +679,11 @@ class _DVNavLinkState extends State<DVNavLink> {
     }
   }
 
+  /// Whether this link sits in a run of text: a widget placed in a paragraph
+  /// (a WidgetSpan), whose paragraph is then above it in the render tree.
+  static bool _inSentence(BuildContext context) =>
+      context.findAncestorRenderObjectOfType<RenderParagraph>() != null;
+
   @override
   Widget build(BuildContext context) {
     return Semantics(
@@ -689,7 +695,15 @@ class _DVNavLinkState extends State<DVNavLink> {
       // with nothing: a link directly in a page body took the page's text
       // as its name, and on the web its <a> covered the page (Tori and
       // Learnacer, Dartvel 3.47.7).
-      container: true,
+      //
+      // Except inside a sentence (a WidgetSpan of a Text.rich). A paragraph
+      // with placeholders reads its text and what they say as one node in
+      // reading order, but a placeholder that is a node of its own is left
+      // out of that order and put after all of the paragraph's text: "on
+      // Our work." was read, and server-rendered, as "on ." then "Our
+      // work" (sigmadev.digital on main after 3.47.8). There the link is
+      // read in its place, as part of its sentence.
+      container: !_inSentence(context),
       linkUrl: Uri.tryParse(_href),
       label: widget.semanticLabel,
       // An explicit label replaces the child's text rather than being read

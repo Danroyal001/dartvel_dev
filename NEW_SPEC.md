@@ -1850,7 +1850,9 @@ XSL stylesheet and does not list `/sitemap` itself.
 A link to a config route is a link: an anchor in the semantics tree, keyboard
 focus, middle click to a new tab. The link is a semantics node of its own,
 named by its own words: a link directly in a page body is never merged with the
-paragraphs around it. Preload has nothing of its own to fetch —
+paragraphs around it. A link inside a sentence (a `WidgetSpan` of a
+`Text.rich`) is read in its place in the sentence, so the server-rendered
+document says "on Our work." and not "on . Our work". Preload has nothing of its own to fetch —
 there is no deferred library — so it is the web document prefetch every
 route gets. Every route has a preview. An open route's preview builds its
 screen for the location the link names, parameters included (`/orders/9`
