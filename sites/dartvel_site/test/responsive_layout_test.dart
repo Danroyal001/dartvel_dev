@@ -10,7 +10,7 @@
 // a split-screen tablet and a browser someone has zoomed to 200%.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The page under test, inside a router.

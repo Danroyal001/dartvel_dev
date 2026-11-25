@@ -6,7 +6,7 @@
 import 'package:dartvel_site/components/docs.dart';
 import 'package:dartvel_site/components/spec_coverage.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Scrolls every vertical scroller on screen to its end and back, the way a

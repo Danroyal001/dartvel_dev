@@ -14,7 +14,7 @@
 //
 // So what is asserted now is that the card stays a card whatever it is handed.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final String _long =

@@ -10,7 +10,7 @@ import 'dart:io';
 
 import 'package:dartvel_site/components/docs.dart' show kDocsSpecStatus;
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> pump(WidgetTester tester, Widget card) => tester.pumpWidget(

@@ -15,7 +15,7 @@
 // actually visible -- and asks it at a phone width, because a reveal decides
 // what to do from the viewport's own height.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'responsive_layout_test.dart' show routed;

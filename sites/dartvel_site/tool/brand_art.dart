@@ -10,7 +10,7 @@
 // the paths were half written before this existed.
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The mark's box, and the badge's.
 const Size kMarkBox = Size(512, 512);

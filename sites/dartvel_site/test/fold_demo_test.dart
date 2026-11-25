@@ -2,7 +2,7 @@
 // described: a reader picks a posture and watches the panes move off the
 // creases.
 import 'package:dartvel_site/components/fold_demo.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> pump(WidgetTester tester) async {
