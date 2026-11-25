@@ -19,7 +19,7 @@ library dartvel_cli.build.semantic_html;
 
 import 'dart:convert';
 
-import 'package:dartvel_core/framework.dart' show dvDocumentField;
+import 'package:dartvel_core/framework.dart' show dvDocumentField, dvInputModes;
 
 /// One node of a page's semantics tree.
 class DVSemanticNode {
@@ -30,6 +30,8 @@ class DVSemanticNode {
     this.href,
     this.media,
     this.fieldType,
+    this.fieldInputMode,
+    this.fieldAutocomplete,
     this.inSentence = false,
     this.children = const <DVSemanticNode>[],
   });
@@ -54,12 +56,30 @@ class DVSemanticNode {
   /// `password`, ...) or `textarea`. Null for every other node.
   final String? fieldType;
 
+  /// For a text field, the `inputmode` Flutter wrote on its `<input>` for the
+  /// field's kind (`tel`, `decimal`, ...). Null where it named no keyboard.
+  final String? fieldInputMode;
+
+  /// For a text field, the `autocomplete` token Flutter wrote for its autofill
+  /// hint (`email`, `tel`, ...). Null where there was none: Flutter writes
+  /// `off` and `on` for a field with no hint, and those are not a hint.
+  final String? fieldAutocomplete;
+
   /// Placed inside a run of text (DVWidgetSpan in dartvel_flutter): its
   /// parent is a sentence, and the document writes the parent's pieces as one
   /// paragraph with this one in its place.
   final bool inSentence;
 
   final List<DVSemanticNode> children;
+
+  static String? _inputMode(Object? value) =>
+      value is String && dvInputModes.contains(value) ? value : null;
+
+  static String? _autocomplete(Object? value) {
+    if (value is! String) return null;
+    final String token = value.trim();
+    return token.isEmpty || token == 'on' || token == 'off' ? null : token;
+  }
 
   /// Read a node emitted by the prerender step.
   static DVSemanticNode fromJson(Map<String, Object?> json) => DVSemanticNode(
@@ -71,6 +91,8 @@ class DVSemanticNode {
             ? (json['media']! as Map).cast<String, Object?>()
             : null,
         fieldType: json['field'] as String?,
+        fieldInputMode: _inputMode(json['inputmode']),
+        fieldAutocomplete: _autocomplete(json['autocomplete']),
         inSentence: json['inSentence'] == true,
         children: <DVSemanticNode>[
           for (final Object? child
@@ -122,7 +144,11 @@ void _write(StringBuffer out, List<DVSemanticNode> nodes, int depth,
     if (node.role == 'reveal') continue;
 
     if (node.role == 'textbox' && node.fieldType != null) {
-      if (hasLabel) _writeField(out, node.fieldType!, label, ++fields.count);
+      if (hasLabel) {
+        _writeField(out, node.fieldType!, label, ++fields.count,
+            inputMode: node.fieldInputMode,
+            autocomplete: node.fieldAutocomplete);
+      }
       continue;
     }
 
@@ -331,8 +357,14 @@ void _writeMedia(StringBuffer out, DVSemanticNode node, String? label) {
 /// A text field, as an input a person can type into before Flutter has run;
 /// see `document_fields.dart` in dartvel_core, which Studio's own documents
 /// share.
-void _writeField(StringBuffer out, String type, String label, int number) =>
-    out.writeln(dvDocumentField(type: type, label: label, id: 'dv-field-$number'));
+void _writeField(StringBuffer out, String type, String label, int number,
+        {String? inputMode, String? autocomplete}) =>
+    out.writeln(dvDocumentField(
+        type: type,
+        label: label,
+        id: 'dv-field-$number',
+        inputMode: inputMode,
+        autocomplete: autocomplete));
 
 /// ` title="..." aria-label="..."` for [name].
 String _nameAttributes(String name) {

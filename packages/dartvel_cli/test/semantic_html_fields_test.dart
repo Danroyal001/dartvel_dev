@@ -19,6 +19,7 @@ DVSemanticNode field(String label, {String type = 'text'}) =>
 const DVSemanticNode capturedEye = DVSemanticNode(role: 'reveal');
 
 void main() {
+  kindFieldTests();
   group('a captured text field', () {
     test('is a labelled input, named for the field it was', () {
       final String html = dvSemanticHtml(<DVSemanticNode>[field('Email', type: 'email')]);
@@ -106,5 +107,56 @@ void main() {
         '[{"role":"textbox","label":"Password","field":"password"}]');
     expect(nodes.single.fieldType, 'password');
     expect(dvSemanticHtml(nodes), contains('type="password"'));
+  });
+}
+
+// The type, inputmode and autocomplete Flutter's own <input> carries for a
+// field's `kind` are written into the server-rendered input, so a phone opens
+// the dial pad and a password manager fills the field before Flutter runs.
+void kindFieldTests() {
+  group('a captured field with an input kind', () {
+    test('keeps inputmode and autocomplete', () {
+      final String html = dvSemanticHtml(<DVSemanticNode>[
+        const DVSemanticNode(
+          role: 'textbox',
+          label: 'Phone',
+          fieldType: 'tel',
+          fieldInputMode: 'tel',
+          fieldAutocomplete: 'tel',
+        ),
+      ]);
+      expect(html, contains('type="tel"'));
+      expect(html, contains('inputmode="tel"'));
+      expect(html, contains('autocomplete="tel"'));
+    });
+
+    test('reads them from the prerender step\'s node', () {
+      final DVSemanticNode node = DVSemanticNode.fromJson(<String, Object?>{
+        'role': 'textbox',
+        'label': 'Price',
+        'field': 'text',
+        'inputmode': 'decimal',
+        'autocomplete': 'off',
+      });
+      expect(node.fieldInputMode, 'decimal');
+      // Flutter writes off where no hint was given: not a kind, not kept.
+      expect(node.fieldAutocomplete, isNull);
+    });
+
+    test('a field with no kind writes neither attribute', () {
+      final String html = dvSemanticHtml(<DVSemanticNode>[
+        const DVSemanticNode(role: 'textbox', label: 'Notes', fieldType: 'text', fieldInputMode: 'text'),
+      ]);
+      expect(html, isNot(contains('inputmode')));
+      expect(html, isNot(contains('autocomplete')));
+    });
+
+    test('an inputmode that is not a keyboard name is dropped', () {
+      final String html = dvSemanticHtml(<DVSemanticNode>[
+        const DVSemanticNode(role: 'textbox', label: 'X', fieldType: 'text', fieldInputMode: '"><script>'),
+      ]);
+      expect(html, isNot(contains('<script>')));
+      expect(html, isNot(contains('inputmode')));
+    });
   });
 }

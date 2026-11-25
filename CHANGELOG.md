@@ -1,3 +1,9 @@
+## Unreleased
+
+- A backend function parameter of a class of your own is decoded on the server. The client sent it with `toJson` but the route handed the function the raw map, so it failed at its first use. The route now calls the class's `fromJson` (also for `List<YourClass>` and `YourClass?`); a missing or malformed one answers 400. A `Map<String, Object?>` parameter was cut at the comma inside the type and produced a bogus parameter named `MapString`; parameter lists now split only at top-level commas.
+- `.input(kind: ...)` opens the right keyboard. `DVInputKind` (text, email, phone, number, decimal, url, password, newPassword, name, streetAddress, oneTimeCode) sets the keyboard, the autofill hints and, on the web, the input's type, `inputmode` and `autocomplete`, in the server-rendered page too. password and newPassword also hide the text. A field with no kind is unchanged.
+- `DV.Platform.media.pickImage()` and `pickFiles(types:, multiple:)` pick an existing photo or file as a `DVFile`, which `readCapture` reads on every target (a path on a device, the picked bytes in a browser). `canPick` says whether there is a picker; a target without one throws `DVPickUnsupported`.
+
 ## 3.47.9 — 2026-11-25
 
 - With SSR-first there is no white or blank frame before the page. The browser painted its own white canvas, then a half-laid-out page, before the server-rendered document: `html` is now painted in the splash colours (light and dark), the SSR-first head holds the first paint until the whole first screen is in (`<link rel="expect" blocking="render">` naming a `#dv-first-screen` marker written after the document, with the page's own URL because of `<base href="/">`), and only bundled fallback fonts are named (system fallbacks only cost font lookups before the first layout; Flutter web never draws with them). On sigmadev.digital (Fast 3G, 4x CPU) the first paint is now the whole first screen instead of a blank frame at 0.4-0.5 s.
