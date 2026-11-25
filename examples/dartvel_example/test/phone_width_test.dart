@@ -11,8 +11,8 @@
 // narrow enough to find out, because the test binding's default surface is
 // 800x600 -- wider than any phone in portrait.
 import 'package:dartvel_example/boot.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A Pixel 6 in portrait: 1080x2400 at 2.625x, which is what the emulator
 /// this application is driven on reports.

@@ -5,9 +5,9 @@
 // and the derivation re-evaluates. These tests drive real widgets to prove
 // that chain rather than calling the closure directly.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('adding two signals gives a signal that tracks both',

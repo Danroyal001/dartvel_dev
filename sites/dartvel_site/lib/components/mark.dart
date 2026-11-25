@@ -10,7 +10,7 @@
 // A bitmap would have been the way to avoid it, and it would have to be
 // picked per density and would still be soft on a display nobody sized it
 // for; the path is exact at 22 points and at 220.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 

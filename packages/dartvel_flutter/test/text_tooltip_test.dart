@@ -4,8 +4,10 @@
 // with a tooltip showed nothing on hover and apps wrapped it by hand.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'support/tooltip_finder.dart';
 
 Widget _app(Widget child) => MaterialApp(home: Scaffold(body: Center(child: SizedBox(width: 320, child: child))));
 
@@ -24,7 +26,7 @@ void main() {
     await tester.pumpWidget(_app(DVText('').modifier(
           DVModifier().input(hint: 'Ada', onChanged: (_) {}).semanticLabel('Business name').tooltip('Your business name, shown at the top'),
         )));
-    expect(find.byTooltip('Your business name, shown at the top'), findsOneWidget);
+    expect(find.dvTooltip('Your business name, shown at the top'), findsOneWidget);
     await _hover(tester, find.byType(TextField));
     expect(find.text('Your business name, shown at the top'), findsOneWidget);
   });
@@ -33,24 +35,24 @@ void main() {
     await tester.pumpWidget(_app(DVText('').modifier(
           DVModifier().input(onChanged: (_) {}).padding(8).tooltip('Phone number'),
         )));
-    expect(find.byTooltip('Phone number'), findsOneWidget);
+    expect(find.dvTooltip('Phone number'), findsOneWidget);
   });
 
   testWidgets('a long press in a text field still selects, not the tooltip', (WidgetTester tester) async {
     await tester.pumpWidget(_app(DVText('').modifier(
           DVModifier().input(onChanged: (_) {}).tooltip('Phone number'),
         )));
-    final Tooltip tooltip = tester.widget<Tooltip>(find.byTooltip('Phone number'));
+    final Tooltip tooltip = tester.widget<Tooltip>(find.dvTooltip('Phone number'));
     expect(tooltip.triggerMode, TooltipTriggerMode.manual);
   });
 
   testWidgets('a status word that is not pressable shows its tooltip', (WidgetTester tester) async {
     await tester.pumpWidget(_app(DVText('Paid').modifier(DVModifier().tooltip('Payment received on 3 May'))));
-    expect(find.byTooltip('Payment received on 3 May'), findsOneWidget);
+    expect(find.dvTooltip('Payment received on 3 May'), findsOneWidget);
   });
 
   testWidgets('a pressable text still has exactly one tooltip', (WidgetTester tester) async {
     await tester.pumpWidget(_app(DVText('Save').modifier(DVModifier().tooltip('Save the draft').onTap(() {}))));
-    expect(find.byTooltip('Save the draft'), findsOneWidget);
+    expect(find.dvTooltip('Save the draft'), findsOneWidget);
   });
 }

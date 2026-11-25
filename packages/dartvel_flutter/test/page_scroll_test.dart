@@ -4,8 +4,10 @@
 // generator's tests. dartvel.dev had it as a component of its own, so other
 // Dartvel sites did not.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'support/tooltip_finder.dart';
 
 class _Page extends DVClassWidget {
   const _Page({required this.height, super.pageScrollToTop});
@@ -26,28 +28,28 @@ void main() {
   testWidgets('off unless asked for', (WidgetTester tester) async {
     await tester.pumpWidget(app(const _Page(height: 5000)));
     await tester.pump();
-    expect(find.byTooltip('To the bottom'), findsNothing);
+    expect(find.dvTooltip('To the bottom'), findsNothing);
   });
 
   testWidgets('a short page has no button: it would only cover the page', (WidgetTester tester) async {
     await tester.pumpWidget(app(const _Page(height: 700, pageScrollToTop: true)));
     await tester.pump();
-    expect(find.byTooltip('To the bottom'), findsNothing);
-    expect(find.byTooltip('Back to top'), findsNothing);
+    expect(find.dvTooltip('To the bottom'), findsNothing);
+    expect(find.dvTooltip('Back to top'), findsNothing);
   });
 
   testWidgets('a long page offers the bottom, then the top once there', (WidgetTester tester) async {
     await tester.pumpWidget(app(const _Page(height: 5000, pageScrollToTop: true)));
     await tester.pump();
-    expect(find.byTooltip('To the bottom'), findsOneWidget);
+    expect(find.dvTooltip('To the bottom'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('To the bottom'));
+    await tester.tap(find.dvTooltip('To the bottom'));
     await tester.pumpAndSettle();
     final ScrollPosition position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
     expect(position.pixels, position.maxScrollExtent);
-    expect(find.byTooltip('Back to top'), findsOneWidget);
+    expect(find.dvTooltip('Back to top'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Back to top'));
+    await tester.tap(find.dvTooltip('Back to top'));
     await tester.pumpAndSettle();
     expect(position.pixels, 0);
   });
@@ -55,7 +57,7 @@ void main() {
   testWidgets('on a layout, for every page inside it', (WidgetTester tester) async {
     await tester.pumpWidget(app(const _Layout(pageScrollToTop: true, child: SizedBox(height: 5000))));
     await tester.pump();
-    expect(find.byTooltip('To the bottom'), findsOneWidget);
+    expect(find.dvTooltip('To the bottom'), findsOneWidget);
   });
 
   testWidgets('a screen reader hears one button with one name', (WidgetTester tester) async {

@@ -1,3 +1,7 @@
+## Unreleased
+
+- The retired router builder writes `package:material_ui/material_ui.dart`, not the `package:flutter/material.dart` Flutter 3.50 deprecates.
+
 ## 3.47.6 — 2026-11-20
 
 - Version aligned with dartvel_core 3.47.6.

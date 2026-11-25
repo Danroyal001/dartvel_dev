@@ -83,7 +83,7 @@ Widget _cloudPage(BuildContext context) => Heading('Dartvel Cloud.');
 
     test('an import or a library name is not page text', () {
       const String source = '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 library some.thing;
 Heading('The only real line.');
 ''';

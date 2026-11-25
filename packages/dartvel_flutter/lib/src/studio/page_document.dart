@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import 'package:dartvel_core/dartvel.dart' show dvStudioIsReservedRoute;
 import 'package:dartvel_core/framework.dart' show dvPurgeRenderedPages;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart';
 import 'deployed_pages_stub.dart'

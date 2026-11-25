@@ -9,7 +9,12 @@
 // skwasm or CanvasKit, and which build of each -- and the build writes no
 // hint at all when the application's loader configuration could make it
 // choose differently.
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:dartvel_cli/src/build/renderer_hints.dart';
+import 'package:dartvel_cli/src/build/web_renderer.dart';
+import 'package:dartvel_core/dartvel.dart' show DVWasmEngines;
 import 'package:test/test.dart';
 
 const String revision = '83675ed27633283e7fc296c8bca22e841224c096';
@@ -45,6 +50,8 @@ const String shell = '<!DOCTYPE html>\n<html>\n<head>\n'
     '</head>\n<body></body>\n</html>';
 
 void main() {
+  _enginesTests();
+
   group('where the renderer comes from', () {
     test('a default CanvasKit build loads it from gstatic, by revision', () {
       final DVRendererSource? source = dvRendererSource(defaultBootstrap);
@@ -209,6 +216,86 @@ void main() {
           const DVRendererSource(base: 'canvaskit/', wasm: true)
               .gstaticRevision,
           isNull);
+    });
+  });
+}
+
+/// The files the hints script in [block] asks for in a browser whose
+/// navigator says [vendor] and [userAgent] and whose WebAssembly has every
+/// feature dart2wasm needs.
+Future<List<String>> _preloadedIn(String block,
+    {required String vendor, required String userAgent}) async {
+  final String script = RegExp(r'<script>([\s\S]*?)</script>')
+      .firstMatch(block)!
+      .group(1)!;
+  final Directory temp = Directory.systemTemp.createTempSync('dv_hints_');
+  try {
+    File('${temp.path}/run.js').writeAsStringSync('''
+const asked = [];
+Object.defineProperty(globalThis, "navigator", {value: ${jsonEncode(<String, String>{'vendor': vendor, 'userAgent': userAgent})}, configurable: true});
+globalThis.WebAssembly = { validate: (bytes, options) => !options };
+globalThis.document = { createElement: () => ({}), head: { appendChild: (l) => asked.push(l.href) } };
+$script
+console.log(JSON.stringify(asked));
+''');
+    final ProcessResult run =
+        await Process.run('node', <String>['run.js'], workingDirectory: temp.path);
+    expect(run.exitCode, 0, reason: '${run.stderr}');
+    return (jsonDecode(run.stdout.toString().trim()) as List<Object?>)
+        .cast<String>();
+  } finally {
+    temp.deleteSync(recursive: true);
+  }
+}
+
+void _enginesTests() {
+  const String apple = 'Apple Computer, Inc.';
+  const String safari262 =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.2 Safari/605.1.15';
+  const String safari261 =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Safari/605.1.15';
+  const String firefox147 =
+      'Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0';
+
+  group('a build that lets Safari and Firefox run the wasm app', () {
+    test('is read from what the build wrote into its bootstrap', () {
+      final DVRendererSource? source = dvRendererSource(
+          dvBootstrapWithLoaderConfig(wasmBootstrap, DVWasmEngines.all));
+      // The build's own loader options are not the application's: the hints
+      // still go out.
+      expect(source, isNotNull);
+      expect(source!.engines, DVWasmEngines.all);
+      expect(dvRendererSource(wasmBootstrap)!.engines, DVWasmEngines.chromiumOnly);
+      expect(
+          dvRendererSource(dvBootstrapWithLoaderConfig(
+                  wasmBootstrap, const DVWasmEngines(webkit: false)))!
+              .engines,
+          const DVWasmEngines(webkit: false));
+    });
+
+    test('preloads skwasm in Safari 26.2 and Firefox 147, as the loader picks',
+        () async {
+      final String block = dvRendererHints(const DVRendererSource(
+          base: 'canvaskit/', wasm: true, engines: DVWasmEngines.all));
+      // Neither has ImageDecoder and the ICU break iterators the loader asks
+      // of the light skwasm: both get skwasm_heavy.
+      expect(await _preloadedIn(block, vendor: apple, userAgent: safari262),
+          <String>['canvaskit/skwasm_heavy.js', 'canvaskit/skwasm_heavy.wasm']);
+      expect(await _preloadedIn(block, vendor: '', userAgent: firefox147),
+          <String>['canvaskit/skwasm_heavy.js', 'canvaskit/skwasm_heavy.wasm']);
+      expect(await _preloadedIn(block, vendor: apple, userAgent: safari261),
+          <String>['canvaskit/canvaskit.js', 'canvaskit/canvaskit.wasm']);
+    });
+
+    test('an engine left on dart2js gets CanvasKit', () async {
+      final String block = dvRendererHints(const DVRendererSource(
+          base: 'canvaskit/',
+          wasm: true,
+          engines: DVWasmEngines(webkit: false)));
+      expect(await _preloadedIn(block, vendor: apple, userAgent: safari262),
+          <String>['canvaskit/canvaskit.js', 'canvaskit/canvaskit.wasm']);
+      expect(await _preloadedIn(block, vendor: '', userAgent: firefox147),
+          <String>['canvaskit/skwasm_heavy.js', 'canvaskit/skwasm_heavy.wasm']);
     });
   });
 }

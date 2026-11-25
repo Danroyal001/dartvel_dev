@@ -12,8 +12,8 @@ import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/linux/linux_printing_ffi.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A coloured page with a line of text, as PNG bytes.
 Future<Uint8List> page(Color colour, String text) async {

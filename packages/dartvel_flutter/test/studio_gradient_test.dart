@@ -5,8 +5,8 @@
 // a gradient frame imported as nothing at all, because the fill it carries
 // is not a solid one. DVModifier has taken a gradient since it was written.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/painted');

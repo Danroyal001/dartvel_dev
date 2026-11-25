@@ -22,7 +22,7 @@ dartvel:
 /// A private, expression-bodied page: the kind that is lowered.
 const String loweredPage = r"""
 import 'package:a/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../components/banner.dart';
 
 @DVPage(title: 'Home')
@@ -38,7 +38,7 @@ final titleStyle = const DVModifier().padding(8);
 /// A public class page: not lowered, and imported as it always was.
 const String classPage = r"""
 import 'package:a/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage(title: 'About')
 class AboutPage extends DartvelPage {

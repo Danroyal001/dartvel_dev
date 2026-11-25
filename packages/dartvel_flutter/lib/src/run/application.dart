@@ -4,8 +4,7 @@ import 'package:dartvel_core/dartvel.dart' show DVAppEntry, DVBoot, DVEmbeddedEn
 import 'package:dartvel_core/framework.dart'
     show DVBootStep, dvResetBootForTest, dvRunBoot;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart';
 import '../display/browser_safe_area.dart' show DVBrowserSafeArea;

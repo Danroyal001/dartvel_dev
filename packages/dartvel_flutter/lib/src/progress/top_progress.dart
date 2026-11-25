@@ -6,7 +6,7 @@
 /// and an application shows it for its own work through [DVTopProgress].
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../accessibility/reduced_motion.dart';
 

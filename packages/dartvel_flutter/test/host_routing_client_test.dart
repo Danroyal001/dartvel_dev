@@ -9,9 +9,9 @@ import 'dart:async';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/routing/link_interception.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVHosts hosts() {
   final ({DVHosts hosts, List<String> problems}) parsed = DVHosts.parse(

@@ -4,7 +4,7 @@
 // Drawn from kSpecCoverage and kDocsSpecStatus, the lists
 // test/spec_coverage_test.dart holds to the site and to docs/spec-status.json,
 // so a row cannot claim a status or a page the site does not have.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import 'docs.dart';

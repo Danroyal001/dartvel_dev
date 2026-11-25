@@ -7,7 +7,7 @@ library;
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/chrome_launch.dart';
-import 'package:dartvel_core/dartvel.dart' show dvWasmModulePreloads;
+import 'package:dartvel_core/dartvel.dart' show DVWasmEngines, dvWasmModulePreloads;
 import 'package:puppeteer/puppeteer.dart';
 import 'package:test/test.dart';
 
@@ -34,7 +34,7 @@ void main() {
       args: dvChromeLaunchArgs,
     );
     html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>t</title>'
-        '${dvWasmModulePreloads(<String>['main.dart_module3.wasm', 'main.dart_module7.wasm'])}</head>'
+        '${dvWasmModulePreloads(<String>['main.dart_module3.wasm', 'main.dart_module7.wasm'], DVWasmEngines.all)}</head>'
         '<body></body></html>';
   });
 

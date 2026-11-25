@@ -21,6 +21,20 @@ const String dartvelPackageVersion = '3.47.9';
 /// constraints tracked correctly.
 const String dartvelShelfVersion = '3.47.9';
 
+/// The material_ui release a scaffolded project, its generated client and
+/// `dartvel upgrade --project` ask for: the floor dartvel_flutter was
+/// tested on.
+///
+/// Flutter 3.50 deprecates package:flutter/material.dart for this package,
+/// which is its own copy of the library rather than a re-export: one
+/// project importing both builds two Material libraries whose themes and
+/// ancestors cannot see each other. A test asserts this matches what
+/// dartvel_flutter declares.
+const String dvMaterialUiVersion = '1.11.1';
+
+/// The same, for cupertino_ui, which replaces package:flutter/cupertino.dart.
+const String dvCupertinoUiVersion = '1.1.7';
+
 class ProjectTemplates {
   static String pubspecTemplate({
     required String name,
@@ -65,6 +79,7 @@ ${platformsYaml.toString()}
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^$dvMaterialUiVersion
   go_router: ^14.2.0
   dio: ^5.5.0
   dartvel_core: ${localPackagesDir == null ? '^$dartvelPackageVersion' : '\n    path: $localPackagesDir/dartvel_core'}
@@ -164,7 +179,7 @@ Widget _indexPage(BuildContext context) => DVBox.list([
   /// `_indexPageLoading` generates `IndexPageLoading`, which the router
   /// renders. A class is for the rare widget a function cannot express.
   static String loadingTemplate(String className) =>
-      '''import 'package:flutter/material.dart';
+      '''import 'package:material_ui/material_ui.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVFunctionalWidget()
@@ -179,7 +194,7 @@ Widget ${_inputName(className)}(BuildContext context) => const DVBox(
 
   /// The page shown when a page's data fails to load.
   static String errorTemplate(String className) =>
-      '''import 'package:flutter/material.dart';
+      '''import 'package:material_ui/material_ui.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVFunctionalWidget()
@@ -382,7 +397,7 @@ Create a new file in `lib/pages/`:
 ```dart
 // lib/pages/about.dart
 import '../dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 
 @DVPage(

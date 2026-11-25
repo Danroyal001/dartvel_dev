@@ -1,7 +1,7 @@
 // Screens served by config routes (lib/routes.dart), written the way a
 // go_router application already has them: ordinary widgets taking what they
 // show as constructor arguments, with no annotation and no page file.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../components/shop_ui.dart';
 import '../dartvel_client/dartvel_client.dart';

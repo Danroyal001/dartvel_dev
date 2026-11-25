@@ -17,8 +17,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVIncidentStatus,
         DVPublicIncident,
         DVPublicIncidentUpdate;
-import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show Icon, IconData, Icons;
 
 import '../../dartvel_flutter.dart';
 

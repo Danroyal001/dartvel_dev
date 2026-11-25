@@ -86,7 +86,7 @@ This is a generated project with two pages. `lib/main.dart` is what
 `dartvel create` writes:
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'dartvel_client/dartvel_client.dart';
 
 void main(List<String> arguments) async {

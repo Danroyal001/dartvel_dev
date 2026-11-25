@@ -3,8 +3,8 @@
 // navigate through a real router, the store persists through real SQLite, and
 // the exporter emits ordinary @DVPage source.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pricingPage() {
   final document = DVPageDocument(route: '/pricing', title: 'Pricing');

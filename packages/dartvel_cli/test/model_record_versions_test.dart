@@ -31,6 +31,7 @@ import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/commands/db_command.dart';
 import 'package:dartvel_cli/src/commands/privacy_command.dart';
 import 'package:dartvel_cli/src/generators/routes_generator.dart' as routes;
+import 'package:dartvel_cli/src/templates/project_templates.dart' show dvMaterialUiVersion;
 import 'package:dartvel_core/dartvel.dart' show SqliteDVDatabaseAdapter;
 import 'package:dartvel_core/framework.dart' show DVRecordTable;
 import 'package:path/path.dart' as p;
@@ -105,7 +106,7 @@ import 'dart:async';
 import 'package:dartvel_core/framework.dart';
 import 'package:model_versions_probe/dartvel_client/dartvel_client.dart';
 import 'package:model_versions_probe/dartvel_client/privacy.g.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final String dbPath = const String.fromEnvironment('DB');
@@ -408,6 +409,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^$dvMaterialUiVersion
   dartvel_core:
     path: ${p.join(root, 'packages', 'dartvel_core')}
   dartvel_flutter:

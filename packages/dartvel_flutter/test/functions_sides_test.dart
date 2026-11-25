@@ -9,8 +9,8 @@
 // -- so a frontend function calls a backend one by name, as hand-written app
 // code does.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVWorkflowDocument signUp({DVWorkflowSide side = DVWorkflowSide.frontend}) =>
     DVWorkflowDocument(

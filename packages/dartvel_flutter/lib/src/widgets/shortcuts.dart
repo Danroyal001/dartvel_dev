@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A serializable shortcut. [command] refers to a callback supplied by the app;
 /// loading data never evaluates code or invokes the callback.

@@ -21,7 +21,7 @@ dartvel:
 
 const String loweredPage = r"""
 import 'package:a/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage(title: 'Home')
 Widget _indexPage(BuildContext context) => const DVText('Home');

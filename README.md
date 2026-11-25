@@ -596,13 +596,18 @@ that still sets `dartvel.web.firstFrame` builds as before, with one warning
 that the key can be deleted.
 
 Both web targets build WebAssembly by default (`flutter build web --wasm`):
-Chromium browsers with WasmGC, Chrome for Android included, run the dart2wasm
-app on the skwasm renderer, and every other browser gets the dart2js and
-CanvasKit app from the same build. `dartvel.web.wasm: false` builds dart2js
-alone. The wasm app is code-split like the dart2js one: the build reruns
-Flutter's own dart2wasm command with `--enable-deferred-loading`, so each page
-is a module of its own that loads when the page is first shown, and Studio's
-modules are kept out of the public files exactly as its dart2js parts are.
+Chromium browsers with WasmGC (Chrome for Android included), Safari 26.2 and
+later (with every iOS browser on that WebKit) and Firefox 147 and later run the
+dart2wasm app on the skwasm renderer, and every other browser gets the dart2js
+and CanvasKit app from the same build. `dartvel.web.wasm: false` builds dart2js
+alone; `dartvel.web.wasm: {safari: false}` or `{firefox: false}` leaves that
+browser on dart2js. The wasm app is code-split like the dart2js one, by
+Flutter's own `--enable-wasm-deferred-loading`: each page is a module of its
+own that loads once, when the page is first shown, and Studio's modules are
+kept out of the public files exactly as its dart2js parts are. The dart2js app
+is built with `--no-deprecated-js-interop`, so `dart:html`, `dart:js` and
+`dart:js_util` fail its compile as they fail the wasm one
+(`dartvel.web.deprecatedJsInterop: true` allows them).
 The prerendered HTML, splash and progress bar are unchanged; the page preloads whichever app and renderer the loader will pick.
 
 skwasm draws on a worker thread only on a cross-origin isolated page. A
@@ -1660,7 +1665,10 @@ Windows deletes locked rename-aside binaries on a later CLI invocation.
 `dartvel upgrade --plan` reports project changes without writing them.
 `dartvel upgrade --project` moves the Dartvel packages in `pubspec.yaml` (and
 in modules whose source is a folder of the project) to the CLI's release and
-resolves them; the rest of the plan is still applied by hand. For a pub
+resolves them; the rest of the plan is still applied by hand. It also moves the project off
+Flutter's deprecated `flutter/material` and `flutter/cupertino` libraries onto
+`material_ui` and `cupertino_ui`, with Flutter's own
+`dart fix --apply --code=migrate_design_widgets`. For a pub
 installation, use `dart pub global activate dartvel_cli`. See
 [CLI upgrade](docs/cli-upgrade.md).
 

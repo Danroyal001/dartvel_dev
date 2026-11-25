@@ -191,6 +191,29 @@ void main() {
       expect(router.detail, contains('^13.0.0'));
     });
 
+    test(
+      'imports of flutter/material and flutter/cupertino are counted and '
+      'pointed at upgrade --project',
+      () async {
+        oldProject();
+        write('lib/pages/about.dart', "import 'package:flutter/material.dart';\n");
+        write('test/a_test.dart', "import 'package:flutter/cupertino.dart';\n");
+        final DVUpgradeItem design = item(await plan(), 'design libraries');
+        expect(design.outcome, DVUpgradeOutcome.changes);
+        expect(design.detail, contains('lib/pages/about.dart'));
+        expect(design.detail, contains('test/a_test.dart'));
+        expect(design.detail, contains('material_ui'));
+        expect(design.detail, contains('dartvel upgrade --project'));
+      },
+    );
+
+    test('a project on material_ui has nothing to move', () async {
+      oldProject();
+      write('lib/pages/about.dart', "import 'package:material_ui/material_ui.dart';\n");
+      final DVUpgradeItem design = item(await plan(), 'design libraries');
+      expect(design.outcome, DVUpgradeOutcome.unchanged);
+    });
+
     test('deprecated names are counted and pointed at migrate-code', () async {
       oldProject();
       final DVUpgradeItem source = item(await plan(), 'deprecated names');

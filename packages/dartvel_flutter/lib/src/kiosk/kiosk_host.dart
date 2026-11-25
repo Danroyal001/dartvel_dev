@@ -10,8 +10,8 @@ import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart'
     show DVKioskCursor, DVKioskReset, DVKioskRuntime, dvKioskHidesCursor;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart' show DV;
 

@@ -5,7 +5,7 @@
 // shared link lands on the answer. A sidebar grouped by what you are building,
 // so the next topic is one click away. And each page opens with what is on it
 // and ends with where to go next.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import 'docs_cli_command.dart';

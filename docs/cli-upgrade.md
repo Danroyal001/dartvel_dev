@@ -48,6 +48,20 @@ project without Flutter).
   regenerates it with this release's constraint and pins the new hash.
 - If the packages do not resolve, every file is put back and the resolver's
   message is printed.
+- Flutter 3.50 deprecates `package:flutter/material.dart` and
+  `package:flutter/cupertino.dart` for the `material_ui` and `cupertino_ui`
+  packages, which Dartvel 3.50 is built on. They are copies of those
+  libraries, not re-exports, so a page left on the old import builds against
+  a second Material library that the app never themes and that finds no
+  `Material` above it. The command adds `material_ui: ^1.11.1` to a Flutter
+  project that depends on dartvel_flutter (and `cupertino_ui: ^1.1.7` where a
+  source imports `flutter/cupertino.dart`), resolves, then runs Flutter's own
+  fix, `dart fix --apply --code=migrate_design_widgets`, in the project and
+  in each module that imports either library. It keeps every `show`, `hide`
+  and prefix. A failed fix, or an import it left behind (one written inside a
+  string, say), is named and the command exits 1; the packages stay resolved.
+  `dartvel upgrade --plan` lists the files that still import either library
+  under "design libraries".
 
 It applies the dependency part of the plan only. Source rewrites are
 `dartvel migrate-code --apply`; generated code is rewritten by the next build.

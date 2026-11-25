@@ -26,8 +26,8 @@ import 'dart:async';
 import 'package:dartvel_core/dartvel.dart'
     show DVDocsBlock, DVDocsDocument, DVDocsPage, DVDocsTarget;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart' show DVNavigation, DVRouteTarget;
 import '../routing/nav_link.dart'

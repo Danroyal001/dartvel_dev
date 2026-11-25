@@ -16,9 +16,9 @@ import 'dart:convert';
 // Not re-exported by the dartvel_flutter barrel, whose core exports are a
 // `show` list; a stale snapshot is refused with it, and has to be told apart.
 import 'package:dartvel_core/dartvel.dart' show DVConflictError;
-import 'package:flutter/material.dart' show Icon, IconData, Icons;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show Icon, IconData, Icons;
 
 import '../../dartvel_flutter.dart';
 

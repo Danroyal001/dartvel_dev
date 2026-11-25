@@ -5,7 +5,7 @@
 // workflow builder is dartvel_studio_pro's section rendered by Flutter. A
 // mockup of a feature is a claim nobody can check, and this site's claims are
 // meant to be checkable.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import 'site.dart';

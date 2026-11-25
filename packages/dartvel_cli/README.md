@@ -171,7 +171,7 @@ had.
 | `init` | Add Dartvel to an existing project: the dependency and the `dartvel:` key, then the same coding-agent files. `--dry-run`, `--yes`. |
 | `doctor` | Check the environment and the project. `--target <t>` checks one build target's toolchain. |
 | `upgrade --plan` | Report what upgrading this project to this CLI's release changes. Writes nothing. |
-| `upgrade --project` | Move the Dartvel packages in `pubspec.yaml`, and in the project's local modules, to this CLI's release and resolve them. How a project on 0.13.x moves to 3.47 and later. |
+| `upgrade --project` | Move the Dartvel packages in `pubspec.yaml`, and in the project's local modules, to this CLI's release and resolve them. How a project on 0.13.x moves to 3.47 and later. Also adds material_ui/cupertino_ui and rewrites flutter/material and flutter/cupertino imports with `dart fix --code=migrate_design_widgets`. |
 | `migrate-code` | Rewrite deprecated Dartvel names. A dry run unless `--apply`. |
 | `update` | Update the CLI itself. `--check` reports without installing. |
 | `version` | Print the CLI version. |

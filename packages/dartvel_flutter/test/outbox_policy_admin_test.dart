@@ -5,8 +5,8 @@
 // from one that was never registered.
 import 'package:dartvel_core/framework.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 class Invoice {
   const Invoice();

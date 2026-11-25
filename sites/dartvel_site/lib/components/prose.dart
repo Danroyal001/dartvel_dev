@@ -8,7 +8,7 @@
 //
 // Text with no backticks is a plain DVText with the same modifier, so a
 // paragraph that names no command renders exactly as it did before.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import 'site.dart';

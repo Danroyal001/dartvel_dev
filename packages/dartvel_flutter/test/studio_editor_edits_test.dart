@@ -9,8 +9,8 @@
 // document; applying does not itself publish, or two collaborators would
 // echo each other forever; and an applied edit does not enter local undo.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument seed() => DVPageDocument(
       route: '/p',

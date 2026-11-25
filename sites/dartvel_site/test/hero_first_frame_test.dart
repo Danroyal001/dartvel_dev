@@ -1,6 +1,6 @@
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('the terminal is complete on its first frame', (tester) async {

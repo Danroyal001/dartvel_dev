@@ -1,5 +1,5 @@
 // Light, dark, or whatever the device says.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 

@@ -6,8 +6,8 @@
 // using the builder. Both now read dvStudioProperties, and the first test here
 // is what keeps that true.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument documentWith(Map<String, Object?> properties) {
   final document = DVPageDocument(route: '/styled', title: 'Styled');

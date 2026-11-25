@@ -7,8 +7,8 @@
 // wider one -- a section for modules, importing one from anywhere, and a
 // public marketplace for them later.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The graph the build writes beside Studio, as the section reads it.
 Map<String, Object?> graph({List<Map<String, Object?>>? modules}) =>

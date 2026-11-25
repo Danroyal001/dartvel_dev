@@ -10,9 +10,8 @@ library;
 
 import 'dart:ffi' as ffi;
 
-import 'package:ffi/ffi.dart' as ffi show calloc;
-
 import 'package:dartvel_windowing/dartvel_windowing.dart';
+import 'package:ffi/ffi.dart' as ffi show calloc;
 import 'package:flutter_test/flutter_test.dart';
 
 const int eglPlatformSurfacelessMesa = 0x31DD;

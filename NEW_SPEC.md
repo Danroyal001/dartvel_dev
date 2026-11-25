@@ -640,31 +640,55 @@ The table is the contract. Each row says which entries a target has, what
   `splash.progress: false` or `splash.enabled: false`, where the launch screen
   stays until the first frame as before.
 - **WebAssembly.** Web builds are `flutter build web --wasm` unless
-  `dartvel.web.wasm: false`: dart2wasm and skwasm where flutter.js allows it
-  (by default Chromium with WasmGC) and the dart2js/CanvasKit app elsewhere,
-  from one build. A value other than true or false fails the build before
-  generation. Flutter 3.47's `build web` cannot pass dart2wasm's
-  `--enable-deferred-loading`, so the build runs Flutter verbose (log in
+  `dartvel.web.wasm: false`: dart2wasm and skwasm in Chromium with WasmGC,
+  Safari 26.2+ (and every iOS browser on that WebKit) and Firefox 147+, and the
+  dart2js/CanvasKit app elsewhere, from one build. `dartvel.web.wasm:
+  {safari: false, firefox: false}` (either key alone) leaves those on dart2js.
+  A value the build cannot read fails it before generation. The build passes
+  Flutter 3.50's `--enable-wasm-deferred-loading` (never `--web-content-hash`,
+  which Flutter refuses with it), so each page is modules of its own beside
+  `main.dart.wasm`, and runs Flutter verbose (log in
   `build/flutter_web_build.log`; when the app does not compile, the build
   prints the compiler's own errors, file, line, message and the source line,
-  last, under "The app does not compile"), reruns the exact dart2wasm command it logged
-  with deferred loading and a deferred map, writes the modules beside
-  `main.dart.wasm`, and gives `main.dart.mjs` a default module loader (flutter.js
-  passes none). The loader fetches and instantiates each module once: every
-  page names the shared modules it needs as well as its own, and a link that
+  last, under "The app does not compile"). Right after the build config in
+  `flutter_bootstrap.js` it adds loader options (`dvBootstrapWithLoaderConfig`,
+  marked `/* dartvel: loader config */`): the wasm allow list (WebKit behind a
+  26.2 version gate of Dartvel's own, as flutter.js has none; Gecko, which
+  flutter.js gates below 147 itself) and a `wasmDeferredModulesLoader` that
+  fetches and instantiates each module once, from beside the app: every page
+  names the shared modules it needs as well as its own, and a link that
   preloads its page asks again, so a module already loaded (or loading) is
-  reused, and one that failed is tried again on the next ask. Links that come on
+  reused, and one that failed is tried again on the next ask. The
+  application's own allow-list entries and loader win. Which modules each
+  deferred import needs is worked out without dart2wasm's `--deferred-map`,
+  which `flutter build web` cannot pass (its one channel, extra front-end
+  options, reaches dart2js too): the build asks for `--source-maps`, and a
+  module belongs to the imports whose dart2js parts (dart2js's table in
+  `main.dart.js`) hold every library of it that `main.dart.js` does not; the
+  compiler's source maps, the `//# sourceMappingURL` lines and the wasm
+  `sourceMappingURL` sections are then deleted. Links that come on
   screen while the page scrolls wait until it has been still for 250 ms, then
   preload one at a time, each checked again first: a cold scroll down a long
   list of links no longer instantiates a module per link mid-scroll. A link's
-  own text shows the pointer, not the selection I-beam. If that fails the one-module app is kept and the build says so;
-  a build that serves Studio then fails rather than ship Studio's code. Studio's
-  modules are moved out of the web root like its dart2js parts and served only
-  with the grant. The shell preloads `main.dart.mjs` and `main.dart.wasm` where
-  the loader's own Blink and WasmGC test passes and `main.dart.js` elsewhere;
+  own text shows the pointer, not the selection I-beam. Studio's modules (those
+  only its screens' import needs) are moved out of the web root like its
+  dart2js parts and served only with the grant; when none can be told apart,
+  the wasm app is left out of the build. The splash, the renderer hints and
+  each route's module preloads decide whether the loader will run the wasm app
+  by one test (`dvWasmAppRunsHereJs`: the loader's engine test, the two version
+  gates, flutter.js's own feature bytes) with the engines the bootstrap allows;
+  a web-server binary reads them from `dartvel_prefetch.json`'s `wasmEngines`.
+  The shell preloads `main.dart.mjs` and `main.dart.wasm` where that test
+  passes and `main.dart.js` elsewhere;
   dart2js part preloads are not written for a wasm build. The renderer hints
   preload skwasm (or `skwasm_heavy`) or CanvasKit by the loader's tests, from
   gstatic or the application's `canvasKitBaseUrl`.
+- **Deprecated JS interop.** The dart2js app is built with
+  `--no-deprecated-js-interop` (Flutter's `deprecatedJsInterop`), so
+  `dart:html`, `dart:js` and `dart:js_util` are a compile error there as they
+  always are in the wasm app, and conditional imports on them resolve to
+  false. `dartvel.web.deprecatedJsInterop: true` leaves the compiler default;
+  any other value fails the build before generation.
 - **Cross-origin isolation.** skwasm renders on a worker only on a
   cross-origin isolated page. For a wasm build the web-server binary and the
   release preview send `Cross-Origin-Opener-Policy: same-origin` and
@@ -13209,8 +13233,8 @@ same (a backend function) recompiles Flutter but reuses every capture.
 The web-server backend compile is cached under its own inputs (generated
 `.dart_tool` sources, `lib/`, path dependencies, lock, package config,
 defines, unit split, Dart SDK), never the web output, and starts beside
-Flutter's compile. The deferred dart2wasm rerun starts the moment Flutter logs
-its dart2wasm command. Image variants are made on an isolate pool and kept by
+Flutter's compile. There is no second dart2wasm compile: the wasm app is
+split by Flutter's own deferred loading. Image variants are made on an isolate pool and kept by
 source content. Asset encodings are kept by content in
 `~/.dartvel/cache/asset_encodings`, shared across projects, and Flutter's
 engine files are encoded there during Flutter's compile; the native encoder is
@@ -17187,7 +17211,15 @@ rewrites each hosted Dartvel constraint in `pubspec.yaml` that excludes the
 CLI's release to a caret on it, does the same in each module whose source is a
 folder of the project, and resolves the packages, putting every file back if
 they do not resolve. A path, git or overridden dependency is reported and left
-alone, and a project newer than the CLI is refused. The rest of the plan is
+alone, and a project newer than the CLI is refused. Because Flutter 3.50
+deprecates `package:flutter/material.dart` and `package:flutter/cupertino.dart`
+for the `material_ui` and `cupertino_ui` packages, which are copies of those
+libraries rather than re-exports, it also adds `material_ui` (and
+`cupertino_ui` where a source imports `flutter/cupertino.dart`) at the
+versions Dartvel was tested with, resolves, and runs
+`dart fix --apply --code=migrate_design_widgets` in the project and each
+module that imports either library; an import the fix leaves behind is named
+and the command exits 1. The rest of the plan is
 applied by hand.
 
 A Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>` from

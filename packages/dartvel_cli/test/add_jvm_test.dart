@@ -104,4 +104,24 @@ void main() {
         root, 'modules', 'dv_scanner_module', 'android', 'libs', 'scanner.jar'));
     expect(carried.readAsBytesSync(), bytes);
   });
+
+  test('the module builds with the Android defaults of the Flutter it tracks',
+      () async {
+    // Flutter 3.50's app template: AGP 9.3.1, Gradle 9.5, Java 17, compile
+    // and target SDK 36, minimum SDK 24. A library compiled against an older
+    // SDK than the app, or declaring a minimum below Flutter's own, is a
+    // second set of numbers nobody keeps in step. Gradle 9 deprecates the
+    // space-assignment syntax (`compileSdk 35`), so the properties are
+    // assigned with `=`.
+    final String root = project();
+    expect(await run(root, <String>['maven:com.acme:scanner'], _Central(jarBytes())), 0);
+    final String gradle = File(p.join(
+            root, 'modules', 'dv_scanner_module', 'android', 'build.gradle'))
+        .readAsStringSync();
+    expect(gradle, contains('compileSdk = 36'));
+    expect(gradle, contains('minSdk = 24'));
+    expect(gradle, contains('sourceCompatibility = JavaVersion.VERSION_17'));
+    expect(gradle, contains('targetCompatibility = JavaVersion.VERSION_17'));
+    expect(gradle, isNot(contains('compileSdk 3')));
+  });
 }

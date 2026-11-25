@@ -8,8 +8,8 @@ import 'package:dartvel_site/components/docs_page_info.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
 import 'package:dartvel_site/pages/docs/_layout.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<GoRouter> pumpDocs(WidgetTester tester, String path, Size size) async {
   tester.view.physicalSize = size;

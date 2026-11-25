@@ -151,14 +151,9 @@ void main() {
       webRoot: web.path,
       routerSource: router,
       routes: <String>['/', '/docs', '/products/:id'],
-      wasmDeferredMap: <String, Object?>{
-        'package:site/dartvel_client/router.g.dart': <String, Object?>{
-          'imports': <String, Object?>{
-            '1': <String>['main.dart_module1.wasm', 'main.dart_module2.wasm', 'main.dart_module8.wasm'],
-            '2': <String>['main.dart_module1.wasm', 'main.dart_module3.wasm'],
-          },
-          'importPrefixToLoadId': <String, Object?>{'p1': '1', 'p2': '2'},
-        },
+      wasmModules: <String, List<String>>{
+        'p1': <String>['main.dart_module1.wasm', 'main.dart_module2.wasm', 'main.dart_module8.wasm'],
+        'p2': <String>['main.dart_module1.wasm', 'main.dart_module3.wasm'],
       },
     );
     expect((routes()['/docs']! as Map<String, Object?>)['wasm'],
@@ -166,5 +161,11 @@ void main() {
     expect((routes()['/products/:id']! as Map<String, Object?>)['wasm'],
         <String>['main.dart_module1.wasm', 'main.dart_module3.wasm']);
     expect(routes()['/']! as Map<String, Object?>, isNot(contains('wasm')));
+    // The engines its bootstrap lets run the wasm app (Flutter's own: only
+    // Chromium), so the server decides for each route as the page does.
+    expect(
+        (jsonDecode(File(p.join(web.path, 'dartvel_prefetch.json'))
+                .readAsStringSync()) as Map<String, Object?>)['wasmEngines'],
+        <String, Object?>{'webkit': false, 'gecko': false});
   });
 }

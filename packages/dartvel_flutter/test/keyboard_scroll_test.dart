@@ -11,9 +11,9 @@
 // TV remote all produce these keys, so the page has to answer them wherever
 // a keyboard can reach it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A page taller than the viewport, wrapped the way a generated page is.
 Widget page({Axis axis = Axis.vertical, ScrollController? controller}) =>

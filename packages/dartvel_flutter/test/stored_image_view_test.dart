@@ -10,8 +10,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A one-pixel PNG, which is the smallest thing a decoder will accept.
 final Uint8List onePixelPng = Uint8List.fromList(<int>[

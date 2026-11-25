@@ -20,9 +20,9 @@ library dartvel_flutter.routing.config_routes;
 import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show dvOrderRoutes;
-import 'package:flutter/material.dart' show MaterialPage;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart' show MaterialPage;
 
 import '../../dartvel_flutter.dart'
     show
@@ -341,25 +341,36 @@ class _Convert {
         return _route(node, parentPath, guarded, inherited, pushed);
       case DVShellRoute():
         final bool inside = guarded || node.redirect != null;
+        // A page of its own rather than a `builder`: go_router picks the page
+        // for a builder by looking for flutter/material's MaterialApp, which
+        // the material_ui app is not, and would give the shell no transition.
         return ShellRoute(
           redirect: _redirect(inherited, node.redirect),
-          builder: (BuildContext context, GoRouterState state, Widget child) =>
-              node.builder(context, DVRouteState._of(state), child),
+          pageBuilder:
+              (BuildContext context, GoRouterState state, Widget child) =>
+                  MaterialPage<void>(
+                    key: state.pageKey,
+                    child: node.builder(context, DVRouteState._of(state), child),
+                  ),
           routes: _children(node.routes, parentPath, inside),
         );
       case DVStatefulShellRoute():
         final bool inside = guarded || node.redirect != null;
         return StatefulShellRoute.indexedStack(
           redirect: _redirect(inherited, node.redirect),
-          builder:
+          // A page of its own, for the reason the shell route above has one.
+          pageBuilder:
               (
                 BuildContext context,
                 GoRouterState state,
                 StatefulNavigationShell shell,
-              ) => node.builder(
-                context,
-                DVRouteState._of(state),
-                DVShellNavigation._(shell),
+              ) => MaterialPage<void>(
+                key: state.pageKey,
+                child: node.builder(
+                  context,
+                  DVRouteState._of(state),
+                  DVShellNavigation._(shell),
+                ),
               ),
           branches: <StatefulShellBranch>[
             for (final DVShellBranch branch in node.branches)

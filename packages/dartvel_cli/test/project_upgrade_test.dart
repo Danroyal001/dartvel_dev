@@ -336,11 +336,12 @@ dv_slugify_module:
     test(
         'a constraint that already admits this release but a lock behind it '
         'is resolved forward, not reported as current', () async {
-      const String admitting = '''
+      final String admitting = '''
 name: shop
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^$dvMaterialUiVersion
   dartvel_core: ">=3.0.0 <4.0.0"
   dartvel_flutter: ">=3.0.0 <4.0.0"
 ''';
@@ -377,7 +378,11 @@ packages:
 
     test('already on this release: nothing written, nothing resolved',
         () async {
-      final String current = _app01351.replaceAll('0.13.51', _target);
+      // On this release a Flutter app declares material_ui, which replaces
+      // the flutter/material library Flutter 3.50 deprecates.
+      final String current = _app01351
+          .replaceAll('0.13.51', _target)
+          .replaceFirst('    sdk: flutter\n', '    sdk: flutter\n  material_ui: ^$dvMaterialUiVersion\n');
       write('pubspec.yaml', current);
       final List<String> out = <String>[];
       var resolved = false;

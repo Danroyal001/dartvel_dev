@@ -13,8 +13,8 @@ library;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'browser_menu_stub.dart'
     if (dart.library.js_interop) 'browser_menu_web.dart' as platform;

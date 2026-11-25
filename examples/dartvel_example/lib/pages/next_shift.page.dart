@@ -10,7 +10,7 @@
 // A page renders it now, so the class is constructed, laid out and covered by
 // the same page tests every other route gets.
 import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../components/shop_ui.dart';
 import '../theme/palette.dart';

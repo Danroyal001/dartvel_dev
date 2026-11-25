@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
-import '../../dartvel_client/dartvel_client.dart';
 import '../../components/shop_ui.dart';
+import '../../dartvel_client/dartvel_client.dart';
 import '../../shop/cart.dart';
 import '../../theme/palette.dart';
 

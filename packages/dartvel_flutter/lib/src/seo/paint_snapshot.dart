@@ -38,10 +38,10 @@ library;
 import 'dart:math' as math;
 import 'dart:ui' show BoxHeightStyle;
 
-import 'package:flutter/material.dart' show ColorScheme, InputBorder, InputDecorationTheme, InputDecorator, OutlineInputBorder, Theme, ThemeData, UnderlineInputBorder, WidgetState, WidgetStateProperty;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show ColorScheme, InputBorder, InputDecorationTheme, InputDecorator, OutlineInputBorder, Theme, ThemeData, UnderlineInputBorder, WidgetState, WidgetStateProperty;
 
 import '../widgets/described_paint.dart';
 

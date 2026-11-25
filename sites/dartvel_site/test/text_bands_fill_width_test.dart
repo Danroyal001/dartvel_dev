@@ -6,8 +6,8 @@
 // width -- and fills the column. On a phone it stays one column.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget routed(Widget page) => MaterialApp.router(
       routerConfig: GoRouter(

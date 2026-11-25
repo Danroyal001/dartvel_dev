@@ -15,7 +15,7 @@
 library dartvel_flutter.routing.page_errors;
 
 import 'package:dartvel_core/dartvel.dart' show dvOfflineReturn;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart' show DVNavLink, DVRouteTarget;
 

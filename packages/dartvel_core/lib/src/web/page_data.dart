@@ -665,7 +665,9 @@ const String dvRoutePreloadsFile = 'dartvel_prefetch.json';
 /// does not know (an image's laid-out slot, say) is ignored, because a
 /// preload list is an optimisation and a mangled one must not stop a page.
 class DVRoutePreloads {
-  const DVRoutePreloads._(this._routes, [this._wasm = const <String, List<String>>{}]);
+  const DVRoutePreloads._(this._routes,
+      [this._wasm = const <String, List<String>>{},
+      this._engines = DVWasmEngines.chromiumOnly]);
 
   /// No manifest, or nothing in it.
   static const DVRoutePreloads none =
@@ -677,6 +679,10 @@ class DVRoutePreloads {
   /// Each pattern's deferred wasm modules, named only to a browser that will
   /// run the wasm app ([dvWasmModulePreloads]).
   final Map<String, List<String>> _wasm;
+
+  /// The engines the build let run its wasm app (`wasmEngines`), which the
+  /// module preloads decide by as the page's own scripts do.
+  final DVWasmEngines _engines;
 
   static DVRoutePreloads parse(String? json) {
     if (json == null || json.isEmpty) return none;
@@ -723,7 +729,8 @@ class DVRoutePreloads {
       ];
       if (links.isNotEmpty) out[pattern] = links;
     }
-    return DVRoutePreloads._(out, wasmOut);
+    return DVRoutePreloads._(
+        out, wasmOut, DVWasmEngines.fromJson(decoded['wasmEngines']));
   }
 
   bool get isEmpty => _routes.isEmpty && _wasm.isEmpty;
@@ -749,7 +756,7 @@ class DVRoutePreloads {
       if (named.contains(href) || !seen.add(href)) continue;
       out.writeln(_preloadLink(href, kind));
     }
-    final String modules = dvWasmModulePreloads(wasm);
+    final String modules = dvWasmModulePreloads(wasm, _engines);
     if (modules.isNotEmpty) out.writeln(modules);
     return out.toString();
   }
@@ -797,24 +804,102 @@ String dvAfterBootPreloadsBody(List<String> hrefs, {String? guard}) {
       'l.crossOrigin="anonymous";l.href=h;d.head.appendChild(l)})});';
 }
 
+/// The browser engines besides Chromium's that a build lets run its
+/// WebAssembly app: `webkit` (Safari 26.2+ and every iOS browser on it) and
+/// `gecko` (Firefox 147+). Chromium runs it whenever there is one.
+///
+/// flutter.js leaves both off by default; a Dartvel build turns both on
+/// unless `dartvel.web.wasm` says otherwise, and writes the choice into its
+/// `flutter_bootstrap.js` and its route manifest, where every script that
+/// guesses the loader's pick reads it.
+final class DVWasmEngines {
+  const DVWasmEngines({this.webkit = true, this.gecko = true});
+
+  /// Safari and Firefox too: a Dartvel build's default.
+  static const DVWasmEngines all = DVWasmEngines();
+
+  /// Chromium alone: what flutter.js allows by itself, and what a build
+  /// from before Dartvel 3.50 did.
+  static const DVWasmEngines chromiumOnly =
+      DVWasmEngines(webkit: false, gecko: false);
+
+  final bool webkit;
+  final bool gecko;
+
+  Map<String, bool> toJson() => <String, bool>{'webkit': webkit, 'gecko': gecko};
+
+  /// [toJson] read back; anything else is [chromiumOnly].
+  static DVWasmEngines fromJson(Object? json) {
+    if (json is! Map) return chromiumOnly;
+    return DVWasmEngines(
+        webkit: json['webkit'] == true, gecko: json['gecko'] == true);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is DVWasmEngines && other.webkit == webkit && other.gecko == gecko;
+
+  @override
+  int get hashCode => Object.hash(webkit, gecko);
+
+  @override
+  String toString() => 'DVWasmEngines(webkit: $webkit, gecko: $gecko)';
+}
+
+/// flutter.js's own test for the WebAssembly features dart2wasm needs
+/// (WasmGC, SIMD, js-string builtins, try_table), as Flutter 3.50.1 writes it
+/// in `flutter_js/src/supports_dart2wasm.js`. A CLI test compares it with the
+/// Flutter on the machine.
+const String dvSupportsDart2WasmJs =
+    '(WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))'
+    '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,253,98,11]))'
+    '&&!WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,2,23,1,14,119,97,115,109,58,106,115,45,115,116,114,105,110,103,4,99,97,115,116,0,0]),{"builtins":["js-string"]})'
+    '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,4,1,96,0,0,3,2,1,0,10,13,1,11,0,2,64,31,64,1,2,0,11,11,11])))';
+
+/// A JavaScript expression, true in a WebKit browser of 26.2 or later: the
+/// first Safari that runs a dart2wasm app. flutter.js has no version test
+/// for WebKit, so a Dartvel build adds this one.
+///
+/// Safari's own `Version/`; every other iOS browser is WebKit without one,
+/// and goes by the iOS version in its user agent (which Safari 26 freezes,
+/// so an unknown one stays on dart2js).
+const String dvWebkitWasmGateJs = '(function(u){'
+    r'var m=u.match(/Version\/(\d+)(?:\.(\d+))?/)'
+    r'||u.match(/OS (\d+)_(\d+)(?:_\d+)? like Mac OS X/);'
+    'return !!m&&(+m[1]>26||(+m[1]==26&&+(m[2]||0)>=2))'
+    '})(navigator.userAgent)';
+
+/// A JavaScript expression, true in a browser whose loader will pick the
+/// WebAssembly app of a build that allows [engines]: the loader's own
+/// engine test (`navigator.vendor`), Firefox's version gate (147, which
+/// flutter.js applies itself), [dvWebkitWasmGateJs], and
+/// [dvSupportsDart2WasmJs]. Never throws.
+String dvWasmAppRunsHereJs(DVWasmEngines engines) => '(function(){try{'
+    'var n=navigator,u=n.userAgent,m;'
+    'if(n.vendor==="Google Inc."||u.indexOf("Edg/")>=0){}'
+    'else if(n.vendor==="Apple Computer, Inc."){'
+    '${engines.webkit ? 'if(!$dvWebkitWasmGateJs)return false' : 'return false'}}'
+    'else if(n.vendor===""&&u.indexOf("Firefox")>=0){'
+    '${engines.gecko ? r'm=u.match(/firefox\/(\d+)/i);if(!m||+m[1]<147)return false' : 'return false'}}'
+    'else return false;'
+    'return $dvSupportsDart2WasmJs}catch(e){return false}})()';
+
 /// A script that preloads [modules] -- a route's deferred
 /// `main.dart_module<N>.wasm` files -- in a browser that will run the
-/// WebAssembly app, and does nothing in any other. Empty for no modules.
+/// WebAssembly app of a build that allows [engines], and does nothing in any
+/// other. Empty for no modules.
 ///
-/// The decision is the one the splash makes for main.dart.wasm (Blink with
-/// WasmGC, flutter.js's own detector bytes): a browser running dart2js would
-/// download every module for nothing. Each is fetched as the module loader
+/// The decision is the one the splash makes for main.dart.wasm
+/// ([dvWasmAppRunsHereJs]): a browser running dart2js would download every
+/// module for nothing. Each is fetched as the module loader
 /// fetches it -- fetch(), anonymous CORS -- or the browser would not hand the
 /// preload over and download it twice; and only once main.dart.wasm and the
 /// renderer are in ([dvAfterBootDownloadsDetector]), so they keep the network
 /// first. Without this a route's modules were asked for only once
 /// main.dart.wasm had run, in waves of round trips.
-String dvWasmModulePreloads(List<String> modules) {
+String dvWasmModulePreloads(List<String> modules, DVWasmEngines engines) {
   if (modules.isEmpty) return '';
-  return '<script>(function(){var n=navigator,w=false;'
-      'try{w=(n.vendor==="Google Inc."||n.userAgent.indexOf("Edg/")>=0)'
-      '&&WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]))}'
-      'catch(e){}'
+  return '<script>(function(){var w=${dvWasmAppRunsHereJs(engines)};'
       '${dvAfterBootPreloadsBody(modules, guard: 'w')}'
       '})();</script>';
 }

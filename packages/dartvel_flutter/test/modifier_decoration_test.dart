@@ -10,8 +10,8 @@
 // strikethrough(), matching overflow(TextOverflow) beside it: a design that
 // uses both at once is a real design, and two flags cannot express it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 TextStyle? styleOf(WidgetTester tester) =>
     tester.widget<Text>(find.byType(Text).first).style;

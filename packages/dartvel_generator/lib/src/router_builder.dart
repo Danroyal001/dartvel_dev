@@ -532,7 +532,7 @@ ${buildReturn.split('\n').map((line) => '        $line').join('\n')}
 // ignore_for_file: unnecessary_import, unused_import
 
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'config.g.dart';
@@ -1065,7 +1065,7 @@ String _pageBodyLibrary({
     ),
   );
   final imports = <String>{
-    "import 'package:flutter/material.dart';",
+    "import 'package:material_ui/material_ui.dart';",
     "import 'package:dartvel_flutter/dartvel_flutter.dart';",
     ..._pageImportsFor(source, path, pkgName),
     "import '${path.replaceFirst(RegExp('^lib/'), 'package:$pkgName/')}' "

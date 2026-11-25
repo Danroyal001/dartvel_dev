@@ -9,8 +9,8 @@ library;
 
 import 'package:dartvel_core/dartvel.dart' show DVNotificationChannel;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Checks a code. Returns null when it is right, or what to tell the person
 /// when it is not.

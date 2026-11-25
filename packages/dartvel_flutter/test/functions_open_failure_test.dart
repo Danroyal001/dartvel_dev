@@ -9,8 +9,8 @@
 // Found while photographing Studio. The Frontend list had orderAhead in it,
 // the tap landed, and the builder stayed empty in every capture.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A store that lists a function and refuses to load it.
 class _RefusingStore implements DVFunctionStore {
