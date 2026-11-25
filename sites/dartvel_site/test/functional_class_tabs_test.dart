@@ -4,8 +4,8 @@
 // the function shape first.
 import 'package:dartvel_site/components/docs_samples.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A sample that writes a widget or a page as an annotated function.
 bool isFunctional(List<String> lines) => lines.any((String l) =>

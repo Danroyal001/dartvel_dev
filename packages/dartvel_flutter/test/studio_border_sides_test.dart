@@ -11,8 +11,8 @@
 // companions, because a side applied on its own would be a line nobody chose
 // a colour for.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/bordered');

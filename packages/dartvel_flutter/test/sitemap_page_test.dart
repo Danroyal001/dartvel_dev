@@ -1,8 +1,8 @@
 // The human /sitemap page every Dartvel site gets (queue 6d10): the site's own
 // sitemap.xml laid out like its XSL view, as a real page with links.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const String sitemap = '''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

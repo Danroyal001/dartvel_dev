@@ -6,8 +6,8 @@ import 'package:dartvel_site/components/docs_page_info.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/pages/_layout.dart';
 import 'package:dartvel_site/pages/docs/_layout.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Each docs page's generated widget and deferred loader, by path.
 final Map<String, (Widget Function(), Future<void> Function())> docsWidgets =

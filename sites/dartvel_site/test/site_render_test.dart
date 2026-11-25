@@ -5,8 +5,8 @@
 // weeks.
 import 'package:dartvel_site/components/site.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget host(Widget page, Brightness brightness) => MaterialApp(
       theme: ThemeData(brightness: brightness, useMaterial3: true),

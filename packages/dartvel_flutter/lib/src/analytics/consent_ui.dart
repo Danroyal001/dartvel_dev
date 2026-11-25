@@ -14,8 +14,8 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart'
     show DVBox, DVModifier, DVNavLink, DVRouteTarget, DVText;
-import 'app_tracking_transparency.dart';
 import '../seo/capture_hold.dart';
+import 'app_tracking_transparency.dart';
 
 /// Records [answers] as a choice made through [prompt], and returns whether
 /// everything that was answered was written.

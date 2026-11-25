@@ -22,10 +22,10 @@ library;
 
 import 'package:flutter/gestures.dart'
     show LongPressGestureRecognizer, TapGestureRecognizer, kLongPressTimeout;
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show SelectionStatus;
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart' show DVMenuItem;
 import 'browser_menu.dart' show DVBrowserMenu;

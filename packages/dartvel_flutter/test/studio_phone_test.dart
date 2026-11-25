@@ -8,8 +8,8 @@
 // the bottom, and the editor shows one pane at a time -- Elements, Page or
 // Style -- chosen from a bar of its own.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget host() => MaterialApp(
       home: Material(

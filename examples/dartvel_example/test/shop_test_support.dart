@@ -1,8 +1,8 @@
 // What the shop's screen tests share.
-import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_example/boot.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A Pixel 6 in portrait, which is what the Android emulator job reports.
 const Size phonePhysical = Size(1080, 2400);

@@ -11,8 +11,8 @@
 // then overwritten by a width is a border of the wrong thickness. The apply
 // step is given the whole property map for that reason.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/bordered');

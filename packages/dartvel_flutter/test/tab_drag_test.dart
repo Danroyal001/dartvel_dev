@@ -9,8 +9,8 @@
 // everywhere, while tear-out is capability-gated and must be *absent* where it
 // is unavailable rather than present and inert.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVTab tab(String path) => DVTab(DVRouteTarget(path));
 

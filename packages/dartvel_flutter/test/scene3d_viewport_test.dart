@@ -12,9 +12,9 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:dartvel_core/src/observability/observability.dart'
     show DVLogRecord, DVObservability;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A GLB holding one triangle mesh with bounds -1..1 on every axis.
 List<int> _cubeGlb() {

@@ -1,8 +1,8 @@
 // Studio's GitHub section: name the repository, see what would change as a
 // diff, and send it as a pull request or a push.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Finder _key(String key) => find.byKey(ValueKey<String>(key));
 

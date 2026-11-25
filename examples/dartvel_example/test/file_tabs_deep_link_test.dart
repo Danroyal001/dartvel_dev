@@ -3,11 +3,11 @@
 // The tab's stack is built whole: the coffee on top and the shelf under it,
 // covered. Both are selectable pages, and a covered page is not laid out --
 // which the selection area asked the size of anyway.
-import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_example/boot.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {

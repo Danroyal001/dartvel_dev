@@ -5,8 +5,8 @@
 // config routes after, and dvOrderGoRoutes over the lot. A file route is
 // stood in for by a plain GoRoute, which is what the generator emits.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 bool signedIn = false;
 

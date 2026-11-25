@@ -1,8 +1,8 @@
 // The workflow canvas says what kind of step each card is, before any of the
 // text on the card has to be read.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('each card says what kind of step it is',

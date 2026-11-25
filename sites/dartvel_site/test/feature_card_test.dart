@@ -14,8 +14,8 @@
 //
 // So what is asserted now is that the card stays a card whatever it is handed.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 final String _long =
     'One layout primitive with a fluent modifier chain, and a great deal '

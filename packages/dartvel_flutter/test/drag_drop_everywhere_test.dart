@@ -2,8 +2,8 @@ import 'dart:typed_data';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind, kLongPressTimeout;
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Drag and drop beyond the desktop window: the shared event, routing a drop
 /// to the widget under it, the picker fallback, and dragging inside the

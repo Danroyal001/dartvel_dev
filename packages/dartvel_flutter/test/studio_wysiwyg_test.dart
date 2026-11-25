@@ -14,14 +14,13 @@
 // And the canvas gets the screen: the header, the formula bar and a banner
 // stacked above it took a quarter of a laptop's height before a pixel of the
 // page was drawn.
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:dartvel_flutter/src/studio/studio_formula_bar.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 final ThemeData _light = ThemeData(
   useMaterial3: true,

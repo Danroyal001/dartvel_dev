@@ -6,8 +6,8 @@ import 'package:dartvel_example/shop/appearance.dart';
 import 'package:dartvel_example/shop/cart.dart';
 import 'package:dartvel_example/shop/orders.dart';
 import 'package:dartvel_example/theme/palette.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'shop_test_support.dart';
 

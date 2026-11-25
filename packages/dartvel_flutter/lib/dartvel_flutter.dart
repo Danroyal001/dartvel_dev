@@ -5,13 +5,12 @@ import 'dart:convert' show base64Decode, jsonDecode, jsonEncode, utf8;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:dartvel_core/dartvel.dart';
 // The offline queue, which signing out empties. The framework's own, and
 // not re-exported to applications.
 import 'package:dartvel_core/framework.dart' show DVOfflineSync, dvPurgeRenderedPages;
-import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart'
     show
         OrdinalSortKey,
@@ -33,6 +32,7 @@ import 'package:flutter/services.dart'
         TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:meta/meta.dart';
 
 import 'src/accessibility/browser_clicks.dart';
@@ -43,7 +43,6 @@ import 'src/accessibility/selection_mirror.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
 import 'src/analytics/consent_ui.dart' show DVConsentBanner;
-import 'src/gestures/gestures.dart';
 import 'src/auth/ask_for_code.dart';
 import 'src/auth/auth_frame.dart';
 import 'src/auth/qr_code.dart' show DVQrImage;
@@ -57,16 +56,17 @@ import 'src/display_platform.dart'
     if (dart.library.js_interop) 'src/display_platform_web.dart'
     as display_platform;
 import 'src/find/find_in_page.dart';
-import 'src/lists/lazy_lists.dart';
-import 'src/lists/lazy_list_view.dart';
-import 'src/lists/near_screen.dart';
 import 'src/find/find_platform_stub.dart'
     if (dart.library.js_interop) 'src/find/find_platform_web.dart'
     as find_platform;
+import 'src/gestures/gestures.dart';
 import 'src/kiosk/device_kiosk.dart';
 import 'src/kiosk/kiosk.dart' show DVKioskEnforced;
 import 'src/kiosk/kiosk_keys.dart';
 import 'src/kiosk/session_clear.dart';
+import 'src/lists/lazy_list_view.dart';
+import 'src/lists/lazy_lists.dart';
+import 'src/lists/near_screen.dart';
 import 'src/media/camera_view.dart';
 import 'src/media/image_view.dart';
 import 'src/media/media_box.dart';
@@ -112,10 +112,10 @@ import 'src/studio/page_document.dart';
 import 'src/studio/studio_app_shortcuts.dart' show DVStudioAppShortcuts;
 import 'src/studio/studio_host.dart' show DVPagePreviewScope;
 import 'src/widgets/browser_menu.dart';
-import 'src/widgets/password_reveal.dart';
-import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 import 'src/widgets/page_safe_box.dart' show DVPageSafeBox, dvMeasurePageOuterBox;
+import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 import 'src/widgets/page_viewport.dart' show DVPageViewport, DVLayoutSlots;
+import 'src/widgets/password_reveal.dart';
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -827,9 +827,9 @@ export 'src/admin/queue_admin.dart';
 export 'src/admin/route_admin.dart';
 export 'src/admin/route_info.dart';
 export 'src/admin/telemetry_admin.dart';
+export 'src/ai/web_mcp.dart' show DVWebMcp, DVWebMcpTool;
 export 'src/analytics/app_tracking_transparency.dart';
 export 'src/analytics/consent_ui.dart';
-export 'src/seo/capture_hold.dart' show DVCaptureHold;
 export 'src/auth/ask_for_code.dart';
 export 'src/auth/auth_frame.dart';
 export 'src/auth/qr_code.dart';
@@ -847,15 +847,15 @@ export 'src/docs/docs_app.dart';
 export 'src/docs/docs_blocks.dart';
 export 'src/docs/docs_source.dart';
 export 'src/docs/docs_style.dart';
+export 'src/driver/agent_driver.dart';
 export 'src/flags/flag_signal.dart';
+export 'src/gestures/gestures.dart' show DVGesture, dvSwipeVelocity;
 export 'src/kiosk/device_kiosk.dart';
 export 'src/kiosk/kiosk.dart';
 export 'src/kiosk/kiosk_host.dart';
 export 'src/kiosk/kiosk_keys.dart';
 export 'src/kiosk/session_clear.dart';
 export 'src/lifecycle/app_lifecycle_bridge.dart';
-export 'src/driver/agent_driver.dart';
-export 'src/gestures/gestures.dart' show DVGesture, dvSwipeVelocity;
 export 'src/logging/logging.dart';
 export 'src/media/camera_view.dart' hide DVCameraView;
 // The renderer behind DVBox.image is not a second image widget, so it is
@@ -902,14 +902,12 @@ export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
 export 'src/platform/windows/windows_bindings.dart';
 export 'src/progress/top_progress.dart' show DVTopProgress, DVTopProgressBar;
-export 'src/ai/web_mcp.dart' show DVWebMcp, DVWebMcpTool;
 export 'src/purchases/purchases_runtime.dart'
     show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/push/device_push.dart';
 export 'src/pwa/install_prompt.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/client_hosts.dart';
-export 'src/routing/sitemap_page.dart' show DVSitemapPage, dvSitemapDate;
 export 'src/routing/config_routes.dart';
 export 'src/routing/host_routers.dart';
 export 'src/routing/mount.dart';
@@ -921,11 +919,13 @@ export 'src/routing/page_middleware.dart';
 export 'src/routing/page_policy.dart';
 export 'src/routing/route_prefetch.dart';
 export 'src/routing/router.dart';
+export 'src/routing/sitemap_page.dart' show DVSitemapPage, dvSitemapDate;
 export 'src/routing/url_strategy.dart';
 export 'src/run/application.dart' show DVAppParts, dvRunApplication, dvResetApplicationEntryForTest, dvLaunchArguments, dvSetLaunchArguments;
 export 'src/scene3d/model_viewer.dart';
 export 'src/scene3d/scene_nodes.dart';
 export 'src/scene3d/scene_viewport.dart';
+export 'src/seo/capture_hold.dart' show DVCaptureHold;
 export 'src/studio/functions/function_editor.dart';
 export 'src/studio/functions/function_section.dart'
     show dvFunctionStudioSections, dvWorkflowStudioSection;
@@ -942,8 +942,8 @@ export 'src/studio/studio_first_run.dart' show DVStudioFirstRunScreen;
 export 'src/studio/studio_host.dart';
 export 'src/studio/studio_mark.dart';
 export 'src/studio/studio_modules.dart';
-export 'src/studio/studio_repository_section.dart';
 export 'src/studio/studio_platforms_section.dart';
+export 'src/studio/studio_repository_section.dart';
 export 'src/studio/studio_routes.dart';
 export 'src/studio/studio_screen.dart';
 export 'src/studio/studio_server.dart';
@@ -959,8 +959,8 @@ export 'src/widgets/context_menu.dart';
 export 'src/widgets/described_paint.dart'
     show DVDescribedPainter, DVGradientPainter, DVGradientSpan, DVGradientText, DVRadialGradient;
 export 'src/widgets/home_widgets.dart';
-export 'src/widgets/shortcuts.dart';
 export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
+export 'src/widgets/shortcuts.dart';
 export 'src/widgets/widget_span.dart' show DVWidgetSpan;
 export 'src/windowing/app_launch.dart';
 export 'src/windowing/browser_window.dart';

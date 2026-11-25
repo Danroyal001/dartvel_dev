@@ -5,9 +5,9 @@
 // live. `pageSlot` marks the text; the build writes the mark into the page
 // and the route's page data fills it on every request.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('a slot reaches the semantics tree with its text', (tester) async {

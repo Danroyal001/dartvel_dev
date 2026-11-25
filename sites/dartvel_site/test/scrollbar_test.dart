@@ -10,8 +10,8 @@
 // exist for every input rather than only for a mouse.
 import 'package:dartvel_site/theme.dart';
 import 'package:flutter/foundation.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _tallPage() => MaterialApp(
       theme: dartvelSiteTheme(Brightness.light),

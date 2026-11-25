@@ -32,8 +32,8 @@ import 'package:dartvel_core/dartvel.dart'
         DVFlagSubject,
         DVFlags;
 import 'package:flutter/foundation.dart' show kReleaseMode;
-import 'package:material_ui/material_ui.dart' show Icon, IconData, Icons;
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show Icon, IconData, Icons;
 
 import '../../dartvel_flutter.dart';
 import 'studio_flag_rules.dart';

@@ -11,8 +11,8 @@
 library;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A document with one page of every kind, a second page to link to, and a
 /// page long enough that an anchor is off the screen until it is scrolled to.

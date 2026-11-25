@@ -14,14 +14,12 @@ import 'package:jni/jni.dart';
 import 'generated/android/app/Activity.dart';
 import 'generated/android/content/Context.dart';
 import 'generated/android/content/Intent.dart';
-import 'generated/android/content/pm/ActivityInfo.dart';
-import 'generated/android/content/pm/ComponentInfo.dart';
 import 'generated/android/content/pm/PackageItemInfo.dart';
 import 'generated/android/content/pm/PackageManager.dart';
 import 'generated/android/content/pm/ResolveInfo.dart';
-import 'generated/android/graphics/drawable/Drawable.dart';
 import 'generated/android/graphics/Bitmap.dart';
 import 'generated/android/graphics/Canvas.dart';
+import 'generated/android/graphics/drawable/Drawable.dart';
 import 'generated/android/net/Uri.dart';
 import 'generated/java/io/ByteArrayOutputStream.dart';
 

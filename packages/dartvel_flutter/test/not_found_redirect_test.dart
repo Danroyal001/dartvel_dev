@@ -7,8 +7,8 @@
 // read, generated, and never once applied: an unknown path rendered the 404
 // fallback whatever the pubspec said.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 GoRouter routerTo(String location, {String to = '/'}) => DVRouter(
       initialLocation: location,

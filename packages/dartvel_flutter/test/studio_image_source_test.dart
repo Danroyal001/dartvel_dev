@@ -8,8 +8,8 @@
 // The node says which kind it is, and says nothing when it is a URL, so every
 // document written before this reads exactly as it did.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/pictured');

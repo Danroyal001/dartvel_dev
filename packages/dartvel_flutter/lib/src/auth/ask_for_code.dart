@@ -7,8 +7,8 @@
 /// or as a whole page for a flow that has one, `DV.Auth.AskForCodePage`.
 library;
 
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Checks a code. Returns null when it is right, or what to tell the person
 /// when it is not.

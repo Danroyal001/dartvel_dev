@@ -6,9 +6,9 @@
 // application sees from whatever the binding hands back, and what it sends.
 import 'dart:typed_data';
 
+import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/services.dart' show ByteData, StringCodec;
 import 'package:flutter/widgets.dart';
-import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

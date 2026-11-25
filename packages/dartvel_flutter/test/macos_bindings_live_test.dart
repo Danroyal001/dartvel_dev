@@ -18,8 +18,8 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/platform/macos/macos_menus_ffi.dart' show DVMacosObjc;
 import 'package:dartvel_flutter/src/platform/macos/macos_serial.dart';
 import 'package:ffi/ffi.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 final DynamicLibrary _cg = DynamicLibrary.open('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics');
 final DynamicLibrary _appServices =

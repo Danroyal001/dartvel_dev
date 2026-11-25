@@ -8,8 +8,8 @@
 import 'dart:ui' as ui;
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A book-style hinge down the middle of an 820 by 800 window.
 const ui.DisplayFeature bookHinge = ui.DisplayFeature(

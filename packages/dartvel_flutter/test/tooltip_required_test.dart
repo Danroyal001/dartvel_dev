@@ -5,10 +5,10 @@
 // framework makes the name a precondition of the control, not a courtesy.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/gestures.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _app(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
 

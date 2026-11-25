@@ -4,12 +4,12 @@
 // /account, with /coffee/:slug and /cart beside the shop. Each tab keeps its
 // own stack and its state, and back -- the iOS edge swipe and the Android
 // button -- pops inside the tab on screen before anything else.
-import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_example/boot.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter/foundation.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {

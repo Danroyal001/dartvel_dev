@@ -10,8 +10,8 @@ library;
 
 import 'dart:async';
 
-import 'package:material_ui/material_ui.dart' show Icons;
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart' show Icons;
 
 import '../../dartvel_flutter.dart';
 

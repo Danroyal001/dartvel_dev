@@ -9,8 +9,8 @@
 // its text, so nothing looked wrong until somebody looked at the screen.
 import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVAnalyticsSettings settings() => DVAnalyticsSettings.fromConfig(<String, Object?>{
       'consent': <String, Object?>{

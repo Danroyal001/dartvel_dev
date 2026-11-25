@@ -5,8 +5,8 @@
 // document could say one radius. The import that met one had to pick a
 // number, so a bottom sheet came through as a floating rounded rectangle.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/rounded');

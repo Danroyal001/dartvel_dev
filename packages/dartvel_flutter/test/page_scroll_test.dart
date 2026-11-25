@@ -4,8 +4,8 @@
 // generator's tests. dartvel.dev had it as a component of its own, so other
 // Dartvel sites did not.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 class _Page extends DVClassWidget {
   const _Page({required this.height, super.pageScrollToTop});

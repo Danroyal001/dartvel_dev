@@ -7,8 +7,8 @@ import 'dart:io';
 
 import 'package:dartvel_site/components/site.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Every page file of the site outside the docs, and not a layout or a
 /// loading or error companion.

@@ -3,8 +3,8 @@
 // the page at #plans scrolls to it.
 import 'package:dartvel_core/cloud.dart' show dvCloudPlansUrl;
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const String plansHeading = 'Dartvel Cloud and Studio Pro: one price per project.';
 

@@ -11,8 +11,8 @@
 // Seventeen of them, on four pages, between 1.05 and 1.65: nobody has ever
 // wanted a box 1.65 pixels tall while also choosing a font for it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('a text height under three points is a line height', () {

@@ -2,8 +2,8 @@
 // and the canvas driven by real drag gestures, not by calling the editor
 // directly.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVStudioEditorController controllerWith(List<String> texts) {
   final document = DVPageDocument(route: '/page', title: 'Page');

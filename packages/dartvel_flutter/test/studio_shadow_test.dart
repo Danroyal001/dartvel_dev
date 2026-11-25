@@ -6,8 +6,8 @@
 // list since it was written; the document, the inspector and the export
 // simply had no name for it.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(Map<String, Object?> properties) {
   final DVPageDocument document = DVPageDocument(route: '/shadowed');

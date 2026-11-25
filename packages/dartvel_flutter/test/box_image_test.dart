@@ -5,8 +5,8 @@
 // checks. A page names a bundled file through the generated DVAsset, and
 // shows it with DVBox.image, a background image or a background video.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What `dartvel routes` generates for a project's bundled files.
 enum _Asset implements DVAssetRef {

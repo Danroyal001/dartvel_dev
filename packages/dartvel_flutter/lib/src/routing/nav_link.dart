@@ -18,11 +18,11 @@ import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show dvKioskAllowsExternalUrl;
 import 'package:flutter/gestures.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart' show GoRouter;
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart'
     show DV, DVNavigation, DVRouteTarget, DartvelRouteState;

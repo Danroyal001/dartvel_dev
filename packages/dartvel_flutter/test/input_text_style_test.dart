@@ -6,8 +6,8 @@
 // drawer under a dark app theme typed white on white, and the font and size an
 // app chose for its search box never showed.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('the typed value takes the colour, size, weight, spacing and family of the modifier', (WidgetTester tester) async {

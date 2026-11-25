@@ -1,5 +1,7 @@
-import 'package:dartvel_shelf/dartvel_shelf.dart';
 import 'dart:async';
+
+import 'package:dartvel_shelf/dartvel_shelf.dart';
+
 import '../.dart_tool/dartvel_backend_routes.g.dart' as gen;
 
 Future<void> main() async {

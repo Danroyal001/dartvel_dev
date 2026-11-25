@@ -1,8 +1,8 @@
 // The agent driver on the headless host: one tree (the semantics tree) and a
 // few operations an agent uses to see and use a page, the same on every host.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 class _Checkout extends StatefulWidget {
   const _Checkout();

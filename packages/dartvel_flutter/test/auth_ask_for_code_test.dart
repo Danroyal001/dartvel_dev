@@ -5,8 +5,8 @@
 // "that code is wrong" line. As a modal over whatever is on screen, or as a
 // whole page for a flow that has one.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> typeCode(WidgetTester tester, String code) async {
   await tester.enterText(find.byType(EditableText).first, code);

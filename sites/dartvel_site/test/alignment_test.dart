@@ -3,8 +3,8 @@
 // Seen only in a screenshot of the built site: the text link beside
 // a button sat at the top of the row, a few pixels above the button's label.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> pumpAt(WidgetTester tester, double width, Widget child) async {
   tester.view.physicalSize = Size(width, 2400);

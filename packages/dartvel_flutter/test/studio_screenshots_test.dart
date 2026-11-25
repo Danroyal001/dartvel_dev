@@ -12,10 +12,10 @@ import 'dart:ui' as ui;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/studio/studio_command_palette.dart';
 import 'package:dartvel_flutter/src/studio/studio_formula_bar.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 
 final bool _wanted = Platform.environment['DV_SCREENSHOTS'] == '1';

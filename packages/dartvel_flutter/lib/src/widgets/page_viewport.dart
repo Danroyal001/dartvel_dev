@@ -27,8 +27,8 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'page_history_stub.dart'
     if (dart.library.js_interop) 'page_history_web.dart' as history;

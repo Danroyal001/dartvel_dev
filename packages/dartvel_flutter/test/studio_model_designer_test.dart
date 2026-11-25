@@ -10,8 +10,8 @@
 import 'package:dartvel_core/dartvel.dart'
     show DVStudioApi, DVStudioFieldSpec, DVStudioModelSpec;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A project's generated model specs.
 const List<DVStudioModelSpec> _models = <DVStudioModelSpec>[

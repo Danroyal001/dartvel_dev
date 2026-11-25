@@ -5,8 +5,8 @@
 // or under a prefix. DV.Navigation then goes through the host's router,
 // placing Dartvel's targets under the prefix and leaving the host's alone.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 bool signedIn = false;
 

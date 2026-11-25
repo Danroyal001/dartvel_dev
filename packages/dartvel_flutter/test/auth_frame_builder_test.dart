@@ -1,6 +1,6 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Every app's sign-in looked the same: one card on the left, the form on the
 /// right, only the colours changed. An app now draws the whole screen around

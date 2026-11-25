@@ -1,7 +1,7 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The family a [Text] is actually drawn in, after the theme's style is merged in.
 String? drawnFamily(WidgetTester tester, String text) =>

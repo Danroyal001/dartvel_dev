@@ -9,11 +9,10 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:dartvel_core/dartvel.dart' show DVEntry;
 import 'package:dartvel_core/framework.dart' show DVBootStep;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const DVStudioSplash splash = DVStudioSplash(
   color: Color(0xFF112233),

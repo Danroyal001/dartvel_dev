@@ -11,9 +11,9 @@ library;
 import 'dart:io';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const DVMediaSource launch = DVMediaSource.url('https://cdn.test/launch.mp4');
 const DVMediaSource trailer = DVMediaSource.url('https://cdn.test/trailer.mp4');

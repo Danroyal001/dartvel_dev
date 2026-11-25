@@ -6,8 +6,8 @@ import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_preview/components/open_panel.dart';
 import 'package:dartvel_preview/components/preview_decision.dart';
 import 'package:dartvel_preview/components/preview_launch.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Uri pairingLink() => DVDevClientPairing(
       server: Uri.parse('https://192.168.1.20:8787'),

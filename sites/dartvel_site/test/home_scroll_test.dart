@@ -13,8 +13,8 @@
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_site/theme.dart';
 import 'package:flutter/foundation.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Finder _pageScroll() => find
     .byWidgetPredicate((Widget w) =>

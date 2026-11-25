@@ -14,8 +14,8 @@ library;
 import 'dart:async' show unawaited;
 
 import 'package:dartvel_core/dartvel.dart' show DVSitemapLink, dvReadSitemap;
-import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart' show DVBox, DVNavLink, DVRouteTarget;
 

@@ -8,8 +8,8 @@
 // a tag list, which is the commonest wrapping thing in any design, came
 // through as a single row that runs off the side of a phone.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument pageWith(String layout) {
   final DVPageDocument document = DVPageDocument(route: '/laid-out');

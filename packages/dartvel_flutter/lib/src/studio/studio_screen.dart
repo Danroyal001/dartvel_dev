@@ -10,10 +10,10 @@ import 'package:dartvel_core/dartvel.dart'
         DVHealthReport,
         DVIncidents,
         dvStudioIsReservedRoute;
-import 'package:material_ui/material_ui.dart'
-    show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:material_ui/material_ui.dart'
+    show Icon, IconData, Icons, InkWell, Material, showGeneralDialog;
 
 import '../../dartvel_flutter.dart';
 import 'studio_command_palette.dart';

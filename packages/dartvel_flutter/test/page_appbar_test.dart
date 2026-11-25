@@ -8,10 +8,10 @@
 //
 // The title and the bar are different things. One names the document; the
 // other is a piece of furniture the page may not want.
-import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget host(DVPageScaffoldSpec spec, {TargetPlatform? platform}) => MaterialApp(
       theme: ThemeData(platform: platform ?? TargetPlatform.linux),

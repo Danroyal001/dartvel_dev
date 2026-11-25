@@ -1,6 +1,6 @@
+import 'package:flutter/widgets.dart';
 import 'package:material_ui/material_ui.dart'
     show ColorScheme, Icon, IconData, Icons, Material, ThemeData;
-import 'package:flutter/widgets.dart';
 
 import '../../dartvel_flutter.dart';
 import '../widgets/password_reveal.dart';

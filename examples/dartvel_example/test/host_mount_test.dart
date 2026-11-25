@@ -3,11 +3,11 @@
 // dartvelRoutes(at: '/app') is what an application that already has a
 // router mounts: pages, config routes and tabs, under a prefix. The host
 // keeps its routes, and DV.Navigation lands Dartvel's targets under /app.
-import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:dartvel_example/boot.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:dartvel_example/dartvel_client/dartvel_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {

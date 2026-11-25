@@ -6,8 +6,8 @@
 import 'package:dartvel_site/components/docs.dart';
 import 'package:dartvel_site/components/spec_coverage.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Scrolls every vertical scroller on screen to its end and back, the way a
 /// reader goes down the page. A DVBox list longer than 24 builds each row

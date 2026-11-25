@@ -9,16 +9,15 @@
 @TestOn('browser')
 library;
 
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
-
-import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart' show dvApplyPageHtml;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/widgets/page_viewport.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:web/web.dart' as web;
 
 /// dartvel.dev's layout: a header over the page, the long-page button on.

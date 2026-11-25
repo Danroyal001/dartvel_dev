@@ -9,8 +9,8 @@
 // is deployed, and deleting the override brings the compiled page back
 // (NEW_SPEC.md, Dartvel Studio, Publishing).
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A project's route manifest, as the generator writes one.
 const List<DVRouteInfo> _shopRoutes = <DVRouteInfo>[

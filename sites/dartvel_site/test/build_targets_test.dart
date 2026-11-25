@@ -9,8 +9,8 @@
 // The names here are the ones `dartvel build` takes, so what the site says and
 // what you type are the same string.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> pumpHome(WidgetTester tester) async {
   await tester.pumpWidget(
