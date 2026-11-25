@@ -8,9 +8,9 @@
 // action on the tab's menu. The presentation is chosen from the device,
 // and a page can name it outright.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const DVRouteTarget orders = DVRouteTarget('/orders');
 const DVRouteTarget customers = DVRouteTarget('/customers');

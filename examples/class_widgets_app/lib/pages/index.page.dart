@@ -1,5 +1,5 @@
 import 'package:class_widgets_app/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage(title: 'Dartvel', showAppBar: true, centerTitle: true)
 @pragma('vm:entry-point')

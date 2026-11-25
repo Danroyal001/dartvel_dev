@@ -24,7 +24,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'password_reveal_stub.dart'
     if (dart.library.js_interop) 'password_reveal_web.dart'

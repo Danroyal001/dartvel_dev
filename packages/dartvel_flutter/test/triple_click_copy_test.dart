@@ -5,9 +5,9 @@ import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/accessibility/browser_clicks.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget page() => MaterialApp(
       home: DVPageShell(

@@ -26,7 +26,7 @@ dartvel:
 ''',
   // Managed: a page, which is a route and a screen.
   'lib/pages/users.dart': '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage(title: 'Users')
 Widget _usersPage(BuildContext context) => const Scaffold();
@@ -65,7 +65,7 @@ class Todos extends Table {
 ''',
   // Not managed: a screen outside the pages directory.
   'lib/screens/settings_screen.dart': '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});

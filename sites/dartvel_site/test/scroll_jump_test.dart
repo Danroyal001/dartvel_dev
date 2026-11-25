@@ -3,8 +3,8 @@
 // attribute. The button's own behaviour is the framework's
 // (dartvel_flutter/test/page_scroll_test.dart).
 import 'package:dartvel_site/pages/_layout.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   test('the layout turns the long-page button on for every page', () {

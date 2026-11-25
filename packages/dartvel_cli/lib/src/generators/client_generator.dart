@@ -1246,7 +1246,7 @@ ${_moduleBackendSource(dv)}    // A web-server build is served by the binary tha
       if (autoRoute) "import 'package:auto_route/auto_route.dart' as auto_route;",
       // The models' names hidden, so Route.publicPage is the model's and not
       // ambiguous with Flutter's Route.
-      "import 'package:flutter/material.dart'$hideModels;",
+      "import 'package:material_ui/material_ui.dart'$hideModels;",
       "import 'package:go_router/go_router.dart'$hideModels;",
       "import 'package:dartvel_flutter/dartvel_flutter.dart'$hideModels;",
       "import 'config.g.dart';",
@@ -4143,7 +4143,7 @@ void startDartvelKiosk() {
     // and does not churn in diffs.
     final imports = <String>{
       "import 'dart:async';",
-      "import 'package:flutter/material.dart'$hideModels;",
+      "import 'package:material_ui/material_ui.dart'$hideModels;",
       // DV hidden: the copied source imports bring it, the barrel's or core's,
       // exactly as the source file resolved it. Both at once is ambiguous.
       "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
@@ -4194,7 +4194,7 @@ void startDartvelKiosk() {
     final imports = <String>{
       "import 'dart:async';",
       "import 'dart:convert';",
-      "import 'package:flutter/material.dart';",
+      "import 'package:material_ui/material_ui.dart';",
       "import 'package:dartvel_flutter/dartvel_flutter.dart' hide DV;",
       "import 'package:dartvel_flutter/dartvel_flutter.dart' as runtime;",
       "import 'router.g.dart';",
@@ -4875,7 +4875,7 @@ void startDartvelKiosk() {
     final Set<String> imports = <String>{
       // The models' names hidden: the body names the application's Post,
       // and these two are the generator's imports, not the page's.
-      "import 'package:flutter/material.dart'$hideModels;",
+      "import 'package:material_ui/material_ui.dart'$hideModels;",
       "import 'package:dartvel_flutter/dartvel_flutter.dart'${_hideWith(hideModels, 'DV')};",
       // _importsFor leaves dart: libraries to its caller, which for the
       // router meant only dart:async. The body was written against the

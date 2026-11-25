@@ -1,6 +1,6 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// An icon control is a DVBox around an Icon with .tooltip() and .onTap():
 /// it takes its own size and a 48-point tap target, never what it is offered.

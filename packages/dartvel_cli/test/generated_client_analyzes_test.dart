@@ -230,7 +230,7 @@ Widget _accountPage(BuildContext context) => const DVText('Account');
 /// A tabs folder: the layout that builds the frame, a list and the detail
 /// page pushed over it inside one tab, and a second tab.
 const String _tabsLayout = '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_client/dartvel_client.dart';
 
@@ -459,6 +459,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^$dvMaterialUiVersion
   dartvel_core:
     path: ${p.join(root, 'packages', 'dartvel_core')}
   dartvel_flutter:

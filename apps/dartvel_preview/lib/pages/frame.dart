@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../components/preview_platform.dart';
 import '../dartvel_client/dartvel_client.dart';

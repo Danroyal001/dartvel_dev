@@ -10,8 +10,8 @@
 // with it for the network and the CPU.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/routing/first_frame_gate.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 GoRouter routerWith(Widget subject) => GoRouter(
       initialLocation: '/',

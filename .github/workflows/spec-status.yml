@@ -91,6 +91,12 @@ jobs:
       # "Flutter's Laravel" then says Python. A rule nothing checks drifts.
       - run: dart run tool/ci/no_python_check.dart
 
+      # Flutter 3.50 deprecates flutter/material and flutter/cupertino for
+      # material_ui and cupertino_ui, which are copies of the libraries, not
+      # re-exports: one file or generator template on the old import builds a
+      # second Material library the app never themes. A rule nothing checks drifts.
+      - run: dart tool/ci/design_imports_check.dart
+
       # GitHub runs every step as `bash -e {0}`, so `set -uo pipefail` adds
       # two options and leaves errexit exactly where it was -- while reading
       # as though it had turned it off. The Linux GUI capture died on that

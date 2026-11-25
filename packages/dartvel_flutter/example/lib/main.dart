@@ -6,7 +6,7 @@
 // runtime classes, so they work in any Flutter app, including this one, which
 // has no pages directory and no generated client.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Settings the whole application reads.
 ///

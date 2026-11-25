@@ -78,6 +78,40 @@ void main() {
         containsAll(<String>['dartvel_core', 'dartvel_flutter', 'dartvel_cli']));
   });
 
+  group('the design libraries', () {
+    String declaredBy(String package, String dependency) {
+      final String pubspec =
+          File(p.join('..', package, 'pubspec.yaml')).readAsStringSync();
+      return RegExp('^  $dependency:\\s*\\^(\\S+)', multiLine: true)
+          .firstMatch(pubspec)!
+          .group(1)!;
+    }
+
+    test('dartvel_flutter declares the versions the CLI writes', () {
+      expect(declaredBy('dartvel_flutter', 'material_ui'), dvMaterialUiVersion);
+      expect(declaredBy('dartvel_flutter', 'cupertino_ui'), dvCupertinoUiVersion);
+    });
+
+    test('a new project asks for material_ui at that version', () {
+      expect(
+        ProjectTemplates.pubspecTemplate(name: 'example_app', org: 'com.example'),
+        contains('\n  material_ui: ^$dvMaterialUiVersion\n'),
+      );
+    });
+
+    test('no scaffolded file imports flutter/material or flutter/cupertino', () {
+      final List<String> written = <String>[
+        ProjectTemplates.loadingTemplate('IndexPageLoading'),
+        ProjectTemplates.errorTemplate('IndexPageError'),
+      ];
+      for (final String source in written) {
+        expect(source, isNot(contains('package:flutter/material.dart')));
+        expect(source, isNot(contains('package:flutter/cupertino.dart')));
+      }
+      expect(written.first, contains('package:material_ui/material_ui.dart'));
+    });
+  });
+
   scaffolded.forEach((String package, String constraint) {
     test('a new project admits the $package being published', () {
       final String version = declared(package);
@@ -105,3 +139,10 @@ Map<String, String> scaffoldConstraints() {
   }
   return out;
 }
+
+/// Flutter 3.50 deprecates package:flutter/material.dart and
+/// package:flutter/cupertino.dart for material_ui and cupertino_ui, which are
+/// copies of the libraries rather than re-exports. A new project written
+/// against the old import builds its pages on a second Material library that
+/// dartvel_flutter's app never themes. So the scaffold asks for the package
+/// at the version dartvel_flutter was tested with, and writes no old import.

@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
-import '../dartvel_client/dartvel_client.dart';
+import 'package:material_ui/material_ui.dart';
+
 import '../components/site.dart';
+import '../dartvel_client/dartvel_client.dart';
 
 @DVPage(
   title: 'Dartvel: the AI-native, full-stack platform for Flutter',

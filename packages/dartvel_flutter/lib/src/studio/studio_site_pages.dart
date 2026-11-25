@@ -18,9 +18,9 @@ library;
 import 'dart:async';
 
 import 'package:flutter/gestures.dart' show HitTestEntry, PointerSignalEvent;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show BoxHitTestResult, SemanticsProperties;
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart';
 

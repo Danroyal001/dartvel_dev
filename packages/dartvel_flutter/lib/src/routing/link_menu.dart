@@ -11,8 +11,8 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../widgets/browser_menu.dart' show DVBrowserMenu;
 import 'nav_link.dart' show DVLinkOpener, DVPressedLinkTarget;

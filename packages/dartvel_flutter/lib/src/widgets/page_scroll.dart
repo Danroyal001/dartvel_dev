@@ -8,7 +8,7 @@
 /// takes the app theme's colours, light and dark.
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'page_viewport.dart' show DVPageViewportScope, DVPageViewportState;
 

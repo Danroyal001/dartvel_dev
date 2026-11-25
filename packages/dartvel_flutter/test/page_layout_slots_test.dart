@@ -10,10 +10,12 @@
 // hand.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/widgets/page_viewport.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'support/tooltip_finder.dart';
 
 class _Layout extends DartvelLayout {
   const _Layout({required super.child, super.pageScrollToTop});
@@ -77,7 +79,7 @@ void main() {
   testWidgets('the back-to-top button moves the layout body', (WidgetTester tester) async {
     await tester.pumpWidget(shell(_Layout(pageScrollToTop: true, child: longPage())));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('To the bottom'));
+    await tester.tap(find.dvTooltip('To the bottom'));
     await tester.pumpAndSettle();
     final ScrollPosition position = scrolling(tester).single;
     expect(position.pixels, position.maxScrollExtent);

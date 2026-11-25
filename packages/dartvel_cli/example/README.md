@@ -96,7 +96,7 @@ page with one that shows a form for a new note and a typed link home:
 ```dart
 // lib/pages/about.dart
 import '../dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage(title: 'New note', showAppBar: true)
 @pragma('vm:entry-point')

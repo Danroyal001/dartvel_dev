@@ -26,7 +26,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVStudioFieldSpec,
         DVStudioIndexSpec,
         DVStudioModelOrigin;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../dartvel_flutter.dart';
 import 'studio_first_run.dart';

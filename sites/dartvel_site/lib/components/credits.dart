@@ -9,7 +9,7 @@
 // One list, so a credit is written once. The licences were read from each
 // fork's LICENSE file and checked against the upstream repository on GitHub;
 // the fork notes are what each fork's README banner and history record.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import 'site.dart';

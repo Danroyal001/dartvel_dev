@@ -75,7 +75,7 @@ pure Dart and drops any import that reaches Flutter, which
 
 ```dart
 // lib/pages/index.dart   ->  /
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 @DVPage(title: 'Notes', showAppBar: true)
@@ -109,7 +109,7 @@ dart run dartvel_cli:dartvel dev
 `createDartvelRouter()`:
 
 ```dart
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'dartvel_client/dartvel_client.dart';
 
 void main(List<String> arguments) async {

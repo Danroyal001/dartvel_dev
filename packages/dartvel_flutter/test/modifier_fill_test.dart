@@ -7,8 +7,8 @@
 // pixels at the default size. fill() is that missing sentence: in a
 // DVBox.list it takes the height left, in a DVBox.row the width.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const Key restKey = Key('rest');
 

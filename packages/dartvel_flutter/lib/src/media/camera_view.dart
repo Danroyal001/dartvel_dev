@@ -9,7 +9,7 @@ import 'dart:async';
 
 import 'package:dartvel_core/dartvel.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'media_box.dart';
 import 'web_media_mapping.dart';

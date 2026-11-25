@@ -7,8 +7,8 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import 'studio_server.dart' show DVStudioClient, DVStudioTransport;
 import 'studio_first_run.dart';
+import 'studio_server.dart' show DVStudioClient, DVStudioTransport;
 import 'studio_sign_in.dart';
 
 /// Studio's sign-in page, in Studio's own frame.

@@ -20,8 +20,8 @@ import 'package:dartvel_core/dartvel.dart' show DVPageShellMode;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/display/browser_safe_area.dart';
 import 'package:dartvel_flutter/src/widgets/page_viewport.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A phone: 400 x 800, a 24-point status bar and a 48-point three-button
 /// navigation bar, drawn edge to edge as Android 15 requires.

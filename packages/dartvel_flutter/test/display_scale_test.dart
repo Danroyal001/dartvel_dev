@@ -5,8 +5,8 @@
 // 240 px watch the header filled the face and the content was cut off. Phones,
 // tablets and desktops looked right and must stay exactly as they are.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('the scale for a screen', () {

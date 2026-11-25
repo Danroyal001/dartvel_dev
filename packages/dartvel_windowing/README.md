@@ -92,7 +92,7 @@ each window opened with `DV.Platform.window.open`:
 
 ```dart
 import 'package:dartvel_windowing/dartvel_windowing.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'dartvel_client/dartvel_client.dart';
 

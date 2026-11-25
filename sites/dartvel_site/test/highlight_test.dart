@@ -7,8 +7,8 @@
 // turned into a grey comment.
 import 'package:dartvel_site/components/highlight.dart';
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The colour [word] is painted in, the first time a span contains it.
 Color? colourOf(List<TextSpan> spans, String word) {

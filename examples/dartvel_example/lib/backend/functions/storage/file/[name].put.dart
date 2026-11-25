@@ -1,6 +1,7 @@
 import 'dart:io';
-import 'package:path/path.dart' as p;
+
 import 'package:dartvel_core/dartvel.dart';
+import 'package:path/path.dart' as p;
 
 Future<ResponseType> handler(RequestType req) async {
   final name = req.params['name'] ?? 'file.bin';

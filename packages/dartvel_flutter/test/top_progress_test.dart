@@ -9,8 +9,8 @@
 import 'dart:async';
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _shell(Widget child, {bool reduced = false}) => MaterialApp(
       theme: ThemeData(colorScheme: const ColorScheme.light(primary: Color(0xFF123456))),

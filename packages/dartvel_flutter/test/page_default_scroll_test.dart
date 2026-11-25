@@ -10,10 +10,12 @@
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:dartvel_flutter/src/widgets/page_viewport.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+
+import 'support/tooltip_finder.dart';
 
 /// A page as an application writes it: forty rows in a column, no scroll
 /// view anywhere, taller than the 600-point test screen.
@@ -244,21 +246,21 @@ void main() {
       await tester.pumpWidget(shell(DVPageScrollFrame(child: longColumn())));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byTooltip('To the bottom'), findsOneWidget);
-      await tester.tap(find.byTooltip('To the bottom'));
+      expect(find.dvTooltip('To the bottom'), findsOneWidget);
+      await tester.tap(find.dvTooltip('To the bottom'));
       await tester.pumpAndSettle();
       final ScrollPosition position = scrolling(tester).single;
       expect(position.pixels, position.maxScrollExtent);
-      expect(find.byTooltip('Back to top'), findsOneWidget);
+      expect(find.dvTooltip('Back to top'), findsOneWidget);
     });
 
     testWidgets('and on a page that scrolls itself', (WidgetTester tester) async {
       await tester.pumpWidget(shell(DVPageScrollFrame(child: SingleChildScrollView(child: longColumn()))));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('To the bottom'), findsOneWidget);
-      await tester.tap(find.byTooltip('To the bottom'));
+      expect(find.dvTooltip('To the bottom'), findsOneWidget);
+      await tester.tap(find.dvTooltip('To the bottom'));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Back to top'), findsOneWidget);
+      expect(find.dvTooltip('Back to top'), findsOneWidget);
     });
 
     // On the web the shell rebuilds its selection area when the browser's
@@ -269,13 +271,13 @@ void main() {
       addTearDown(() => DVBrowserMenu.debugSetNativeMenuOn(true));
       await tester.pumpWidget(shell(DVPageScrollFrame(child: SingleChildScrollView(child: longColumn()))));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('To the bottom'), findsOneWidget);
+      expect(find.dvTooltip('To the bottom'), findsOneWidget);
       DVBrowserMenu.debugSetNativeMenuOn(!DVBrowserMenu.nativeMenuOn.value);
       await tester.pumpAndSettle();
-      expect(find.byTooltip('To the bottom'), findsOneWidget);
-      await tester.tap(find.byTooltip('To the bottom'));
+      expect(find.dvTooltip('To the bottom'), findsOneWidget);
+      await tester.tap(find.dvTooltip('To the bottom'));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Back to top'), findsOneWidget);
+      expect(find.dvTooltip('Back to top'), findsOneWidget);
     });
 
     testWidgets('a page covered by a pushed route keeps its place when it is popped', (WidgetTester tester) async {

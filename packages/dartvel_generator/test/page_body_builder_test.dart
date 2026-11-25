@@ -18,7 +18,7 @@ dartvel:
 
 const String loweredPage = r"""
 import 'package:a/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../components/banner.dart';
 import '../components/charts.dart' deferred as charts;
 
@@ -96,7 +96,7 @@ void main() {
         library,
         contains("import 'package:a/dartvel_client/dartvel_client.dart';"),
       );
-      expect(library, contains("import 'package:flutter/material.dart';"));
+      expect(library, contains("import 'package:material_ui/material_ui.dart';"));
     });
 
     test('imports nothing deferred, so a const in the body still compiles', () {

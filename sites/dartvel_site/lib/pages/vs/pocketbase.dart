@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../components/site.dart' show kDartvelVersion;
 import '../../dartvel_client/dartvel_client.dart';

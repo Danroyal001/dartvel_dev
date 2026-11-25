@@ -10,10 +10,10 @@
 @TestOn('browser')
 library;
 
-import 'package:dartvel_flutter/src/routing/semantics_focus_web.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'dart:js_interop';
 
+import 'package:dartvel_flutter/src/routing/semantics_focus_web.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:web/web.dart' as web;
 
 web.HTMLElement semanticsButton() {

@@ -4,7 +4,7 @@
 // gets the right one for the theme it is drawn in. Warm paper and roast
 // brown, with one accent: a shop that sells coffee should look like a bag of
 // it, not like a dashboard.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 

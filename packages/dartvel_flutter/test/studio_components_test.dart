@@ -7,8 +7,8 @@
 // the way a page does; a page stores only where it uses one, and the page is
 // drawn from the component each time.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A card: a title, a picture, a colour behind it, and a button whose tap
 /// each use decides.

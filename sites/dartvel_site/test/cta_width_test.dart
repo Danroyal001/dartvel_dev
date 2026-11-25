@@ -6,8 +6,8 @@
 // It came back twice more the same way: the routing section's docs link on
 // the home page, and the features page's closing button.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'responsive_layout_test.dart' show routed;
 

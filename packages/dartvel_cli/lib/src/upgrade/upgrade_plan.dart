@@ -27,6 +27,7 @@ import '../graph/module_mounts.dart';
 import '../module_trust/module_trust.dart' show dvResolvePackageRoot;
 import '../templates/project_templates.dart';
 import 'code_migrations.dart';
+import 'design_imports.dart';
 
 enum DVUpgradeOutcome {
   /// Checked, and the upgrade does not touch it.
@@ -233,6 +234,31 @@ Future<DVUpgradePlan> dvPlanUpgrade(
       ),
     );
   }
+
+  // The design libraries Flutter 3.50 deprecates for material_ui and
+  // cupertino_ui, which upgrade --project moves with the release.
+  final Map<String, Set<String>> design = dvFindDesignImports(root);
+  items.add(
+    design.isEmpty
+        ? const DVUpgradeItem(
+            'source',
+            'design libraries',
+            DVUpgradeOutcome.unchanged,
+            'nothing imports flutter/material or flutter/cupertino',
+          )
+        : DVUpgradeItem(
+            'source',
+            'design libraries',
+            DVUpgradeOutcome.changes,
+            '${design.length} '
+                '${design.length == 1 ? 'file imports' : 'files import'} '
+                'Flutter\'s deprecated flutter/material or flutter/cupertino '
+                '(${design.keys.join(', ')}); material_ui and cupertino_ui are '
+                'separate copies of those libraries, so '
+                '`dartvel upgrade --project` adds them and moves the imports '
+                'with `${dvDesignFixCommand.join(' ')}`',
+          ),
+  );
 
   // generated
   items.add(await _generated(root, generatedCheck ?? dvGenerateCheck));

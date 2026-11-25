@@ -10,9 +10,9 @@
 // while switch control is off, so an ordinary keyboard user is not hijacked.
 
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 

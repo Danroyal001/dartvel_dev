@@ -22,8 +22,8 @@
 // end of it was read by nothing.
 import 'package:dartvel_core/dartvel.dart';
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   tearDown(DVAppLaunch.resetForTest);

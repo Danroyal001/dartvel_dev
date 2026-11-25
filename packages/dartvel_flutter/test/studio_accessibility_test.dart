@@ -15,10 +15,9 @@
 // the screen they are in, because a fix that only works on a control in
 // isolation is not the same as a fix that works in Studio.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Tab, the key a keyboard and a switch-control scanner both use to move on.
 Future<void> _tab(WidgetTester tester) async {

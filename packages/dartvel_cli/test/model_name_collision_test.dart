@@ -98,7 +98,7 @@ Future<Route?> _firstRoute(String id) async => Route.find(id);
 
 /// Runs inside the generated project, against the generated client.
 const String _widgetTest = r'''
-import 'package:flutter/material.dart' hide Route;
+import 'package:material_ui/material_ui.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:collision_probe/dartvel_client/dartvel_client.dart';
 
@@ -235,6 +235,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  material_ui: ^$dvMaterialUiVersion
   dartvel_core:
     path: ${p.join(root, 'packages', 'dartvel_core')}
   dartvel_flutter:

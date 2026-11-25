@@ -98,7 +98,7 @@ public class Scanner {
 
   File('$app/lib/main.dart').writeAsStringSync('''
 import 'package:dv_scanner_module/dv_scanner_module.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   const ScannerModule scanner = ScannerModule();
@@ -111,6 +111,14 @@ void main() {
   // imports whether or not it has been published yet.
   File('$app/pubspec_overrides.yaml').writeAsStringSync(
       'dependency_overrides:\n  dartvel_core:\n    path: $repo/packages/dartvel_core\n');
+  // The page imports material_ui, which replaces the flutter/material
+  // library Flutter 3.50 deprecates.
+  check(
+      (await run('flutter', <String>['pub', 'add', 'material_ui:^1.11.1'],
+              cwd: app))
+              .exitCode ==
+          0,
+      'material_ui added');
   check((await run('flutter', <String>['pub', 'get'], cwd: app)).exitCode == 0,
       'pub resolved the module');
 

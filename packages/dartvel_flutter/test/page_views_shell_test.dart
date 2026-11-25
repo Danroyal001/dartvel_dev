@@ -3,9 +3,8 @@
 // without any page calling anything.
 import 'package:dartvel_core/dartvel.dart' show DVPageView, DVPageViews;
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 GoRouter router() => GoRouter(
       initialLocation: '/',

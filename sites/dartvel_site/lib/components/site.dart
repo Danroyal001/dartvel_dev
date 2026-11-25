@@ -11,7 +11,7 @@
 // constants, so light and dark are one set of pages rather than two. The app
 // follows the system by default: a visitor who has chosen dark should not be
 // handed white.
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../dartvel_client/dartvel_client.dart';
 import 'docs.dart' show kDocsSpecStatus;
 import 'record.dart';

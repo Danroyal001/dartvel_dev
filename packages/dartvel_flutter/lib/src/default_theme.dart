@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The default application theme, shared by new projects and standalone Studio.
 ThemeData dartvelDefaultTheme(

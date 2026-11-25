@@ -3,9 +3,9 @@
 // onSwipeLeft/Right/Up/Down, and onGesture for a custom drag, pinch or
 // rotate. Each swipe is offered to a screen reader as a scroll action.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Widget _page(DVModifier modifier) => MaterialApp(
       home: Scaffold(

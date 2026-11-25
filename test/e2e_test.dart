@@ -364,7 +364,7 @@ void main() {
       final content = routerFile.readAsStringSync();
 
       expect(
-          content.contains("import 'package:flutter/material.dart';"), isTrue);
+          content.contains("import 'package:material_ui/material_ui.dart';"), isTrue);
       expect(content.contains("import 'package:go_router/go_router.dart';"),
           isTrue);
       expect(

@@ -6,8 +6,8 @@
 // read its documents from somewhere else -- the server -- and reading again
 // takes a reverted page back to the compiled one.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 DVPageDocument documentFor(String route, String text) {
   final DVPageDocument document = DVPageDocument(route: route, title: text);

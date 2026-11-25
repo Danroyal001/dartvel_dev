@@ -8,8 +8,8 @@
 // Screenshotting each route by URL did not catch this: the routes were fine,
 // the links were not. Only tapping does.
 import 'package:dartvel_site/dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A router with the site's real routes, where "/" renders the widget under
 /// test and everything else renders a marker. The widget has to be inside the

@@ -8,6 +8,7 @@ import 'package:yaml/yaml.dart';
 import '../graph/module_mounts.dart';
 import '../module_trust/module_lock.dart';
 import '../templates/project_templates.dart';
+import '../upgrade/design_imports.dart';
 import '../upgrade/project_upgrade.dart';
 import '../upgrade/upgrade_plan.dart';
 import 'update_command.dart';
@@ -77,6 +78,7 @@ Future<int> dvRunUpgrade(
   DVToolchainProbe? probe,
   DVGeneratedCheck? generatedCheck,
   DVProjectResolve? resolve,
+  DVDesignFix? designFix,
 }) async {
   if (plan && project) {
     out('Choose one of --plan and --project: the plan writes nothing.');
@@ -86,6 +88,7 @@ Future<int> dvRunUpgrade(
     return _upgradeProject(
       root,
       out: out,
+      designFix: designFix ?? dvRunDesignFix,
       resolve:
           resolve ??
           (String directory, {required bool flutter}) => _pubUpgrade(
@@ -122,6 +125,7 @@ Future<int> _upgradeProject(
   String root, {
   required void Function(String) out,
   required DVProjectResolve resolve,
+  required DVDesignFix designFix,
 }) async {
   final File pubspec = File(p.join(root, 'pubspec.yaml'));
   if (!pubspec.existsSync()) {
@@ -191,23 +195,55 @@ Future<int> _upgradeProject(
       'to regenerate it for this release.',
     );
   }
+  // Flutter 3.50 deprecates flutter/material and flutter/cupertino for the
+  // material_ui and cupertino_ui packages Dartvel now builds on. Each
+  // package root (the project, each module) gets the packages it needs, and
+  // its imports are rewritten once they resolve.
+  final Map<File, Map<String, Set<String>>> designImports =
+      <File, Map<String, Set<String>>>{};
+  final Map<File, List<DVDesignLibrary>> designAdded =
+      <File, List<DVDesignLibrary>>{};
+  for (final File file in files) {
+    final Map<String, Set<String>> found = dvFindDesignImports(file.parent.path);
+    designImports[file] = found;
+    final List<DVDesignLibrary> needed = dvDesignDependenciesNeeded(
+      before[file]!,
+      <String>{for (final Set<String> libraries in found.values) ...libraries},
+    );
+    if (needed.isNotEmpty) designAdded[file] = needed;
+  }
+
   bool changed = false;
   for (final MapEntry<File, DVProjectUpgrade> e in upgrades.entries) {
     final DVProjectUpgrade upgrade = e.value;
-    if (upgrade.moved.isEmpty && upgrade.left.isEmpty) continue;
+    final List<DVDesignLibrary> added =
+        designAdded[e.key] ?? const <DVDesignLibrary>[];
+    if (upgrade.moved.isEmpty && upgrade.left.isEmpty && added.isEmpty) {
+      continue;
+    }
     out('');
     out(label(e.key));
     for (final DVConstraintMove move in upgrade.moved) {
       out('  ${move.package} ${move.from} → ${move.to}');
     }
+    for (final DVDesignLibrary library in added) {
+      out(
+        '  ${library.package} ^${library.version} added: it replaces '
+        '${library.deprecated}, which Flutter 3.50 deprecates',
+      );
+    }
     for (final DVConstraintLeft left in upgrade.left) {
       out('  ${left.package} left as it is: ${left.reason}');
     }
-    if (upgrade.moved.isNotEmpty) {
-      e.key.writeAsStringSync(upgrade.pubspec);
+    if (upgrade.moved.isNotEmpty || added.isNotEmpty) {
+      e.key.writeAsStringSync(dvAddDesignDependencies(upgrade.pubspec, added));
       changed = true;
     }
   }
+  final List<File> toFix = <File>[
+    for (final File file in files)
+      if (designImports[file]!.isNotEmpty) file,
+  ];
   // A constraint that admits the release does not move the lock: `^3.47.0`
   // admits 3.47.1, and pub keeps the 3.47.0 it already resolved. So the
   // lock is read too, and a Dartvel package resolved below this release is
@@ -217,7 +253,7 @@ Future<int> _upgradeProject(
       if (locked.value < Version.parse(_releaseOf(locked.key)))
         '${locked.key} ${locked.value} → ${_releaseOf(locked.key)}',
   ];
-  if (!changed && behind.isEmpty) {
+  if (!changed && behind.isEmpty && toFix.isEmpty) {
     out('');
     out(
       'Every Dartvel constraint already admits $dartvelPackageVersion '
@@ -233,15 +269,67 @@ Future<int> _upgradeProject(
     }
   }
 
-  final String? refusal = await resolve(
-    root,
-    flutter: _usesFlutter(before[pubspec]!),
-  );
-  if (refusal != null) {
-    before.forEach((File file, String text) => file.writeAsStringSync(text));
+  if (changed || behind.isNotEmpty) {
+    final String? refusal = await resolve(
+      root,
+      flutter: _usesFlutter(before[pubspec]!),
+    );
+    if (refusal != null) {
+      before.forEach((File file, String text) => file.writeAsStringSync(text));
+      out('');
+      out('The packages did not resolve, so every file was put back:');
+      out(refusal.trimRight());
+      return 1;
+    }
+  }
+
+  // The imports, by Flutter's own fix, once the packages they move to
+  // resolve. A module is resolved on its own first: the fix analyzes the
+  // package it runs in.
+  final List<String> unfixed = <String>[];
+  for (final File file in toFix) {
+    final String directory = file.parent.path;
+    final String where = p.equals(directory, root) ? 'this project' : label(file);
     out('');
-    out('The packages did not resolve, so every file was put back:');
-    out(refusal.trimRight());
+    out(
+      'Moving the imports in $where to material_ui/cupertino_ui: '
+      '`${dvDesignFixCommand.join(' ')}`',
+    );
+    if (!p.equals(directory, root)) {
+      final String? refusal = await resolve(
+        directory,
+        flutter: _usesFlutter(file.readAsStringSync()),
+      );
+      if (refusal != null) {
+        unfixed.add('$where did not resolve, so its imports were not moved:\n'
+            '${refusal.trimRight()}');
+        continue;
+      }
+    }
+    final String? failure = await designFix(directory);
+    if (failure != null) {
+      unfixed.add('${failure.trimRight()}\nRun '
+          '`${dvDesignFixCommand.join(' ')}` in $where once it is fixed.');
+      continue;
+    }
+    final Map<String, Set<String>> left = dvFindDesignImports(directory);
+    for (final MapEntry<String, Set<String>> e in left.entries) {
+      final String path = p.equals(directory, root)
+          ? e.key
+          : '${p.relative(directory, from: root).replaceAll(r'\', '/')}/${e.key}';
+      unfixed.add(
+        '$path still names ${e.value.join(' and ')}; replace it with '
+        '${e.value.map((String l) => dvDesignLibraries.firstWhere((DVDesignLibrary d) => d.deprecated == l).replacement).join(' and ')}',
+      );
+    }
+  }
+  if (unfixed.isNotEmpty) {
+    out('');
+    out(
+      'The packages resolved, but not every import moved off Flutter\'s '
+      'deprecated design libraries:',
+    );
+    unfixed.forEach(out);
     return 1;
   }
   out('');

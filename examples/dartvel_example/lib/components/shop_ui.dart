@@ -4,7 +4,7 @@
 // light and dark come out of the same code.
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../dartvel_client/dartvel_client.dart';
 import '../shop/catalog.dart';
