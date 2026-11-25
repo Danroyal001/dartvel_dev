@@ -6,9 +6,11 @@ import 'runtime.dart';
 /// sent, answering with JSON. Served by the application's backend at
 /// `<apiBasePath>/_dv/modules/<id>/<operation>`.
 ///
-/// One operation is carried here: `collect`, a client's event on its way to
-/// the Conversions API. Anything else is refused rather than run, so the
-/// route cannot reach a method the module never offered to the network.
+/// Two operations are carried here: `collect`, a client's event on its way to
+/// the Conversions API, and `settings`, which pixel the server's
+/// `META_PIXEL_ID` names, for a client whose mount left `pixelId` empty.
+/// Anything else is refused rather than run, so the route cannot reach a
+/// method the module never offered to the network.
 Future<Object?> dvModuleDispatch(
   String operation,
   Map<String, Object?> arguments,
@@ -16,6 +18,8 @@ Future<Object?> dvModuleDispatch(
   switch (operation) {
     case 'collect':
       return MetaPixelRuntime.instance.collect(arguments);
+    case 'settings':
+      return MetaPixelRuntime.instance.settings();
   }
   throw DVModuleRpcRefused(MetaPixelRuntime.instance.moduleId, operation,
       'the module does not carry it to the backend');

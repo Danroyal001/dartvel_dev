@@ -32,6 +32,7 @@ final class MetaPixelRuntime {
     DVModuleEnvironment? environment,
     DateTime Function()? clock,
     String Function()? newEventId,
+    Future<String?> Function()? serverPixelId,
     this.scriptUrl = defaultScriptUrl,
     this.moduleId = 'metaPixel',
   })  : browser = browser ?? createMetaPixelBrowser(),
@@ -41,7 +42,9 @@ final class MetaPixelRuntime {
         _attribution = attribution ?? (() => DVAttribution.current),
         environment = environment ?? DVModuleEnvironment.current,
         _clock = clock ?? DateTime.now,
-        _newEventId = newEventId ?? _randomEventId;
+        _newEventId = newEventId ?? _randomEventId,
+        // ignore: prefer_initializing_formals
+        _serverPixelId = serverPixelId;
 
   /// The runtime behind `DV.Modules.metaPixel`.
   static MetaPixelRuntime instance = MetaPixelRuntime();
@@ -75,6 +78,10 @@ final class MetaPixelRuntime {
   bool _campaignSent = false;
   final DateTime Function() _clock;
   final String Function() _newEventId;
+  final Future<String?> Function()? _serverPixelId;
+
+  /// The server's answer to "which pixel", asked once per page load.
+  Future<void>? _askedServer;
 
   bool _loaded = false;
   bool _revoked = false;
@@ -87,6 +94,50 @@ final class MetaPixelRuntime {
 
   bool get _allowed =>
       config.isConfigured && _consentGranted(config.consentCategory);
+
+  /// Whether this client has a pixel id, asking the application's backend
+  /// for the server's `META_PIXEL_ID` when the mount left `pixelId` empty.
+  ///
+  /// A browser has no environment to read a secret from, so the id the
+  /// owner set on the server is otherwise invisible here and the pixel
+  /// never loads. The id is public: it is in every request the pixel makes.
+  /// Asked once per page load, and only for a visitor who has consented.
+  Future<bool> _configured() async {
+    if (config.isConfigured) return true;
+    if (_isBackend) return false;
+    final String? own = config.pixelId?.trim();
+    if (own != null && own.isNotEmpty) return false;
+    await (_askedServer ??= _askServer());
+    return config.isConfigured;
+  }
+
+  Future<void> _askServer() async {
+    final Future<String?> Function() ask = _serverPixelId ??
+        () => DVModuleRpc.call(moduleId, 'settings', const <String, Object?>{})
+            .then((Object? answer) =>
+                answer is Map && answer['pixelId'] is String
+                    ? answer['pixelId'] as String
+                    : null);
+    try {
+      final String? id = (await ask())?.trim();
+      final MetaPixelConfig answered = config.copyWith(pixelId: id);
+      final String? current = config.pixelId?.trim();
+      if (id != null &&
+          answered.isConfigured &&
+          (current == null || current.isEmpty)) {
+        config = answered;
+      }
+    } on Object {
+      // The backend could not be reached: no id, so nothing is sent, as
+      // with any other unconfigured module.
+    }
+  }
+
+  /// The backend's answer to a client asking which pixel to load: the
+  /// server's id, or null. Never anything else, the token least of all.
+  Map<String, Object?> settings() => <String, Object?>{
+        'pixelId': config.isConfigured ? config.resolvedPixelId : null,
+      };
 
   static String _randomEventId() {
     final Random random = Random.secure();
@@ -109,16 +160,20 @@ final class MetaPixelRuntime {
 
   Future<void> _sendPage() async {
     final DVPageView? page = _page;
-    if (page == null || _pageSent || !_allowed) return;
+    if (page == null || _pageSent) return;
+    if (!_consentGranted(config.consentCategory)) return;
+    if (!await _configured() || _pageSent || !identical(page, _page)) return;
     _pageSent = true;
     await track(MetaPixelEvent('PageView', data: _campaign()));
   }
 
   /// The visitor's consent changed, or was read for the first time.
   Future<void> consentChanged() async {
-    if (_isBackend || !config.isConfigured) return;
+    if (_isBackend) return;
     final bool granted = _consentGranted(config.consentCategory);
+    if (granted && !await _configured()) return;
     if (!granted) {
+      if (!config.isConfigured) return;
       if (_loaded && !_revoked) {
         _revoked = true;
         _guard(() => browser.consent(granted: false));
@@ -148,6 +203,10 @@ final class MetaPixelRuntime {
     MetaUserData? user,
     Uri? sourceUrl,
   }) async {
+    if (!_isBackend) {
+      if (!_consentGranted(config.consentCategory)) return;
+      if (!await _configured()) return;
+    }
     if (!config.isConfigured) return;
     final String id = eventId ?? _newEventId();
     if (_isBackend) {
@@ -237,7 +296,13 @@ final class MetaPixelRuntime {
   /// so the two are one purchase to Meta. Only for a buyer whose checkout
   /// carried this module's context, which is to say one who had consented.
   Future<void> purchaseConfirmed(Object? payload) async {
-    if (!config.isConfigured || payload is! Map) return;
+    if (payload is! Map) return;
+    if (!_isBackend &&
+        _consentGranted(config.consentCategory) &&
+        !await _configured()) {
+      return;
+    }
+    if (!config.isConfigured) return;
     final Object? transaction = payload['transaction_id'];
     final Object? currency = payload['currency'];
     final Object? total = payload['total'] ?? payload['value'];

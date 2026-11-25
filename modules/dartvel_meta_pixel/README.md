@@ -45,6 +45,17 @@ META_CONVERSIONS_API_TOKEN=...
 The token is never a setting. A mount's `config:` is compiled into the
 client, so `accessToken:` there is refused by name.
 
+The pixel id can live on the server too. Leave `pixelId` empty and set
+`META_PIXEL_ID` beside the token: the backend uses it, and a browser or
+device asks the backend which pixel to load (once per page load, and only
+after the visitor consents), so setting the two secrets turns the pixel on
+with no code change or rebuild.
+
+```
+META_PIXEL_ID=1234567890
+META_CONVERSIONS_API_TOKEN=...
+```
+
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `PageView`.
@@ -180,7 +191,7 @@ Under `dartvel.modules.metaPixel.config`, or as `MetaPixelConfig` passed to
 
 | Setting | Default | |
 |---|---|---|
-| `pixelId` | none | The pixel's id. Without it the module does nothing. The server also reads `META_PIXEL_ID`. |
+| `pixelId` | none | The pixel's id. Without it the module does nothing. Leave it empty (or out) to use the server's `META_PIXEL_ID`: the backend reads it, and a browser or device asks the backend for it once, after consent, so the pixel turns on by setting the secret, with no rebuild. |
 | `consent` | `marketing` | The consent category to wait for. |
 | `serverEvents` | `true` | Send a client's events through the backend to the Conversions API. |
 | `apiVersion` | `v27.0` | The Graph API version. |
