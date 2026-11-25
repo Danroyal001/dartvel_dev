@@ -1,3 +1,5 @@
+import '../build/sdk_floor.dart';
+
 /// The version a scaffolded project asks pub.dev for.
 ///
 /// One number for the whole family, because they are released together. It was
@@ -57,8 +59,8 @@ publish_to: "none"
 version: 0.0.1
 
 environment:
-  sdk: ">=3.13.0 <4.0.0"
-  flutter: ">=3.47.0"
+  sdk: ">=$dvDartFloor <4.0.0"
+  flutter: ">=$dvFlutterFloor"
 ${platformsYaml.toString()}
 dependencies:
   flutter:
@@ -321,8 +323,8 @@ A new Dartvel project.
 
 ### Prerequisites
 
-- Flutter SDK \u003e= 3.47.0
-- Dart SDK \u003e= 3.13.0
+- Flutter SDK \u003e= $dvFlutterFloor
+- Dart SDK \u003e= $dvDartFloor
 
 ### Installation
 

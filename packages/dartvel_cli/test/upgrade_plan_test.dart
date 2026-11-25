@@ -60,7 +60,7 @@ String _currentApp({String core = '^$_target'}) =>
     '''
 name: shop
 environment:
-  sdk: ">=3.13.0 <4.0.0"
+  sdk: ">=3.14.0 <4.0.0"
 dependencies:
   flutter:
     sdk: flutter
@@ -69,8 +69,8 @@ dependencies:
 ''';
 
 const DVToolchainVersions _modernToolchain = DVToolchainVersions(
-  dart: '3.13.4',
-  flutter: '3.47.5',
+  dart: '3.14.0',
+  flutter: '3.50.1',
 );
 
 void main() {

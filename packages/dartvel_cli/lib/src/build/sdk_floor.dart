@@ -5,7 +5,7 @@
 /// work: `pub get` inside the generated scaffold fails version solving before
 /// a single file is compiled, and what the developer sees is
 ///
-///     Because dartvel_example requires SDK version >=3.13.0 <4.0.0,
+///     Because dartvel_example requires SDK version >=3.14.0 <4.0.0,
 ///     version solving failed.
 ///
 /// followed by a scaffold Dartvel deletes and a failed build. That is a true
@@ -24,11 +24,11 @@ library;
 /// disagreed, which is how webOS was recorded as merely unproven when its
 /// bundled Dart could not resolve dependencies at all.
 ///
-/// 3.13 because it is the first Dart with primary constructors
-/// (`class Point(final int x, final int y);`), which the scaffold, the
-/// samples and every generated data model are written with. On 3.12 that
-/// declaration is a compile error, not a warning.
-const String dvDartFloor = '3.13.0';
+/// 3.14 because Dartvel's major.minor tracks Flutter's, and Dartvel 3.50
+/// builds with Flutter 3.50, whose Dart is 3.14. (Primary constructors,
+/// which the scaffold, the samples and every generated data model are
+/// written with, arrived in 3.13; on 3.12 they are a compile error.)
+const String dvDartFloor = '3.14.0';
 
 /// The Dart version named in a `flutter --version` line, or null.
 ///
@@ -52,8 +52,8 @@ String? dvEmbedderDartVersion(String versionOutput) {
 /// `3.13.0` as text, and reasoning from that is how a target that cannot
 /// resolve at all gets recorded as unproven.
 ///
-/// A prerelease of the floor itself is below it -- `3.13.0-1.0.dev` is not
-/// 3.13.0 -- which is what pub does too.
+/// A prerelease of the floor itself is below it -- `3.14.0-1.0.dev` is not
+/// 3.14.0 -- which is what pub does too.
 bool dvMeetsDartFloor(String version, {String floor = dvDartFloor}) {
   final List<int>? have = _numbers(version);
   final List<int>? need = _numbers(floor);
@@ -108,7 +108,7 @@ String? dvEmbedderTooOld({
 /// no CLI to ask, and the first thing that says so is pub, mid-build:
 ///
 ///     The current Dart SDK version is 2.19.0-415.0.dev.
-///     Because dartvel_example requires SDK version >=3.13.0 <4.0.0,
+///     Because dartvel_example requires SDK version >=3.14.0 <4.0.0,
 ///     version solving failed.
 ///
 /// That is evidence rather than inference -- the toolchain itself refusing
@@ -134,7 +134,8 @@ String? dvSdkFloorRefusal({
 }
 
 /// The Flutter every Dartvel application needs, as the scaffold's README
-/// states it. 3.47.0 is the first stable Flutter to ship Dart 3.13.0
-/// (releases_linux.json; 3.44.9, the last 3.44, ships 3.12.2). A test holds
-/// the two together.
-const String dvFlutterFloor = '3.47.0';
+/// states it. 3.50.0 is the first stable Flutter to ship Dart 3.14.0
+/// (releases_linux.json; 3.47.9, the last 3.47, ships 3.13.7), and its tool
+/// is the first with official wasm deferred loading, which the build uses.
+/// A test holds the two together.
+const String dvFlutterFloor = '3.50.0';

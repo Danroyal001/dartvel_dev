@@ -9,7 +9,7 @@ topics:
   - payments
 environment:
   # One floor for every Dartvel package, deliberately.
-  sdk: ">=3.13.0 <4.0.0"
+  sdk: ">=3.14.0 <4.0.0"
 
 # Declared, because pub.dev infers platforms from imports and follows
 # ones that only run on their own platform (see

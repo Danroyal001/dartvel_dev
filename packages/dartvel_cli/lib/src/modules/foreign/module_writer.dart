@@ -254,7 +254,7 @@ String _pubspec(DVForeignModuleSpec spec) {
     ..writeln('version: 0.0.1')
     ..writeln()
     ..writeln('environment:')
-    ..writeln('  sdk: ">=3.13.0 <4.0.0"')
+    ..writeln('  sdk: ">=3.14.0 <4.0.0"')
     ..writeln()
     ..writeln('dependencies:')
     // The release of the CLI that generated it, as `dartvel create`

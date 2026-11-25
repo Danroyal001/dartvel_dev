@@ -4,7 +4,7 @@
 name: dartvel_shelf_relic_benchmark
 publish_to: none
 environment:
-  sdk: ">=3.13.0 <4.0.0"
+  sdk: ">=3.14.0 <4.0.0"
 dependencies:
   relic: 2.0.0
   relic_native: 2.0.0

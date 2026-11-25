@@ -5,6 +5,7 @@ import 'package:args/command_runner.dart';
 import 'package:dartvel_cli/src/adoption/adoption_plan.dart';
 import 'package:dartvel_cli/src/commands/build_command.dart';
 import 'package:dartvel_cli/src/commands/init_command.dart';
+import 'package:dartvel_cli/src/build/sdk_floor.dart';
 import 'package:dartvel_cli/src/templates/project_templates.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -34,8 +35,8 @@ void main() {
         org: 'com.example.sample',
       );
 
-      expect(pubspec, contains('sdk: ">=3.13.0 <4.0.0"'));
-      expect(pubspec, contains('flutter: ">=3.47.0"'));
+      expect(pubspec, contains('sdk: ">=$dvDartFloor <4.0.0"'));
+      expect(pubspec, contains('flutter: ">=$dvFlutterFloor"'));
       expect(pubspec, contains('org: com.example.sample'));
 
       // Top-level platforms block
