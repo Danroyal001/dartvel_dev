@@ -14,7 +14,7 @@ final class _GdkRectangle extends ffi.Struct {
 
 /// Puts a GTK toplevel on a chosen display, and fullscreens it there.
 ///
-/// Flutter's `RegularWindowController.setFullscreen(display:)` ignores the
+/// Flutter's `WindowController.setFullscreen(display:)` ignores the
 /// display on Linux (its own TODO says so) and calls plain
 /// `gtk_window_fullscreen`, which fullscreens the window on whichever monitor
 /// the window manager happened to place it on. For a projector output that is

@@ -54,17 +54,17 @@ class DVFlutterWindowSurfaceFactory implements DVWindowSurfaceFactory {
   DVWindowSurface create(DVWindow window, Widget content) {
     final request = _DVWindowBindings.requestFor(window.nativeId);
     final size = preferredSizeFor(request, DV.Platform.window.displays.value);
-    // RegularWindowController, and the size is a request: the platform
-    // may not honour either. Named for the window kind rather than generic,
-    // because Flutter has a controller per kind -- dialog, popup, tooltip,
-    // satellite -- and the owned kinds are not wired up yet.
+    // WindowController (RegularWindowController before Flutter 3.50), and
+    // the size is a request: the platform may not honour either. Flutter has
+    // a controller per kind -- dialog, popup, tooltip, satellite -- and the
+    // owned kinds are not wired up yet.
     // No constraints: DVWindowOptions.constraints is not carried
     // in the window.open payload yet, and passing null here would look like
     // it had been considered.
     final surface = _FlutterWindowSurface(
       window,
       content,
-      RegularWindowController(size: size, title: request?.title),
+      WindowController(size: size, title: request?.title),
     );
     // Creating the controller realizes a new Flutter view, and on Linux the
     // embedder leaves its EGL context current on this (the GTK main) thread.
@@ -99,10 +99,10 @@ class _FlutterWindowSurface implements DVWindowSurface {
   @override
   final DVWindow window;
   final Widget _child;
-  final RegularWindowController _controller;
+  final WindowController _controller;
 
   @override
-  Widget get content => RegularWindow(controller: _controller, child: _child);
+  Widget get content => Window(controller: _controller, child: _child);
 
   /// The GtkWindow behind the controller, on Linux.
   ffi.Pointer<ffi.Void>? get _gtkWindow {
