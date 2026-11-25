@@ -30,8 +30,12 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               'semanticButton, semanticLabel, semanticHint and semanticHeading '
                   'sit on the same modifier chain as padding and colour.',
               'minimumTapTarget() grows the box to a size a finger can hit.',
-              'context.screen.reducedMotion follows the system setting, and '
-                  'animate() already respects it.',
+              'context.screen.reducedMotion follows the system setting: '
+                  'Remove animations on Android, Reduce Motion on iOS and '
+                  'prefers-reduced-motion on the web.',
+              'Every animation Dartvel runs respects it: animate(), reveal(), '
+                  'page transitions, the back-to-top and keyboard scrolls and '
+                  'the loading bar go straight to where they end.',
             ]),
           ],
         ),

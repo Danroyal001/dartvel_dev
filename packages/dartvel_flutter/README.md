@@ -229,6 +229,11 @@ television or a 4K signage panel, and laid out 320 wide on a watch.
 `dartvel: display: scaling: off` in pubspec.yaml, or
 `DV.Platform.screen.scaling = const DVDisplayScaling.off()`, turns it off.
 
+A scrollable list builds only the rows near the screen. When the rows' heights
+are known, `DVBox.scrollableList([...], itemExtentBuilder: (index, dimensions) => 72)`
+says so by row index, and a long jump needs no measuring; the gaps are
+`spacing` tall and are not asked about.
+
 The others are `DVBox.scrollableList`, `DVBox.horizontalScrollable`,
 `DVBox.stack`, `DVBox.masonry` and `DVBox.twoPane`, which splits across a
 foldable's hinge and stacks on a phone. `DVBox.image`, `DVBox.video` and
@@ -731,6 +736,8 @@ unrelated package.
 ## Forms and accessibility (framework-level)
 
 - `DVVisibilityToggle.eye` / `.none` / `.custom(builder)` controls the visibility toggle on sensitive fields. `.input(obscureText: true)` gets the eye by default; `.none` turns it off and `.custom(builder)` replaces it with a control of your own. The eye is one button named "Show password" (also its tooltip) with a pressed state (`aria-pressed` on the web), the same on the account pages and in Studio, and present in the server-rendered HTML before Flutter takes over; the app keeps what was typed there.
+- Reduced motion is honoured by every animation Dartvel runs: `animate()`, `.reveal()`, page transitions, the back-to-top and keyboard scrolls, the find-in-page scroll, the loading bar and Studio's toggles jump to their end state when the platform asks for less movement -- Android's Remove animations, the web's `prefers-reduced-motion`, or iOS Reduce Motion (Flutter 3.50's `MediaQueryData.reduceMotion`, which Flutter's own animations ignore) -- or when the app calls `DV.Accessibility.useReducedMotion(true)`. `context.screen.reducedMotion` gives the same answer for an app's own animations.
+- `DV.Auth.askForCode(context, sentBy: ..., barrierBuilder: ...)` asks for a code that was sent. `sentBy` (`DVNotificationChannel.email` by default, or `.sms`) picks the autofill hint: `emailOTPCode` for a mailed code on Android, `oneTimeCode` otherwise (all iOS and the web know). `barrierBuilder` draws your own barrier behind the modal; a tap outside still dismisses it and a screen reader still hears "Dismiss", whatever you draw.
 - Every `DVForm` is keyboard-accessible with nothing added: Tab walks the fields and controls in draw order, Enter moves to the next field and submits from the last one, and every `.onTap()`/`.onPressed()` control is a focusable button with a visible focus ring and a screen-reader name. A refused save is announced in a live region and puts the focus on the field at fault. `DVFormScope` is the public piece for inputs a form does not draw itself.
 
 ## Drag and drop

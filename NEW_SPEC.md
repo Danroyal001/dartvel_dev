@@ -1084,6 +1084,12 @@ A scrollable vertical list -- `DVBox.scrollableList([...])` or
 near the screen and lets go of the ones scrolled far away, with nothing written
 for it: no `ListView.builder`, no builder function. A page of a few hundred rows
 costs what one screen of them costs. Cross-axis alignment and spacing are kept.
+`DVBox.scrollableList([...], itemExtentBuilder: (index, dimensions) => 72)`
+gives each row's height by its index among the children (Flutter 3.50's
+`itemExtentBuilder` on separated lists), so a long jump or a scrollbar drag
+places rows without building the ones before them. It is asked only about rows
+and never past the end; the gaps between rows are `spacing` tall and Dartvel
+answers for them.
 A long list or grid that does not scroll by itself but sits inside a page that
 does -- a catalogue of tools, a grid of products -- builds the same way: past
 the first screenful (more than 24 items), each row stands in at an estimated
@@ -3464,6 +3470,22 @@ Providers
 * OTP (`DVAuthTokens.issueOtp` / `redeemOtp`)
 * LDAP
 * SAML
+
+Asking for a code that was sent: `DV.Auth.askForCode(context, ...)` (a modal)
+and `DV.Auth.AskForCodePage(...)` take `sentBy`, a `DVNotificationChannel`
+(`email` by default, or `sms`). On Android an e-mailed code field carries
+Flutter 3.50's `AutofillHints.emailOTPCode`, so the mail app can offer the
+code, and a texted one `oneTimeCode`; iOS and the web read only the first hint
+and know only `oneTimeCode` (`autocomplete="one-time-code"`), so they keep it.
+The account page's "Code from the e-mail" field is an e-mailed code.
+The server-rendered document does not carry the hint yet: the build captures
+fields from the semantics tree, which has no autofill hints, so a captured
+`AskForCodePage` field goes out with no `autocomplete` (designed, not built).
+`askForCode` also takes `barrierBuilder` (Flutter 3.50's
+`RouteBarrierBuilder`) to draw the barrier behind the modal. What it draws is
+only drawn: Dartvel keeps a clear barrier over it with the tap outside that
+dismisses and the "Dismiss" label, so a barrier that replaces the default
+outright still leaves the dialog dismissible and announced.
 
 ---
 
@@ -8583,7 +8605,16 @@ Runtime and tooling:
 - generated controls expose labels, hints, roles, states, and validation errors
 - generated tables support keyboard navigation, focus restoration, row/column
   announcements, and screen-reader summaries
-- motion modifiers respect platform reduced-motion settings
+- every animation Dartvel runs itself respects reduced motion: either
+  platform setting -- Remove animations (Android, and the web's
+  `prefers-reduced-motion`) or Reduce Motion (iOS, which Flutter 3.50 reports
+  as `MediaQueryData.reduceMotion` and its own animations ignore) -- or
+  `DV.Accessibility.useReducedMotion(true)`. `animate()` and offset moves,
+  `.reveal()`, page transitions, the back-to-top and keyboard scrolls, the
+  find-in-page scroll, the loading bar and Studio's toggles all jump to their
+  end state; `context.screen.reducedMotion` reports the same answer to an
+  application. The web splash and the SSR-first handover fade honour
+  `prefers-reduced-motion` in CSS before the app has started.
 - color modifiers can be checked for contrast in CI
 - every page carries keyboard scrolling, a remote's D-pad and switch control
   with nothing added, and they are inert until something uses them. There is

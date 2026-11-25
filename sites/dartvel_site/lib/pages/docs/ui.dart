@@ -88,6 +88,9 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
               'page of hundreds of rows loads as fast as one screen of them. '
               'You write nothing for it: no ListView.builder. Ctrl+F still '
               'finds every row, and the page HTML still has every row.',
+          'scrollableList takes itemExtentBuilder: the height of each row, by '
+              'row index. Scrolling far or jumping to a row then needs no '
+              'measuring. The gaps are spacing tall and are not asked about.',
           'align is DVAlign: start, center, end, spaceBetween, spaceAround '
               'or spaceEvenly.',
           'crossAlign is DVCrossAlign: stretch (the default), start, '
