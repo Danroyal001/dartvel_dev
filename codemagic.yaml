@@ -10,13 +10,13 @@ workflows:
         - 'v*'
     environment:
       vars:
-        DART_SDK_VERSION: "3.13.4"
+        DART_SDK_VERSION: "3.14.0"
     scripts:
-      - name: Setup Dart SDK 3.13.4
+      - name: Setup Dart SDK 3.14.0
         script: |
           set -euo pipefail
           if [ -d "$HOME/.dart_sdk" ]; then rm -rf "$HOME/.dart_sdk"; fi
-          curl -LO https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.4/sdk/dartsdk-macos-arm64-release.zip
+          curl -LO https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-macos-arm64-release.zip
           unzip -q dartsdk-macos-arm64-release.zip -d "$HOME"
           export PATH="$HOME/dart-sdk/bin:$PATH"
           echo "PATH=$PATH" >> $CM_ENV
@@ -80,13 +80,13 @@ workflows:
         - 'v*'
     environment:
       vars:
-        DART_SDK_VERSION: "3.13.4"
+        DART_SDK_VERSION: "3.14.0"
     scripts:
-      - name: Setup Dart SDK 3.13.4
+      - name: Setup Dart SDK 3.14.0
         script: |
           set -euo pipefail
           if [ -d "$HOME/.dart_sdk" ]; then rm -rf "$HOME/.dart_sdk"; fi
-          curl -LO https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.4/sdk/dartsdk-macos-arm64-release.zip
+          curl -LO https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-macos-arm64-release.zip
           unzip -q dartsdk-macos-arm64-release.zip -d "$HOME"
           export PATH="$HOME/dart-sdk/bin:$PATH"
           echo "PATH=$PATH" >> $CM_ENV
@@ -151,11 +151,11 @@ workflows:
         - 'v*'
     environment:
       vars:
-        DART_SDK_VERSION: "3.13.4"
+        DART_SDK_VERSION: "3.14.0"
     scripts:
-      - name: Setup Dart SDK 3.13.4
+      - name: Setup Dart SDK 3.14.0
         script: |
-          $dartUrl = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.13.4/sdk/dartsdk-windows-x64-release.zip"
+          $dartUrl = "https://storage.googleapis.com/dart-archive/channels/stable/release/3.14.0/sdk/dartsdk-windows-x64-release.zip"
           Invoke-WebRequest -Uri $dartUrl -OutFile dartsdk-windows-x64-release.zip
           Expand-Archive -Path dartsdk-windows-x64-release.zip -DestinationPath C:\dart-sdk -Force
           $env:PATH = "C:\dart-sdk\dart-sdk\bin;" + $env:PATH

@@ -3,7 +3,7 @@
 ## Windows and macOS binaries
 
 The `codemagic.yaml` file defines three `cli-release-*` workflows that trigger on tags matching `v*`.
-They mirror `.github/workflows/cli-release.yml` (Dart 3.13.4, Rust stable, `dart build cli --target bin/dartvel.dart`) but run on Codemagic's macOS and Windows runners.
+They mirror `.github/workflows/cli-release.yml` (Dart 3.14.0, Rust stable, `dart build cli --target bin/dartvel.dart`) but run on Codemagic's macOS and Windows runners.
 
 | Workflow | Runner | Target binary | Build command |
 |---|---|---|---|

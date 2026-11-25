@@ -61,7 +61,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install desktop and capture dependencies
         run: |
@@ -217,7 +217,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install the virtual device and build dependencies
         run: |
@@ -445,7 +445,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install capture dependencies
         run: |
@@ -573,7 +573,7 @@ jobs:
       - uses: actions/setup-java@v6
         with: { distribution: temurin, java-version: '17' }
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Enable KVM
         run: |
@@ -697,7 +697,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -801,7 +801,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Boot a simulator
         id: sim
@@ -852,7 +852,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Generate and build
         shell: pwsh
@@ -929,7 +929,7 @@ jobs:
       # needs a dart on PATH — without this the job dies on "dart: command not
       # found" after installing the whole embedder.
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install the tvOS embedder
         id: embedder
@@ -1009,7 +1009,7 @@ jobs:
         run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install cbindgen
         run: cargo install cbindgen --locked || true
@@ -1062,7 +1062,7 @@ jobs:
       - run: mkdir -p /tmp/diag
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
 
       - name: Build the site for a server
@@ -1236,7 +1236,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.5
+          flutter-version: 3.50.1
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -1545,7 +1545,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
       - run: cargo install cbindgen --locked || true
       - name: Build the site as a PWA
         run: |

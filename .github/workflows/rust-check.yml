@@ -203,7 +203,7 @@ jobs:
 
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.13.4
+          sdk: 3.14.0
 
       - name: Compare with the Dart analyzer
         working-directory: packages/dartvel_cli

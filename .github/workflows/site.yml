@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Install capture dependencies
         run: |
@@ -211,7 +211,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
-        with: { flutter-version: '3.47.5', channel: stable, cache: true }
+        with: { flutter-version: '3.50.1', channel: stable, cache: true }
 
       - name: Build the site as a web-server binary
         working-directory: sites/dartvel_site
