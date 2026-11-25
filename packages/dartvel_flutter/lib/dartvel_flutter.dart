@@ -60,6 +60,7 @@ import 'src/find/find_in_page.dart';
 import 'src/lists/lazy_lists.dart';
 import 'src/lists/lazy_list_view.dart';
 import 'src/lists/near_screen.dart';
+import 'src/lists/document_rows.dart';
 import 'src/find/find_platform_stub.dart'
     if (dart.library.js_interop) 'src/find/find_platform_web.dart'
     as find_platform;
@@ -3205,8 +3206,14 @@ class DVBox<T> extends StatelessWidget {
     // ListView.builder in the application. The build's page capture is the
     // exception (DVLazyLists): it reads the page whole.
     if (_layout == _DVBoxLayout.vertical && _scrollable && !DVLazyLists.buildWhole) {
-      return _lazyList(children);
+      return DVLazyCollection(childCount: children.length, child: _lazyList(children));
     }
+    // Which collections are lazy where the app runs, and so marked, with each
+    // of their rows, while the build captures the page (document_rows.dart).
+    final int childCount = children.length;
+    final bool lazy = (_layout == _DVBoxLayout.vertical || _layout == _DVBoxLayout.grid) &&
+        (childCount > 24 || (_layout == _DVBoxLayout.vertical && _scrollable));
+    if (lazy && DVLazyLists.buildWhole) children = <Widget>[for (final Widget child in children) dvMarkRow(child)];
     // A long collection that does not scroll by itself but sits in a page that
     // does: rows past the first screenful are built when they come near.
     if (_layout == _DVBoxLayout.vertical) children = _nearScreen(children, keep: 12);
@@ -3261,7 +3268,9 @@ class DVBox<T> extends StatelessWidget {
           if (rows.isNotEmpty) rows.add(SizedBox(height: _spacing));
           final Widget row = Row(crossAxisAlignment: CrossAxisAlignment.start, children: cells);
           final bool long = children.length > 24 && !DVLazyLists.buildWhole;
-          rows.add(long && start >= columns * 4 ? DVNearScreen(child: row) : (long ? RepaintBoundary(child: row) : row));
+          rows.add(long && start >= columns * 4
+              ? DVLazyRow(firstChild: start, childCount: math.min(columns, children.length - start), child: DVNearScreen(child: row))
+              : (long ? DVLazyRow(firstChild: start, childCount: math.min(columns, children.length - start), child: RepaintBoundary(child: row)) : row));
         }
         result = Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
         break;
@@ -3292,7 +3301,7 @@ class DVBox<T> extends StatelessWidget {
         result = _buildThreePane(context, children);
         break;
     }
-    return _maybeScrollable(result);
+    return _maybeScrollable(lazy ? DVLazyCollection(childCount: childCount, child: result) : result);
   }
 
   /// True when a row should stack its children rather than overflow.
@@ -3588,7 +3597,10 @@ class DVBox<T> extends StatelessWidget {
     return <Widget>[
       for (int index = 0; index < children.length; index++)
         // The first rows are built at once, and get a layer of their own too.
-        index < keep ? RepaintBoundary(child: children[index]) : DVNearScreen(child: children[index]),
+        DVLazyRow(
+          firstChild: index,
+          child: index < keep ? RepaintBoundary(child: children[index]) : DVNearScreen(child: children[index]),
+        ),
     ];
   }
 
@@ -3614,7 +3626,7 @@ class DVBox<T> extends StatelessWidget {
     // for screen readers and the browser's find: see lazy_list_view.dart.
     return DVLazyListView(
       itemCount: children.length,
-      itemBuilder: (BuildContext context, int index) => row(index),
+      itemBuilder: (BuildContext context, int index) => DVLazyRow(firstChild: index, child: row(index)),
       separatorBuilder: _spacing <= 0 ? null : (BuildContext context, int index) => SizedBox(height: _spacing),
     );
   }

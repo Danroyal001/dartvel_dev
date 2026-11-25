@@ -14,6 +14,7 @@ import 'dart:js_interop';
 
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVDocumentCollection,
         DVFindBlock,
         dvFallbackCss,
         dvFallbackIsStale,
@@ -21,11 +22,15 @@ import 'package:dartvel_core/dartvel.dart'
         dvFindMirrorBlocks,
         dvFindMissing,
         dvFindRuntimeAnchor,
+        dvDocumentOfPage,
+        dvDocumentRows,
         dvHeadingIds;
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart' show Element, WidgetsBinding;
 import 'package:web/web.dart' as web;
 
 import 'find_in_page.dart';
+import '../lists/document_rows.dart';
 
 bool _installed = false;
 
@@ -73,6 +78,7 @@ void dvFindInstall() {
       (() {
         _settle = null;
         _refresh();
+        _standInRows();
       }).toJS,
       _settleAfterMs.toJS,
     );
@@ -123,7 +129,7 @@ void _follow(web.Element section) {
 void _refresh() {
   final DVFindPage? page = DVFindInPage.active;
   final String path = _currentPath();
-  final web.Element? block = web.document.querySelector('.dv-fallback');
+  web.Element? block = web.document.querySelector('.dv-fallback');
 
   if (page == null || !page.findable) {
     _optOut(block, path);
@@ -141,16 +147,29 @@ void _refresh() {
   final List<DVFindBlock> blocks = dvFindMirrorBlocks(
     DVFindInPage.paragraphs().map((DVFoundParagraph p) => p.block),
   );
-  final bool builtForHere = block != null &&
+  bool builtForHere = block != null &&
       !block.hasAttribute(_runtimeAttribute) &&
       !dvFallbackIsStale(block.getAttribute('data-dv-path'), path);
+  if (builtForHere) {
+    _keepDocument(path, block);
+  } else {
+    // After a navigation: the document the server sends for this page, when
+    // it is at hand, is the copy find searches -- every row of it, built or
+    // not, with its links -- and what the page drew beside it, as on the
+    // page the reader arrived on.
+    final String? document = _documentFor(path, wanted: _rowsWaiting);
+    if (document != null && document.isNotEmpty) {
+      block = _writeDocument(block, document, path);
+      builtForHere = true;
+    }
+  }
   final String signature =
       '$path\u0000$builtForHere\u0000${blocks.map((DVFindBlock b) => '${b.tag}:${b.text}').join('\u0000')}';
   if (signature == _written && block != null && block.isConnected) return;
   _written = signature;
 
   if (builtForHere) {
-    _writeExtra(block, blocks);
+    _writeExtra(block!, blocks);
   } else {
     _writeMirror(block, blocks, path);
   }
@@ -289,3 +308,108 @@ void _optOut(web.Element? block, String path) {
     (sections.item(i) as web.Element?)?.setAttribute('hidden', '');
   }
 }
+
+// -- The document the server sends for each page, for what is not built.
+//
+// A lazy list builds only the rows near the screen. On the page the reader
+// arrived on, the block the build wrote holds every row; after a navigation
+// inside the app, the page the server would send for the new address holds
+// them, and it is fetched once, when the page has rows waiting, while the
+// page is idle. From it, find searches every row (above), and each row not
+// built stands in with what the document says it holds
+// (lists/document_rows.dart): no row is built to be read.
+
+/// The document of each page, by path; empty when its page has none.
+final Map<String, String> _documents = <String, String>{};
+
+/// The rows each document marks, read once.
+final Map<String, List<DVDocumentCollection>> _documentRows = <String, List<DVDocumentCollection>>{};
+
+/// Paths being fetched.
+final Set<String> _fetching = <String>{};
+
+/// Whether a lazy list on the page has rows waiting for their stand-ins.
+bool get _rowsWaiting => DVDocumentRows.enabled && DVDocumentRows.waiting.isNotEmpty;
+
+/// The block the build wrote for [path], kept as it was written: it is
+/// rewritten after a navigation, and a reader may come back.
+void _keepDocument(String path, web.Element block) {
+  if (_documents.containsKey(path)) return;
+  final web.Element copy = block.cloneNode(true) as web.Element;
+  copy.querySelector('[$_extraAttribute]')?.remove();
+  _documents[path] = (copy.innerHTML as JSString).toDart;
+}
+
+/// The document of [path], when it is at hand. Fetched once, when [wanted]:
+/// the page it is for asks again when it arrives.
+String? _documentFor(String path, {required bool wanted}) {
+  final String? known = _documents[path];
+  if (known != null || !wanted || _fetching.contains(path)) return known;
+  _fetching.add(path);
+  unawaited(() async {
+    String document = '';
+    try {
+      final web.Response response = await web.window
+          .fetch(
+            Uri.base.resolve(path).toString().toJS,
+            web.RequestInit(credentials: 'same-origin', headers: <String, String>{'Accept': 'text/html'}.jsify()! as web.HeadersInit),
+          )
+          .toDart;
+      if (response.ok) {
+        document = dvDocumentOfPage((await response.text().toDart).toDart) ?? '';
+      }
+    } catch (_) {
+      // Offline, or the server says no: the page keeps what it drew.
+    }
+    _fetching.remove(path);
+    _documents[path] = document;
+    if (document.isNotEmpty && _currentPath() == path) {
+      _refresh();
+      _standInRows();
+    }
+  }());
+  return null;
+}
+
+/// [document] as the block for [path]: a copy find searches, hidden from
+/// assistive technology as every copy is.
+web.Element _writeDocument(web.Element? block, String document, String path) {
+  _ensureStyle();
+  final web.Element target = block ?? (web.document.createElement('div')..className = 'dv-fallback');
+  if (!target.isConnected) web.document.body?.append(target);
+  while (target.firstChild != null) {
+    target.removeChild(target.firstChild!);
+  }
+  // Parsed apart from the page, so nothing in it runs or loads.
+  final web.Document parsed = web.DOMParser().parseFromString(document.toJS, 'text/html');
+  final web.HTMLElement? body = parsed.body;
+  if (body != null) {
+    while (body.firstChild != null) {
+      target.append(web.document.adoptNode(body.firstChild!));
+    }
+  }
+  target
+    ..setAttribute('data-dv-path', path)
+    ..removeAttribute(_runtimeAttribute);
+  _hideFromAssistiveTech(target);
+  _written = null;
+  return target;
+}
+
+/// Gives the rows waiting on the page their stand-ins from its document, a
+/// few at a time: each batch draws a frame, and the next waits for the page
+/// to be still again.
+void _standInRows() {
+  if (!_rowsWaiting) return;
+  final String path = _currentPath();
+  final String? document = _documentFor(path, wanted: true);
+  if (document == null || document.isEmpty) return;
+  final List<DVDocumentCollection> collections = _documentRows[path] ??= dvDocumentRows(document);
+  if (collections.isEmpty) return;
+  final Element? root = WidgetsBinding.instance.rootElement;
+  if (root == null) return;
+  dvApplyDocumentRows(root, collections, limit: _standInsPerStep);
+}
+
+/// How many rows one idle moment gives stand-ins to.
+const int _standInsPerStep = 24;

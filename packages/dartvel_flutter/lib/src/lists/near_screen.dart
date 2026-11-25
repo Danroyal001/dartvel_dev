@@ -13,15 +13,21 @@
 /// the page ([DVLazyLists.buildWhole]).
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVDocumentRowPart;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'backfill.dart';
+import 'document_rows.dart';
 import 'lazy_lists.dart';
 
 class DVNearScreen extends StatefulWidget {
-  const DVNearScreen({super.key, required this.child, this.estimatedHeight = 120});
+  const DVNearScreen({
+    super.key,
+    required this.child,
+    this.estimatedHeight = 120,
+  });
 
   final Widget child;
 
@@ -51,10 +57,35 @@ abstract class DVUnbuiltRow {
 /// The rows waiting to be built, in no particular order.
 Iterable<DVUnbuiltRow> get dvUnbuiltRows => _DVNearScreenState._waiting;
 
-class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DVBackfillable {
+class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DVBackfillable, DVStandInRow {
   static final Set<_DVNearScreenState> _waiting = <_DVNearScreenState>{};
 
   bool _built = DVLazyLists.buildWhole;
+
+  /// What the document says it holds, while it is not built.
+  List<DVDocumentRowPart>? _standIn;
+
+  @override
+  bool get built => _built;
+
+  @override
+  bool get settled => _built || _standIn != null || _elsewhere;
+
+  @override
+  void standIn(List<DVDocumentRowPart> parts) {
+    if (settled || !mounted) return;
+    DVDocumentRows.waiting.remove(this);
+    setState(() => _standIn = parts);
+  }
+
+  /// Read after the rows of the scrollable list it is in: nothing in place.
+  bool _elsewhere = false;
+
+  @override
+  void standElsewhere() {
+    _elsewhere = true;
+    DVDocumentRows.waiting.remove(this);
+  }
   ScrollPosition? _position;
 
   @override
@@ -62,6 +93,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DV
     super.initState();
     if (!_built) {
       _waiting.add(this);
+      DVDocumentRows.waiting.add(this);
       // And built when the page is idle, on the web, so a screen reader and
       // the browser's find reach it without scrolling: see backfill.dart.
       DVLazyBackfill.register(this);
@@ -81,7 +113,13 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DV
     DVLazyBackfill.unregister(this);
     _position?.removeListener(_check);
     _position = null;
-    setState(() => _built = true);
+    DVDocumentRows.waiting.remove(this);
+    setState(() {
+      _built = true;
+      _standIn = null;
+    });
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    if (_elsewhere) DVDocumentRows.built.notifyListeners();
   }
 
   @override
@@ -93,6 +131,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DV
       _built = true;
       _waiting.remove(this);
       DVLazyBackfill.unregister(this);
+      DVDocumentRows.waiting.remove(this);
       return;
     }
     if (!identical(position, _position)) {
@@ -119,6 +158,7 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DV
   @override
   void dispose() {
     _waiting.remove(this);
+    DVDocumentRows.waiting.remove(this);
     DVLazyBackfill.unregister(this);
     _position?.removeListener(_check);
     super.dispose();
@@ -128,5 +168,9 @@ class _DVNearScreenState extends State<DVNearScreen> implements DVUnbuiltRow, DV
   // Its own layer, as each row of a Flutter ListView has: once built, the
   // row stays in the page, and without a boundary the scroll view repainted
   // every row built so far on every frame of a scroll.
-  Widget build(BuildContext context) => _built ? RepaintBoundary(child: widget.child) : SizedBox(height: widget.estimatedHeight);
+  Widget build(BuildContext context) {
+    if (_built) return RepaintBoundary(child: widget.child);
+    final List<DVDocumentRowPart>? parts = _standIn;
+    return parts == null ? SizedBox(height: widget.estimatedHeight) : dvStandIn(parts, widget.estimatedHeight);
+  }
 }

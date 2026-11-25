@@ -13,10 +13,14 @@
 /// hidden as it always does. The first frame builds exactly what it did.
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVDocumentRow, DVDocumentRowPart;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import 'backfill.dart';
+import 'document_rows.dart';
 
 class DVLazyListView extends StatefulWidget {
   const DVLazyListView({
@@ -36,8 +40,60 @@ class DVLazyListView extends StatefulWidget {
   State<DVLazyListView> createState() => _DVLazyListViewState();
 }
 
-class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillable {
+class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillable, DVStandInList {
   final GlobalKey _listKey = GlobalKey();
+
+  /// Its rows as the document has them, once given (document_rows.dart).
+  List<DVDocumentRow>? _documentRows;
+
+  /// What the rows it has not built say, read after the rows it has.
+  List<DVDocumentRowPart> _standIns = const <DVDocumentRowPart>[];
+
+  ScrollPosition? _watched;
+
+  @override
+  bool get settled => _documentRows != null;
+
+  @override
+  void standInRows(List<DVDocumentRow> rows) {
+    if (!mounted) return;
+    _documentRows = rows;
+    DVDocumentRows.waiting.remove(this);
+    _refreshStandIns();
+  }
+
+  /// The stand-ins again, for the rows not built now: after the rows are
+  /// given, and whenever a scroll ends.
+  void _refreshStandIns() {
+    final List<DVDocumentRow>? rows = _documentRows;
+    if (!mounted || rows == null) return;
+    final ScrollPosition? position = _position();
+    if (!identical(position, _watched)) {
+      _watched?.isScrollingNotifier.removeListener(_scrolled);
+      _watched = position?..isScrollingNotifier.addListener(_scrolled);
+    }
+    final BuildContext? list = _listKey.currentContext;
+    final List<DVDocumentRowPart> parts = list is Element ? dvListStandIns(list, rows) : const <DVDocumentRowPart>[];
+    if (listEquals(parts, _standIns)) return;
+    setState(() => _standIns = parts);
+  }
+
+  void _scrolled() {
+    if (_watched?.isScrollingNotifier.value ?? true) return;
+    _refreshSoon();
+  }
+
+  bool _refreshing = false;
+
+  /// After the frame that builds what was asked for.
+  void _refreshSoon() {
+    if (_refreshing || _documentRows == null) return;
+    _refreshing = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _refreshing = false;
+      _refreshStandIns();
+    });
+  }
 
   /// How far past the screen rows are built; null for Flutter's default.
   double? _cacheExtent;
@@ -46,6 +102,8 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
   void initState() {
     super.initState();
     DVLazyBackfill.register(this);
+    DVDocumentRows.waiting.add(this);
+    DVDocumentRows.built.addListener(_refreshSoon);
   }
 
   @override
@@ -57,7 +115,10 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
 
   @override
   void dispose() {
+    _watched?.isScrollingNotifier.removeListener(_scrolled);
     DVLazyBackfill.unregister(this);
+    DVDocumentRows.built.removeListener(_refreshSoon);
+    DVDocumentRows.waiting.remove(this);
     super.dispose();
   }
 
@@ -97,6 +158,19 @@ class _DVLazyListViewState extends State<DVLazyListView> implements DVBackfillab
 
   @override
   Widget build(BuildContext context) {
+    final bool standIns = _standIns.isNotEmpty;
+    // The same shape with stand-ins or without, so the list is never moved
+    // (a moved list builds its rows again): they are read after it.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: <Widget>[
+        Semantics(container: standIns, sortKey: standIns ? const OrdinalSortKey(0) : null, child: _list()),
+        if (standIns) Positioned(left: 0, top: 0, right: 0, child: dvListStandInsBox(_standIns)),
+      ],
+    );
+  }
+
+  Widget _list() {
     final IndexedWidgetBuilder? separator = widget.separatorBuilder;
     if (separator == null) {
       return ListView.builder(
