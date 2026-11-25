@@ -577,6 +577,49 @@ void main() {
     expect(_text(dvPaintSnapshot(), 'Paste a link')['k'], 't');
   });
 
+  // sigmadev.digital's keyword density checker, SSR-first (Dartvel 3.47.9):
+  // an empty field painted nothing the snapshot read, so the document's
+  // input had no font, no padding and no line height, and what a visitor
+  // typed into it before the handover sat in the browser's default style at
+  // the corner of the box. An empty field is still an editable: its box and
+  // the style typing takes.
+  testWidgets('an empty field: the box and style typing will take', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            child: TextField(
+              minLines: 4,
+              maxLines: null,
+              style: const TextStyle(fontSize: 17, color: Color(0xFF123456)),
+              decoration: const InputDecoration(
+                hintText: 'Paste your page',
+                contentPadding: EdgeInsets.all(16),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    final Map<String, Object?> snapshot = dvPaintSnapshot();
+    final Map<String, Object?> typed = _items(snapshot)
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'e', orElse: () => <String, Object?>{});
+    expect(typed['text'], '', reason: 'an empty editable is read too: $snapshot');
+    final Rect editable = tester.getRect(find.byType(EditableText));
+    final List<double> rect = _rect(typed);
+    expect(rect[0], closeTo(editable.left, 1));
+    expect(rect[1], closeTo(editable.top, 1));
+    expect(rect[3], closeTo(editable.height, 1));
+    final Map<String, Object?> run = (typed['runs']! as List<Object?>).first! as Map<String, Object?>;
+    expect(run['fs'], 17);
+    expect(run['c'], '#123456');
+    expect(typed['lh'], isNotNull);
+    expect(typed['nw'], isNull, reason: 'a multi-line field wraps');
+    expect(_text(snapshot, 'Paste your page')['k'], 't', reason: 'the hint is still painted text');
+  });
+
   testWidgets('a multi-line field\'s border is round the whole field, not its scroller',
       (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(

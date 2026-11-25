@@ -527,6 +527,23 @@ The table is the contract. Each row says which entries a target has, what
   `<html data-dv-app>`, which puts it back in the clipped box for find,
   crawlers and print. Off by default: with it off every page is byte for
   byte what it was.
+  Its fields are real inputs over the boxes the app paints for them, typable
+  from the first paint. Just before the app says it has drawn, it carries
+  what was typed into each of its own fields of the same name (the semantics
+  label the build wrote as `data-dv-field`; by order when no name matches and
+  both pages have the same fields), as typing (formatters and `onChanged`
+  run), with the caret or selection, and moves focus to the field the
+  visitor was typing in; the handover script leaves that document field
+  focused (letting go after 3 s if no app field took the keyboard) and every
+  keystroke landing in it meanwhile follows into the app's field, so nothing
+  is lost and typing never waits. A field never touched keeps the app's
+  value. A `role="button"` pressed before the handover is marked
+  `aria-busy` and pressed again on the app's semantics button of the same
+  name once `data-dv-app` is set. The document keeps taking presses during
+  the fade: links navigate, buttons queue, any other press is replayed on the
+  element at that point (the app's semantics node) after `data-dv-app`; keys
+  typed while focus is between the document field and the app's text input
+  are typed into the app's field.
 - **SSR-first in the app's own look.** With `ssrFirst` on, the document is
   laid out the way the app's first frame draws the page, so the handover
   changes nothing a visitor can see. How: the build's capture already runs

@@ -78,24 +78,84 @@ String _colours(String background, String accent) {
 /// the section at the top of the reader's screen for the app's find runtime
 /// to scroll to, moves focus off the document, fades it, then marks the page
 /// as the app's.
+///
+/// A field the visitor is typing in keeps its focus: the app has already
+/// carried what was typed into its own field and moves focus there itself
+/// (dvHandOverSsrFields in dartvel_flutter), following every keystroke that
+/// lands in the document's field until it does, so nothing typed mid-word is
+/// lost and typing never waits. If no field of the app takes it within three
+/// seconds, the document's field lets go. Its selection is a field's, not a
+/// reading selection, so the handover does not wait for it.
+///
+/// A button pressed before the app is there (`role="button"` in the
+/// document) is not dead: it shows it is busy, and once the app has taken
+/// over, the press is made on the app's button of the same name.
+///
+/// Nothing pressed during the handover's fade is dropped either: the
+/// document keeps taking presses while it fades (it lies exactly over the
+/// app), so a link navigates and a button is queued as before, and any other
+/// press -- a field, a card -- is made again, once the app has the page, on
+/// what the app has at that point (its semantics node: a field is focused,
+/// anything else clicked).
 const String _handoverScript = '(function(){'
-    'var d=document,h=d.documentElement;'
+    'var d=document,h=d.documentElement,q=[],'
+    'F="[data-dv-field]",B=".dv-fallback [role=button]";'
+    'function press(e){'
+    'if(h.hasAttribute("data-dv-app"))return;'
+    'var t=e.target&&e.target.closest&&e.target.closest(B);if(!t)return;'
+    'if(e.type=="keydown"&&e.key!="Enter"&&e.key!=" ")return;'
+    'e.preventDefault();'
+    'if(t.getAttribute("aria-busy")=="true")return;'
+    't.setAttribute("aria-busy","true");'
+    'q.push(t.getAttribute("aria-label")||t.textContent.trim())}'
+    'd.addEventListener("click",press,true);'
+    'd.addEventListener("keydown",press,true);'
+    // A press during the fade that is not a link's or a button's: kept for
+    // the app (and a field is not focused in the document meanwhile).
+    'var pq=[];'
+    'function fade(e){'
+    'if(!h.hasAttribute("data-dv-handover")||h.hasAttribute("data-dv-app"))return;'
+    'var t=e.target;if(!t||!t.closest||!t.closest(".dv-fallback"))return;'
+    'if(t.closest("a[href]")||t.closest(B))return;'
+    'e.preventDefault();'
+    'if(e.type=="click")pq.push([e.clientX,e.clientY])}'
+    'd.addEventListener("pointerdown",fade,true);'
+    'd.addEventListener("mousedown",fade,true);'
+    'd.addEventListener("click",fade,true);'
+    'function replay(){'
+    'var n=Date.now();'
+    'pq.splice(0).forEach(function(p){'
+    'var e=d.elementFromPoint(p[0],p[1]);if(!e)return;'
+    'if(e.matches("input,textarea,[contenteditable]"))e.focus();else e.click()});'
+    '(function next(){'
+    'if(!q.length)return;'
+    'var all=d.querySelectorAll("flt-semantics-host [role=button]"),hit=null;'
+    'for(var i=0;i<all.length;i++){'
+    'var l=all[i].getAttribute("aria-label")||all[i].textContent.trim();'
+    'if(l==q[0]){hit=all[i];break}}'
+    'if(hit){q.shift();hit.click();next();return}'
+    'if(Date.now()-n<5e3){setTimeout(next,100);return}'
+    'q.shift();n=Date.now();next()})()}'
     'addEventListener("dartvel-first-frame",function(){'
     'var b=d.querySelector(".dv-fallback"),t=Date.now(),'
     'rm=matchMedia("(prefers-reduced-motion: reduce)").matches;'
     'function go(){'
-    'var s=window.getSelection&&getSelection();'
-    'if(b&&s&&!s.isCollapsed&&b.contains(s.anchorNode)&&Date.now()-t<1e4)'
+    'var s=window.getSelection&&getSelection(),a=d.activeElement,'
+    'typing=!!(b&&a&&b.contains(a)&&a.matches&&a.matches(F));'
+    'if(b&&s&&!typing&&!s.isCollapsed&&b.contains(s.anchorNode)&&Date.now()-t<1e4)'
     '{setTimeout(go,250);return}'
     'if(b){'
     'if(b.scrollTop>b.clientHeight/2){'
     'var all=b.querySelectorAll("[data-dv-anchor]");'
     'for(var i=0;i<all.length;i++){'
     'if(all[i].getBoundingClientRect().bottom>0){all[i].removeAttribute("hidden");break}}}'
-    'if(b.contains(d.activeElement))d.activeElement.blur()}'
+    'if(typing)setTimeout(function(){if(d.activeElement===a)a.blur()},3e3);'
+    'else if(b.contains(a))a.blur();'
+    'var busy=b.querySelectorAll("[aria-busy=true]");'
+    'for(var j=0;j<busy.length;j++)busy[j].removeAttribute("aria-busy")}'
     'h.setAttribute("data-dv-handover","");'
     'setTimeout(function(){h.setAttribute("data-dv-app","");'
-    'h.removeAttribute("data-dv-handover")},rm?0:200)}'
+    'h.removeAttribute("data-dv-handover");replay()},rm?0:200)}'
     'go()},{once:true})})()';
 
 /// Holds the first paint until the end of the first screen is parsed: a
@@ -146,6 +206,8 @@ String dvSsrFirstHead({
       '$on [data-dv-anchor]:has(>a:only-child){display:inline-block;'
       'margin:0 1.25rem .75rem 0}'
       '$on a{text-underline-offset:.15em}'
+      // A button pressed before the app is there says it is on its way.
+      '$on [aria-busy=true]{cursor:progress;opacity:.6}'
       '${_colours(background, accent)}'
       // Behind a document the splash would only be covered; hidden, it is not
       // painted at all. A page with no document keeps it.
@@ -155,7 +217,10 @@ String dvSsrFirstHead({
       '${_colours(darkBackground, accent)}}'
       '@media screen and (prefers-reduced-motion:no-preference){'
       'html[data-dv-handover] .dv-fallback{transition:opacity .2s ease-out}}'
-      'html[data-dv-handover] .dv-fallback{opacity:0;pointer-events:none}';
+      // Still taking presses while it fades: it lies exactly over the app,
+      // and a press there is a link's, a queued button's or one made again
+      // on the app (see the handover script).
+      'html[data-dv-handover] .dv-fallback{opacity:0}';
   return '<script>$_firstScreenScript</script>\n'
       '<style $dvSsrFirstMarker>$css</style>\n'
       '<script>$_handoverScript</script>\n';

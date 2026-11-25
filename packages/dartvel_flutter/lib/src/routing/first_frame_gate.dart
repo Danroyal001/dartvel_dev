@@ -4,6 +4,9 @@ import 'dart:ui' show FrameTiming;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../seo/ssr_fields_stub.dart'
+    if (dart.library.js_interop) '../seo/ssr_fields_web.dart'
+    as ssr_fields;
 import 'first_frame_platform_stub.dart'
     if (dart.library.js_interop) 'first_frame_platform_web.dart'
     as platform;
@@ -103,6 +106,18 @@ void dvWatchWebFirstFrame() {
   unawaited(
     dvFlushFirstFrameTimings(WidgetsBinding.instance).then((_) async {
       await dvWaitForPostLayoutRaster(WidgetsBinding.instance);
+      // SSR-first: what the visitor typed into the server-rendered page
+      // goes into the app's fields first, in the frame the page hands over.
+      try {
+        ssr_fields.dvHandOverSsrFields();
+      } catch (error, stack) {
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'dartvel',
+          context: ErrorDescription('carrying the server-rendered fields into the app'),
+        ));
+      }
       platform.dvPublishFirstFrame();
       _markShown();
     }),
