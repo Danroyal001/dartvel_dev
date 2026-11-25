@@ -70,6 +70,7 @@ import 'src/kiosk/session_clear.dart';
 import 'src/media/camera_view.dart';
 import 'src/media/image_view.dart';
 import 'src/media/media_box.dart';
+import 'src/media/picked_files.dart';
 import 'src/media/web_media_mapping.dart' show DVWebCaptureStore;
 import 'src/media/widget_recorder.dart';
 import 'src/modules/module_shell.dart';
@@ -815,6 +816,7 @@ export 'package:dartvel_core/dartvel.dart'
 export 'package:go_router/go_router.dart';
 
 export 'src/accessibility/keyboard_scroll.dart';
+export 'src/media/picked_files.dart' show DVPickUnsupported;
 export 'src/accessibility/selection_column.dart';
 export 'src/accessibility/switch_control.dart';
 export 'src/accessibility/tooltips.dart'
@@ -1021,6 +1023,62 @@ sealed class DVVisibilityToggle {
   /// callback that flips it.
   static DVCustomVisibilityToggle custom(DVVisibilityToggleBuilder builder) =>
       DVCustomVisibilityToggle(builder);
+}
+
+/// What a text field holds, so the right keyboard opens and the right thing is
+/// offered to fill it. See `DVModifier.input(kind: ...)`.
+enum DVInputKind {
+  /// Plain text.
+  text(TextInputType.text, null),
+
+  /// An email address: the keyboard with `@`, and the saved addresses.
+  email(TextInputType.emailAddress, AutofillHints.email),
+
+  /// A phone number: the dial pad, and the saved number.
+  phone(TextInputType.phone, AutofillHints.telephoneNumber),
+
+  /// Whole numbers: digits only.
+  number(TextInputType.number, null),
+
+  /// A price or a measure: digits and a decimal point.
+  decimal(TextInputType.numberWithOptions(decimal: true), null),
+
+  /// A web address.
+  url(TextInputType.url, AutofillHints.url),
+
+  /// The password an account already has. Hides what is typed.
+  password(TextInputType.text, AutofillHints.password),
+
+  /// A password being chosen: the phone offers to make and save one. Hides
+  /// what is typed.
+  newPassword(TextInputType.text, AutofillHints.newPassword),
+
+  /// A person's name, each word capitalised.
+  name(TextInputType.name, AutofillHints.name),
+
+  /// A street address.
+  streetAddress(TextInputType.streetAddress, AutofillHints.fullStreetAddress),
+
+  /// The code a text message or an authenticator gave: digits, filled from the
+  /// message when the phone can.
+  oneTimeCode(TextInputType.number, AutofillHints.oneTimeCode);
+
+  const DVInputKind(this.keyboardType, this._autofillHint);
+
+  /// The keyboard this kind opens.
+  final TextInputType keyboardType;
+  final String? _autofillHint;
+
+  /// What the phone may offer to fill it with, null for a kind that has none.
+  Iterable<String>? get autofillHints =>
+      _autofillHint == null ? null : <String>[_autofillHint];
+
+  /// Whether what is typed is hidden.
+  bool get hidesText => this == password || this == newPassword;
+
+  /// Names are capitalised by word; nothing else is.
+  TextCapitalization get textCapitalization =>
+      this == name ? TextCapitalization.words : TextCapitalization.none;
 }
 
 /// The default: an eye button inside the field, saying "Show password" until
@@ -1260,6 +1318,10 @@ class DVModifier {
   /// never a submit.
   final bool inputMultiline;
 
+  /// What the field holds, which picks its keyboard and autofill hints. Null
+  /// is a field that names none, and is what it always was.
+  final DVInputKind? inputKind;
+
   /// Called when Enter arrives in this field and the form has been asked to
   /// do something about it.
   final VoidCallback? inputSubmitted;
@@ -1328,6 +1390,7 @@ class DVModifier {
     this.inputObscureText = false,
     this.inputVisibilityToggle = DVVisibilityToggle.none,
     this.inputMultiline = false,
+    this.inputKind,
     this.inputSubmitted,
     this.inputErrorText,
     this.inputChanged,
@@ -1391,6 +1454,7 @@ class DVModifier {
         inputObscureText = false,
         inputVisibilityToggle = DVVisibilityToggle.none,
         inputMultiline = false,
+        inputKind = null,
         inputSubmitted = null,
         inputErrorText = null,
         inputChanged = null;
@@ -1454,6 +1518,7 @@ class DVModifier {
     bool? inputObscureText,
     DVVisibilityToggle? inputVisibilityToggle,
     bool? inputMultiline,
+    DVInputKind? inputKind,
     VoidCallback? inputSubmitted,
     Object? inputErrorText = _unset,
     ValueChanged<String>? inputChanged,
@@ -1546,6 +1611,7 @@ class DVModifier {
       inputObscureText: inputObscureText ?? this.inputObscureText,
       inputVisibilityToggle: inputVisibilityToggle ?? this.inputVisibilityToggle,
       inputMultiline: inputMultiline ?? this.inputMultiline,
+      inputKind: inputKind ?? this.inputKind,
       inputSubmitted: inputSubmitted ?? this.inputSubmitted,
       inputErrorText: identical(inputErrorText, _unset)
           ? this.inputErrorText
@@ -1913,6 +1979,7 @@ class DVModifier {
         inputHintValue: other.inputHintValue ?? inputHintValue,
         inputHelperValue: other.inputHelperValue ?? inputHelperValue,
         inputObscureText: other.inputObscureText || inputObscureText,
+        inputKind: other.inputKind ?? inputKind,
         inputChanged: other.inputChanged ?? inputChanged,
       );
 
@@ -1997,6 +2064,12 @@ class DVModifier {
   /// [multiline] is for a field that takes more than one line, where Enter is
   /// a newline and must not submit anything. [error] is what is wrong with
   /// what has been typed here, shown under the field and announced with it.
+  ///
+  /// [kind] says what the field holds: the keyboard a phone opens, the
+  /// autofill a password manager or the phone offers and, on the web, the
+  /// input's `type`, `inputmode` and `autocomplete`, in the server-rendered
+  /// page as well. A password kind also hides what is typed. Leave it out and
+  /// the field is the plain text field it was.
   DVModifier input({
     String? label,
     String? hint,
@@ -2004,25 +2077,29 @@ class DVModifier {
     bool obscureText = false,
     DVVisibilityToggle? visibilityToggle,
     bool multiline = false,
+    DVInputKind? kind,
     String? error,
     VoidCallback? onSubmitted,
     ValueChanged<String>? onChanged,
-  }) =>
-      _copyWith(
+  }) {
+    final bool hidden = obscureText || (kind?.hidesText ?? false);
+    return _copyWith(
         inputValue: true,
         inputLabelValue: label,
         inputHintValue: hint,
         inputHelperValue: helper,
-        inputObscureText: obscureText,
+        inputObscureText: hidden,
         inputVisibilityToggle: visibilityToggle ??
             // The eye is the default on a field that hides what is typed into
             // it, and means nothing on one that does not.
-            (obscureText ? DVVisibilityToggle.eye : DVVisibilityToggle.none),
+            (hidden ? DVVisibilityToggle.eye : DVVisibilityToggle.none),
         inputMultiline: multiline,
+        inputKind: kind,
         inputSubmitted: onSubmitted,
         inputErrorText: error,
         inputChanged: onChanged,
       );
+  }
 
   /// The image behind a box: a bundled one, or one a model holds.
   ///
@@ -4269,6 +4346,14 @@ class _DVInputFieldState extends State<_DVInputField>
       maxLines: modifier.inputMultiline ? null : 1,
       minLines: modifier.inputMultiline ? 3 : 1,
       textInputAction: action,
+      keyboardType: modifier.inputKind == null
+          ? null
+          : (modifier.inputMultiline
+              ? TextInputType.multiline
+              : modifier.inputKind!.keyboardType),
+      autofillHints: modifier.inputKind?.autofillHints,
+      textCapitalization:
+          modifier.inputKind?.textCapitalization ?? TextCapitalization.none,
       decoration: InputDecoration(
         labelText: modifier.inputLabelValue,
         hintText: modifier.inputHintValue,
@@ -5215,6 +5300,9 @@ class DVMedia {
   /// store, which no file API can open, so this is the way to the bytes on
   /// every target -- to decode a frame (a QR code, a document) or upload it.
   Future<Uint8List> readCapture(DVFile file) async {
+    // A file picked in a browser is kept in the page's store as a capture is.
+    final Uint8List? picked = DVWebCaptureStore.instance.bytesOf(file.path);
+    if (picked != null) return picked;
     final DVCaptureFiles files = DVMediaBackends.captureFiles;
     if (files is DVWebCaptureStore) {
       final Uint8List? bytes = files.bytesOf(file.path);
@@ -5279,6 +5367,50 @@ class DVMedia {
   }) =>
       DVMediaBackends.capture
           .recordVideo(quality: quality, maxDuration: maxDuration);
+
+  /// Whether this target has a picker for photos and files.
+  bool get canPick => DVNativeBridge.isRegistered('media.pick');
+
+  /// Asks the person for an existing photo with the device's own picker.
+  /// Null when they cancel.
+  ///
+  /// The same [DVFile] a capture gives: on a device the file where it is, in
+  /// a browser the picked bytes, and [readCapture] opens either. A target
+  /// with no picker throws [DVPickUnsupported]; check [canPick] to decide
+  /// whether to offer it.
+  Future<DVFile?> pickImage() async {
+    final List<DVFile> files = await _pickFiles(type: 'image', types: const <String>[], multiple: false);
+    return files.isEmpty ? null : files.first;
+  }
+
+  /// Asks the person for files. [types] narrows the picker: kinds (`image`,
+  /// `video`, `audio`), media types (`application/pdf`) or extensions
+  /// (`.csv`). Cancelling answers an empty list. Like [pickImage] it gives
+  /// [DVFile]s, read with [readCapture], and throws [DVPickUnsupported] where
+  /// there is no picker.
+  Future<List<DVFile>> pickFiles({
+    List<String> types = const <String>[],
+    bool multiple = false,
+  }) =>
+      _pickFiles(type: 'file', types: types, multiple: multiple);
+
+  Future<List<DVFile>> _pickFiles({
+    required String type,
+    required List<String> types,
+    required bool multiple,
+  }) async {
+    if (!canPick) {
+      throw const DVPickUnsupported(
+        'this target has no picker for photos or files. Check '
+        'DV.Platform.media.canPick before offering one.',
+      );
+    }
+    final Object? answer = await DVNativeBridge.require<Object?>(
+      'media.pick',
+      dvPickArguments(type: type, types: types, multiple: multiple),
+    );
+    return dvPickedFiles(answer);
+  }
 
   Future<List<Map<String, Object?>>> pick({
     String type = 'image',

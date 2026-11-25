@@ -98,6 +98,10 @@ const String _extract = r"""() => {
           ? (field.tagName === 'TEXTAREA' ? 'textarea'
              : (field.getAttribute('type') || 'text'))
           : null,
+        // What a field's kind made Flutter write on its <input>, so the
+        // document's input opens the same keyboard and is filled the same way.
+        inputmode: field ? field.getAttribute('inputmode') : null,
+        autocomplete: field ? field.getAttribute('autocomplete') : null,
         level: heading ? parseInt(heading[1], 10)
                        : (aria ? parseInt(aria, 10) : null),
         label: field

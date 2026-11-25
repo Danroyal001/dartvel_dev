@@ -94,6 +94,37 @@ import '../../dartvel_client/dartvel_client.dart';
 Future<String> _plain() async => 'plain';
 ''');
 
+    write('lib/models/order_draft.dart', '''
+class OrderDraft {
+  OrderDraft({required this.table, required this.items});
+
+  factory OrderDraft.fromJson(Object? json) {
+    final Map<String, Object?> map = json! as Map<String, Object?>;
+    return OrderDraft(
+      table: map['table']! as String,
+      items: (map['items']! as List<Object?>).length,
+    );
+  }
+
+  final String table;
+  final int items;
+}
+''');
+    write('lib/backend/functions/order_total.dart', '''
+import 'package:dartvel_core/dartvel.dart';
+
+import '../../models/order_draft.dart';
+
+@DVBackendFunction()
+Future<String> _orderTotal(
+  OrderDraft draft,
+  List<OrderDraft> extras,
+  Map<String, Object?> meta,
+  OrderDraft? note,
+) async =>
+    '\${draft.table}:\${draft.items}:\${extras.length}:\${meta['source']}:\${note == null}';
+''');
+
     final String cliPackage = p.join(packages, 'dartvel_cli');
     final ProcessResult generated = await Process.run(
       Platform.resolvedExecutable,
@@ -174,6 +205,27 @@ Future<String> _plain() async => 'plain';
     expect(result.status, 200, reason: '${result.body}\n$output');
     expect(result.body, contains('hello Ada'));
     expect(result.body, contains('3'));
+  });
+
+  test('class, list-of-class and generic Map parameters are decoded', () async {
+    final result = await call('POST', '/api/order_total', json: <String, Object?>{
+      'draft': <String, Object?>{'table': 'T4', 'items': <Object?>[1, 2]},
+      'extras': <Object?>[
+        <String, Object?>{'table': 'T5', 'items': <Object?>[]},
+      ],
+      'meta': <String, Object?>{'source': 'phone'},
+    });
+    expect(result.status, 200, reason: '${result.body}\n$output');
+    expect(result.body, contains('T4:2:1:phone:true'));
+  });
+
+  test('a class parameter that is missing is refused, not a server error',
+      () async {
+    final result = await call('POST', '/api/order_total', json: <String, Object?>{
+      'extras': <Object?>[],
+      'meta': <String, Object?>{},
+    });
+    expect(result.status, 400, reason: '${result.body}\n$output');
   });
 
   test('an unused import of the Flutter client does not break the server',

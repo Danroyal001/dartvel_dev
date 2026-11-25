@@ -92,7 +92,12 @@ Widget _docsBackendFunctionsPage(BuildContext context) => const DocsArticle(
               'Each parameter is read from the path, then the query string, '
                   'then the body.',
               'String, int, double and bool values are converted for you.',
+              'A parameter of a class of your own is decoded with its fromJson '
+                  'factory, as are List<YourClass> and YourClass?. The client '
+                  'sends it with toJson. A missing or malformed one answers 400. '
+                  'Map<String, Object?> is passed as the decoded JSON.',
             ]),
+            DocsCode('backend-class-parameter'),
           ],
         ),
         DocsSection(

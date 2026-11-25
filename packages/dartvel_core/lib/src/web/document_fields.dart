@@ -37,18 +37,32 @@ const String dvRevealScript =
 /// Hides the eye from a reader with scripting off.
 const String dvRevealNoscriptCss = '.dv-fallback .dv-reveal{display:none}';
 
+/// The `inputmode` values that choose a keyboard. `text` is the default and
+/// `none` hides the keyboard, so neither is a kind of field.
+const Set<String> dvInputModes = <String>{
+  'tel',
+  'numeric',
+  'decimal',
+  'email',
+  'url',
+  'search',
+};
+
 /// One field, as a paragraph holding its label and its input.
 ///
 /// [type] is an `<input>` type (`text`, `email`, `password`, ...) or
 /// `textarea`; anything that is not a plain word is written as `text`, since
 /// it goes into an attribute. [id] must be unique in the document.
 /// [autocomplete] is the token a password manager matches on; a password
-/// field defaults to `current-password`.
+/// field defaults to `current-password`. [inputMode] is the `inputmode` hint
+/// that picks a phone's keyboard (`tel`, `numeric`, `decimal`, `email`,
+/// `url`); anything that is not one of those words is not written.
 String dvDocumentField({
   required String type,
   required String label,
   required String id,
   String? autocomplete,
+  String? inputMode,
 }) {
   final String name = _attribute.convert(label);
   final StringBuffer out = StringBuffer(
@@ -65,6 +79,9 @@ String dvDocumentField({
       'data-dv-field="$name"');
   if (complete != null) {
     out.write(' autocomplete="${_attribute.convert(complete)}"');
+  }
+  if (inputMode != null && dvInputModes.contains(inputMode)) {
+    out.write(' inputmode="$inputMode"');
   }
   out.write('>');
   if (safeType == 'password') {

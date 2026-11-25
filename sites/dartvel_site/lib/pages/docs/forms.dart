@@ -122,6 +122,25 @@ Widget _docsFormsPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'input-kind',
+      title: 'Open the right keyboard',
+      children: <Widget>[
+        DocsText(
+          '.input(kind: ...) says what a field holds: text, email, phone, '
+          'number, decimal, url, password, newPassword, name, streetAddress '
+          'or oneTimeCode. A phone opens the matching keyboard and offers '
+          'the matching autofill, and the page the server sends carries the '
+          'same inputmode and autocomplete, so it holds before the app '
+          'starts.',
+        ),
+        DocsCode('forms-input-kind'),
+        Bullets(<String>[
+          'password and newPassword also hide what is typed, with the eye.',
+          'A field with no kind is the plain text field it always was.',
+        ]),
+      ],
+    ),
+    DocsSection(
       id: 'sensitive',
       title: 'Sensitive fields are write-only',
       children: <Widget>[

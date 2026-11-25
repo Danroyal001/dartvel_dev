@@ -90,6 +90,22 @@ Widget _docsMediaPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'pick',
+          title: 'Pick a photo or file from the device',
+          children: <Widget>[
+            DocsCode('media-pick'),
+            Bullets(<String>[
+              'pickImage gives one DVFile, or null if the person cancelled. '
+                  'pickFiles takes kinds, media types or extensions and '
+                  'gives a list, empty on cancel.',
+              'It is the DVFile a capture gives, and readCapture reads either: '
+                  'a device path, or in a browser the picked bytes.',
+              'A target with no picker throws DVPickUnsupported. '
+                  'DV.Platform.media.canPick says whether to offer one.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
