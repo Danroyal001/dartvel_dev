@@ -17156,7 +17156,15 @@ rewrites each hosted Dartvel constraint in `pubspec.yaml` that excludes the
 CLI's release to a caret on it, does the same in each module whose source is a
 folder of the project, and resolves the packages, putting every file back if
 they do not resolve. A path, git or overridden dependency is reported and left
-alone, and a project newer than the CLI is refused. The rest of the plan is
+alone, and a project newer than the CLI is refused. Because Flutter 3.50
+deprecates `package:flutter/material.dart` and `package:flutter/cupertino.dart`
+for the `material_ui` and `cupertino_ui` packages, which are copies of those
+libraries rather than re-exports, it also adds `material_ui` (and
+`cupertino_ui` where a source imports `flutter/cupertino.dart`) at the
+versions Dartvel was tested with, resolves, and runs
+`dart fix --apply --code=migrate_design_widgets` in the project and each
+module that imports either library; an import the fix leaves behind is named
+and the command exits 1. The rest of the plan is
 applied by hand.
 
 A Dartvel version is `<Flutter major>.<Flutter minor>.<Dartvel release>` from

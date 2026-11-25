@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../components/docs_cli_command.dart';
 import '../../components/docs_cli_reference.dart';
@@ -29,7 +29,12 @@ Widget _docsCliPage(BuildContext context) => DocsArticle(
         'From 3.47.0 a Dartvel version is Flutter\'s major and minor followed by '
         'Dartvel\'s own release number. Releases until 0.13.51 were numbered '
         '0.x, and a project still on 0.13.x moves across with this command, '
-        'because a caret constraint on 0.13.x never reaches 3.x.',
+        'because a caret constraint on 0.13.x never reaches 3.x. '
+        'It also moves the project off Flutter\'s deprecated '
+        'flutter/material and flutter/cupertino libraries: it adds material_ui '
+        '(and cupertino_ui where it is used) and runs Flutter\'s own '
+        '`dart fix --apply --code=migrate_design_widgets`, naming any import '
+        'the fix left behind.',
   ],
   sections: <DocsSection>[
     for (final DocsCliCommand command in kCliCommands)

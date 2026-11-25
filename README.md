@@ -1660,7 +1660,10 @@ Windows deletes locked rename-aside binaries on a later CLI invocation.
 `dartvel upgrade --plan` reports project changes without writing them.
 `dartvel upgrade --project` moves the Dartvel packages in `pubspec.yaml` (and
 in modules whose source is a folder of the project) to the CLI's release and
-resolves them; the rest of the plan is still applied by hand. For a pub
+resolves them; the rest of the plan is still applied by hand. It also moves the project off
+Flutter's deprecated `flutter/material` and `flutter/cupertino` libraries onto
+`material_ui` and `cupertino_ui`, with Flutter's own
+`dart fix --apply --code=migrate_design_widgets`. For a pub
 installation, use `dart pub global activate dartvel_cli`. See
 [CLI upgrade](docs/cli-upgrade.md).
 
