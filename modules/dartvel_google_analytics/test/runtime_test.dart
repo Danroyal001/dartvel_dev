@@ -114,15 +114,18 @@ void main() {
   });
 
   group('in a browser', () {
-    test('the first page view loads the tag, with its own page views off, '
-        'and sends one', () async {
+    // Google's tag sends a page_view for the page it loads on whatever the
+    // page's own gtag('config') says: a Google tag with "Ignore duplicate
+    // instances of on-page configuration" on (the default for new tags)
+    // ignores the page's config, send_page_view: false included. A copy from
+    // the module was a second page view for every landing page.
+    test('the first page is counted by Google\'s tag itself: the tag loads '
+        'with its page view on and the module sends no copy', () async {
       await runtime().pageShown(page('/pricing?plan=pro', title: 'Pricing'));
       expect(browser.log, <String>[
         'load G-ABC123XYZ9 '
             'assets/packages/dartvel_google_analytics/assets/google_analytics.js '
-            'sendPageView=false',
-        'event page_view {"page_location":"https://example.com/pricing?plan=pro",'
-            '"page_path":"/pricing","page_title":"Pricing"}',
+            'sendPageView=true',
       ]);
       // gtag reports it; a second copy through the backend would be a
       // second page view.
@@ -138,7 +141,37 @@ void main() {
       expect(browser.log.where((String l) => l.startsWith('load')),
           hasLength(1));
       expect(browser.log.where((String l) => l.startsWith('event page_view')),
-          hasLength(2));
+          hasLength(1));
+      expect(browser.log.last, contains('"page_path":"/pricing"'));
+    });
+
+    // The shell reports a page once its frame is drawn, before the router
+    // has put the new address in the browser's address bar.
+    test('a route change is reported at the page\'s own address, not the '
+        'one still in the address bar', () async {
+      final GoogleAnalyticsRuntime analytics = runtime();
+      browser.pageUrl = 'https://example.com/?utm_source=fb';
+      await analytics.pageShown(page('/?utm_source=fb'));
+      await analytics.pageShown(page('/about?tab=team', title: 'About'));
+      expect(
+        browser.log.last,
+        'event page_view {"page_location":"https://example.com/about?tab=team",'
+        '"page_path":"/about","page_title":"About"}',
+      );
+    });
+
+    test('an event that loads the tag first still leaves the page on screen '
+        'to the tag', () async {
+      granted = false;
+      final GoogleAnalyticsRuntime analytics = runtime();
+      await analytics.pageShown(page('/pricing'));
+      granted = true;
+      await analytics.track(GoogleAnalyticsEvent.generateLead());
+      await analytics.consentChanged();
+      expect(browser.log.where((String l) => l.startsWith('event page_view')),
+          isEmpty);
+      expect(browser.log.where((String l) => l.startsWith('load')),
+          hasLength(1));
     });
 
     test('pageViews: automatic leaves page views to Google\'s tag',
@@ -207,13 +240,23 @@ void main() {
       expect(relayed, isEmpty);
     });
 
-    test('once granted, the page on screen is sent, once', () async {
+    test('once granted, the page on screen is counted once, by the tag',
+        () async {
       granted = false;
       final GoogleAnalyticsRuntime analytics = runtime();
       await analytics.pageShown(page('/pricing'));
       granted = true;
       await analytics.consentChanged();
       await analytics.consentChanged();
+      expect(browser.log.where((String l) => l.startsWith('load')),
+          <String>[
+            'load G-ABC123XYZ9 '
+                'assets/packages/dartvel_google_analytics/assets/google_analytics.js '
+                'sendPageView=true',
+          ]);
+      expect(browser.log.where((String l) => l.startsWith('event page_view')),
+          isEmpty);
+      await analytics.pageShown(page('/contact'));
       expect(browser.log.where((String l) => l.startsWith('event page_view')),
           hasLength(1));
     });
