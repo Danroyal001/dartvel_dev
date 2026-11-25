@@ -123,6 +123,45 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('every link of a sentence with several is read in its place', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await pump(
+      tester,
+      DVBox.list(<Widget>[
+        const DVText('Who we work with'),
+        sentenceWithLinks(),
+        const DVText('After the sentence.'),
+      ], spacing: 12),
+    );
+
+    expect(
+      readingOrder(tester),
+      contains('Questions, or a project in mind? Get a free quote . Our privacy policy , terms and refund policy '
+          'explain how we handle your data and your payments.'),
+    );
+    expect(readingOrder(tester), isNot(contains('? . Our')));
+    semantics.dispose();
+  });
+
+  testWidgets('and each of them is still a link to its own page', (WidgetTester tester) async {
+    final SemanticsHandle semantics = tester.ensureSemantics();
+    await pump(
+      tester,
+      DVBox.list(<Widget>[
+        sentenceWithLinks(),
+        for (int i = 0; i < 4; i++) DVText('Paragraph $i after the sentence.'),
+      ], spacing: 12),
+    );
+
+    final List<SemanticsData> found = links(tester);
+    expect(found.map((SemanticsData d) => d.linkUrl.toString()).toSet(),
+        <String>{'/contact', '/privacy', '/terms', '/refund-policy'});
+    for (final SemanticsData link in found) {
+      expect(link.label, isNot(contains('Paragraph')));
+    }
+    semantics.dispose();
+  });
+
   testWidgets('a link beside paragraphs, not in a sentence, keeps its own node', (WidgetTester tester) async {
     final SemanticsHandle semantics = tester.ensureSemantics();
     await pump(
@@ -140,3 +179,36 @@ void main() {
     semantics.dispose();
   });
 }
+
+/// The about page's last paragraph: several links in one sentence, each
+/// placed with DVWidgetSpan. A plain WidgetSpan cannot keep two links in
+/// place: two links never merge into one semantics node, and a paragraph whose
+/// spans need no node of their own reads all of its text first and every
+/// placeholder that is a node after it.
+Widget sentenceWithLinks() => Text.rich(TextSpan(children: <InlineSpan>[
+      const TextSpan(text: 'Questions, or a project in mind? '),
+      DVWidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: const DVNavLink(to: DVRouteTarget('/contact'), padding: EdgeInsets.zero, child: Text('Get a free quote')),
+      ),
+      const TextSpan(text: '. Our '),
+      DVWidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: const DVNavLink(to: DVRouteTarget('/privacy'), padding: EdgeInsets.zero, child: Text('privacy policy')),
+      ),
+      const TextSpan(text: ', '),
+      DVWidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: const DVNavLink(to: DVRouteTarget('/terms'), padding: EdgeInsets.zero, child: Text('terms')),
+      ),
+      const TextSpan(text: ' and '),
+      DVWidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: const DVNavLink(to: DVRouteTarget('/refund-policy'), padding: EdgeInsets.zero, child: Text('refund policy')),
+      ),
+      const TextSpan(text: ' explain how we handle your data and your payments.'),
+    ]));

@@ -702,7 +702,9 @@ class _DVNavLinkState extends State<DVNavLink> {
       // out of that order and put after all of the paragraph's text: "on
       // Our work." was read, and server-rendered, as "on ." then "Our
       // work" (sigmadev.digital on main after 3.47.8). There the link is
-      // read in its place, as part of its sentence.
+      // read in its place, as part of its sentence. Two links in one
+      // sentence cannot both merge (two links never share a node); a
+      // DVWidgetSpan keeps each of them in place (widget_span.dart).
       container: !_inSentence(context),
       linkUrl: Uri.tryParse(_href),
       label: widget.semanticLabel,
