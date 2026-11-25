@@ -117,15 +117,36 @@ const String _firstScreenScript = '(function(){'
     'l.setAttribute("blocking","render");'
     'd.head.appendChild(l)})()';
 
+/// The page a reader with scripting off gets, in the application's colours
+/// (`dartvel.theme`) rather than the reading column's white and blue: its
+/// page colour edge to edge, body text that reads on it, and [link] where
+/// it reads (4.5:1), else the text colour. Screen only: a printout stays
+/// black on white. Written inside the shell's `<noscript>`.
+String dvFallbackThemeCss({
+  required String background,
+  required String darkBackground,
+  required String link,
+  required String darkLink,
+}) {
+  String rules(String page, String accent) =>
+      'html body{background:$page}'
+      'html .dv-fallback{background:$page;color:${_ink(page)}}'
+      'html .dv-fallback a{color:${_link(page, accent)}}';
+  return '@media screen{${rules(background, link)}}'
+      '@media screen and (prefers-color-scheme:dark){${rules(darkBackground, darkLink)}}';
+}
+
 /// The style and script an SSR-first shell carries in its head.
 ///
 /// [background] and [darkBackground] are the app's page colours (the
-/// splash's, which come from `dartvel.splash` or `dartvel.pwa`); [accent] is
-/// the link colour when it reads on them, the loading bar's by default.
+/// splash's, which come from `dartvel.splash`, `dartvel.pwa` or
+/// `dartvel.theme`); [accent] and [darkAccent] are the link colours where
+/// they read on them (the theme's link or accent, else the loading bar's).
 String dvSsrFirstHead({
   required String background,
   required String darkBackground,
   required String accent,
+  String? darkAccent,
 }) {
   const String on = 'html:not([data-dv-app]) .dv-fallback';
   final String css = '@media screen{'
@@ -152,7 +173,7 @@ String dvSsrFirstHead({
       '.dv-fallback~#dartvel-splash{display:none}'
       '}'
       '@media screen and (prefers-color-scheme:dark){'
-      '${_colours(darkBackground, accent)}}'
+      '${_colours(darkBackground, darkAccent ?? accent)}}'
       '@media screen and (prefers-reduced-motion:no-preference){'
       'html[data-dv-handover] .dv-fallback{transition:opacity .2s ease-out}}'
       'html[data-dv-handover] .dv-fallback{opacity:0;pointer-events:none}';

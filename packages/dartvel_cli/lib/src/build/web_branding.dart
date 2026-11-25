@@ -17,6 +17,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dartvel_core/dartvel.dart' show DVThemeConfig;
 
 import 'pwa_icons.dart';
 
@@ -46,6 +47,7 @@ class DVWebBrand {
     required this.description,
     required this.themeColor,
     required this.backgroundColor,
+    this.darkThemeColor,
   });
 
   final String name;
@@ -53,6 +55,10 @@ class DVWebBrand {
   final String description;
   final String themeColor;
   final String backgroundColor;
+
+  /// The browser's `theme-color` in dark mode, when `dartvel.theme` declares
+  /// colours; null writes no `theme-color` meta tags.
+  final String? darkThemeColor;
 }
 
 String? _text(Object? value) {
@@ -85,13 +91,26 @@ DVWebBrand dvWebBrand(Map<Object?, Object?> dartvel, String packageName) {
   final Map<Object?, Object?> pwa = section('pwa');
   final Map<Object?, Object?> seo = section('seo');
   final Map<Object?, Object?> splash = section('splash');
+  // `dartvel.theme`, after what the project named for the manifest itself.
+  final DVThemeConfig theme = DVThemeConfig.parse(dartvel['theme']).config;
+  String? themed(String? hex) => hex == null ? null : DVThemeConfig.opaque(hex);
+  final String themeColor = _colour(pwa['themeColor']) ??
+      themed(theme.accentHex(dark: false)) ??
+      _colour(seo['accent']) ??
+      '#000000';
   final String name = _text(pwa['name']) ?? _text(seo['siteName']) ?? _readable(packageName);
   return DVWebBrand(
     name: name,
     shortName: _text(pwa['shortName']) ?? name,
     description: _text(pwa['description']) ?? _text(seo['description']) ?? name,
-    themeColor: _colour(pwa['themeColor']) ?? _colour(seo['accent']) ?? '#000000',
-    backgroundColor: _colour(pwa['backgroundColor']) ?? _colour(splash['color']) ?? '#FFFFFF',
+    themeColor: themeColor,
+    backgroundColor: _colour(pwa['backgroundColor']) ??
+        _colour(splash['color']) ??
+        themed(theme.backgroundHex(dark: false)) ??
+        '#FFFFFF',
+    darkThemeColor: !theme.declaresColours
+        ? null
+        : themed(theme.backgroundHex(dark: true)) ?? themed(theme.accentHex(dark: true)) ?? themeColor,
   );
 }
 
@@ -126,6 +145,14 @@ String dvBrandIndexHtml(String html, DVWebBrand brand, {String? packageName}) {
   }
   if (!RegExp(r'<link[^>]+rel="(shortcut )?icon"').hasMatch(out)) {
     out = out.replaceFirst('</head>', '  <link rel="icon" type="image/png" href="favicon.png"/>\n</head>');
+  }
+  // The browser's toolbar in the application's colours, light and dark,
+  // when `dartvel.theme` declares them. A tag the project wrote is kept.
+  if (brand.darkThemeColor != null && !out.contains('name="theme-color"')) {
+    out = out.replaceFirst(
+        '</head>',
+        '  <meta name="theme-color" media="(prefers-color-scheme: light)" content="${attr(brand.themeColor)}">\n'
+            '  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="${attr(brand.darkThemeColor!)}">\n</head>');
   }
   return out;
 }

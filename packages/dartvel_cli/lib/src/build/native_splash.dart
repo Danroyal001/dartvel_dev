@@ -25,7 +25,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dartvel_core/dartvel.dart' show dvSsrFirstHead;
+import 'package:dartvel_core/dartvel.dart' show DVThemeConfig, DVThemeConfigReading, dvFallbackThemeCss, dvSsrFirstHead;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -83,7 +83,20 @@ class DVSplash {
     this.loadingText = dvSplashDefaultLoadingText,
     this.ssrFirst = false,
     this.ssrFirstWidths = const <int>[],
-  });
+    String? linkColor,
+    String? darkLinkColor,
+    this.themed = false,
+  })  : linkColor = linkColor ?? progressColor,
+        darkLinkColor = darkLinkColor ?? linkColor ?? progressColor;
+
+  /// The link colour of the server-rendered document, light and dark:
+  /// `theme.colors.link`, else the theme's accent, else [progressColor].
+  final String linkColor;
+  final String darkLinkColor;
+
+  /// Whether `dartvel.theme` declares colours, so the document a reader
+  /// with scripting off gets is drawn in them too.
+  final bool themed;
 
   /// `dartvel.web.ssrFirst`: each page shows its server-rendered document
   /// from the first paint instead of the splash, and Flutter takes over at
@@ -125,6 +138,12 @@ class DVSplash {
     final Map<Object?, Object?> pwa =
         rawPwa is Map ? rawPwa : const <Object?, Object?>{};
     final List<String> problems = <String>[];
+    // `dartvel.theme`: the colours every unset splash colour falls back to,
+    // so one declaration paints the app, its splash and its first screen.
+    final DVThemeConfigReading themeReading = DVThemeConfig.parse(dartvel['theme']);
+    final DVThemeConfig theme = themeReading.config;
+    problems.addAll(themeReading.problems);
+    String? themed(String? hex) => hex == null ? null : DVThemeConfig.opaque(hex);
     final Object? rawWeb = dartvel['web'];
     final Object? rawSsrFirst = rawWeb is Map ? rawWeb['ssrFirst'] : null;
     // `true`, or a map (`widths`, `enabled`) that is on unless it says not.
@@ -164,8 +183,10 @@ class DVSplash {
 
     final String? light =
         colour(splash['color'], 'splash.color') ??
-            colour(pwa['backgroundColor'], 'pwa.backgroundColor');
-    final String? dark = colour(splash['darkColor'], 'splash.darkColor');
+            colour(pwa['backgroundColor'], 'pwa.backgroundColor') ??
+            themed(theme.backgroundHex(dark: false));
+    final String? dark = colour(splash['darkColor'], 'splash.darkColor') ??
+        themed(theme.backgroundHex(dark: true));
 
     File? image = file(splash['image'], 'splash.image');
     bool isIcon = false;
@@ -193,7 +214,11 @@ class DVSplash {
       problems: problems,
       progress: splash['progress'] != false,
       progressColor: colour(splash['progressColor'], 'splash.progressColor') ??
+          themed(theme.accentHex(dark: false)) ??
           dvProgressDefaultColor,
+      linkColor: themed(theme.linkHex(dark: false)),
+      darkLinkColor: themed(theme.linkHex(dark: true)),
+      themed: theme.declaresColours,
       loadingText: switch (splash['loadingText']) {
         false => null,
         final String text when text.trim().isNotEmpty => text.trim(),
@@ -472,8 +497,9 @@ String dvWebSplashApply(
       '<noscript><style>${<String>[
         if (splash.enabled) '#dartvel-splash',
         if (splash.progress) '#dartvel-progress',
-      ].join(',')}{display:none}</style></noscript>\n'
-      '${splash.ssrFirst ? dvSsrFirstHead(background: splash.color, darkBackground: splash.darkColor, accent: splash.progressColor) : ''}'
+      ].join(',')}{display:none}'
+      '${splash.themed ? dvFallbackThemeCss(background: splash.color, darkBackground: splash.darkColor, link: splash.linkColor, darkLink: splash.darkLinkColor) : ''}</style></noscript>\n'
+      '${splash.ssrFirst ? dvSsrFirstHead(background: splash.color, darkBackground: splash.darkColor, accent: splash.linkColor, darkAccent: splash.darkLinkColor) : ''}'
       '$_headClose\n';
 
   final StringBuffer picture = StringBuffer();

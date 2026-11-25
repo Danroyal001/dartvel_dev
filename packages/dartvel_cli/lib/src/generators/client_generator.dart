@@ -21,7 +21,9 @@ import 'package:dartvel_core/dartvel.dart'
         dvHomeWidgetRoute,
         dvSourceDeclaresHomeWidget,
         DVPublicEnvLibrary,
-        dvGeneratePublicEnvLibrary;
+        dvGeneratePublicEnvLibrary,
+        DVColorRole,
+        DVThemeConfig;
 
 import '../build/runtime_packages.dart';
 import 'assets_generator.dart';
@@ -4238,7 +4240,7 @@ void startDartvelKiosk() {
           final context = params[0].split(' ').last;
           final parts = params[1].split(' ').last;
           if (!rendered.contains('$parts.router')) throw StateError('DV-RUN-006: @DVAppRoot must use $parts.router ($rel).');
-          appRoot = '(BuildContext $context) { final $parts = DVAppParts(router: router); $rendered }';
+          appRoot = '(BuildContext $context, ThemeData dvLight, ThemeData dvDark, ThemeMode dvMode) { final $parts = DVAppParts(router: router, theme: dvLight, darkTheme: dvDark, themeMode: dvMode); $rendered }';
         }
       }
     }
@@ -4260,8 +4262,11 @@ void startDartvelKiosk() {
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('  final router = createDartvelRouter(arguments: args);')
-      ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
+      ..writeln(appRoot == null ? "  return DVAppTheme(builder: (BuildContext context, ThemeData light, ThemeData dark, ThemeMode mode) => MaterialApp.router(title: '${esc(title)}', theme: light, darkTheme: dark, themeMode: mode, routerConfig: router));" : '  return DVAppTheme(builder: $appRoot);')
       ..writeln('}')
+      // `dartvel.theme`: the application's colours, in force before the first
+      // boot step (DV.Theme), Dartvel's own when it declares none.
+      ..writeln('const core.DVThemeConfig _dvTheme = ${dvThemeConfigSource(DVThemeConfig.parse(dv['theme']).config)};')
       // Outside the DV class: a boot body naming the application's own
       // Session, Auth or Cache would otherwise resolve to DV's static.
       ..writeln('final List<framework.DVBootStep> _dvBootSteps = <framework.DVBootStep>[${hooks.join(',')}];')
@@ -4272,9 +4277,9 @@ void startDartvelKiosk() {
       // The door dartvel build --brownfield starts the project through: the same
       // root and boot steps as DV.run, entered as embedded and with no launch,
       // because the host application owns the process. Hidden from the barrel.
-      ..writeln('Future<void> dartvelRunEmbedded(String project) => dvRunApplication(const <String>[], root: () => createDartvelApp(), boot: _dvBootSteps, entry: core.DVEntry.embedded(project));')
+      ..writeln('Future<void> dartvelRunEmbedded(String project) => dvRunApplication(const <String>[], root: () => createDartvelApp(), boot: _dvBootSteps, entry: core.DVEntry.embedded(project), theme: _dvTheme);')
       ..writeln('abstract final class DV {')
-      ..writeln('  static Future<void> run([List<String>? args]) => dvRunApplication(args ?? dvLaunchArguments, root: () => createDartvelApp(args: args ?? dvLaunchArguments), boot: _dvBootSteps, launch: negotiateDartvelLaunch, splash: _dvBootSplash);');
+      ..writeln('  static Future<void> run([List<String>? args]) => dvRunApplication(args ?? dvLaunchArguments, root: () => createDartvelApp(args: args ?? dvLaunchArguments), boot: _dvBootSteps, launch: negotiateDartvelLaunch, splash: _dvBootSplash, theme: _dvTheme);');
     // Static members are not inherited in Dart, so the runtime's namespace is
     // forwarded member by member -- each with its declared type, or
     // `DV.Auth.signIn(...)` would be a dynamic call that compiles with any
@@ -5559,4 +5564,22 @@ Map<String, String> _startRoutes(Object? section, Set<String> pages) {
     throw StateError('pubspec.yaml dartvel.startRoutes: ${problems.join('; ')}');
   }
   return routes;
+}
+
+/// [config] as the Dart expression the generated entry declares it with, in
+/// the `core.` prefix the entry imports dartvel_core under.
+String dvThemeConfigSource(DVThemeConfig config) {
+  if (config == DVThemeConfig.dartvel) return 'core.DVThemeConfig.dartvel';
+  String text(String value) => "'$value'";
+  final List<String> arguments = <String>[
+    if (config.seed != null) 'seed: ${text(config.seed!)}',
+    if (config.mode != .system) 'mode: core.DVThemeMode.${config.mode.name}',
+    if (config.colors.isNotEmpty)
+      'colors: <core.DVColorRole, core.DVColorPair>{${[
+        for (final DVColorRole role in DVColorRole.values)
+          if (config.colors[role] != null)
+            'core.DVColorRole.${role.name}: core.DVColorPair(light: ${text(config.colors[role]!.light)}, dark: ${text(config.colors[role]!.dark)})',
+      ].join(', ')}}',
+  ];
+  return 'core.DVThemeConfig(${arguments.join(', ')})';
 }

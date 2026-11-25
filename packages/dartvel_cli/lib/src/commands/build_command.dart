@@ -37,6 +37,7 @@ import 'package:dartvel_core/dartvel.dart'
         DVHomeWidgetSpec,
         DVAppShortcut,
         DVAppShortcutsConfig,
+        DVThemeConfig,
         DVBuildLifecycle,
         DVImageVariants,
         dvAndroidPermissionNames,
@@ -5056,7 +5057,7 @@ class BuildCommand extends Command<void> {
         stylesheet.writeAsStringSync(dvSitemapStylesheet(
           siteName: settings['siteName'] as String? ?? baseTitle,
           tagline: dvSeoDescription(settings) ?? '',
-          accent: settings['accent'] as String? ?? '#2563EB',
+          accent: settings['accent'] as String? ?? _themeAccent(root) ?? '#2563EB',
           ink: settings['ink'] as String? ?? '#0B1020',
         ));
       }
@@ -5488,7 +5489,7 @@ class BuildCommand extends Command<void> {
           siteName: seo['siteName'] as String? ??
               dvSeoTitle(seo, _packageName(root) ?? 'Dartvel'),
           tagline: dvSeoDescription(seo) ?? '',
-          accent: seo['accent'] as String? ?? '#2563EB',
+          accent: seo['accent'] as String? ?? _themeAccent(root) ?? '#2563EB',
           ink: seo['ink'] as String? ?? '#0B1020',
         ));
       }
@@ -5706,6 +5707,13 @@ class BuildCommand extends Command<void> {
       Logger.log('⚠️  $problem');
     }
     return redirects;
+  }
+
+  /// The light accent `dartvel.theme` declares, for what the build draws in
+  /// the application's colour (the sitemap's stylesheet); null when none.
+  String? _themeAccent(String root) {
+    final String? hex = DVThemeConfig.parse(_dartvelSection(root)['theme']).config.accentHex(dark: false);
+    return hex == null ? null : DVThemeConfig.opaque(hex);
   }
 
   Map<Object?, Object?> _dartvelSection(String root) {
