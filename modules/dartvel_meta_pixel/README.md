@@ -48,7 +48,14 @@ client, so `accessToken:` there is refused by name.
 ## What it does without being called
 
 - **Page views.** The first page and every route change send `PageView`.
-  The page shell reports them; no page calls anything. The landing page's
+  The page shell reports them; no page calls anything. Each goes out once
+  from the browser and once to the Conversions API with one event id, so
+  Meta counts it once: the pixel's own automatic `PageView` on every
+  `history.pushState` (which has no event id, so Meta could not
+  de-duplicate it) is switched off with `fbq.disablePushState`, and
+  `fbq.allowDuplicatePageViews` lets the module's views of later routes
+  through, which `fbevents.js` would otherwise drop after the first of a
+  page load. The landing page's
   view carries the `utm_*` parameters it arrived with as event data.
 - **The framework's standard events.** `DV.Analytics.track(...)` with a
   `DVStandardEvent` is sent as Meta's standard event the moment it is

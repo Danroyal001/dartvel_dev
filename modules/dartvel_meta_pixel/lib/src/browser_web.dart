@@ -51,7 +51,23 @@ final class _WebBrowser implements MetaPixelBrowser {
       _failed = true;
       _waiting.clear();
     }).toJS;
-    _run(() => _fbq(<JSAny?>['init'.toJS, pixelId.toJS]));
+    _run(() {
+      // Before init, because fbevents.js reads both when it sets up:
+      // - disablePushState: fbevents.js otherwise sends a PageView of its
+      //   own, with no event id, on every history.pushState, which is every
+      //   route change in a Dartvel app. The module already sends that view,
+      //   with the id its Conversions API twin carries, so Meta would count
+      //   each route change twice and could not de-duplicate.
+      // - allowDuplicatePageViews: fbevents.js otherwise drops every
+      //   PageView after the first of a page load, so the module's views of
+      //   the second and later routes would never leave the browser.
+      final JSObject? fbq = _window['fbq'] as JSObject?;
+      if (fbq != null) {
+        fbq['disablePushState'] = true.toJS;
+        fbq['allowDuplicatePageViews'] = true.toJS;
+      }
+      _fbq(<JSAny?>['init'.toJS, pixelId.toJS]);
+    });
     final JSObject? head = document['head'] as JSObject?;
     (head ?? document).callMethod<JSAny?>('appendChild'.toJS, script);
   }
