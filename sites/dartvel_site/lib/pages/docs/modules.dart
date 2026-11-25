@@ -187,10 +187,11 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
           'Each module waits for its own consent category. The event is kept '
               'in your own analytics store too when its category (analytics, '
               'unless it names another) is declared.',
-          'Page views are automatic: the first page and every route change '
-              'send page_view with page_location, page_path and page_title, '
-              'and PageView to Meta. The landing page view carries the '
-              'campaign it came with.',
+          'Page views are automatic and counted once. Google\'s tag counts '
+              'the page it loads on, with the campaign it came with; every '
+              'route change after it sends page_view with page_location (the '
+              'page\'s own address), page_path and page_title. Meta gets a '
+              'PageView per page.',
         ]),
         DocsText(
           'Where a visitor came from is kept on their device as they land: '
