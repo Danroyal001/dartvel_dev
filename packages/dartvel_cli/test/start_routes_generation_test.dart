@@ -99,7 +99,7 @@ void main() {
 
   test('an app root may carry other annotations, such as an entry-point pragma', () async {
     bootSource = '''
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'dartvel_client/dartvel_client.dart';
 
 @DVAppRoot()

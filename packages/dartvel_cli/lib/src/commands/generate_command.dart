@@ -118,7 +118,7 @@ class GeneratePageSubcommand extends Command<void> {
     }
     final capitalized = pageName[0].toUpperCase() + pageName.substring(1);
     file.writeAsStringSync('''import '../dartvel_client/dartvel_client.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 @DVPage()
 @pragma('vm:entry-point')
