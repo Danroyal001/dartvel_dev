@@ -21,6 +21,15 @@
 /// end of what is built, and there is no browser find. Tests turn it on with
 /// [DVLazyBackfill.enabled] and drive it with [DVLazyBackfill.step].
 ///
+/// Off unless the application opts in (Dartvel 3.47.9). On long lists the
+/// building kept the main thread busy and the heap high: on a 177-row
+/// catalogue at 4x CPU the JS heap peaked at 50-58 MB instead of 15-21 MB and
+/// the first 15 s ran at 4-7 fps instead of about 45. Until it is cheap
+/// enough, `dartvel.web.lazyBackfill: true` in pubspec.yaml turns it on (the
+/// build hands it to the app as the DARTVEL_LAZY_BACKFILL define). With it
+/// off, a screen reader and find after an in-app navigation reach what they
+/// reached in Dartvel 3.47.8.
+///
 /// Not in the barrel: there is nothing for an application to call.
 library;
 
@@ -37,10 +46,19 @@ abstract class DVBackfillable {
   bool backfillStep();
 }
 
+/// Whether the idle backfill starts on: on the web, and only when the
+/// application opted in.
+@visibleForTesting
+bool dvLazyBackfillDefault({required bool isWeb, required bool optedIn}) => isWeb && optedIn;
+
 abstract final class DVLazyBackfill {
-  /// Whether the waiting rows are built when the page is idle. On by
-  /// default on the web; tests set it.
-  static bool enabled = kIsWeb;
+  /// Whether the application opted in: `dartvel.web.lazyBackfill: true`,
+  /// handed to the app as the DARTVEL_LAZY_BACKFILL define.
+  static const bool optedIn = bool.fromEnvironment('DARTVEL_LAZY_BACKFILL');
+
+  /// Whether the waiting rows are built when the page is idle. Off unless
+  /// the application opted in, and only on the web; tests set it.
+  static bool enabled = dvLazyBackfillDefault(isWeb: kIsWeb, optedIn: optedIn);
 
   /// How long after the first frame, or after anything else drew a frame,
   /// the page must be still before a step runs.
@@ -106,6 +124,6 @@ abstract final class DVLazyBackfill {
   static void reset() {
     _waiting.clear();
     _armed = false;
-    enabled = kIsWeb;
+    enabled = dvLazyBackfillDefault(isWeb: kIsWeb, optedIn: optedIn);
   }
 }

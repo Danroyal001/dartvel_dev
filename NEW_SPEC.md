@@ -1102,7 +1102,10 @@ control, or the next screen of a list with no control left built in that
 direction -- and then moves the focus in Flutter's own order, scrolling it into
 view. A footer after a long lazy page is reached, and Shift+Tab goes back up
 through rows the list had let go.
-On the web the rest of a lazy list is also built while the page is idle: once
+With `dartvel.web.lazyBackfill: true` the rest of a lazy list is also built on
+the web while the page is idle (off by default since 3.47.9: on long lists it
+kept the main thread busy and the heap high; without it a virtual cursor and
+find after an in-app navigation reach what they reached in 3.47.8): once
 the first frame is drawn and nothing is pending, animating or scrolling, the
 placeholders still waiting are built a few at a time, and a scrollable list
 grows its cache a couple of screens at a time until it covers the whole list.

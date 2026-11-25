@@ -84,10 +84,13 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               'Tab and Shift+Tab reach every control on a long page, including '
                   'rows a lazy list has not built yet and the footer after them: '
                   'what is in the way is built before the focus moves on.',
-              'On the web those rows are also built while the page is idle, so '
-                  'a screen reader reading line by line reaches the end of a long '
-                  'page without scrolling, and the browser\'s find searches all of '
-                  'it, on the first page and after moving to another.',
+              'With dartvel.web.lazyBackfill: true in pubspec.yaml, those rows '
+                  'are also built on the web while the page is idle, so a screen '
+                  'reader reading line by line reaches the end of a long page '
+                  'without scrolling, and the browser\'s find searches all of it, '
+                  'on the first page and after moving to another. It is off by '
+                  'default: on long lists the idle building costs memory and '
+                  'smoothness.',
               'A link is named by its own words, even when it sits directly '
                   'among the paragraphs of a page; a link inside a sentence is '
                   'read in its place in the sentence. For two or more links in one '
