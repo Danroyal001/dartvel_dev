@@ -90,6 +90,11 @@ dartvel:
     /docs/install: /docs
     /docs/installation: /docs
 
+  # SSR-first (owner, 26 Nov 2026): every page, Studio screens included, shows
+  # its server-rendered document in the app's own look from the first paint;
+  # the app takes over in place at its first frame. Same render path as before.
+  web:
+    ssrFirst: true
   # No accounts: no /login, /sign-up or /account and no /api/auth/* endpoint
   # (pages: false alone left POST /api/auth/sign-up open). Studio signs its one
   # granted person in at its own /__studio/login.
