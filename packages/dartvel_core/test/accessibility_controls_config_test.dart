@@ -1,4 +1,4 @@
-// `dartvel.accessibility.controls`: the accessibility button and panel every
+// `dartvel.accessibility.defaultControls`: the accessibility button and panel every
 // Dartvel app can opt into (text size, high contrast, reduced motion).
 //
 // Two spellings, one value: the pubspec map and a DartvelConfig class. What a
@@ -12,42 +12,50 @@ class _ShopConfig extends DartvelConfig {
   const _ShopConfig();
 
   @override
-  DVAccessibilityControlsConfig get accessibilityControls =>
-      const DVAccessibilityControlsConfig(enabled: true, floatingButton: false);
+  DVAccessibilityDefaultControlsConfig get accessibilityDefaultControls =>
+      const DVAccessibilityDefaultControlsConfig(enabled: true, floatingButton: false);
+}
+
+class _OldShopConfig extends DartvelConfig {
+  const _OldShopConfig();
+
+  @override
+  // ignore: deprecated_member_use
+  DVAccessibilityControlsConfig get accessibilityControls => const DVAccessibilityControlsConfig(enabled: true);
 }
 
 void main() {
   group('the pubspec switch', () {
     test('absent means off: no app gets controls it did not ask for', () {
-      final DVAccessibilityControlsConfig config = DVAccessibilityControlsConfig.parse(null);
+      final DVAccessibilityDefaultControlsConfig config = DVAccessibilityDefaultControlsConfig.parse(null);
       expect(config.enabled, isFalse);
-      expect(DVAccessibilityControlsConfig.fromSection(<String, Object?>{}).enabled, isFalse);
+      expect(DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{}).enabled, isFalse);
     });
 
     test('true turns it on with the framework\'s floating button', () {
-      final DVAccessibilityControlsConfig config = DVAccessibilityControlsConfig.parse(true);
+      final DVAccessibilityDefaultControlsConfig config = DVAccessibilityDefaultControlsConfig.parse(true);
       expect(config.enabled, isTrue);
       expect(config.floatingButton, isTrue);
     });
 
     test('a map turns it on unless it says enabled: false, and can drop the floating button', () {
-      final DVAccessibilityControlsConfig placed =
-          DVAccessibilityControlsConfig.parse(<String, Object?>{'floatingButton': false});
+      final DVAccessibilityDefaultControlsConfig placed =
+          DVAccessibilityDefaultControlsConfig.parse(<String, Object?>{'floatingButton': false});
       expect(placed.enabled, isTrue);
       expect(placed.floatingButton, isFalse);
-      expect(DVAccessibilityControlsConfig.parse(<String, Object?>{'enabled': false}).enabled, isFalse);
+      expect(DVAccessibilityDefaultControlsConfig.parse(<String, Object?>{'enabled': false}).enabled, isFalse);
     });
 
     test('is read from dartvel.accessibility, beside the audit waivers', () {
-      final DVAccessibilityControlsConfig config = DVAccessibilityControlsConfig.fromSection(<String, Object?>{
-        'accessibility': <String, Object?>{'controls': true, 'waivers': <Object?>[]},
+      final DVAccessibilityDefaultControlsConfig config = DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{
+        'accessibility': <String, Object?>{'defaultControls': true, 'waivers': <Object?>[]},
       });
       expect(config.enabled, isTrue);
     });
 
     test('a misspelt key is refused, naming it', () {
       expect(
-        () => DVAccessibilityControlsConfig.parse(<String, Object?>{'floatingButon': false}),
+        () => DVAccessibilityDefaultControlsConfig.parse(<String, Object?>{'floatingButon': false}),
         throwsA(isA<ArgumentError>().having((ArgumentError e) => '${e.message}', 'message', contains('floatingButon'))),
       );
     });
@@ -56,7 +64,7 @@ void main() {
   group('config class parity', () {
     final Map<String, Object?> everyField = <String, Object?>{
       'accessibility': <String, Object?>{
-        'controls': <String, Object?>{'floatingButton': false},
+        'defaultControls': <String, Object?>{'floatingButton': false},
       },
     };
 
@@ -70,13 +78,81 @@ void main() {
 
     test('plain true round-trips as true', () {
       final Map<String, Object?> on = <String, Object?>{
-        'accessibility': <String, Object?>{'controls': true},
+        'accessibility': <String, Object?>{'defaultControls': true},
       };
       expect(DartvelPubspecConfig.fromPubspec(on).toPubspec(), on);
     });
 
     test('off writes nothing', () {
       expect(DartvelPubspecConfig.fromPubspec(<String, Object?>{}).toPubspec(), isNot(contains('accessibility')));
+    });
+  });
+
+
+  // 3.47.16 shipped the key as `controls`; 3.47.18 renamed it `defaultControls`.
+  // The old spelling keeps working for one release (the build warns, naming the
+  // new key), so a published project never silently loses the panel.
+  group('the old `controls` key, for one release', () {
+    test('still turns the controls on, with the same shapes', () {
+      expect(
+        DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{
+          'accessibility': <String, Object?>{'controls': true},
+        }),
+        const DVAccessibilityDefaultControlsConfig(enabled: true),
+      );
+      expect(
+        DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{
+          'accessibility': <String, Object?>{
+            'controls': <String, Object?>{'floatingButton': false},
+          },
+        }),
+        const DVAccessibilityDefaultControlsConfig(enabled: true, floatingButton: false),
+      );
+    });
+
+    test('a misspelling under the old key names the old key it was written under', () {
+      expect(
+        () => DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{
+          'accessibility': <String, Object?>{
+            'controls': <String, Object?>{'floatingButon': false},
+          },
+        }),
+        throwsA(isA<ArgumentError>().having((ArgumentError e) => e.name, 'name', 'dartvel.accessibility.controls')),
+      );
+    });
+
+    test('a misspelling under the new key names the new key', () {
+      expect(
+        () => DVAccessibilityDefaultControlsConfig.parse(<String, Object?>{'floatingButon': false}),
+        throwsA(isA<ArgumentError>().having((ArgumentError e) => e.name, 'name', 'dartvel.accessibility.defaultControls')),
+      );
+    });
+
+    test('both keys at once is refused rather than one silently winning', () {
+      expect(
+        () => DVAccessibilityDefaultControlsConfig.fromSection(<String, Object?>{
+          'accessibility': <String, Object?>{'controls': true, 'defaultControls': false},
+        }),
+        throwsA(isA<ArgumentError>().having((ArgumentError e) => '${e.message}', 'message', contains('defaultControls'))),
+      );
+    });
+
+    test('a pubspec on the old key round-trips onto the new one', () {
+      expect(
+        DartvelPubspecConfig.fromPubspec(<String, Object?>{
+          'accessibility': <String, Object?>{'controls': true},
+        }).toPubspec(),
+        <String, Object?>{
+          'accessibility': <String, Object?>{'defaultControls': true},
+        },
+      );
+    });
+
+    test('a config class still overriding accessibilityControls keeps the panel, under the old key so the build warns',
+        () {
+      expect(const _OldShopConfig().toPubspec(), <String, Object?>{
+        'accessibility': <String, Object?>{'controls': true},
+      });
     });
   });
 

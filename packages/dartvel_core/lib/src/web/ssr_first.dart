@@ -193,7 +193,7 @@ const String _firstScreenScript = '(function(){'
     'l.setAttribute("blocking","render");'
     'd.head.appendChild(l)})()';
 
-/// The visitor's accessibility settings (`dartvel.accessibility.controls`),
+/// The visitor's accessibility settings (`dartvel.accessibility.defaultControls`),
 /// read before the first paint and written on `<html>`:
 ///
 /// * `data-dv-reduce-motion`: the handover does not fade;
@@ -234,7 +234,7 @@ const String _accessibilityStyle = '@media screen{'
 
 /// The style and script an SSR-first shell carries in its head.
 ///
-/// With [accessibilityControls] (`dartvel.accessibility.controls`) it also
+/// With [accessibilityControls] (`dartvel.accessibility.defaultControls`) it also
 /// reads the visitor's accessibility settings before the first paint.
 ///
 /// [background] and [darkBackground] are the app's page colours (the
