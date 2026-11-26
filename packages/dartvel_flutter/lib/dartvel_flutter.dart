@@ -902,6 +902,7 @@ export 'src/platform/platform_host.dart';
 export 'src/platform/printing.dart';
 export 'src/platform/raster.dart';
 export 'src/platform/storage/device_storage.dart';
+export 'src/platform/storage/preference_store.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
