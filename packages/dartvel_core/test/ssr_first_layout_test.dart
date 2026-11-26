@@ -1123,6 +1123,106 @@ void main() {
       expect(out, matches(RegExp(r'#dva\d+\{left:40px;top:300px')));
     });
 
+
+    // ChopDesk and EatingToday, 3.47.12: a link whose name is not the words it
+    // paints ("Browse every recipe" painting "Recipes", "Set up your
+    // restaurant, first month free" painting "Set up your restaurant") had
+    // only its name, hidden for readers, and the painted words drawn as
+    // decoration: Ctrl+F found no link for the words on screen.
+    test('a link painting other words than its name carries them as its own findable text', () {
+      const String doc = '<a href="/recipes" title="Browse every recipe" aria-label="Browse every recipe">Browse every recipe</a>\n'
+          '<h1>Nigerian recipes</h1>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Recipes', <num>[200, 20, 60, 20], z: 3),
+            _text('Nigerian recipes', <num>[20, 100, 300, 40], z: 1),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/recipes', 'name': 'Browse every recipe', 'r': <num>[190, 10, 80, 40]},
+          ]),
+        ]),
+      );
+      final RegExpMatch? painted =
+          RegExp(r'<a id="(dva\d+)"[^>]*>(?:(?!</a>).)*<span id="(dvr\d+)" class="dvo" aria-hidden="true">Recipes</span>')
+              .firstMatch(out);
+      expect(painted, isNotNull, reason: out);
+      // Placed where the app paints it, relative to the link: 200 - 190, 20 - 10.
+      expect(out, contains('#${painted!.group(2)}{left:10px;top:10px;width:60px;height:20px'));
+      // Not drawn a second time by the layer.
+      expect(out, isNot(contains('content:"Recipes"')));
+      // The name is still what a screen reader hears, and the reading column
+      // (print, no script, after the handover) does not show the words twice.
+      expect(out, contains('aria-label="Browse every recipe"'));
+      expect(out, contains('.dvl .dvo{display:none}'));
+    });
+
+    test('painted icon glyphs inside a link stay drawn by the layer, not made its text', () {
+      const String doc = '<a href="/menu" title="Open the menu" aria-label="Open the menu">Open the menu</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('\u{e5d2}', <num>[350, 10, 24, 24], z: 2, family: 'MaterialIcons'),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/menu', 'name': 'Open the menu', 'r': <num>[340, 0, 44, 44]},
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('class="dvo"')));
+    });
+
+    // ChopDesk /sign-in, 3.47.12: the header link "Sign in to your desk"
+    // (painting "Sign in") came first in the document and took the page's
+    // heading "Sign in to your desk", painted far from its box; the heading was
+    // left without its text and the link held a heading-sized run in a
+    // header-sized box.
+    test("a link takes only words painted in its own box, never a heading's elsewhere", () {
+      const String doc = '<a href="/sign-in" title="Sign in to your desk" aria-label="Sign in to your desk">Sign in to your desk</a>\n'
+          '<h1>Sign in to your desk</h1>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Sign in', <num>[300, 20, 60, 20], z: 3),
+            _text('Sign in to your desk', <num>[20, 100, 340, 40], z: 1),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/sign-in', 'name': 'Sign in to your desk', 'r': <num>[290, 10, 80, 40]},
+          ]),
+        ]),
+      );
+      final String heading = RegExp(r'<h1><span id="(dvr\d+)">Sign in to your desk</span></h1>').firstMatch(out)?.group(1) ?? '';
+      expect(heading, isNotEmpty, reason: out);
+      expect(out, contains('#$heading{left:20px;top:100px'));
+      final RegExpMatch link = RegExp(r'<a id="dva\d+"[^>]*><span id="(dvr\d+)">Sign in</span> <span class="dvu">to your desk</span></a>').firstMatch(out)!;
+      expect(out, contains('#${link.group(1)}{left:10px;top:10px'));
+    });
+
+    // EatingToday /recipes: every card title is the whole title in the
+    // document, however the app cuts it short on screen, so find reaches it.
+    test('text the app cuts short with an ellipsis is whole in the document', () {
+      const String title = 'Smoky Party Jollof Rice with Peppered Grilled Croaker & Dodo';
+      const String doc = '<a href="/recipes/jollof" title="Recipe for $title" aria-label="Recipe for $title">Recipe for $title</a>\n';
+      final Map<String, Object?> clipped = _text(title, <num>[20, 300, 200, 48], z: 2)
+        ..['ell'] = true
+        ..['ml'] = 2
+        ..['nw'] = false;
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[clipped], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/recipes/jollof', 'name': 'Recipe for $title', 'r': <num>[10, 290, 300, 80]},
+          ]),
+        ]),
+      );
+      expect(out, contains('<span id="dvr'), reason: out);
+      expect(out, contains('>Smoky Party Jollof Rice with Peppered Grilled Croaker &amp; Dodo</span>'));
+      final String run = RegExp(r'<span id="(dvr\d+)">Smoky').firstMatch(out)!.group(1)!;
+      // Clamped to two lines as the app draws it: a box, not a cut string.
+      expect(out, contains('display:-webkit-box'));
+      expect(out, matches(RegExp('#$run\\{[^}]*-webkit-line-clamp:2')));
+    });
+
     test('no capture for a width: the document is returned as it was', () {
       expect(dvSsrFirstLayout(_doc, _capture(<Map<String, Object?>>[])), _doc);
     });

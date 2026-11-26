@@ -265,6 +265,10 @@ class _Token {
 
   /// What replaces a text token: the same text, with its runs wrapped.
   String? replacement;
+
+  /// Written right after the token: the words a control paints that are
+  /// not its name (see [_Layout._adoptPaintedWords]).
+  String? after;
 }
 
 final RegExp _tokens = RegExp(r'<!--.*?-->|<[^>]*>', dotAll: true);
@@ -481,6 +485,7 @@ class _Layout {
         if (!inSentences.contains(text)) text,
     ];
     _matchText(texts);
+    _adoptPaintedWords();
     for (final _Node run in runs) {
       if (run.container?.inline ?? false) run.inline = true;
     }
@@ -493,6 +498,7 @@ class _Layout {
     final StringBuffer body = StringBuffer();
     for (final _Token token in tokens) {
       body.write(token.replacement ?? token.source);
+      if (token.after != null) body.write(token.after);
     }
     final (String first, String rest) = _css();
     // What is below the fold is placed by a second stylesheet after the
@@ -869,16 +875,37 @@ class _Layout {
         final _TextNode text = texts[textIndex];
         final List<(int, int, _Item)> pieces = found[textIndex];
         final String value = text.norm;
+        // Text in a control laid out at this width takes only words painted
+        // in that control's box. ChopDesk's header link "Sign in to your
+        // desk" (painting "Sign in") came first in the document and took the
+        // page's heading of the same words, painted far below it: the
+        // heading lost its text and the link held a heading in a header-
+        // sized box (Dartvel 3.47.12).
+        final List<double>? own = text.control?.node.boxes[w];
+        int pick(List<_Item> queue) {
+          if (own == null) return queue.isEmpty ? -1 : 0;
+          for (int index = 0; index < queue.length; index++) {
+            final List<double> r = queue[index].rect;
+            final double x = r[0] + r[2] / 2;
+            final double y = r[1] + r[3] / 2;
+            if (x >= own[0] - 1 && x <= own[0] + own[2] + 1 &&
+                y >= own[1] - 1 && y <= own[1] + own[3] + 1) {
+              return index;
+            }
+          }
+          return -1;
+        }
+
         final List<String> candidates = <String>[
           for (final String key in keys)
-            if (value.contains(key) && queues[key]!.isNotEmpty) key,
+            if (value.contains(key) && pick(queues[key]!) >= 0) key,
         ];
         int at = 0;
         while (at < value.length && candidates.isNotEmpty) {
           int bestStart = -1;
           String? best;
           for (final String key in candidates) {
-            if (queues[key]!.isEmpty) continue;
+            if (pick(queues[key]!) < 0) continue;
             int from = at;
             while (true) {
               final int hit = value.indexOf(key, from);
@@ -908,7 +935,7 @@ class _Layout {
           pieces.add((
             bestStart,
             bestStart + best.length,
-            queues[best]!.removeAt(0),
+            queues[best]!.removeAt(pick(queues[best]!)),
           ));
           at = bestStart + best.length;
         }
@@ -949,6 +976,89 @@ class _Layout {
         text.segments.add(segment);
         runs.add(node);
       }
+    }
+  }
+
+  /// The words a link or button paints that are not its name, as its own
+  /// text.
+  ///
+  /// A control's name is what the app says it is ("Browse every recipe",
+  /// "Set up your restaurant, first month free"); what it paints can be other
+  /// words ("Recipes", "Set up your restaurant"). The document holds the
+  /// name, hidden from the eye where none of it is painted, and the painted
+  /// words were drawn by the aria-hidden layer as CSS content: Ctrl+F found
+  /// no link for the words on screen and they could not be selected
+  /// (EatingToday's header, ChopDesk's landing page, Dartvel 3.47.12).
+  ///
+  /// A control none of whose text was matched at any width takes the words
+  /// painted inside its box that nothing else took, as a span of its own
+  /// (`dvo`, shown only while the document is laid out). It is
+  /// `aria-hidden`, so a screen reader still hears the name and nothing
+  /// twice; find and selection read it like any other text. Icon glyphs
+  /// stay with the layer: they are not words.
+  final Set<_Node> _paintedOnly = <_Node>{};
+
+  void _adoptPaintedWords() {
+    final Set<_Node> spoken = <_Node>{
+      for (final _Node run in runs)
+        if (run.container != null) run.container!,
+    };
+    bool words(String text) {
+      if (text.trim().isEmpty) return false;
+      bool letter = false;
+      for (final int rune in text.runes) {
+        if (_privateUse(rune) && rune != 0x20) return false;
+        if (_readable(rune)) letter = true;
+      }
+      return letter;
+    }
+
+    for (final (_Node control, String _, _Token token) in _docControls) {
+      if (control.kind != 'control' || control.boxes.isEmpty) continue;
+      if (spoken.contains(control)) continue;
+      // Each painted paragraph inside the box, by its words and which of
+      // those words it is, so the same paragraph is one run at every width.
+      final Map<String, _Node> byKey = <String, _Node>{};
+      final List<_Node> order = <_Node>[];
+      for (int w = 0; w < widths.length; w++) {
+        final List<double>? box = control.boxes[w];
+        if (box == null) continue;
+        final List<_Item> inside = <_Item>[
+          for (final _Item item in widths[w].items)
+            if (!item.used &&
+                item.kind == 't' &&
+                words(item.text) &&
+                item.rect[0] >= box[0] - 1 &&
+                item.rect[1] >= box[1] - 1 &&
+                item.rect[0] + item.rect[2] <= box[0] + box[2] + 1 &&
+                item.rect[1] + item.rect[3] <= box[1] + box[3] + 1)
+              item,
+        ]..sort((_Item a, _Item b) => a.rect[1] != b.rect[1]
+            ? a.rect[1].compareTo(b.rect[1])
+            : a.rect[0].compareTo(b.rect[0]));
+        final Map<String, int> seen = <String, int>{};
+        for (final _Item item in inside) {
+          final int occurrence = seen[item.norm] = (seen[item.norm] ?? -1) + 1;
+          final _Node node = byKey.putIfAbsent('${item.norm}#$occurrence', () {
+            final _Node created = _Node('dvr${_ids++}', 'run')..container = control;
+            order.add(created);
+            return created;
+          });
+          node.items[w] = item;
+          item.used = true;
+        }
+      }
+      if (order.isEmpty) continue;
+      final StringBuffer spans = StringBuffer();
+      for (final _Node node in order) {
+        runs.add(node);
+        _paintedOnly.add(node);
+        spans.write(
+          '<span id="${node.id}" class="dvo" aria-hidden="true">'
+          '${_elementText.convert(node.items.values.first.text)}</span>',
+        );
+      }
+      token.after = '${token.after ?? ''}$spans';
     }
   }
 
@@ -1488,6 +1598,11 @@ class _Layout {
 
     out.write(_fontFaces());
     out.write('.dvl .dvp{display:none}');
+    // A control's painted words that are not its name: only while laid out
+    // (the reading column shows the name itself).
+    if (_paintedOnly.isNotEmpty) {
+      out.write('.dvl .dvo{display:none}');
+    }
     out.write(
       '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated'
       '.dvl .dvu{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);'
