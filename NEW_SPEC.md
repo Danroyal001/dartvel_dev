@@ -508,7 +508,8 @@ The table is the contract. Each row says which entries a target has, what
   visitors took the site for broken, so it was removed from the framework. A
   pubspec that still sets `dartvel.web.firstFrame` (true, false or a map)
   builds, with one warning that the key is ignored and can be deleted.
-- **SSR-first (opt-in).** `dartvel.web.ssrFirst: true` shows each page's
+- **SSR-first (on by default since 3.47.11; `dartvel.web.ssrFirst: false`
+  opts out).** `dartvel.web.ssrFirst` shows each page's
   server-rendered document (the `.dv-fallback` block both the static build
   and the web server write, through the one render path) as the page from
   the first paint, instead of the splash. The build writes a style and a

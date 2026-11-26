@@ -106,7 +106,7 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
         ),
         DocsText(
           'On a slow phone network that wait can be half a minute. '
-          'Turn on web.ssrFirst and each page shows its own text and '
+          'With SSR-first, on by default, each page shows its own text and '
           'links from the first moment instead of the splash, laid out '
           "as your app draws the page: the same places, fonts, colours, "
           'surfaces and images, light and dark, at phone, tablet and '
@@ -132,14 +132,15 @@ Widget _docsWebHostingPage(BuildContext context) => const DocsArticle(
           'the build cannot read, so it appears only when the app takes '
           'over; draw glows with DVRadialGradient or DVGradientPainter and '
           'gradient text with DVGradientSpan in a DVGradientText, and the '
-          'page draws those from the start. It is off unless you turn it '
-          'on.',
+          'page draws those from the start. It is on unless you turn it '
+          'off with web.ssrFirst: false, which shows the splash until '
+          'the app has drawn its first screen.',
         ),
         DocsShell(<String>[
           '# pubspec.yaml',
           'dartvel:',
           '  web:',
-          '    ssrFirst: true   # the page itself instead of the splash',
+          '    ssrFirst: true   # the default; false shows the splash instead',
         ]),
         DocsText(
           'Every web build is compiled twice: Chrome, Edge and '
