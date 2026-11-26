@@ -1043,10 +1043,36 @@ class _Layout {
       // to type (Dartvel 3.47.8 to 3.47.9 left every field out of the
       // layout, under the box the app paints for it).
       if (node.kind == 'field') continue;
+      bool covered = false;
       for (final int w in node.boxes.keys.toList()) {
-        if (!_paintedIn(node, w)) node.boxes.remove(w);
+        if (_coversScreen(node, w)) {
+          covered = true;
+          node.boxes.remove(w);
+        } else if (!_paintedIn(node, w)) {
+          node.boxes.remove(w);
+        }
       }
+      // Never placed but for its screen-sized box: a reader control, which
+      // shows itself when focused.
+      if (covered && node.boxes.isEmpty) node.captured = false;
     }
+  }
+
+  /// Whether [control], painting no words of its own at width [w], has a box
+  /// of half the screen or more: the page shell's scroll button or a modal
+  /// barrier, not something a visitor sees and presses. Everything painted
+  /// lies inside such a box, so [_paintedIn] counts it as painted; placed,
+  /// it sat above the page and took every click (sigmadev.digital at 1366,
+  /// "To the bottom", 3.47.10). It stays for readers and shows itself when
+  /// the keyboard reaches it.
+  bool _coversScreen(_Node control, int w) {
+    for (final _Node run in runs) {
+      if (run.container == control && run.items[w] != null) return false;
+    }
+    final List<double> box = control.boxes[w]!;
+    final _Width width = widths[w];
+    final double screen = width.width * (width.height > 0 ? width.height : width.width);
+    return screen > 0 && box[2] * box[3] >= screen / 2;
   }
 
   /// Whether anything is painted inside [control]'s box at width [w]: one of
