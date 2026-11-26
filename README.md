@@ -87,6 +87,10 @@ Text that depends on when the page is asked for (a date, today's menu) is marked
 in the widget with `DVModifier().pageSlot('name')`; return
 `DVPageData.slots({'name': ...})` for that route and the binary serves the
 captured page with each request's own text in it, instead of the build's.
+With SSR-first, a `document` that only repeats words the captured page already
+has (a sign-in page's heading and links) is served as the captured page, laid
+out in the app's look, under the data's title and description; a document
+with anything more is the request's own and is served as written.
 
 ---
 
@@ -586,7 +590,8 @@ surfaces and images. It is still the real document (selection, find, Tab and
 screen readers work on it), and Flutter takes over in place at its first
 frame. Its fields can be typed in before the app loads; at the handover
 what was typed, the caret and the focus move into the app's field of the
-same name, and a button pressed early is pressed in the app once it is
+same name (a form the app builds a few frames later, such as a sign-in
+form shown after the session check, is waited for, at most 6 s), and a button pressed early is pressed in the app once it is
 there. Each width is also read at a taller screen, so a section the height
 of the screen fits any screen. A custom painter or shader is code the build
 cannot read; draw glows with `DVRadialGradient`/`DVGradientPainter` and

@@ -526,7 +526,7 @@ The table is the contract. Each row says which entries a target has, what
   had scrolled (the find runtime then scrolls the app there), moves focus
   off it, fades it out over 200 ms (none with reduced motion) and marks
   `<html data-dv-app>`, which puts it back in the clipped box for find,
-  crawlers and print. Off by default: with it off every page is byte for
+  crawlers and print. On by default since 3.47.11; with it off every page is byte for
   byte what it was.
   Its fields are real inputs over the boxes the app paints for them, typable
   from the first paint. Just before the app says it has drawn, it carries
@@ -538,7 +538,15 @@ The table is the contract. Each row says which entries a target has, what
   focused (letting go after 3 s if no app field took the keyboard) and every
   keystroke landing in it meanwhile follows into the app's field, so nothing
   is lost and typing never waits. A field never touched keeps the app's
-  value. A `role="button"` pressed before the handover is marked
+  value. While a field typed in (or focused) has no app field of its name
+  yet -- a form built after the first frame, such as a sign-in form shown
+  once the session check is done -- the handover waits, the document staying
+  the page, until the field is there, the address changes, or
+  `dvSsrFieldHold` (6 s) passes; the app focusing its own view behind the
+  document meanwhile gives the keyboard back to the document field. With
+  SSR-first, a `DVPageData.document` whose every block is already in the
+  route's laid-out capture (link addresses included) is served as that
+  capture under the data's head. A `role="button"` pressed before the handover is marked
   `aria-busy` and pressed again on the app's semantics button of the same
   name once `data-dv-app` is set. The document keeps taking presses during
   the fade: links navigate, buttons queue, any other press is replayed on the
