@@ -111,17 +111,19 @@ const String _handoverScript = '(function(){'
     'q.push(t.getAttribute("aria-label")||t.textContent.trim())}'
     'd.addEventListener("click",press,true);'
     'd.addEventListener("keydown",press,true);'
-    // The app's first frame focuses its view (the engine moves the keyboard
-    // to <flutter-view> when the first route takes focus) while the document
-    // still covers it: the field the visitor is typing in gets the keyboard
-    // back. A field of the app itself is inside the view, not the view, and
-    // is left alone; once the app has carried the fields (data-dv-carried)
-    // it moves the keyboard itself (dvHandOverSsrFields asks for the view
+    // The app's first frame focuses its view or a node of its semantics tree
+    // (the engine moves the keyboard there when the first route takes focus)
+    // while the document still covers it, where no key types anything: the
+    // field the visitor is typing in gets the keyboard back. Nothing of the
+    // app can be reached by the visitor before the handover, so no such
+    // move is theirs. Once the app has carried the fields (data-dv-carried)
+    // it moves the keyboard itself (dvHandOverSsrFields asks for its view
     // again when its field takes the visitor's typing).
     'd.addEventListener("focusin",function(e){'
     'if(h.hasAttribute("data-dv-app")||h.hasAttribute("data-dv-carried"))return;'
     'var t=e.target,r=e.relatedTarget;'
-    'if(t&&t.tagName=="FLUTTER-VIEW"&&r&&r.matches&&r.matches(F)&&r.closest(".dv-fallback"))'
+    'if(t&&t.closest&&t.closest("flutter-view,flt-glass-pane,flt-semantics-host")'
+    '&&r&&r.matches&&r.matches(F)&&r.closest(".dv-fallback"))'
     'r.focus({preventScroll:true})},true);'
     // A press during the fade that is not a link's or a button's: kept for
     // the app (and a field is not focused in the document meanwhile).

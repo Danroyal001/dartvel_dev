@@ -542,7 +542,7 @@ The table is the contract. Each row says which entries a target has, what
   yet -- a form built after the first frame, such as a sign-in form shown
   once the session check is done -- the handover waits, the document staying
   the page, until the field is there, the address changes, or
-  `dvSsrFieldHold` (6 s) passes; the app focusing its own view behind the
+  `dvSsrFieldHold` (6 s) passes; the app focusing its own view or semantics behind the
   document meanwhile gives the keyboard back to the document field. With
   SSR-first, a `DVPageData.document` whose every block is already in the
   route's laid-out capture (link addresses included) is served as that

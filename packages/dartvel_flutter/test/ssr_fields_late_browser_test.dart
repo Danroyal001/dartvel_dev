@@ -191,4 +191,26 @@ void main() {
     dvTakeOverServerField('Email', later);
     expect(later.text, isEmpty, reason: 'a form built later does not take it again');
   });
+
+  // ChopDesk's sign-in (3.47.12 check): at the app's first frame the engine
+  // focused a node of the app's semantics tree (the route's focus scope),
+  // behind the document, and the field being typed in lost the keyboard
+  // until the handover: keys typed meanwhile went nowhere.
+  test('the app focusing its own semantics behind the document does not take the keyboard', () {
+    final web.Element fallback = _document();
+    addTearDown(() => fallback.remove());
+    final web.Element host = web.document.createElement('flt-semantics-host')
+      ..innerHTML = '<flt-semantics tabindex="-1" role="group"></flt-semantics>'.toJS;
+    web.document.body!.append(host);
+    addTearDown(() => host.remove());
+    final web.HTMLTextAreaElement field = web.document.querySelector('#dv-field-1')! as web.HTMLTextAreaElement;
+    field.focus();
+    (host.firstElementChild! as web.HTMLElement).focus();
+    expect(web.document.activeElement, field);
+
+    // Once the app has carried the fields it moves the keyboard itself.
+    web.document.documentElement!.setAttribute('data-dv-carried', '');
+    (host.firstElementChild! as web.HTMLElement).focus();
+    expect(web.document.activeElement, host.firstElementChild);
+  });
 }
