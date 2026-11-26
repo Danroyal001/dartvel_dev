@@ -9,12 +9,24 @@ import 'package:web/web.dart' as web;
 import 'password_reveal.dart' show DVPasswordReveal, DVServerFieldState;
 
 /// The server-rendered input named [label], read once and then emptied.
+/// Nothing while an SSR-first document is still the page.
 ///
 /// Emptied because the document stays in the page after Flutter takes over --
 /// it is what find and print read -- and a password left in a hidden input is
 /// a password left lying about. Marked taken, so a later form with the same
 /// label does not inherit it.
 DVServerFieldState? dvReadServerField(String label) {
+  // SSR-first: while the document is the page its fields are the
+  // visitor's, typed in as the app loads. The handover carries them into the
+  // app's fields (dvHandOverSsrFields) and then empties them; read here they
+  // were emptied under the visitor's fingers, and a form built again after
+  // the session check found them taken (eatingtoday's sign-in, 3.47.11).
+  final web.Element? root = web.document.documentElement;
+  if (root != null &&
+      !root.hasAttribute('data-dv-app') &&
+      web.document.getElementById('dartvel-ssr-first') != null) {
+    return null;
+  }
   final web.NodeList inputs = web.document.querySelectorAll(
     '.dv-fallback input[data-dv-field]',
   );

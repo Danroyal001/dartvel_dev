@@ -23,6 +23,7 @@ import 'dart:js_interop';
 
 import 'package:dartvel_core/src/web/ssr_first.dart' show dvSsrFirstHead;
 import 'package:dartvel_flutter/src/seo/ssr_fields_web.dart';
+import 'package:dartvel_flutter/src/widgets/password_reveal.dart' show dvTakeOverServerField;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web/web.dart' as web;
@@ -143,5 +144,51 @@ void main() {
     unawaited(dvHandOverSsrFields().then((_) => handed = true));
     await tester.pump();
     expect(handed, isTrue);
+  });
+
+  // eatingtoday (Dartvel 3.47.11): the sign-in page's fields read the
+  // server-rendered field in initState (dvTakeOverServerField, from before
+  // SSR-first), which emptied the document's input while the visitor was
+  // still typing in it, and the form built again after the session check
+  // found it taken: the text was in neither field at the handover. While the
+  // document is the page, its fields are left to the handover; a field the
+  // handover carried is emptied and marked taken then, so a form built later
+  // does not take it a second time.
+  testWidgets('a field that reads the server-rendered field while the document is the page leaves it to the handover',
+      (WidgetTester tester) async {
+    final web.Element marker = web.document.createElement('style')..id = 'dartvel-ssr-first';
+    web.document.head!.append(marker);
+    addTearDown(() => marker.remove());
+    final web.Element fallback = web.document.createElement('div')
+      ..className = 'dv-fallback'
+      ..innerHTML = '<p><label for="dv-field-2">Email</label> <input id="dv-field-2" name="Email" data-dv-field="Email"></p>'.toJS;
+    web.document.body!.append(fallback);
+    addTearDown(() => fallback.remove());
+    final web.HTMLInputElement field = web.document.querySelector('#dv-field-2')! as web.HTMLInputElement;
+    field
+      ..focus()
+      ..value = 'hello wor';
+    field.dispatchEvent(web.InputEvent('input'));
+
+    final TextEditingController early = TextEditingController();
+    dvTakeOverServerField('Email', early);
+    expect(early.text, isEmpty, reason: 'the document is still the page');
+    expect(field.value, 'hello wor', reason: 'nothing is taken out from under the visitor');
+
+    final TextEditingController content = TextEditingController();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Semantics(label: 'Email', child: TextField(controller: content)),
+      ),
+    ));
+    await dvHandOverSsrFields();
+    expect(content.text, 'hello wor');
+    field.blur();
+    expect(field.value, isEmpty, reason: 'carried, then emptied: what was typed is not left lying in the page');
+    web.document.documentElement!.setAttribute('data-dv-app', '');
+    addTearDown(() => web.document.documentElement!.removeAttribute('data-dv-app'));
+    final TextEditingController later = TextEditingController();
+    dvTakeOverServerField('Email', later);
+    expect(later.text, isEmpty, reason: 'a form built later does not take it again');
   });
 }

@@ -105,6 +105,13 @@ void _carry(_Document document) {
   web.document.documentElement?.setAttribute('data-dv-carried', '');
   final DVSsrFieldCarry carry = dvCarrySsrFields(fields);
   final int typing = fields.indexWhere((DVSsrField field) => field.focused);
+  // What the app now holds is not left in the document, which stays in the
+  // page for find and print (a password among it), and is not taken a
+  // second time by a form built later. The field being typed in goes once
+  // it lets go; a field no app field took stays for one that comes later.
+  for (int index = 0; index < elements.length; index++) {
+    if (index != typing && carry.targetOf(index) != null) _take(elements[index]);
+  }
   if (typing < 0) return;
   final web.Element element = elements[typing];
   late final JSFunction onInput;
@@ -121,6 +128,7 @@ void _carry(_Document document) {
       ..removeEventListener('input', onInput)
       ..removeEventListener('blur', onBlur);
     _bridge(carry, typing);
+    if (carry.targetOf(typing) != null) _take(element);
   }).toJS;
   element
     ..addEventListener('input', onInput)
@@ -174,6 +182,17 @@ void _bridge(DVSsrFieldCarry carry, int index) {
     event.preventDefault();
   }).toJS;
   web.document.addEventListener('keydown', onKey, true.toJS);
+}
+
+/// Marks a document field as carried into the app and empties it.
+void _take(web.Element element) {
+  element.setAttribute('data-dv-taken', '');
+  switch (element.tagName.toUpperCase()) {
+    case 'TEXTAREA':
+      (element as web.HTMLTextAreaElement).value = '';
+    case 'INPUT':
+      (element as web.HTMLInputElement).value = '';
+  }
 }
 
 typedef _Read = ({String value, String initial, int? start, int? end});
