@@ -58,6 +58,10 @@ class DVSsrFieldCarry {
   /// null.
   final List<EditableTextState?> _targets;
 
+  /// The app field document field [index] went to, or null.
+  EditableTextState? targetOf(int index) =>
+      index < 0 || index >= _targets.length ? null : _targets[index];
+
   /// How many document fields found an app field.
   int get matched => _targets.where((EditableTextState? state) => state != null).length;
 
@@ -163,9 +167,21 @@ void _apply(EditableTextState state, String value, int? start, int? end) {
   state.userUpdateTextEditingValue(next, null);
 }
 
-/// Carries [fields] -- the server-rendered document's, in document order --
-/// into the app's text fields now on screen. See the library comment.
-DVSsrFieldCarry dvCarrySsrFields(List<DVSsrField> fields, {Element? root}) {
+/// Whether every field of [fields] the visitor typed in or is typing in has
+/// an app field to go to now. An app that builds its form after its first
+/// frame (a sign-in page shown once the session check says nobody is signed
+/// in) has none at that frame; the handover waits for it.
+bool dvSsrFieldsHaveTargets(List<DVSsrField> fields, {Element? root}) {
+  final List<EditableTextState?> targets = _targetsFor(fields, root);
+  for (int index = 0; index < fields.length; index++) {
+    final DVSsrField field = fields[index];
+    if ((field.edited || field.focused) && targets[index] == null) return false;
+  }
+  return true;
+}
+
+/// Per field of [fields], the app field it goes to, or null.
+List<EditableTextState?> _targetsFor(List<DVSsrField> fields, Element? root) {
   final List<(EditableTextState, List<String>)> appFields = <(EditableTextState, List<String>)>[];
   void visit(Element element) {
     if (element is StatefulElement && element.state is EditableTextState) {
@@ -198,7 +214,13 @@ DVSsrFieldCarry dvCarrySsrFields(List<DVSsrField> fields, {Element? root}) {
       if (targets[index] == null && next < left.length) targets[index] = left[next++];
     }
   }
+  return targets;
+}
 
+/// Carries [fields] -- the server-rendered document's, in document order --
+/// into the app's text fields now on screen. See the library comment.
+DVSsrFieldCarry dvCarrySsrFields(List<DVSsrField> fields, {Element? root}) {
+  final List<EditableTextState?> targets = _targetsFor(fields, root);
   EditableTextState? focus;
   for (int index = 0; index < fields.length; index++) {
     final EditableTextState? state = targets[index];

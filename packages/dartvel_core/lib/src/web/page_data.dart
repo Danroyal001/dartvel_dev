@@ -17,6 +17,7 @@ import 'model_page_access.dart';
 import 'page_text.dart';
 import 'route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'seo_head.dart';
+import 'ssr_first.dart' show dvIsSsrFirst;
 
 /// How page data is waited for on a request.
 enum DVPageDataMode {
@@ -547,7 +548,32 @@ String dvRenderPage({
   DVRoutePage? route,
   bool minify = true,
 }) =>
-    _dvSlotsOnly(data) && route != null
+    _dvCaptureSaysIt(shell, data, route)
+        // SSR-first, and the captured page already says every word of the
+        // data's document: the captured page, laid out in the app's look,
+        // under the data's head (see [_dvCaptureSaysIt]).
+        ? dvRenderRoutePage(
+            minify: minify,
+            shell,
+            DVRoutePage(
+              route: path,
+              title: data.title,
+              description: data.description ?? description ?? route!.description,
+              siteUrl: siteUrl ?? route!.siteUrl,
+              image: data.image ?? image ?? route!.image,
+              siteName: siteName ?? route!.siteName,
+              alternates: route!.alternates,
+              defaultAlternate: route.defaultAlternate,
+              favicon: data.favicon ?? route.favicon,
+              schemaType: route.schemaType,
+              robots: route.robots,
+              content: route.content,
+              html: data.slots.isEmpty ? route.html : dvFillPageSlots(route.html!, data.slots),
+              text: route.text,
+              structuredData: data.structuredData ?? route.structuredData,
+            ),
+          )
+        : _dvSlotsOnly(data) && route != null
         // The captured page, with the request's text in its slots.
         ? dvRenderRoutePage(
             minify: minify,
@@ -590,6 +616,53 @@ String dvRenderPage({
         structuredData: data.structuredData,
       ),
     );
+
+/// Whether, with SSR-first, the captured page of [route] already says every
+/// word of [data]'s document, so the capture is served in its place.
+///
+/// SSR-first shows the server-rendered document from the first paint, laid
+/// out in the app's look from what the build captured. A data document is
+/// written by hand -- headings, paragraphs and links -- and has no layout, so
+/// served in place of the capture it was a plain reading column until the
+/// app took over (ChopDesk's sign-in and landing pages, whose documents
+/// repeat what the app says). Where every heading, paragraph and link label
+/// of the document is in the capture's text, and every link's address is
+/// one of its links, the document says nothing the capture does not; the
+/// captured page is served, under the data's title, description and
+/// structured data. A document with anything more (a job list, today's
+/// menu, a record's page) is the request's own and is served as it is.
+bool _dvCaptureSaysIt(String shell, DVPageData data, DVRoutePage? route) {
+  final String? captured = route?.html;
+  if (data.document.isEmpty || captured == null || !captured.contains('class="dvl"')) return false;
+  if (!dvIsSsrFirst(shell)) return false;
+  final String text = _dvWords(captured.replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>'), ' ').replaceAll(RegExp(r'<[^>]*>'), ' '));
+  final Set<String> hrefs = <String>{
+    for (final RegExpMatch match in RegExp(r'<a\b[^>]*\bhref="([^"]*)"').allMatches(captured))
+      _dvEntities(match.group(1)!),
+  };
+  for (final DVDocumentBlock block in data.document) {
+    final String words = _dvWords(block.text);
+    if (words.isNotEmpty && !text.contains(words)) return false;
+    if (block.href != null && !hrefs.contains(block.href)) return false;
+  }
+  return true;
+}
+
+/// [html] text as plain words: entities decoded, spaces folded, lower case.
+String _dvWords(String html) =>
+    _dvEntities(html).replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+
+String _dvEntities(String html) => html
+    .replaceAllMapped(RegExp(r'&#(x?)([0-9a-fA-F]+);'), (Match match) {
+      final int? code = int.tryParse(match.group(2)!, radix: match.group(1)!.isEmpty ? 10 : 16);
+      return code == null ? match.group(0)! : String.fromCharCode(code);
+    })
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&amp;', '&');
 
 /// Data that only fills slots: no title, text or document of its own.
 bool _dvSlotsOnly(DVPageData data) =>

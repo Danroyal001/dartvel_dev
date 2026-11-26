@@ -330,6 +330,17 @@ What a visitor sees at the handover, checked in Chrome at 390 px, light and dark
   lands in the document's field until its own field has the keyboard. A
   field the visitor never touched keeps the app's value. A selection inside
   a field does not hold the handover.
+- A form the app builds after its first frame (a sign-in form shown once
+  the session check says nobody is signed in) is waited for: while a field
+  the visitor typed in has no app field of its name, the document stays the
+  page and keeps taking typing, and the handover happens as soon as the
+  app's field is there, the app goes to another address, or 6 s pass
+  (`dvSsrFieldHold`). With nothing typed nothing waits. The app's first
+  frame focusing its own view or semantics behind the document does not take the
+  keyboard from the field being typed in. A form that reads the
+  server-rendered field as it is built (`dvTakeOverServerField`) gets
+  nothing while the document is the page; the handover carries each field
+  and then empties it in the document.
 - A button pressed before the app loads shows it is busy, and its press is
   made on the app's button of the same name once the app has taken over.
   Buttons are Tab stops and take Enter and Space.

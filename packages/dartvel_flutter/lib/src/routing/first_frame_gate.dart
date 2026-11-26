@@ -107,9 +107,11 @@ void dvWatchWebFirstFrame() {
     dvFlushFirstFrameTimings(WidgetsBinding.instance).then((_) async {
       await dvWaitForPostLayoutRaster(WidgetsBinding.instance);
       // SSR-first: what the visitor typed into the server-rendered page
-      // goes into the app's fields first, in the frame the page hands over.
+      // goes into the app's fields first, in the frame the page hands over;
+      // a field the app builds after this frame (a sign-in form after the
+      // session check) is waited for, for at most dvSsrFieldHold.
       try {
-        ssr_fields.dvHandOverSsrFields();
+        await ssr_fields.dvHandOverSsrFields();
       } catch (error, stack) {
         FlutterError.reportError(FlutterErrorDetails(
           exception: error,

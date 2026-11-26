@@ -84,4 +84,60 @@ void main() {
       expect(back.document.map((b) => b.toJson()).toList(), data.document.map((b) => b.toJson()).toList());
     });
   });
+
+  // ChopDesk (Dartvel 3.47.11): its sign-in and landing pages answer with a
+  // DVPageData document that says what the app's page says. On a web-server
+  // build that document replaced the page the build captured and laid out,
+  // so with SSR-first the visitor saw a plain reading column until the app
+  // took over (handover diff 10-18%). When the capture already holds every
+  // word of the data's document, the captured page is the document, laid out
+  // in the app's look, under the data's head.
+  group('DVPageData.document with SSR-first', () {
+    final String ssrShell = _shell.replaceFirst(
+      '</head>',
+      '${dvSsrFirstHead(background: '#ffffff', darkBackground: '#000000', accent: '#b83a12')}</head>',
+    );
+    const String laidOut = '<div class="dvl"><style class="dvl-style">.dvl{}</style>'
+        '<h1>Sign in to your desk</h1><p>Owners use their email. Staff can use the phone number the owner set up for them.</p>'
+        '<p><a href="/sign-up">Set up your restaurant</a></p><label>Email or phone number</label><input name="Email or phone number"></div>';
+    const DVRoutePage route = DVRoutePage(route: '/sign-in', title: 'Sign in — ChopDesk', html: laidOut);
+    const DVPageData sameWords = DVPageData(title: 'Sign in', description: 'Sign in to your ChopDesk desk.', document: <DVDocumentBlock>[
+      DVDocumentBlock.heading('Sign in to your desk', level: 1),
+      DVDocumentBlock.paragraph('Owners use their email.  Staff can use the phone number the owner set up for them.'),
+      DVDocumentBlock.link('Set up your restaurant', '/sign-up'),
+    ]);
+
+    test('a document the capture already says is served as the laid-out capture, under the data head', () {
+      final String html = dvRenderPage(shell: ssrShell, path: '/sign-in', data: sameWords, route: route);
+      expect(html, contains('class="dvl"'));
+      expect(html, contains('name="Email or phone number"'));
+      expect(html, contains('<title>Sign in</title>'));
+      expect(html, contains('Sign in to your ChopDesk desk.'));
+    });
+
+    test('a document with words the capture does not have is served as the document', () {
+      const DVPageData more = DVPageData(title: 'Menu', document: <DVDocumentBlock>[
+        DVDocumentBlock.heading('Sign in to your desk', level: 1),
+        DVDocumentBlock.paragraph('Jollof rice, N2,500, sold out today'),
+      ]);
+      final String html = dvRenderPage(shell: ssrShell, path: '/sign-in', data: more, route: route);
+      expect(html, isNot(contains('class="dvl"')));
+      expect(html, contains('Jollof rice, N2,500, sold out today'));
+    });
+
+    test('a link the capture has under another address is not the same words', () {
+      const DVPageData moved = DVPageData(title: 'Sign in', document: <DVDocumentBlock>[
+        DVDocumentBlock.link('Set up your restaurant', '/start'),
+      ]);
+      final String html = dvRenderPage(shell: ssrShell, path: '/sign-in', data: moved, route: route);
+      expect(html, isNot(contains('class="dvl"')));
+      expect(html, contains('href="/start"'));
+    });
+
+    test('without SSR-first the document is served as before', () {
+      final String html = dvRenderPage(shell: _shell, path: '/sign-in', data: sameWords, route: route);
+      expect(html, isNot(contains('class="dvl"')));
+      expect(html, contains('<h1>Sign in</h1>'));
+    });
+  });
 }

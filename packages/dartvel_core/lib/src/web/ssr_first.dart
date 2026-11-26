@@ -79,7 +79,8 @@ String _colours(String background, String accent) {
 /// to scroll to, moves focus off the document, fades it, then marks the page
 /// as the app's.
 ///
-/// A field the visitor is typing in keeps its focus: the app has already
+/// A field the visitor is typing in keeps its focus, also when the app's
+/// first frame focuses the app's view behind the document: the app has already
 /// carried what was typed into its own field and moves focus there itself
 /// (dvHandOverSsrFields in dartvel_flutter), following every keystroke that
 /// lands in the document's field until it does, so nothing typed mid-word is
@@ -110,6 +111,20 @@ const String _handoverScript = '(function(){'
     'q.push(t.getAttribute("aria-label")||t.textContent.trim())}'
     'd.addEventListener("click",press,true);'
     'd.addEventListener("keydown",press,true);'
+    // The app's first frame focuses its view or a node of its semantics tree
+    // (the engine moves the keyboard there when the first route takes focus)
+    // while the document still covers it, where no key types anything: the
+    // field the visitor is typing in gets the keyboard back. Nothing of the
+    // app can be reached by the visitor before the handover, so no such
+    // move is theirs. Once the app has carried the fields (data-dv-carried)
+    // it moves the keyboard itself (dvHandOverSsrFields asks for its view
+    // again when its field takes the visitor's typing).
+    'd.addEventListener("focusin",function(e){'
+    'if(h.hasAttribute("data-dv-app")||h.hasAttribute("data-dv-carried"))return;'
+    'var t=e.target,r=e.relatedTarget;'
+    'if(t&&t.closest&&t.closest("flutter-view,flt-glass-pane,flt-semantics-host")'
+    '&&r&&r.matches&&r.matches(F)&&r.closest(".dv-fallback"))'
+    'r.focus({preventScroll:true})},true);'
     // A press during the fade that is not a link's or a button's: kept for
     // the app (and a field is not focused in the document meanwhile).
     'var pq=[];'

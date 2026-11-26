@@ -1,2 +1,2 @@
 /// Off the web there is no server-rendered page to hand over from.
-void dvHandOverSsrFields() {}
+Future<void> dvHandOverSsrFields({Duration hold = Duration.zero}) => Future<void>.value();
