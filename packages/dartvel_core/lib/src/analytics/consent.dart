@@ -17,6 +17,8 @@ import '../database/framework_tables.dart';
 import '../diagnostics/diagnostics.dart';
 import '../observability/logging.dart';
 import '../privacy/opt_out.dart';
+import '../web/public_suffix.dart';
+import 'consent_cookie.dart';
 
 /// A purpose somebody can consent to, by name.
 ///
@@ -150,7 +152,9 @@ final class DVConsentPolicy {
     required this.version,
     required List<DVConsentDeclaration> categories,
     this.banner = const DVConsentBannerText(),
-  }) : categories = List<DVConsentDeclaration>.unmodifiable(categories) {
+    String? domain,
+  })  : categories = List<DVConsentDeclaration>.unmodifiable(categories),
+        domain = dvConsentDomain(domain) {
     if (version.trim().isEmpty) {
       throw ArgumentError.value(version, 'version', 'must be set');
     }
@@ -239,6 +243,7 @@ final class DVConsentPolicy {
       version: '$version',
       categories: declarations,
       banner: DVConsentBannerText.fromConfig(consent['banner']),
+      domain: consent.containsKey('domain') ? '${consent['domain'] ?? ''}' : null,
     );
   }
 
@@ -246,6 +251,7 @@ final class DVConsentPolicy {
     'version',
     'categories',
     'banner',
+    'domain',
   ];
   static const List<String> _categoryKeys = <String>[
     'required',
@@ -258,6 +264,17 @@ final class DVConsentPolicy {
 
   /// What the consent banner says: `dartvel.analytics.consent.banner`.
   final DVConsentBannerText banner;
+
+  /// `dartvel.analytics.consent.domain`: the domain one choice covers, such
+  /// as `example.com` for `example.com`, `tools.example.com` and every
+  /// `<tool>.tools.example.com`. Null keeps each host's choice to itself.
+  ///
+  /// A browser keeps consent per origin, so without it a visitor who answered
+  /// on one host is asked again on every other. With it the latest choice
+  /// also travels in a first-party `dv_consent` cookie for this domain
+  /// (`Secure` over https, `SameSite=Lax`, a year), and each host adopts it
+  /// into its own records as consent loads (see `consent_cookie.dart`).
+  final String? domain;
 
   DVConsentDeclaration? declaration(DVConsentCategory category) {
     for (final DVConsentDeclaration d in categories) {
@@ -368,10 +385,16 @@ class DVConsent {
     required this.installId,
     DateTime Function()? clock,
     void Function(String code, String message)? onDiagnostic,
+    this.sharedCookie,
   })  : _clock = clock ?? DateTime.now,
         _diagnose = onDiagnostic ?? dvLogAnalyticsDiagnostic;
 
   static const String table = 'dv_consent_records';
+
+  /// The browser's cookies, through which a choice reaches the application's
+  /// other hosts under [DVConsentPolicy.domain]. Used only when the policy
+  /// names a domain; null outside a browser.
+  final DVConsentCookieJar? sharedCookie;
 
   final DVConsentPolicy policy;
   final DVDatabaseAdapter database;
@@ -410,18 +433,76 @@ class DVConsent {
   Future<void> load() async {
     final List<DVConsentRecord> mine = await records();
     _answers = null;
-    if (mine.isEmpty) return;
     // Every choice under this version, oldest first: a partial choice -- a
     // withdrawal of one category from the settings screen -- keeps the
     // earlier answers for the categories it did not present, after a
     // restart exactly as before it. Reading only the latest record forgot
     // them, so a visitor who withdrew marketing found analytics withdrawn
     // too on their next visit.
+    DateTime? latest;
     for (final DVConsentRecord record in mine) {
       if (record.policyVersion != policy.version) continue;
       _answers = <String, bool>{...?_answers, ...record.answers};
+      latest = record.recordedAt;
+    }
+    await _shareAcrossHosts(latest);
+  }
+
+  /// With [DVConsentPolicy.domain] set: adopts a newer choice another host
+  /// of the application left in the shared cookie, or shares this host's own
+  /// when the cookie has none, an older one, or one under another version.
+  /// [latest] is when this host last recorded a choice under this version.
+  Future<void> _shareAcrossHosts(DateTime? latest) async {
+    final DVConsentCookieJar? jar = sharedCookie;
+    final String? domain = policy.domain;
+    if (jar == null || domain == null) return;
+    final DVConsentSharedChoice? shared =
+        DVConsentCookie.decode(jar.read(DVConsentCookie.name));
+    final bool usable = shared != null && shared.version == policy.version;
+    if (usable && (latest == null || shared.recordedAt.isAfter(latest))) {
+      final Map<DVConsentCategory, bool> answers = <DVConsentCategory, bool>{
+        for (final MapEntry<String, bool> e in shared.answers.entries)
+          if (policy.declaration(DVConsentCategory(e.key)) case final DVConsentDeclaration d
+              when !d.required)
+            d.category: e.value,
+      };
+      if (answers.isEmpty) return;
+      // Kept as this host's own record, so the evidence sits beside the data
+      // it allows; not written back, since it is the cookie's own choice.
+      await _record(answers, prompt: shared.prompt, at: shared.recordedAt, share: false);
+      return;
+    }
+    if (_answers != null && (!usable || shared.recordedAt.isBefore(latest!))) {
+      _writeShared(latest ?? _clock().toUtc());
     }
   }
+
+  void _writeShared(DateTime at) {
+    final DVConsentCookieJar? jar = sharedCookie;
+    final String? domain = policy.domain;
+    final Map<String, bool>? answers = _answers;
+    if (jar == null || domain == null || answers == null) return;
+    try {
+      jar.write(
+        DVConsentCookie.name,
+        DVConsentCookie.encode(
+          version: policy.version,
+          answers: answers,
+          recordedAt: at,
+          prompt: _lastPrompt,
+        ),
+        domain: DVConsentCookie.domainFor(jar.host, domain),
+        secure: jar.secure,
+        maxAge: DVConsentCookie.maxAge,
+        sameSite: 'Lax',
+      );
+    } on Object catch (error) {
+      _diagnose('DV-ANALYTICS-006',
+          'a consent choice could not be shared with the other hosts ($error)');
+    }
+  }
+
+  DVConsentPrompt _lastPrompt = DVConsentPrompt.banner;
 
   /// Whether nobody has answered under the current version.
   bool get needsPrompt => _answers == null;
@@ -471,6 +552,16 @@ class DVConsent {
     Set<DVConsentCategory>? asked,
     DVConsentPrompt prompt = DVConsentPrompt.settingsScreen,
     String? userId,
+  }) =>
+      _record(answers, asked: asked, prompt: prompt, userId: userId);
+
+  Future<bool> _record(
+    Map<DVConsentCategory, bool> answers, {
+    Set<DVConsentCategory>? asked,
+    DVConsentPrompt prompt = DVConsentPrompt.settingsScreen,
+    String? userId,
+    DateTime? at,
+    bool share = true,
   }) async {
     final Set<DVConsentCategory> presented = <DVConsentCategory>{
       ...?asked,
@@ -485,7 +576,7 @@ class DVConsent {
     };
     final Map<DVConsentCategory, bool> before = _snapshot();
 
-    final DateTime at = _clock().toUtc();
+    final DateTime when = (at ?? _clock()).toUtc();
     try {
       final List<DVConsentRecord> mine = await records();
       final int seq = mine.isEmpty ? 1 : mine.last.seq + 1;
@@ -502,7 +593,7 @@ class DVConsent {
           jsonEncode(resolved.keys.toList()..sort()),
           jsonEncode(resolved),
           prompt.name,
-          at.toIso8601String(),
+          when.toIso8601String(),
         ],
       );
     } on Object catch (error) {
@@ -525,6 +616,8 @@ class DVConsent {
       ...resolved,
     };
     _unrecordedWithdrawals.removeAll(resolved.keys);
+    _lastPrompt = prompt;
+    if (share) _writeShared(when);
     _notify(before);
     return true;
   }
@@ -718,4 +811,26 @@ final class DVConsentBannerText {
     'rejectLabel',
     'settingsLabel',
   ];
+}
+
+/// [domain] as `dartvel.analytics.consent.domain` gives it, checked: lower
+/// case, without a leading dot; null when not given. A public suffix, an
+/// address or anything that is not a host name is refused, since a browser
+/// drops a cookie for it without a word.
+String? dvConsentDomain(String? domain) {
+  if (domain == null) return null;
+  String name = domain.trim().toLowerCase();
+  if (name.startsWith('.')) name = name.substring(1);
+  if (dvIsPublicSuffix(name)) {
+    throw ArgumentError.value(domain, 'domain',
+        'is a public suffix; a browser refuses a cookie for it, so consent '
+            'could not be shared. Name the site\'s own domain, such as example.com');
+  }
+  if (!RegExp(r'^[a-z0-9-]+(\.[a-z0-9-]+)+$').hasMatch(name) ||
+      RegExp(r'^[0-9.]+$').hasMatch(name) ||
+      dvRegistrableDomain(name) == null) {
+    throw ArgumentError.value(domain, 'domain',
+        'is not a domain name the hosts can share a cookie under, such as example.com');
+  }
+  return name;
 }
