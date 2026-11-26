@@ -300,7 +300,7 @@ class _DVNavLinkState extends State<DVNavLink> {
   }
 
   Future<void> _preload() async {
-    if (_preloaded || !widget.enabled) return;
+    if (_preloaded || !widget.enabled || DVRoutePrefetch.offForCapture) return;
     _preloaded = true;
     _stopWatching();
     // The page as a document and the images it paints, alongside its code.
