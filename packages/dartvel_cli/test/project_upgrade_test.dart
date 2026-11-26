@@ -15,6 +15,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/commands/upgrade_command.dart';
+import 'package:dartvel_cli/src/modules/first_party.dart';
 import 'package:dartvel_cli/src/templates/project_templates.dart';
 import 'package:dartvel_cli/src/upgrade/project_upgrade.dart';
 import 'package:path/path.dart' as p;
@@ -96,6 +97,45 @@ void main() {
             .replaceAll('"^0.13.51"', '^$_target')
             .replaceAll('^0.13.51', '^$_target'),
       );
+    });
+
+    // A first-party module (dartvel_google_analytics, dartvel_meta_pixel, ...)
+    // is published with every release. Left on the old one, it is no longer
+    // "released with the framework", so the next build refuses it as an
+    // unpinned module (sigmadev.digital, 26 Nov 2026: 3.47.13 modules under a
+    // 3.47.15 framework stopped the web-server build).
+    // (A range that already admits this release is left as written and the
+    // lock is resolved forward instead: the next test covers that path, since
+    // the packages resolved forward are dvReleasedPackages.)
+    test('first-party modules move with the framework', () {
+      const String app = '''
+name: site
+dependencies:
+  dartvel_core: ^0.13.51
+  dartvel_google_analytics: ^0.13.51
+  dartvel_meta_pixel: ^0.13.51
+dev_dependencies:
+  dartvel_cli: ^0.13.51
+''';
+      final DVProjectUpgrade result = dvUpgradeProjectPubspec(app);
+      expect(result.blocked, isEmpty);
+      expect(
+        result.moved.map((DVConstraintMove m) => m.package),
+        <String>[
+          'dartvel_core',
+          'dartvel_google_analytics',
+          'dartvel_meta_pixel',
+          'dartvel_cli',
+        ],
+      );
+      expect(result.pubspec, app.replaceAll('^0.13.51', '^$_target'));
+    });
+
+    test('every first-party module is one of the released packages', () {
+      for (final DVFirstPartyModule module in dvFirstPartyModules) {
+        expect(dvReleasedPackages, contains(module.package),
+            reason: '${module.package} is published with every release');
+      }
     });
 
     test('nothing else in the file is touched', () {

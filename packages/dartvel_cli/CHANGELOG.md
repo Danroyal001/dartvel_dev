@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel upgrade --project` moves the first-party modules (`dartvel_google_analytics`, `dartvel_meta_pixel`, ...) with the framework. They are published with every release, and one left on an older release is no longer "released with the framework", so the next build refused it as an unpinned module (sigmadev.digital on 3.47.15 with its analytics and pixel modules still on 3.47.13).
+
 ## 3.47.16 — 2026-11-26
 
 - `dartvel.accessibility.controls`: the generated root installs the accessibility controls before the first frame and sits inside `DVAccessibilityFrame` (the default root also gets a high-contrast theme), and the SSR-first head reads the visitor's stored settings. A misspelt setting stops the build.

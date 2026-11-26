@@ -12,10 +12,15 @@ library;
 
 import 'package:pub_semver/pub_semver.dart';
 
+import '../modules/first_party.dart';
 import '../templates/project_templates.dart';
 
-/// The packages published together as one Dartvel release.
-const List<String> dvReleasedPackages = <String>[
+/// The packages published together as one Dartvel release: the framework's
+/// own, and every first-party module, which is published with each release
+/// too. A module left on an older release is no longer "released with the
+/// framework", so the next build refuses it as unpinned; it moves with the
+/// rest.
+final List<String> dvReleasedPackages = <String>[
   'dartvel_core',
   'dartvel_shelf',
   'dartvel_flutter',
@@ -23,6 +28,7 @@ const List<String> dvReleasedPackages = <String>[
   'dartvel_generator',
   'dartvel_cli',
   'dartvel_dev',
+  for (final DVFirstPartyModule module in dvFirstPartyModules) module.package,
 ];
 
 /// One constraint that was moved.
