@@ -59,7 +59,9 @@ void _type(web.HTMLTextAreaElement field, String value) {
 
 void main() {
   setUpAll(_installHead);
-  setUp(() => web.document.documentElement!.removeAttribute('data-dv-app'));
+  setUp(() => web.document.documentElement!
+    ..removeAttribute('data-dv-app')
+    ..removeAttribute('data-dv-carried'));
   // The browser runner shows print, not the console dump: the failure is
   // printed as well as reported.
   final TestExceptionReporter report = reportTestException;
@@ -142,7 +144,8 @@ void main() {
       home: Scaffold(
         body: Semantics(
           label: 'Your content',
-          child: TextField(controller: content, focusNode: focus, maxLines: null),
+          // TextField sets its node's canRequestFocus from its own flag.
+          child: TextField(controller: content, focusNode: focus, canRequestFocus: false, maxLines: null),
         ),
       ),
     ));
