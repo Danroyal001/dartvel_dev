@@ -104,6 +104,7 @@ import '../build/renderer_hints.dart';
 import '../build/cross_origin_isolation.dart'
     show dvCrossOriginIsolationBlockers;
 import '../build/wasm_deferred.dart';
+import '../build/build_timings.dart';
 import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
@@ -377,6 +378,22 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
 }
 
 class BuildCommand extends Command<void> {
+  /// Where this build's time goes, printed when it ends
+  /// (build/dartvel_build_timings.json).
+  final DVBuildTimings _timings = DVBuildTimings();
+
+  /// The timings table, once the build has finished or failed.
+  void _reportTimings() {
+    final List<String> table = _timings.table();
+    if (table.isEmpty) return;
+    Logger.log('');
+    Logger.log('⏱  Build timings (build/dartvel_build_timings.json):');
+    for (final String line in table) {
+      Logger.log('   $line');
+    }
+    _timings.write(_projectRoot);
+  }
+
   @override
   final String name = 'build';
 
@@ -926,7 +943,7 @@ class BuildCommand extends Command<void> {
     _checkSecrets(root);
 
     Logger.log('📝 Generating Dartvel artifacts...');
-    final routesResult = await stages.run(
+    final routesResult = await _timings.time('generate (dartvel routes)', () => stages.run(
       DVBuildLifecycle.generating,
       () => _processRun(
         'dart',
@@ -945,7 +962,7 @@ class BuildCommand extends Command<void> {
         workingDirectory: root,
         runInShell: true,
       ),
-    );
+    ));
 
     if (routesResult.exitCode != 0) {
       // Reported before the exit, because a process that leaves on a non-zero
@@ -961,7 +978,7 @@ class BuildCommand extends Command<void> {
 
     if (_hasBuildRunner(root)) {
       Logger.log('📦 Running build_runner...');
-      final buildRunnerResult = await stages.run(
+      final buildRunnerResult = await _timings.time('build_runner', () => stages.run(
         DVBuildLifecycle.generating,
         () => _processRun(
           'dart',
@@ -969,7 +986,7 @@ class BuildCommand extends Command<void> {
           workingDirectory: root,
           runInShell: true,
         ),
-      );
+      ));
 
       if (buildRunnerResult.exitCode != 0) {
         Logger.log('⚠️  build_runner failed');
@@ -1097,6 +1114,7 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    _reportTimings();
     Logger.log('');
     if (failures > 0) {
       stages.failed();
@@ -1508,11 +1526,13 @@ class BuildCommand extends Command<void> {
           )
         : null;
     int? exitCode;
+    final Stopwatch compileClock = Stopwatch()..start();
     if (webKey != null && cache.restore('flutter-web', webKey, webOutput)) {
       Logger.log(
         '   Flutter web build: inputs unchanged, reused cached output.',
       );
       exitCode = 0;
+      _timings.add('flutter build $platform', compileClock.elapsed, detail: 'inputs unchanged, reused');
     } else {
       // From an empty directory: Flutter writes into build/web without
       // clearing it, so what an earlier build's later steps left there
@@ -1540,6 +1560,7 @@ class BuildCommand extends Command<void> {
                   workingDirectory: _projectRoot))
               .exitCode;
       Future<int>? earlyWasm;
+      Duration? deferredWasmTime;
       Future<List<void>>? streamsDone;
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
@@ -1569,11 +1590,12 @@ class BuildCommand extends Command<void> {
           if (earlyWasm == null) {
             final List<String>? command = dvDart2WasmCommand(line);
             if (command != null) {
+              final Stopwatch deferredClock = Stopwatch()..start();
               earlyWasm = dvCompileDeferredWasm(
                 command: command,
                 workRoot: wasmWork,
                 run: runCompiler,
-              );
+              ).whenComplete(() => deferredWasmTime = deferredClock.elapsed);
             }
           }
           final String shown = dvWithoutLogStamp(line);
@@ -1660,6 +1682,21 @@ class BuildCommand extends Command<void> {
         }
       }
 
+      _timings.add('flutter build $platform', compileClock.elapsed,
+          detail: splitWasm ? 'Flutter, then the deferred wasm split' : null);
+      if (splitWasm) {
+        final Map<String, Duration> targets =
+            dvFlutterTargetTimes(verboseLog.toString());
+        for (final String name in const <String>['dart2js', 'dart2wasm']) {
+          final Duration? elapsed = targets[name];
+          if (elapsed != null) {
+            _timings.add(name == 'dart2wasm' ? "dart2wasm (Flutter's one module)" : 'dart2js', elapsed, beside: true, depth: 1);
+          }
+        }
+        if (deferredWasmTime != null) {
+          _timings.add('dart2wasm (deferred split)', deferredWasmTime!, beside: true, depth: 1);
+        }
+      }
       if (exitCode == 0 && webKey != null)
         cache.store('flutter-web', webKey, webOutput);
     }
@@ -1678,28 +1715,29 @@ class BuildCommand extends Command<void> {
         // First, before anything reads build/web or lists its parts: Studio's
         // code comes out of the web root, whose every file is public, and a
         // static build is checked to carry none of it.
-        if (!_separateStudioCode(root, platform)) {
+        if (!_timings.timeSync('separate Studio code', () => _separateStudioCode(root, platform))) {
           Logger.log('❌ $platform build failed');
           return DVBuildTargetResult.failed;
         }
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
-        await _writeStaticImageVariants(root, platform);
+        await _timings.time('image variants', () => _writeStaticImageVariants(root, platform));
         for (final String warning
             in dvRemovedWebOptionWarnings(_dartvelSection(root))) {
           Logger.log('   ⚠ $warning');
         }
         // Before the capture too: the capture lays the page out with the
         // fonts the page will download.
-        await _optimizeWebFonts(root);
+        await _timings.time('fonts (WOFF2, subsetting)', () => _optimizeWebFonts(root));
         // Before anything reads it. The crawler-visible HTML on every page
         // comes from these trees, and a build that skipped the capture would
         // publish whatever the last one produced -- including for a route
         // that has since stopped rendering.
         // The readable /sitemap page reads sitemap.xml, so it has to exist
         // when the capture loads that page.
-        await _writeSitemapBeforeCapture(root);
+        await _timings.time('sitemap', () => _writeSitemapBeforeCapture(root));
         await _captureSemantics(root);
+        final Stopwatch documentClock = Stopwatch()..start();
         await _writePwaManifest(root);
         _writeSeoHead(root);
         // Into index.html before the route pages are made from it, so every
@@ -1719,10 +1757,11 @@ class BuildCommand extends Command<void> {
           Logger.log('❌ $platform build failed');
           return DVBuildTargetResult.failed;
         }
+        _timings.add('PWA, SEO, splash, hints, versioning, document slots', documentClock.elapsed);
         if (platform == 'web-server') {
-          _writeWebServerManifest(root);
+          _timings.timeSync('routes manifest (SSR documents)', () => _writeWebServerManifest(root));
           final ({bool ok, DVAdminMount? admin}) dashboard =
-              await _writeAdminDashboard(root);
+              await _timings.time('Studio pages', () => _writeAdminDashboard(root));
           if (!dashboard.ok) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
@@ -1732,18 +1771,18 @@ class BuildCommand extends Command<void> {
           // beside Studio and carried the way Studio is, outside the files
           // the binary serves to anybody.
           final ({bool ok, DVDocsMount? docs}) documentation =
-              await _writeDocsSite(root, server: true, admin: admin);
+              await _timings.time('docs site', () => _writeDocsSite(root, server: true, admin: admin));
           if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
           }
           // Before the executable packs build/web into itself: what is not
           // minified by now ships inside the binary as it was written.
-          _minifyWebOutput(root);
-          _writeServiceWorkerAssets(root);
+          _timings.timeSync('minify', () => _minifyWebOutput(root));
+          _timings.timeSync('service worker asset list', () => _writeServiceWorkerAssets(root));
           // The backend that serves all of it, as one executable file.
-          if (await _buildServerBinary(root,
-                  admin: admin, docs: documentation.docs) ==
+          if (await _timings.time('backend compile wait + pack into one binary', () => _buildServerBinary(root,
+                  admin: admin, docs: documentation.docs)) ==
               DVBuildTargetResult.failed) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
@@ -1754,7 +1793,7 @@ class BuildCommand extends Command<void> {
           final String? hostsWarning =
               dvStaticHostsWarning(_dartvelSection(root));
           if (hostsWarning != null) Logger.log('⚠️  $hostsWarning');
-          await _writeStaticPages(root);
+          await _timings.time('static pages', () => _writeStaticPages(root));
           // The documentation site, when pubspec asks for a public one: files
           // at its mount like every other page of a static site.
           final ({bool ok, DVDocsMount? docs}) documentation =
@@ -4606,6 +4645,17 @@ class BuildCommand extends Command<void> {
   }
 
   Future<void> _captureSemantics(String root) async {
+    final Stopwatch clock = Stopwatch()..start();
+    String? detail;
+    try {
+      detail = await _captureSemanticsTimed(root);
+    } finally {
+      _timings.add('semantics + SSR-first layout read', clock.elapsed, detail: detail);
+    }
+  }
+
+  /// [_captureSemantics], saying what it read for the timings table.
+  Future<String?> _captureSemanticsTimed(String root) async {
     // First, whatever else this build does: a guarded route is never
     // captured, so an old capture of it would be served as its page.
     final Set<String> guarded = dvGuardedRoutes(_routerSource(root));
@@ -4618,15 +4668,15 @@ class BuildCommand extends Command<void> {
         '   Skipping the semantics capture: --no-prerender. Every '
         'page in this build has an empty body to a crawler.',
       );
-      return;
+      return null;
     }
     final web = Directory(p.join(root, 'build', 'web'));
-    if (!web.existsSync()) return;
+    if (!web.existsSync()) return null;
     final routes = dvRoutesToCapture(
       routes: await _pagesToGenerate(root),
       guarded: guarded,
     );
-    if (routes.isEmpty) return;
+    if (routes.isEmpty) return null;
 
     // Each route's capture is cached under (the web output's hash, the
     // route, the capture's version): an unchanged build is not read again.
@@ -4664,6 +4714,7 @@ class BuildCommand extends Command<void> {
     }
     int captured = 0;
     bool browserAvailable = true;
+    String? readDetail = reused == 0 ? null : 'all $reused routes reused';
     if (toCapture.isNotEmpty) {
       Logger.log(
         '   Reading the semantics tree for ${toCapture.length} routes'
@@ -4676,12 +4727,14 @@ class BuildCommand extends Command<void> {
         concurrency: dvCaptureConcurrency(
           processors: Platform.numberOfProcessors,
           requested: argResults?['capture-jobs'] as String?,
+          availableMemoryMb: dvAvailableMemoryMb(),
         ),
         inApp: argResults?['capture-in-app'] as bool? ?? true,
         layoutWidths: DVSplash.of(root).ssrFirstWidths,
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
+      readDetail = dvCaptureTimesSummary(fresh, reused: reused);
       if (cache.enabled && fresh.browserAvailable) {
         for (final String route in toCapture) {
           final Directory outputs = _collectCaptureOutputs(root, route);
@@ -4726,7 +4779,7 @@ class BuildCommand extends Command<void> {
       // Only when there is a tree to judge. An accessibility audit of the
       // page-text fallback would report the fallback, not the application.
       if (run.browserAvailable) _auditAccessibility(root, routes);
-      return;
+      return readDetail;
     }
 
     // Fatal rather than a warning. A build that ships most of its SEO and

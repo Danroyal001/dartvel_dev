@@ -62,6 +62,28 @@ void main() {
       expect(() => dvCaptureConcurrency(processors: 8, requested: 'many'),
           throwsFormatException);
     });
+
+    test('fits the memory there is: each open page is an app drawing in software', () {
+      // Plenty of memory: the cores decide.
+      expect(dvCaptureConcurrency(processors: 8, availableMemoryMb: 16000), 6);
+      // A loaded server: as many pages as fit beside a reserve for everything else.
+      expect(dvCaptureConcurrency(processors: 8, availableMemoryMb: 1536 + 3 * dvCaptureTabMemoryMb), 3);
+      // Never none: a build with too little memory still reads, one page at a time.
+      expect(dvCaptureConcurrency(processors: 8, availableMemoryMb: 300), 1);
+      // A number asked for is still the number used.
+      expect(dvCaptureConcurrency(processors: 8, availableMemoryMb: 300, requested: '4'), 4);
+    });
+
+    test('reads the memory a build may use: the machine, or its cgroup when that is smaller', () {
+      const String meminfo = 'MemTotal:       24026000 kB\nMemFree:  100 kB\nMemAvailable:    9000000 kB\n';
+      expect(dvAvailableMemoryMbFrom(meminfo: meminfo), 8789);
+      // Inside a systemd scope capped at 8 GiB with 6 GiB already in use.
+      expect(dvAvailableMemoryMbFrom(meminfo: meminfo, cgroupMax: '${8 << 30}\n', cgroupCurrent: '${6 << 30}\n'), 2048);
+      // An unlimited cgroup leaves the machine's figure.
+      expect(dvAvailableMemoryMbFrom(meminfo: meminfo, cgroupMax: 'max\n', cgroupCurrent: '123\n'), 8789);
+      // Nothing readable: unknown, and the cores decide.
+      expect(dvAvailableMemoryMbFrom(meminfo: ''), isNull);
+    });
   });
 
   group('several routes at once', () {

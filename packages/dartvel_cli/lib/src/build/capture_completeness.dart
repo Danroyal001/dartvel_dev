@@ -18,7 +18,24 @@ library dartvel_cli.build.capture_completeness;
 /// Chrome on it, and those want opposite answers: one is worth failing a
 /// build for and the other is the ordinary state of a slim CI image.
 class DVCaptureRun {
-  const DVCaptureRun({required this.captured, required this.browserAvailable});
+  const DVCaptureRun({
+    required this.captured,
+    required this.browserAvailable,
+    this.routeTimes = const <String, Duration>{},
+    this.layoutTime = Duration.zero,
+    this.pages = 0,
+  });
+
+  /// How long each route's read took, from opening it to its files written
+  /// (layout widths included), for the build's timings.
+  final Map<String, Duration> routeTimes;
+
+  /// Of [routeTimes], the part spent laying the SSR-first document out at
+  /// each width and scheme, summed over every route.
+  final Duration layoutTime;
+
+  /// How many pages the read kept open at once.
+  final int pages;
 
   /// Routes whose semantics tree was read.
   final int captured;
