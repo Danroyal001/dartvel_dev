@@ -401,7 +401,8 @@ custom painter nor a shader can be read back from the render tree.
 
 - **Glows and gradient text.** `DVRadialGradient` (an elliptical radial
   gradient sized to the box), `DVGradientPainter` (gradients stacked over a
-  box; any painter can implement `DVDescribedPainter`) and `DVGradientSpan`
+  box; any painter can implement `DVDescribedPainter`, and `DVDescribedShape`
+  for the outline it fills, a logo drawn as a path) and `DVGradientSpan`
   in a `DVGradientText` (text filled with a gradient along its line pieces)
   paint in Flutter and are read back by the snapshot, so the document draws
   them in CSS: the glows as `radial-gradient` layers, the faded run as the

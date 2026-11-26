@@ -959,7 +959,7 @@ export 'src/updates/shorebird_updates.dart'
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/context_menu.dart';
 export 'src/widgets/described_paint.dart'
-    show DVDescribedPainter, DVGradientPainter, DVGradientSpan, DVGradientText, DVRadialGradient;
+    show DVDescribedPainter, DVDescribedShape, DVGradientPainter, DVShape, DVGradientSpan, DVGradientText, DVRadialGradient;
 export 'src/widgets/home_widgets.dart';
 export 'src/widgets/shortcuts.dart';
 export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
@@ -4126,6 +4126,10 @@ class _DVPressableState extends State<_DVPressable> {
         onKeyEvent: _onKey,
         child: Builder(
           builder: (BuildContext context) => Semantics(
+            // A node of its own: without it the control merged up into the
+            // nearest group, which then read as one button holding the page
+            // (sigmadev.digital Pro gate, 26 Nov 2026).
+            container: true,
             button: widget.button,
             enabled: true,
             label: widget.name ?? resolved,

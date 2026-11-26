@@ -277,6 +277,7 @@ class _Snapshot {
     String? shadow,
     double elevation = 0,
     Color? shadowColor,
+    Map<String, Object?>? shape,
   }) {
     final bool painted = (background != null && background.a > 0.004) ||
         gradient != null ||
@@ -290,6 +291,7 @@ class _Snapshot {
     if (gradient != null) item['g'] = gradient;
     if (radii != null && radii.any((double r) => r > 0)) item['rad'] = radii;
     if (border != null) item['bd'] = border;
+    if (shape != null) item['shape'] = shape;
     final String? elevated = elevation > 0
         ? _elevationShadow(elevation, shadowColor ?? const Color(0xFF000000))
         : null;
@@ -370,7 +372,12 @@ class _Snapshot {
         if (_gradient(layer, rect) case final String value) value,
     ];
     if (css.isEmpty) return;
-    _box(rect, state, gradient: css.join(','));
+    final Object outlined = painter;
+    final DVShape? shape =
+        outlined is DVDescribedShape ? outlined.describeShape(rect.size) : null;
+    _box(rect, state,
+        gradient: css.join(','),
+        shape: shape == null ? null : <String, Object?>{'d': shape.path, 'eo': shape.evenOdd});
   }
 
   /// A text field's border and fill, as [InputDecorator] resolves them in

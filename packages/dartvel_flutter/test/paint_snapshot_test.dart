@@ -399,6 +399,23 @@ void main() {
     );
   });
 
+  testWidgets('a described painter with a shape: its gradient, clipped to the outline it fills',
+      (WidgetTester tester) async {
+    // dartvel.dev's mark: a bezier D with an even-odd counter, filled with
+    // the brand gradient. Read as a box, the logo was missing from the
+    // document and popped in at the handover.
+    await tester.pumpWidget(const MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(width: 24, height: 24, child: CustomPaint(painter: _Shaped())),
+      ),
+    ));
+    final Map<String, Object?> mark = _items(dvPaintSnapshot())
+        .firstWhere((Map<String, Object?> item) => item['k'] == 'b' && item['g'] != null);
+    expect(_rect(mark), <double>[0, 0, 24, 24]);
+    expect(mark['shape'], <String, Object?>{'d': 'M0 0L24 0L24 24Z M6 6L12 6L12 12Z', 'eo': true});
+  });
+
   testWidgets('a painter that describes nothing paints no box', (WidgetTester tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Align(
@@ -698,4 +715,22 @@ void idleTests() {
     await tester.pumpAndSettle();
     expect(dvPaintIdle(), isTrue);
   });
+}
+
+class _Shaped extends CustomPainter implements DVDescribedPainter, DVDescribedShape {
+  const _Shaped();
+
+  @override
+  List<Gradient> describePaint(Size size) =>
+      const <Gradient>[LinearGradient(colors: <Color>[Color(0xFF7C3AED), Color(0xFF2F6BFF)])];
+
+  @override
+  DVShape describeShape(Size size) =>
+      const DVShape('M0 0L24 0L24 24Z M6 6L12 6L12 12Z', evenOdd: true);
+
+  @override
+  void paint(Canvas canvas, Size size) {}
+
+  @override
+  bool shouldRepaint(_Shaped oldDelegate) => false;
 }

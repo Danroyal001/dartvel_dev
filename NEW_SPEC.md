@@ -621,7 +621,9 @@ The table is the contract. Each row says which entries a target has, what
   to the box, CSS's `radial-gradient(60% 80% at 85% 0%, ...)`, usable
   wherever a `Gradient` is), `DVGradientPainter` (gradients stacked over a
   box, as a `CustomPaint` painter; any painter can implement
-  `DVDescribedPainter` to say which gradients it draws) and
+  `DVDescribedPainter` to say which gradients it draws, and
+  `DVDescribedShape` to say the outline they fill, as SVG path data the
+  document clips the box to) and
   `DVGradientSpan` in a `DVGradientText` (text filled with a gradient that
   runs along its line pieces laid end to end, which the document draws as
   its own text with `background-clip: text`, still selectable and findable).
@@ -7394,6 +7396,15 @@ Consent records are models, with the retention the compliance rules of the
 deployment require: what was asked, what was answered, when, and under which
 version of the categories. A consent choice that cannot be written is not
 treated as consent (`DV-ANALYTICS-006`).
+
+An application served on several hosts under one domain is asked once for all
+of them: `consent.domain: example.com` carries the latest choice in a
+first-party `dv_consent` cookie for that domain (`Secure` over https,
+`SameSite=Lax`, a year), and each host writes it into its own consent records as
+consent loads. The newest choice wins; a choice under another version, an
+unreadable cookie and an undeclared category in it are ignored; a public suffix
+is refused when the application is generated. A browser keeps storage per
+origin, so without it every host asks again and the first answer is lost there.
 
 ## The store
 

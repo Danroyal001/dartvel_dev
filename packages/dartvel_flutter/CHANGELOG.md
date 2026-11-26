@@ -1,6 +1,7 @@
 ## 3.47.11 — 2026-11-26
 
-- Version aligned with dartvel_core 3.47.11.
+- With SSR-first, a style one width sets and the next does not is undone at the next width. A clip at 1024 px (dartvel.dev's docs menu item at its panel's bottom edge) stayed in force at every wider width and cut the item in half.
+- A painter can say the outline it fills: `DVDescribedShape.describeShape` returns a `DVShape` (SVG path data in the box's pixels, even-odd or non-zero) beside `DVDescribedPainter`'s gradients, and the SSR-first document clips the box to it (`clip-path: path(...)`). A logo drawn as a path (dartvel.dev's mark) is there from the first paint instead of appearing at the handover.
 
 ## 3.47.10 — 2026-11-25
 

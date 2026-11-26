@@ -148,6 +148,21 @@ void main() {
     expect(generated, contains("rejectLabel: 'Reject'"));
   });
 
+  test('consent.domain reaches the generated policy, so one choice covers every host under it',
+      () async {
+    final Directory dir = project('''
+  analytics:
+    consent:
+      version: "2026-11-26"
+      domain: example.com
+      categories:
+        analytics: { default: denied }
+''');
+    await routes.generate(root_: dir.path);
+    final String generated = _read(dir, 'analytics.g.dart');
+    expect(generated, contains("domain: 'example.com'"));
+  });
+
   test('a project that declares no analytics starts nothing', () async {
     final Directory dir = project('');
     await routes.generate(root_: dir.path);
