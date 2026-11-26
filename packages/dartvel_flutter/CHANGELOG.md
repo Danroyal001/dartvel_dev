@@ -1,3 +1,7 @@
+## 3.47.11 — 2026-11-26
+
+- Version aligned with dartvel_core 3.47.11.
+
 ## 3.47.10 — 2026-11-25
 
 - What a visitor typed before the app loaded is in the app's field after it, with the caret or selection and the focus, and typing never waits: just before the app says it has drawn, each document field's text goes into the app's field of the same name (its semantics label; by order when no name matches and both pages have the same fields), as typing (formatters and `onChanged` run), focus moves to the field the visitor was in, and each keystroke that still lands in the document's field follows until the app's field has the keyboard. A field the visitor never touched keeps the app's value; a selection inside a field no longer holds the handover.
