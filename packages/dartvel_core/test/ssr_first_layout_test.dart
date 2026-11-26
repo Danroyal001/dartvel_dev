@@ -203,6 +203,34 @@ void main() {
       expect(out, contains('#$link{display:none}'));
     });
 
+    test('a button whose box is the whole screen is not placed over the page: the page shell\'s scroll button', () {
+      // sigmadev.digital at 1366 (3.47.10): the page shell's "To the bottom"
+      // node covers the screen on the semantics host and has no words of its
+      // own painted. Everything painted lies inside its box, so it counted as
+      // painted, was placed above the page, and took every click on the
+      // header links and the hero's buttons.
+      const String doc = '<p><strong role="button" aria-label="To the bottom"><span>To the bottom</span></strong></p>\n'
+          '<a href="/pricing" title="See pricing" aria-label="See pricing">See pricing</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _box(<num>[0, 0, 1366, 800], '#ffffff'),
+            _text('See pricing', <num>[600, 20, 90, 24], z: 2, scrolls: false),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'b', 'name': 'To the bottom', 'r': <num>[0, 0, 1366, 800]},
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[590, 10, 110, 44]},
+          ]),
+        ]),
+      );
+      final String button = RegExp(r'<strong [^>]*id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      expect(out, isNot(contains('#$button{left:0px;top:0px')), reason: 'not laid over the page');
+      expect(out, matches(RegExp('<strong id="$button"[^>]*class="dvf"|<strong[^>]*class="dvf"[^>]*id="$button"')),
+          reason: 'kept for readers, a Tab stop that shows itself when focused');
+      expect(out, contains('#$link{left:590px;top:10px'));
+    });
+
     test('a menu link off screen at a width does not take the same words painted elsewhere', () {
       // "Tools" is a header link (in a closed menu at 390) and a footer
       // heading. At 390 only the heading is painted; the link must not claim
