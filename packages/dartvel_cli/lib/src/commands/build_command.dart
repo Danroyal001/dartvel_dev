@@ -60,6 +60,7 @@ import 'symbols_command.dart';
 // dvPurchasesDeclared is the same rule in both bridges; the Apple one is used.
 import '../build/android_billing_bridge.dart' hide dvPurchasesDeclared;
 import '../build/android_home_launcher.dart';
+import '../build/android_timers.dart';
 import '../build/app_shortcuts.dart';
 import '../build/document_slots.dart' show DVDocumentSlotsWrite, dvReadDocumentSlots, dvWriteDocumentSlots;
 import '../build/android_capture_bridge.dart';
@@ -290,7 +291,7 @@ bool dvTerminalOptInFrom(Object? dartvel) {
 /// | desktop + `dartvel.terminal: true` | yes | yes |
 /// | a terminal-only target (`format: tui`) | no | yes |
 ///
-/// A terminal build contains no GUI backend at all — not a window that stays
+/// A terminal build contains no GUI backend at all â not a window that stays
 /// closed. A plain desktop build contains no terminal code. Nothing gives an
 /// application a backend it did not ask for.
 Set<DVRenderBackend> resolveRenderBackends({
@@ -310,7 +311,7 @@ Set<DVRenderBackend> resolveRenderBackends({
 ///
 /// The documented surface is positional (`dartvel build web`,
 /// `dartvel build tizen`), so a positional argument wins. `--platform` remains
-/// supported, and giving both is an error rather than a silent preference —
+/// supported, and giving both is an error rather than a silent preference â
 /// picking one would build something the user did not ask for.
 ///
 /// Throws [FormatException] on an unknown or ambiguous request.
@@ -352,7 +353,7 @@ String resolveRequestedPlatform({
 /// Flutter has no cross-compilation for desktop targets: a Windows desktop
 /// build needs Windows and Visual Studio, a Linux desktop build needs Linux
 /// with clang and GTK, and the Apple targets need macOS. Claiming otherwise
-/// does not enable a build — it turns an unbuildable target into a hard
+/// does not enable a build â it turns an unbuildable target into a hard
 /// failure instead of a clean skip.
 ///
 /// Web is host-independent. Android and its `fireos` variant are treated as
@@ -391,7 +392,7 @@ class BuildCommand extends Command<void> {
     final List<String> table = _timings.table();
     if (table.isEmpty) return;
     Logger.log('');
-    Logger.log('⏱  Build timings (build/dartvel_build_timings.json):');
+    Logger.log('â±  Build timings (build/dartvel_build_timings.json):');
     for (final String line in table) {
       Logger.log('   $line');
     }
@@ -570,7 +571,7 @@ class BuildCommand extends Command<void> {
   final bool Function(String)? _onPathOverride;
 
   /// Overridable so a test never depends on what is installed on the machine
-  /// running it — the mistake that let a Fuchsia test assert an executable
+  /// running it â the mistake that let a Fuchsia test assert an executable
   /// name for weeks while nothing by that name was ever present.
   bool _isOnPath(String executable) =>
       (_onPathOverride ?? isExecutableOnPath)(executable);
@@ -604,7 +605,7 @@ class BuildCommand extends Command<void> {
         optionWasParsed: argResults?.wasParsed('platform') ?? false,
       );
     } on FormatException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       exit(64); // EX_USAGE
     }
 
@@ -633,10 +634,10 @@ class BuildCommand extends Command<void> {
         return;
       }
       if (provider != null) {
-        Logger.log('❌ ${provider.name} declares $rawPlatform in its '
+        Logger.log('â ${provider.name} declares $rawPlatform in its '
             '$dvTargetManifestFile but did not register it.');
       } else {
-        Logger.log('❌ ${dvTargetRefusal(rawPlatform)}');
+        Logger.log('â ${dvTargetRefusal(rawPlatform)}');
       }
       exitCode = 69; // EX_UNAVAILABLE
       return;
@@ -654,7 +655,7 @@ class BuildCommand extends Command<void> {
           exportOptionsPlist: exportOptionsPlist,
         );
     if (packageProblem != null) {
-      Logger.log('❌ $packageProblem');
+      Logger.log('â $packageProblem');
       exitCode = 64; // EX_USAGE
       return;
     }
@@ -667,7 +668,7 @@ class BuildCommand extends Command<void> {
       final String? problem = dvBrownfieldPreflight(
           root: root, platform: normalizeBuildTarget(rawPlatform).platform);
       if (problem != null) {
-        Logger.log('❌ $problem');
+        Logger.log('â $problem');
         exitCode = 69; // EX_UNAVAILABLE
         return;
       }
@@ -677,7 +678,7 @@ class BuildCommand extends Command<void> {
       final String cloudTarget = dvPaidTargetAliases[rawPlatform] ??
           normalizeBuildTarget(rawPlatform).platform;
       if (cloudTarget == 'all') {
-        Logger.log('❌ Name the target to build in the cloud, for example '
+        Logger.log('â Name the target to build in the cloud, for example '
             'dartvel build ios --cloud.');
         exitCode = 64; // EX_USAGE
         return;
@@ -754,7 +755,7 @@ class BuildCommand extends Command<void> {
             terminalOptIn: readTerminalOptIn(readPubspecYaml(root)),
           );
     } on FormatException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       exit(78); // EX_CONFIG
     }
     // dartvel.fileStorage decides manifest permissions, Info.plist keys and
@@ -764,7 +765,7 @@ class BuildCommand extends Command<void> {
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']).problems;
     if (fileStorageProblems.isNotEmpty) {
       for (final String problem in fileStorageProblems) {
-        Logger.log('❌ $problem');
+        Logger.log('â $problem');
       }
       exit(78); // EX_CONFIG
     }
@@ -772,7 +773,7 @@ class BuildCommand extends Command<void> {
     // package that is a compile error naming a file the developer never wrote.
     final String? scene3dProblem = dvScene3dDependencyProblem(readPubspecYaml(root));
     if (scene3dProblem != null) {
-      Logger.log('❌ $scene3dProblem');
+      Logger.log('â $scene3dProblem');
       exit(78); // EX_CONFIG
     }
 
@@ -789,7 +790,7 @@ class BuildCommand extends Command<void> {
     final DVDeviceProfileCheck profileCheck =
         DVDeviceProfileCheck.run(root, profile: deviceProfile);
     if (!profileCheck.ok) {
-      Logger.log('❌ DV-ELINUX-004: the selected device profile cannot run '
+      Logger.log('â DV-ELINUX-004: the selected device profile cannot run '
           'this application:');
       for (final String line in profileCheck.lines) {
         Logger.log(line);
@@ -799,7 +800,7 @@ class BuildCommand extends Command<void> {
 
     final DVDeclarationCheck declarations = DVDeclarationCheck.run(root);
     if (!declarations.ok) {
-      Logger.log('❌ The project declares something this build cannot honour:');
+      Logger.log('â The project declares something this build cannot honour:');
       for (final String line in declarations.lines) {
         Logger.log(line);
       }
@@ -816,11 +817,11 @@ class BuildCommand extends Command<void> {
       helper: await dvSyntaxHelperOfThisCli(),
     );
     for (final String note in syntax.notes) {
-      Logger.log('⚠ $note');
+      Logger.log('â  $note');
     }
     if (syntax.findings.isNotEmpty) {
       final List<String> lines = dvSyntaxReportLines(syntax);
-      Logger.log('❌ ${lines.first} Nothing was generated or built.');
+      Logger.log('â ${lines.first} Nothing was generated or built.');
       lines.skip(1).forEach(Logger.log);
       exit(65); // EX_DATAERR
     }
@@ -831,7 +832,7 @@ class BuildCommand extends Command<void> {
     // release build cannot ship one either.
     final List<DVTooltipFinding> untooltipped = dvScanProjectForTooltips(root);
     if (untooltipped.isNotEmpty) {
-      Logger.log('❌ ${untooltipped.length} control(s) have no tooltip. '
+      Logger.log('â ${untooltipped.length} control(s) have no tooltip. '
           'Everything hoverable has a tooltip, and the same words are its '
           'screen-reader name:');
       for (final DVTooltipFinding finding in untooltipped) {
@@ -846,14 +847,14 @@ class BuildCommand extends Command<void> {
         dvScanProjectForConventions(root);
     if (conventionFindings.isNotEmpty) {
       if (strict) {
-        Logger.log('❌ ${conventionFindings.length} convention finding(s) '
+        Logger.log('â ${conventionFindings.length} convention finding(s) '
             '(DV-CONV-xxx):');
         for (final f in conventionFindings) {
           Logger.log('   $f');
         }
         exit(78); // EX_CONFIG
       } else {
-        Logger.log('⚠ ${conventionFindings.length} convention warning(s) '
+        Logger.log('â  ${conventionFindings.length} convention warning(s) '
             '(DV-CONV-xxx); use --strict to treat as errors:');
         for (final f in conventionFindings) {
           Logger.log('   $f');
@@ -873,7 +874,7 @@ class BuildCommand extends Command<void> {
                 : DVModuleEnvironment.native,
     });
     if (!moduleCalls.ok) {
-      Logger.log('❌ This build calls a module where it cannot run:');
+      Logger.log('â This build calls a module where it cannot run:');
       for (final String line in moduleCalls.lines) {
         Logger.log(line);
       }
@@ -885,7 +886,7 @@ class BuildCommand extends Command<void> {
     // tell a build that was generating from one that had failed from one that
     // never started.
     final DVBuildStages stages = DVBuildStages();
-    Logger.log('🔨 Building Dartvel project...');
+    Logger.log('ð¨ Building Dartvel project...');
     if (renderBackends.contains(DVRenderBackend.terminal)) {
       Logger.log(
         renderBackends.contains(DVRenderBackend.gui)
@@ -911,7 +912,7 @@ class BuildCommand extends Command<void> {
                 root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform)
             : null;
         if (keyProblem != null) {
-          Logger.log('❌ $keyProblem');
+          Logger.log('â $keyProblem');
           refused += 1;
           continue;
         }
@@ -919,7 +920,7 @@ class BuildCommand extends Command<void> {
         final String? rendererProblem = _webRendererProblem(
             root, DVBuildTargets.lookup(platform)?.basePlatform ?? platform);
         if (rendererProblem != null) {
-          Logger.log('❌ $rendererProblem');
+          Logger.log('â $rendererProblem');
           refused += 1;
           continue;
         }
@@ -933,13 +934,13 @@ class BuildCommand extends Command<void> {
       if (refused > 0) {
         stages.failed();
         Logger.log('');
-        Logger.log('❌ Build completed with $refused failed target(s) and '
+        Logger.log('â Build completed with $refused failed target(s) and '
             '$skipped skipped target(s).');
         exitCode = 1;
         return;
       }
       Logger.log('');
-      Logger.log('✅ Build complete with $skipped skipped target(s).');
+      Logger.log('â Build complete with $skipped skipped target(s).');
       return;
     }
 
@@ -947,7 +948,7 @@ class BuildCommand extends Command<void> {
     // build_runner builders so they can consume the generated client barrel.
     _checkSecrets(root);
 
-    Logger.log('📝 Generating Dartvel artifacts...');
+    Logger.log('ð Generating Dartvel artifacts...');
     final routesResult = await _timings.time('generate (dartvel routes)', () => stages.run(
       DVBuildLifecycle.generating,
       () => _processRun(
@@ -977,12 +978,12 @@ class BuildCommand extends Command<void> {
       for (final String line in generationFailureDetail(routesResult)) {
         Logger.log(line);
       }
-      Logger.log('❌ Dartvel artifact generation failed');
+      Logger.log('â Dartvel artifact generation failed');
       exit(1);
     }
 
     if (_hasBuildRunner(root)) {
-      Logger.log('📦 Running build_runner...');
+      Logger.log('ð¦ Running build_runner...');
       final buildRunnerResult = await _timings.time('build_runner', () => stages.run(
         DVBuildLifecycle.generating,
         () => _processRun(
@@ -994,11 +995,11 @@ class BuildCommand extends Command<void> {
       ));
 
       if (buildRunnerResult.exitCode != 0) {
-        Logger.log('⚠️  build_runner failed');
+        Logger.log('â ï¸  build_runner failed');
       }
     } else {
       Logger.log(
-        '📦 No build_runner dependency declared; nothing further to generate.',
+        'ð¦ No build_runner dependency declared; nothing further to generate.',
       );
     }
 
@@ -1038,7 +1039,7 @@ class BuildCommand extends Command<void> {
       final DVHomeWidgetCheck homeWidgets =
           DVHomeWidgetCheck.run(root, target: p);
       if (!homeWidgets.ok) {
-        Logger.log('❌ The project declares home widgets this build cannot '
+        Logger.log('â The project declares home widgets this build cannot '
             'carry:');
       }
       for (final String line in homeWidgets.lines) {
@@ -1124,7 +1125,7 @@ class BuildCommand extends Command<void> {
     if (failures > 0) {
       stages.failed();
       Logger.log(
-        '❌ Build completed with $failures failed target(s) and $skipped skipped target(s).',
+        'â Build completed with $failures failed target(s) and $skipped skipped target(s).',
       );
       exitCode = 1;
       return;
@@ -1133,11 +1134,11 @@ class BuildCommand extends Command<void> {
       // Skipped is not failed: the targets that ran, ran. A build that skipped
       // an unavailable toolchain and produced everything else is complete.
       stages.completed();
-      Logger.log('✅ Build complete with $skipped skipped target(s).');
+      Logger.log('â Build complete with $skipped skipped target(s).');
       return;
     }
     stages.completed();
-    Logger.log('✅ Build complete!');
+    Logger.log('â Build complete!');
   }
 
   Future<DVBuildTargetResult> _buildPlatform(
@@ -1209,7 +1210,7 @@ class BuildCommand extends Command<void> {
     // registered riding on its pipeline.
     final String label = variant?.name ?? platform;
     Logger.log('');
-    Logger.log('🔨 Building for $label...');
+    Logger.log('ð¨ Building for $label...');
     final String project = platform;
     // Before anything is generated: a release build with no release key is
     // one that cannot finish correctly, and the debug key is not a fallback.
@@ -1222,7 +1223,7 @@ class BuildCommand extends Command<void> {
         androidRelease =
             DVAndroidReleaseConfig.parse(_dartvelSection(_projectRoot));
       } on FormatException catch (error) {
-        Logger.log('❌ ${error.message}');
+        Logger.log('â ${error.message}');
         return DVBuildTargetResult.failed;
       }
       if (buildMode == '--release') {
@@ -1232,7 +1233,7 @@ class BuildCommand extends Command<void> {
           environment: Platform.environment,
         );
         if (signing.signing == null) {
-          Logger.log('❌ ${signing.problem}');
+          Logger.log('â ${signing.problem}');
           return DVBuildTargetResult.failed;
         }
         _androidSigningEnvironment = signing.signing!.environment;
@@ -1244,7 +1245,7 @@ class BuildCommand extends Command<void> {
     // generation; checked again here for a target reached some other way.
     final String? rendererProblem = _webRendererProblem(_projectRoot, platform);
     if (rendererProblem != null) {
-      Logger.log('❌ $rendererProblem');
+      Logger.log('â $rendererProblem');
       return DVBuildTargetResult.failed;
     }
     final bool webWasm = _webWasm(_projectRoot, platform);
@@ -1282,7 +1283,7 @@ class BuildCommand extends Command<void> {
     try {
       deepLinks = DVDeepLinkConfig.parse(_dartvelSection(_projectRoot)['deepLinks']);
     } on FormatException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       return DVBuildTargetResult.failed;
     }
     final List<String> linkErrors = deepLinks?.missingIdentifiers(<String>{
@@ -1291,7 +1292,7 @@ class BuildCommand extends Command<void> {
         const <String>[];
     if (linkErrors.isNotEmpty) {
       for (final String error in linkErrors) {
-        Logger.log('❌ $error');
+        Logger.log('â $error');
       }
       return DVBuildTargetResult.failed;
     }
@@ -1357,6 +1358,7 @@ class BuildCommand extends Command<void> {
       }
       _writeAndroidAppShortcuts(_projectRoot);
       _writeAndroidHomeLauncher(_projectRoot);
+      _writeAndroidTimers(_projectRoot);
       _writeAndroidDeepLinks(_projectRoot, deepLinks);
       // Before Gradle resolves dependencies: the billing library is one.
       final String? noPurchases = leftOut[DVPlatformStep.purchases];
@@ -1418,7 +1420,7 @@ class BuildCommand extends Command<void> {
     {
       final List<String> launcher = dvWriteLauncherIdentity(_projectRoot, project);
       if (launcher.isNotEmpty) {
-        Logger.log('🏷️  Launcher name and icon from dartvel.pwa: '
+        Logger.log('ð·ï¸  Launcher name and icon from dartvel.pwa: '
             '${launcher.length} file(s) written.');
       }
     }
@@ -1466,7 +1468,7 @@ class BuildCommand extends Command<void> {
     // Check if platform is available
     if (!await _isPlatformAvailable(platform)) {
       Logger.log(
-          '⚠️  Platform $platform not available on this system. Skipping...');
+          'â ï¸  Platform $platform not available on this system. Skipping...');
       return DVBuildTargetResult.skipped;
     }
 
@@ -1476,7 +1478,7 @@ class BuildCommand extends Command<void> {
     if (prepare != null || variant?.finish != null) run.prepared = true;
     if (prepare != null &&
         !await prepare(_TargetContext(this, _projectRoot))) {
-      Logger.log('❌ $label build failed');
+      Logger.log('â $label build failed');
       return DVBuildTargetResult.failed;
     }
 
@@ -1502,7 +1504,7 @@ class BuildCommand extends Command<void> {
         for (final String problem in slotProblems) {
           stderr.writeln('   $problem');
         }
-        Logger.log('❌ $platform build failed');
+        Logger.log('â $platform build failed');
         return DVBuildTargetResult.failed;
       }
     }
@@ -1621,7 +1623,7 @@ class BuildCommand extends Command<void> {
           final String shown = dvWithoutLogStamp(line);
           // The compiler's own errors too (`lib/x.dart:3:5: Error: ...`),
           // which start with the file rather than with a word.
-          if (RegExp(r'^(Compiling |✓ |Font asset|Expected to find|'
+          if (RegExp(r'^(Compiling |â |Font asset|Expected to find|'
                       r'Error|error|Warning|warning|Target )')
                   .hasMatch(shown) ||
               dvIsCompilerError(shown)) {
@@ -1699,7 +1701,7 @@ class BuildCommand extends Command<void> {
               ? '   WebAssembly: split into main.dart.wasm and '
                   '${split.modules} deferred module(s); each page loads its '
                   'own.'
-              : '⚠️  WebAssembly kept as one module: ${split.problem}');
+              : 'â ï¸  WebAssembly kept as one module: ${split.problem}');
         }
       }
 
@@ -1727,7 +1729,7 @@ class BuildCommand extends Command<void> {
         // The mapping and debug symbols this build wrote are what a crash
         // from it can be read with, and the next build overwrites them.
         if (!await _collectAndroidSymbols(_projectRoot, buildStartedAt)) {
-          Logger.log('❌ $platform build failed');
+          Logger.log('â $platform build failed');
           return DVBuildTargetResult.failed;
         }
       }
@@ -1737,7 +1739,7 @@ class BuildCommand extends Command<void> {
         // code comes out of the web root, whose every file is public, and a
         // static build is checked to carry none of it.
         if (!_timings.timeSync('separate Studio code', () => _separateStudioCode(root, platform))) {
-          Logger.log('❌ $platform build failed');
+          Logger.log('â $platform build failed');
           return DVBuildTargetResult.failed;
         }
         // Before the capture loads a page: the variants DVImageView asks for
@@ -1745,7 +1747,7 @@ class BuildCommand extends Command<void> {
         await _timings.time('image variants', () => _writeStaticImageVariants(root, platform));
         for (final String warning
             in dvRemovedWebOptionWarnings(_dartvelSection(root))) {
-          Logger.log('   ⚠ $warning');
+          Logger.log('   â  $warning');
         }
         // Before the capture too: the capture lays the page out with the
         // fonts the page will download.
@@ -1775,7 +1777,7 @@ class BuildCommand extends Command<void> {
         // an analytics tag never counts the build, and after everything else
         // Dartvel writes so the body edges really are the edges.
         if (!_writeDocumentSlots(root)) {
-          Logger.log('❌ $platform build failed');
+          Logger.log('â $platform build failed');
           return DVBuildTargetResult.failed;
         }
         _timings.add('PWA, SEO, splash, hints, versioning, document slots', documentClock.elapsed);
@@ -1784,7 +1786,7 @@ class BuildCommand extends Command<void> {
           final ({bool ok, DVAdminMount? admin}) dashboard =
               await _timings.time('Studio pages', () => _writeAdminDashboard(root));
           if (!dashboard.ok) {
-            Logger.log('❌ $platform build failed');
+            Logger.log('â $platform build failed');
             return DVBuildTargetResult.failed;
           }
           final DVAdminMount? admin = dashboard.admin;
@@ -1794,7 +1796,7 @@ class BuildCommand extends Command<void> {
           final ({bool ok, DVDocsMount? docs}) documentation =
               await _timings.time('docs site', () => _writeDocsSite(root, server: true, admin: admin));
           if (!documentation.ok) {
-            Logger.log('❌ $platform build failed');
+            Logger.log('â $platform build failed');
             return DVBuildTargetResult.failed;
           }
           // Before the executable packs build/web into itself: what is not
@@ -1805,7 +1807,7 @@ class BuildCommand extends Command<void> {
           if (await _timings.time('backend compile wait + pack into one binary', () => _buildServerBinary(root,
                   admin: admin, docs: documentation.docs)) ==
               DVBuildTargetResult.failed) {
-            Logger.log('❌ $platform build failed');
+            Logger.log('â $platform build failed');
             return DVBuildTargetResult.failed;
           }
         } else {
@@ -1813,14 +1815,14 @@ class BuildCommand extends Command<void> {
           // host serves one set of files on every name.
           final String? hostsWarning =
               dvStaticHostsWarning(_dartvelSection(root));
-          if (hostsWarning != null) Logger.log('⚠️  $hostsWarning');
+          if (hostsWarning != null) Logger.log('â ï¸  $hostsWarning');
           await _timings.time('static pages', () => _writeStaticPages(root));
           // The documentation site, when pubspec asks for a public one: files
           // at its mount like every other page of a static site.
           final ({bool ok, DVDocsMount? docs}) documentation =
               await _writeDocsSite(root, server: false, admin: null);
           if (!documentation.ok) {
-            Logger.log('❌ $platform build failed');
+            Logger.log('â $platform build failed');
             return DVBuildTargetResult.failed;
           }
           // After the per-route pages, so the pass takes the indentation out
@@ -1841,24 +1843,24 @@ class BuildCommand extends Command<void> {
       if (platform == 'linux') _writeLinuxDesktopFiles(_projectRoot);
       if (platform == 'windows') _writeWindowsDesktopFiles(_projectRoot);
       if (!_bundleNodeRuntime(_projectRoot, platform)) {
-        Logger.log('❌ $platform build failed');
+        Logger.log('â $platform build failed');
         return DVBuildTargetResult.failed;
       }
       final finish = variant?.finish;
       if (finish != null) {
         run.finished = true;
         if (!await finish(_TargetContext(this, _projectRoot), built: true)) {
-          Logger.log('❌ $label build failed');
+          Logger.log('â $label build failed');
           return DVBuildTargetResult.failed;
         }
       }
       if (platform == 'android' && format == 'aab') {
         _writeDataSafetyBesideBundle(_projectRoot, buildMode);
       }
-      Logger.log('✅ $label build successful');
+      Logger.log('â $label build successful');
       return DVBuildTargetResult.succeeded;
     } else {
-      Logger.log('❌ $label build failed');
+      Logger.log('â $label build failed');
       return DVBuildTargetResult.failed;
     }
   }
@@ -1965,19 +1967,19 @@ class BuildCommand extends Command<void> {
   /// start as /opt/<app>/server.
   Future<DVBuildTargetResult> _buildServerBinary(String root,
       {required DVAdminMount? admin, required DVDocsMount? docs}) async {
-    Logger.log('🔨 Compiling the backend into one executable...');
+    Logger.log('ð¨ Compiling the backend into one executable...');
     final host = dvHostServerLibrary();
     final DVServerLibraryLookup lookup =
         dvLocateServerLibrary(root, subdir: host.subdir, name: host.name);
     if (lookup.file == null) {
-      Logger.log('⚠️  build/server not written: ${lookup.problem}');
+      Logger.log('â ï¸  build/server not written: ${lookup.problem}');
       return DVBuildTargetResult.skipped;
     }
     // Finished before the pack reads the cache it writes into.
     try {
       await _preEncoding;
     } on Object catch (error) {
-      Logger.log('   ⚠ Encoding Flutter\'s engine files ahead failed ($error); '
+      Logger.log('   â  Encoding Flutter\'s engine files ahead failed ($error); '
           'the pack encodes them.');
     }
     final DVServerBinaryResult result = await dvBuildServerBinary(
@@ -2044,8 +2046,8 @@ class BuildCommand extends Command<void> {
       // Refused rather than approximated. A debug desktop bundle carries
       // kernel_blob.bin and no libapp.so, and the only engine obtainable
       // without building one is the release build, which has no interpreter to
-      // run kernel with — so the result would look complete and never start.
-      Logger.log('⏭️  Skipping sony-elinux: only release bundles can be '
+      // run kernel with â so the result would look complete and never start.
+      Logger.log('â­ï¸  Skipping sony-elinux: only release bundles can be '
           'assembled. Debug and profile need an engine built for those modes, '
           'which is not published as a standalone embedder artifact.');
       return DVBuildTargetResult.skipped;
@@ -2055,14 +2057,14 @@ class BuildCommand extends Command<void> {
         '${dartvelToolchainRoot(resolveToolchainHome())}/dartvel_elinux/artifacts';
     final backend = ELinuxBackend.wayland;
     if (!File('$artifacts/${backend.executable}').existsSync()) {
-      Logger.log('⏭️  Skipping sony-elinux: the embedder artifacts are not '
+      Logger.log('â­ï¸  Skipping sony-elinux: the embedder artifacts are not '
           'installed at $artifacts. Build them with the "Embedder artifacts" '
           'workflow and unpack the result there.');
       return DVBuildTargetResult.skipped;
     }
 
     // The desktop build supplies the app, the assets and the AOT library.
-    Logger.log('🔨 Building the host bundle sony-elinux assembles from...');
+    Logger.log('ð¨ Building the host bundle sony-elinux assembles from...');
     final desktop = await _buildPlatform(
       'linux',
       buildMode,
@@ -2075,7 +2077,7 @@ class BuildCommand extends Command<void> {
       treeShakeIcons: true,
     );
     if (desktop != DVBuildTargetResult.succeeded) {
-      Logger.log('❌ sony-elinux: the host build it assembles from failed');
+      Logger.log('â sony-elinux: the host build it assembles from failed');
       return DVBuildTargetResult.failed;
     }
 
@@ -2089,7 +2091,7 @@ class BuildCommand extends Command<void> {
         host: _hostArchitecture(),
       );
     } on UnsupportedError catch (error) {
-      Logger.log('❌ sony-elinux: ${error.message}');
+      Logger.log('â sony-elinux: ${error.message}');
       return DVBuildTargetResult.failed;
     }
 
@@ -2105,7 +2107,7 @@ class BuildCommand extends Command<void> {
         mode: ELinuxMode.release,
       );
     } on UnsupportedError catch (error) {
-      Logger.log('❌ sony-elinux: ${error.message}');
+      Logger.log('â sony-elinux: ${error.message}');
       return DVBuildTargetResult.failed;
     }
 
@@ -2122,7 +2124,7 @@ class BuildCommand extends Command<void> {
       if (!file.existsSync()) {
         // Naming the missing piece, because an incomplete bundle is still a
         // directory and fails on the device instead of here.
-        Logger.log('❌ sony-elinux: ${copy.from} is missing');
+        Logger.log('â sony-elinux: ${copy.from} is missing');
         return DVBuildTargetResult.failed;
       }
       file.copySync(destination);
@@ -2132,7 +2134,7 @@ class BuildCommand extends Command<void> {
     // MIME info a Linux desktop does; one without a shell ignores them.
     final DVDesktopWrite elinuxDesktop = dvWriteLinuxDesktopFiles(root, outDir);
     for (final String problem in elinuxDesktop.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
 
     // Boot-to-app: the declaration says the target's supervisor starts the
@@ -2144,10 +2146,10 @@ class BuildCommand extends Command<void> {
       executable: backend.executable,
     );
     for (final String problem in supervisor.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
 
-    Logger.log('✅ sony-elinux bundle assembled at $outDir');
+    Logger.log('â sony-elinux bundle assembled at $outDir');
     Logger.log('   ${backend.executable} + engine + libapp.so, no GUI stack');
     if (supervisor.written.isNotEmpty) {
       Logger.log('   ${supervisor.written.join(', ')}: install under '
@@ -2185,7 +2187,7 @@ class BuildCommand extends Command<void> {
     final DVNodeBundle result = dvBundleNodeRuntime(root, bundle,
         node: dvHostNode(), linux: platform == 'linux');
     if (result.problem != null) {
-      Logger.log('❌ ${result.problem}');
+      Logger.log('â ${result.problem}');
       return false;
     }
     if (result.modules.isNotEmpty) {
@@ -2199,7 +2201,7 @@ class BuildCommand extends Command<void> {
     if (!Directory(bundle).existsSync()) return;
     final DVDesktopWrite result = dvWriteLinuxDesktopFiles(root, bundle);
     for (final String problem in result.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
     _writeLinuxAppShortcuts(root, bundle);
@@ -2225,13 +2227,13 @@ class BuildCommand extends Command<void> {
   List<DVAppShortcut> _appShortcuts(String root) {
     final DVAppShortcutsConfig config = dvAppShortcutsOf(_dartvelSection(root));
     for (final String problem in config.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (config.shortcuts.isNotEmpty) {
       final List<String> routes = _generatedRoutes(root);
       if (routes.isNotEmpty) {
         for (final String unknown in dvAppShortcutUnknownRoutes(config.shortcuts, routes)) {
-          Logger.log('⚠️  dartvel.appShortcuts: $unknown is not a page of this application.');
+          Logger.log('â ï¸  dartvel.appShortcuts: $unknown is not a page of this application.');
         }
       }
     }
@@ -2255,7 +2257,7 @@ class BuildCommand extends Command<void> {
     final DVAppShortcutsWrite result =
         dvWriteAndroidAppShortcuts(root, shortcuts, package: _androidPackage(root, text));
     for (final String problem in result.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (shortcuts.isNotEmpty && result.problems.isEmpty) {
       Logger.log('   App shortcuts: ${shortcuts.length} on the launcher icon.');
@@ -2264,11 +2266,43 @@ class BuildCommand extends Command<void> {
 
   /// `dartvel.android.launcher: true`: the HOME filter and the `<queries>`
   /// a home-screen app needs (see android_home_launcher.dart).
+  /// dartvel.timers: the receiver that rings a DV.Timers timer from the
+  /// operating system, beside MainActivity, and its manifest entries. Taken
+  /// back out when the setting is turned off.
+  void _writeAndroidTimers(String root) {
+    final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
+    if (!manifest.existsSync()) return;
+    final bool enabled = dvTimersEnabled(_dartvelSection(root));
+    final Directory kotlin = Directory(p.join(root, 'android', 'app', 'src', 'main', 'kotlin'));
+    final List<File> activities = kotlin.existsSync()
+        ? kotlin.listSync(recursive: true).whereType<File>().where((File file) => p.basename(file.path) == 'MainActivity.kt').toList()
+        : <File>[];
+    final String? package = activities.isEmpty
+        ? null
+        : RegExp(r'^package\s+([\w.]+)', multiLine: true).firstMatch(activities.first.readAsStringSync())?.group(1);
+    final bool writing = enabled && package != null;
+    if (enabled && package == null) {
+      Logger.log('⚠️  No MainActivity.kt naming a package, so dartvel.timers rings only while the app runs on Android.');
+    }
+    final String before = manifest.readAsStringSync();
+    final String after = dvAndroidTimerManifest(before, enabled: writing);
+    if (after != before) manifest.writeAsStringSync(after);
+    for (final File activity in activities) {
+      final File receiver = File(p.join(activity.parent.path, 'DartvelTimerReceiver.kt'));
+      if (writing) {
+        final String source = dvAndroidTimerReceiverSource(package);
+        if (!receiver.existsSync() || receiver.readAsStringSync() != source) receiver.writeAsStringSync(source);
+      } else if (receiver.existsSync() && receiver.readAsStringSync().contains('Written by dartvel build (dartvel.timers)')) {
+        receiver.deleteSync();
+      }
+    }
+  }
+
   void _writeAndroidHomeLauncher(String root) {
     final File manifest = File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     final bool enabled = dvAndroidHomeLauncherEnabled(_dartvelSection(root));
     if (!manifest.existsSync()) {
-      if (enabled) Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, so dartvel.android.launcher reaches nothing.');
+      if (enabled) Logger.log('â ï¸  android/app/src/main/AndroidManifest.xml is not there, so dartvel.android.launcher reaches nothing.');
       return;
     }
     final String before = manifest.readAsStringSync();
@@ -2291,13 +2325,13 @@ class BuildCommand extends Command<void> {
       final String text = activity.readAsStringSync();
       final String? written = dvAndroidHomeLauncherActivity(text, enabled: enabled);
       if (written == null) {
-        Logger.log('⚠️  ${p.relative(activity.path, from: root)} is not Flutter\'s own MainActivity, so the wallpaper will not show through. Its Flutter surface needs BackgroundMode.transparent.');
+        Logger.log('â ï¸  ${p.relative(activity.path, from: root)} is not Flutter\'s own MainActivity, so the wallpaper will not show through. Its Flutter surface needs BackgroundMode.transparent.');
       } else if (written != text) {
         activity.writeAsStringSync(written);
       }
     }
     if (enabled && activities.isEmpty) {
-      Logger.log('⚠️  No MainActivity.kt under android/app/src/main/kotlin, so the wallpaper will not show through.');
+      Logger.log('â ï¸  No MainActivity.kt under android/app/src/main/kotlin, so the wallpaper will not show through.');
     }
     if (enabled) Logger.log('   Home screen: this app can be chosen as the phone\'s home app, over the phone\'s wallpaper.');
     // The opt-in Recents service: its declaration, what it asks the system
@@ -2316,7 +2350,7 @@ class BuildCommand extends Command<void> {
       final String? label = RegExp(r'<application[^>]*android:label="([^"@][^"]*)"').firstMatch(withService)?.group(1);
       final String? package = RegExp(r'^package\s+([\w.]+)', multiLine: true).firstMatch(activities.first.readAsStringSync())?.group(1);
       if (package == null) {
-        Logger.log('⚠️  MainActivity.kt names no package, so dartvel.android.recentsService was not written.');
+        Logger.log('â ï¸  MainActivity.kt names no package, so dartvel.android.recentsService was not written.');
       } else {
         final List<String> contents = <String>[dvAndroidRecentsServiceConfig, dvAndroidRecentsServiceStrings(label ?? 'This app'), dvAndroidRecentsServiceSource(package)];
         for (int index = 0; index < contents.length; index++) {
@@ -2344,7 +2378,7 @@ class BuildCommand extends Command<void> {
       final String? label = RegExp(r'<application[^>]*android:label="([^"@][^"]*)"').firstMatch(withBadges)?.group(1);
       final String? package = RegExp(r'^package\s+([\w.]+)', multiLine: true).firstMatch(activities.first.readAsStringSync())?.group(1);
       if (package == null) {
-        Logger.log('⚠️  MainActivity.kt names no package, so dartvel.android.notificationBadges was not written.');
+        Logger.log('â ï¸  MainActivity.kt names no package, so dartvel.android.notificationBadges was not written.');
       } else {
         final List<String> contents = <String>[dvAndroidBadgeServiceStrings(label ?? 'This app'), dvAndroidBadgeServiceSource(package)];
         for (int index = 0; index < contents.length; index++) {
@@ -2365,7 +2399,7 @@ class BuildCommand extends Command<void> {
     final DVAppShortcutsWrite result =
         dvWriteIosAppShortcuts(root, shortcuts, launchUrlKey: dvIosLaunchUrlKey);
     for (final String problem in result.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (shortcuts.isNotEmpty) {
       Logger.log('   App shortcuts: ${shortcuts.length} Home Screen quick action(s).');
@@ -2393,7 +2427,7 @@ class BuildCommand extends Command<void> {
     final File manifest = File(
         p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
-      Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+      Logger.log('â ï¸  android/app/src/main/AndroidManifest.xml is not there, '
           'so the platform bindings will have no Context.');
       return;
     }
@@ -2435,12 +2469,12 @@ class BuildCommand extends Command<void> {
     try {
       manifest = dvProjectDevClientManifest(root, 'android');
     } on DVDevClientProjectException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       return false;
     }
     final Object? name = readPubspecYaml(root)?['name'];
     if (name is! String || name.isEmpty) {
-      Logger.log('❌ pubspec.yaml names no package, so the development '
+      Logger.log('â pubspec.yaml names no package, so the development '
           'entrypoint cannot import the application.');
       return false;
     }
@@ -2478,12 +2512,12 @@ class BuildCommand extends Command<void> {
     try {
       manifest = dvProjectDevClientManifest(root, platform);
     } on DVDevClientProjectException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       return false;
     }
     final Object? name = readPubspecYaml(root)?['name'];
     if (name is! String || name.isEmpty) {
-      Logger.log('❌ pubspec.yaml names no package, so the development '
+      Logger.log('â pubspec.yaml names no package, so the development '
           'entrypoint cannot import the application.');
       return false;
     }
@@ -2491,7 +2525,7 @@ class BuildCommand extends Command<void> {
         File(p.join(root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
     final File info = File(p.join(root, platform, 'Runner', 'Info.plist'));
     if (!project.existsSync() || !info.existsSync()) {
-      Logger.log('❌ $platform/Runner.xcodeproj or $platform/Runner/Info.plist '
+      Logger.log('â $platform/Runner.xcodeproj or $platform/Runner/Info.plist '
           'is not there, so a development build has nowhere to put the tunnel.');
       return false;
     }
@@ -2534,25 +2568,25 @@ class BuildCommand extends Command<void> {
     try {
       manifest = dvProjectDevClientManifest(root, 'linux');
     } on DVDevClientProjectException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       return false;
     }
     final Object? name = readPubspecYaml(root)?['name'];
     if (name is! String || name.isEmpty) {
-      Logger.log('❌ pubspec.yaml names no package, so the development '
+      Logger.log('â pubspec.yaml names no package, so the development '
           'entrypoint cannot import the application.');
       return false;
     }
     final File cmake = File(p.join(root, dvLinuxRunnerCmakePath));
     if (!cmake.existsSync()) {
-      Logger.log('❌ $dvLinuxRunnerCmakePath is not there, so a development '
+      Logger.log('â $dvLinuxRunnerCmakePath is not there, so a development '
           'build has nowhere to compile the tunnel.');
       return false;
     }
     final String before = cmake.readAsStringSync();
     final String after = dvLinuxRunnerCmakeWithDevClient(before, enabled: true);
     if (!after.contains('dartvel_dev_client.cc')) {
-      Logger.log('❌ $dvLinuxRunnerCmakePath has no add_executable(\${BINARY_NAME} '
+      Logger.log('â $dvLinuxRunnerCmakePath has no add_executable(\${BINARY_NAME} '
           '...) this recognises, so the tunnel was not added.');
       return false;
     }
@@ -2583,25 +2617,25 @@ class BuildCommand extends Command<void> {
     try {
       manifest = dvProjectDevClientManifest(root, 'windows');
     } on DVDevClientProjectException catch (error) {
-      Logger.log('❌ ${error.message}');
+      Logger.log('â ${error.message}');
       return false;
     }
     final Object? name = readPubspecYaml(root)?['name'];
     if (name is! String || name.isEmpty) {
-      Logger.log('❌ pubspec.yaml names no package, so the development '
+      Logger.log('â pubspec.yaml names no package, so the development '
           'entrypoint cannot import the application.');
       return false;
     }
     final File cmake = File(p.join(root, dvWindowsRunnerCmakePath));
     if (!cmake.existsSync()) {
-      Logger.log('❌ $dvWindowsRunnerCmakePath is not there, so a development '
+      Logger.log('â $dvWindowsRunnerCmakePath is not there, so a development '
           'build has nowhere to compile the tunnel.');
       return false;
     }
     final String before = cmake.readAsStringSync();
     final String after = dvWindowsRunnerCmakeWithDevClient(before, enabled: true);
     if (!after.contains('dartvel_dev_client.cpp')) {
-      Logger.log('❌ $dvWindowsRunnerCmakePath has no add_executable(\${BINARY_NAME} '
+      Logger.log('â $dvWindowsRunnerCmakePath has no add_executable(\${BINARY_NAME} '
           '...) this recognises, so the tunnel was not added.');
       return false;
     }
@@ -2687,7 +2721,7 @@ class BuildCommand extends Command<void> {
       return;
     }
     if (sells) {
-      Logger.log('⚠️  dartvel.purchases is declared and there is no '
+      Logger.log('â ï¸  dartvel.purchases is declared and there is no '
           'android/app/build.gradle to add Play Billing to.');
     }
   }
@@ -2794,7 +2828,7 @@ class BuildCommand extends Command<void> {
           'to $directory. Open the worksheet: every TODO in it is a question '
           'only you can answer.');
     } on Object catch (error) {
-      Logger.log('⚠️  Play Data safety answers were not written: $error');
+      Logger.log('â ï¸  Play Data safety answers were not written: $error');
     }
   }
 
@@ -2877,11 +2911,11 @@ class BuildCommand extends Command<void> {
       if (!requested.contains(name)) requested.add(name);
     }
     for (final String note in dvFileStorageAndroidNotes(fileStorage)) {
-      Logger.log('⚠️  $note');
+      Logger.log('â ï¸  $note');
     }
     final List<String> unknown = dvAndroidUnknownPermissions(requested);
     if (unknown.isNotEmpty) {
-      Logger.log('⚠️  dartvel.android.permissions names ${unknown.join(', ')}, '
+      Logger.log('â ï¸  dartvel.android.permissions names ${unknown.join(', ')}, '
           'which Dartvel has no Android permission for. Nothing was declared '
           'for it, so a request at run time is refused with no dialog. The '
           'names it knows are ${dvAndroidPermissionNames.toList()..sort()}.');
@@ -2915,7 +2949,7 @@ class BuildCommand extends Command<void> {
         DVFileStorageConfig.parse(_dartvelSection(root)['fileStorage']);
     if (config.problems.isNotEmpty) {
       for (final String problem in config.problems) {
-        Logger.log('❌ $problem');
+        Logger.log('â $problem');
       }
       return false;
     }
@@ -2931,7 +2965,7 @@ class BuildCommand extends Command<void> {
       final File target = File(p.join(root, file.key));
       if (!target.existsSync()) {
         if (file.value.isNotEmpty) {
-          Logger.log('⚠️  ${file.key} is not there, so dartvel.fileStorage could '
+          Logger.log('â ï¸  ${file.key} is not there, so dartvel.fileStorage could '
               'not be applied to it.');
         }
         continue;
@@ -2945,7 +2979,7 @@ class BuildCommand extends Command<void> {
     }
     if (platform == 'macos') {
       for (final String note in dvFileStorageMacosNotes(config)) {
-        Logger.log('⚠️  $note');
+        Logger.log('â ï¸  $note');
       }
     }
     return true;
@@ -2966,7 +3000,7 @@ class BuildCommand extends Command<void> {
     final File file = File(p.join(root, target.$1));
     if (!file.existsSync()) {
       if (enabled) {
-        Logger.log('⚠️  ${target.$1} is not there, so dartvel.scene3d could not switch Flutter GPU on; '
+        Logger.log('â ï¸  ${target.$1} is not there, so dartvel.scene3d could not switch Flutter GPU on; '
             'scenes on $platform show their poster.');
       }
       return;
@@ -2975,7 +3009,7 @@ class BuildCommand extends Command<void> {
     final String after = target.$2(before, enabled: enabled);
     if (after != before) file.writeAsStringSync(after);
     if (enabled && !after.contains('FlutterGPU') && !after.contains('flutter_gpu')) {
-      Logger.log('⚠️  ${target.$1} has no place Dartvel recognises to switch Flutter GPU on; '
+      Logger.log('â ï¸  ${target.$1} has no place Dartvel recognises to switch Flutter GPU on; '
           'scenes on $platform show their poster.');
     }
   }
@@ -3021,7 +3055,7 @@ class BuildCommand extends Command<void> {
 
   void _logSplash(DVSplash splash, DVSplashResult result) {
     for (final String problem in splash.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (result.written.isNotEmpty) {
       final String dark = splash.darkColor == splash.color
@@ -3049,7 +3083,7 @@ class BuildCommand extends Command<void> {
       ...declared.problems,
       ...declared.warnings,
     ]) {
-      Logger.log('⚠️  $line');
+      Logger.log('â ï¸  $line');
     }
     return _declaredFileAssociations = declared;
   }
@@ -3100,7 +3134,7 @@ class BuildCommand extends Command<void> {
     if (after != before) plist.writeAsStringSync(after);
     if (!declared.isEmpty && dvAppleHasOwnDocumentTypes(after)) {
       Logger.log(
-        '⚠️  ios/Runner/Info.plist already declares CFBundleDocumentTypes of its own, so '
+        'â ï¸  ios/Runner/Info.plist already declares CFBundleDocumentTypes of its own, so '
         'dartvel.fileAssociations was not added beside them; those entries stay in charge.',
       );
     }
@@ -3124,7 +3158,7 @@ class BuildCommand extends Command<void> {
         File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       if (kiosk.ownsTheDevice) {
-        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+        Logger.log('â ï¸  android/app/src/main/AndroidManifest.xml is not there, '
             'so the kiosk declaration reaches nothing.');
       }
       return;
@@ -3139,7 +3173,7 @@ class BuildCommand extends Command<void> {
     // is what `.DartvelDeviceAdminReceiver` in the manifest resolves to.
     final String? package = _androidPackage(root, before);
     if (package == null) {
-      Logger.log('⚠️  Could not read the Android package name, so the kiosk '
+      Logger.log('â ï¸  Could not read the Android package name, so the kiosk '
           'device-admin receiver was not written.');
       return;
     }
@@ -3201,7 +3235,7 @@ class BuildCommand extends Command<void> {
         File(p.join(root, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'));
     if (!manifest.existsSync()) {
       if (widgets.isNotEmpty) {
-        Logger.log('⚠️  android/app/src/main/AndroidManifest.xml is not there, '
+        Logger.log('â ï¸  android/app/src/main/AndroidManifest.xml is not there, '
             'so the home widgets reach nothing.');
       }
       return;
@@ -3214,7 +3248,7 @@ class BuildCommand extends Command<void> {
 
     final String? package = _androidPackage(root, before);
     if (package == null) {
-      Logger.log('⚠️  Could not read the Android package name, so the home '
+      Logger.log('â ï¸  Could not read the Android package name, so the home '
           'widget providers were not written.');
       return;
     }
@@ -3264,7 +3298,7 @@ class BuildCommand extends Command<void> {
         root, platform, 'Runner.xcodeproj', 'project.pbxproj'));
     if (!project.existsSync()) {
       if (widgets.isNotEmpty) {
-        Logger.log('⚠️  $platform/Runner.xcodeproj is not there, so the home '
+        Logger.log('â ï¸  $platform/Runner.xcodeproj is not there, so the home '
             'widgets reach nothing.');
       }
       return;
@@ -3274,7 +3308,7 @@ class BuildCommand extends Command<void> {
     final String? bundleId = _appleBundleId(before);
     if (bundleId == null) {
       if (widgets.isNotEmpty) {
-        Logger.log('⚠️  Could not read the bundle identifier out of '
+        Logger.log('â ï¸  Could not read the bundle identifier out of '
             '$platform/Runner.xcodeproj, so the widget extension was not '
             'added. An extension has to be identified under the '
             'application it ships inside.');
@@ -3383,7 +3417,7 @@ class BuildCommand extends Command<void> {
     final File project =
         File(p.join(root, 'ios', 'Runner.xcodeproj', 'project.pbxproj'));
     if (!project.existsSync()) {
-      Logger.log('⚠️  ios/Runner.xcodeproj is not there, so the DV.Platform '
+      Logger.log('â ï¸  ios/Runner.xcodeproj is not there, so the DV.Platform '
           'shim was not compiled in; share, location, the pickers and the '
           'rest of the iOS device bindings stay unregistered.');
       return;
@@ -3411,7 +3445,7 @@ class BuildCommand extends Command<void> {
     final Map<String, String> requested = dvIosRequestedPermissions(section);
     final List<String> unknown = dvIosUnknownPermissions(requested.keys);
     if (unknown.isNotEmpty) {
-      Logger.log('⚠️  dartvel.ios.permissions names ${unknown.join(', ')}, '
+      Logger.log('â ï¸  dartvel.ios.permissions names ${unknown.join(', ')}, '
           'which Dartvel has no iOS permission for. The names it knows are '
           '${dvIosPermissions.keys.toList()..sort()}.');
     }
@@ -3455,7 +3489,7 @@ class BuildCommand extends Command<void> {
     final File delegate =
         File(p.join(root, 'ios', 'Runner', 'AppDelegate.swift'));
     if (!delegate.existsSync()) {
-      Logger.log('⚠️  ios/Runner/AppDelegate.swift is not there, so a link '
+      Logger.log('â ï¸  ios/Runner/AppDelegate.swift is not there, so a link '
           'this application is launched with reaches nothing.');
       return;
     }
@@ -3467,7 +3501,7 @@ class BuildCommand extends Command<void> {
       // recognise. Saying so is the whole value here: the alternative is a
       // widget whose tap opens the home screen and a developer with nothing
       // to read.
-      Logger.log('⚠️  ios/Runner/AppDelegate.swift has been rewritten, so '
+      Logger.log('â ï¸  ios/Runner/AppDelegate.swift has been rewritten, so '
           'the launch capture was not added. A link the application is '
           'launched with will not reach DV.Platform.deepLinks.');
       return;
@@ -3584,7 +3618,7 @@ class BuildCommand extends Command<void> {
   void _writeMacosDesktopEntries(String root) {
     final DVDesktopWrite result = dvWriteMacosDesktopEntries(root);
     for (final String problem in result.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')}.');
   }
@@ -3596,7 +3630,7 @@ class BuildCommand extends Command<void> {
     if (!Directory(bundle).existsSync()) return;
     final DVDesktopWrite result = dvWriteWindowsDesktopFiles(root, bundle);
     for (final String problem in result.problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     if (result.written.isNotEmpty) Logger.log('   Wrote ${result.written.join(', ')} under the bundle.');
   }
@@ -3632,7 +3666,7 @@ class BuildCommand extends Command<void> {
     final label =
         format == null || format == 'bundle' ? platform : '$platform ($format)';
     Logger.log('');
-    Logger.log('🔨 Building for $label...');
+    Logger.log('ð¨ Building for $label...');
 
     final plan = resolveEmbeddedBuildPlan(
       platform: platform,
@@ -3646,16 +3680,16 @@ class BuildCommand extends Command<void> {
       appPath: _projectRoot,
     );
     if (plan == null) {
-      Logger.log('❌ Unsupported embedded platform: $platform');
+      Logger.log('â Unsupported embedded platform: $platform');
       return DVBuildTargetResult.failed;
     }
 
     if (!await _isExecutableAvailable(plan.executable)) {
       Logger.log(
         p.isAbsolute(plan.executable)
-            ? '⚠️  ${plan.executable} does not exist. '
+            ? 'â ï¸  ${plan.executable} does not exist. '
                 'Install the $platform embedder to build this target. Skipping...'
-            : '⚠️  ${plan.executable} not found on PATH. '
+            : 'â ï¸  ${plan.executable} not found on PATH. '
                 'Install the $platform embedder to build this target. Skipping...',
       );
       return DVBuildTargetResult.skipped;
@@ -3672,7 +3706,7 @@ class BuildCommand extends Command<void> {
     // toolchain being absent: it is present, and it is too old.
     final String? tooOld = await _embedderBelowFloor(platform, plan);
     if (tooOld != null) {
-      Logger.log('⚠️  $tooOld');
+      Logger.log('â ï¸  $tooOld');
       return DVBuildTargetResult.skipped;
     }
 
@@ -3754,10 +3788,10 @@ class BuildCommand extends Command<void> {
           // and then refused by the embedder's own pub. Reporting the first
           // is a true message about the wrong thing, and it sent people
           // looking for a fault in the project.
-          Logger.log('⚠️  $refused');
+          Logger.log('â ï¸  $refused');
           return DVBuildTargetResult.skipped;
         }
-        Logger.log('❌ Could not generate the $scaffoldDir/ scaffold.');
+        Logger.log('â Could not generate the $scaffoldDir/ scaffold.');
         return DVBuildTargetResult.failed;
       }
       Logger.log('   Generated $scaffoldDir/.');
@@ -3811,20 +3845,20 @@ class BuildCommand extends Command<void> {
         output: said.toString(),
       );
       if (refused != null) {
-        Logger.log('⚠️  $refused');
+        Logger.log('â ï¸  $refused');
         return DVBuildTargetResult.skipped;
       }
-      Logger.log('❌ $label build failed');
+      Logger.log('â $label build failed');
       return DVBuildTargetResult.failed;
     }
-    Logger.log('✅ $platform bundle build successful');
+    Logger.log('â $platform bundle build successful');
 
     // Distribution-image packaging is a separate step. Dartvel does not bundle
     // a system-imaging toolchain, so report honestly instead of emitting a fake
     // artifact.
     if (format == 'iso' || format == 'img') {
       Logger.log(
-        '⚠️  DV-ELINUX-IMG: $platform $format packaging requires the configured '
+        'â ï¸  DV-ELINUX-IMG: $platform $format packaging requires the configured '
         'Sony eLinux image toolchain, which is not available in this '
         'environment. Bundle built; image assembly skipped.',
       );
@@ -3875,7 +3909,7 @@ class BuildCommand extends Command<void> {
       for (final problem in problems) {
         Logger.error('   $problem');
       }
-      Logger.log('❌ dartvel.secrets is not valid');
+      Logger.log('â dartvel.secrets is not valid');
       exit(1);
     }
 
@@ -3895,7 +3929,7 @@ class BuildCommand extends Command<void> {
       for (final finding in envProblems) {
         Logger.error('   $finding');
       }
-      Logger.log('❌ ${envProblems.length} secret problem(s)');
+      Logger.log('â ${envProblems.length} secret problem(s)');
       exit(1);
     }
 
@@ -3930,7 +3964,7 @@ class BuildCommand extends Command<void> {
     for (final finding in findings) {
       Logger.error('   $finding');
     }
-    Logger.log('❌ ${findings.length} secret problem(s)');
+    Logger.log('â ${findings.length} secret problem(s)');
     exit(1);
   }
 
@@ -3944,7 +3978,7 @@ class BuildCommand extends Command<void> {
       final File icon = File(p.join(root, association.icon!));
       if (!icon.existsSync()) {
         Logger.log(
-          '   ⚠ dartvel.fileAssociations names the icon ${association.icon}, which is not in the project.',
+          '   â  dartvel.fileAssociations names the icon ${association.icon}, which is not in the project.',
         );
         continue;
       }
@@ -3964,7 +3998,7 @@ class BuildCommand extends Command<void> {
     final DVWebPushConfig? webPush = _webPushConfig(root);
     if (webPush != null &&
         (settings['enabled'] == false || settings['serviceWorker'] == false)) {
-      Logger.log('❌ dartvel.push.web needs the service worker, and '
+      Logger.log('â dartvel.push.web needs the service worker, and '
           'dartvel.pwa switches it off. Remove dartvel.push.web or turn the '
           'worker back on.');
       exit(1);
@@ -3997,7 +4031,7 @@ class BuildCommand extends Command<void> {
     Logger.log('   PWA manifest written for "$name"'
         '${result.linked ? ' and linked from index.html' : ''}.');
     for (final problem in result.problems) {
-      Logger.log('   ⚠ $problem');
+      Logger.log('   â  $problem');
     }
 
     _writeFileTypeIcons(root);
@@ -4051,7 +4085,7 @@ class BuildCommand extends Command<void> {
         .where((String rel) => _isTracked(root, 'web/$rel'))
         .toList();
     if (leftovers.isNotEmpty) {
-      Logger.log('   ⚠ web/ still holds Flutter\'s template icons (${leftovers.join(', ')}). '
+      Logger.log('   â  web/ still holds Flutter\'s template icons (${leftovers.join(', ')}). '
           'The build replaces them in its output; delete them from web/ or set dartvel.pwa.icon.');
     }
   }
@@ -4079,7 +4113,7 @@ class BuildCommand extends Command<void> {
       source = dvPwaIconSource(root, settings);
     } on DVPngError catch (error) {
       Logger.error('   ${error.message}');
-      Logger.log('❌ PWA icon');
+      Logger.log('â PWA icon');
       exit(1);
     }
     final DVRgbaImage art;
@@ -4087,7 +4121,7 @@ class BuildCommand extends Command<void> {
     if (source == null) {
       art = dvMonogramIcon(brand.name, accent: dvHexToArgb(brand.themeColor));
       from = 'a monogram of "${brand.name}"';
-      Logger.log('   ⚠ No icon set: the site gets a monogram of its name. Add assets/icon.png '
+      Logger.log('   â  No icon set: the site gets a monogram of its name. Add assets/icon.png '
           '(or set dartvel.pwa.icon) for its real icon.');
     } else {
       art = dvPngDecode(source.readAsBytesSync());
@@ -4102,7 +4136,7 @@ class BuildCommand extends Command<void> {
       Logger.log('   Web icons written from $from: ${written.length}.');
     } on DVPngError catch (error) {
       Logger.error('   ${error.message}');
-      Logger.log('❌ PWA icon');
+      Logger.log('â PWA icon');
       exit(1);
     }
   }
@@ -4182,6 +4216,8 @@ class BuildCommand extends Command<void> {
         // dartvel.push.web: the push and notificationclick handlers. The one
         // worker serves web and web-server alike, so both get them.
         push: _webPushConfig(root) != null,
+        // dartvel.timers: what a timer notification's buttons do.
+        timers: dvTimersEnabled(_dartvelSection(root)),
         // Studio and the API are left to the browser: Studio is its own
         // application, and an API answer is not an asset to keep until the
         // next deploy.
@@ -4233,7 +4269,7 @@ class BuildCommand extends Command<void> {
       Logger.log('   Page edges: ${written.snippets} snippet(s) from dartvel.platforms.web.document on every page.');
     }
     for (final String key in dvLegacyPlatformKeys(_rawDartvelSection(root))) {
-      Logger.log('   ℹ dartvel.$key still works; its new home is dartvel.platforms.$key.');
+      Logger.log('   â¹ dartvel.$key still works; its new home is dartvel.platforms.$key.');
     }
     return true;
   }
@@ -4298,11 +4334,11 @@ class BuildCommand extends Command<void> {
     try {
       result = dvCollectProjectSymbols(root, builtSince: builtSince);
     } on Object catch (error) {
-      Logger.log('⚠️  Could not collect symbols for crash reports: $error');
+      Logger.log('â ï¸  Could not collect symbols for crash reports: $error');
       return true;
     }
     for (final String warning in result.warnings) {
-      Logger.log('⚠️  $warning');
+      Logger.log('â ï¸  $warning');
     }
     if (result.isEmpty) return true;
     Logger.log('   Symbols for ${result.manifest.release}: '
@@ -4323,7 +4359,7 @@ class BuildCommand extends Command<void> {
     try {
       return DVPushConfig.parse(_dartvelSection(root)['push']);
     } on ArgumentError catch (error) {
-      Logger.log('❌ ${error.name ?? 'dartvel.push'}: ${error.message}');
+      Logger.log('â ${error.name ?? 'dartvel.push'}: ${error.message}');
       exit(1);
     }
   }
@@ -4392,7 +4428,7 @@ class BuildCommand extends Command<void> {
       return;
     }
     if (fcm != null) {
-      Logger.log('⚠️  dartvel.push.android is declared and there is no '
+      Logger.log('â ï¸  dartvel.push.android is declared and there is no '
           'android/app/build.gradle to add Firebase to.');
     }
   }
@@ -4458,7 +4494,7 @@ class BuildCommand extends Command<void> {
       Logger.error('   $problem');
     }
     if (locales.problems.isNotEmpty) {
-      Logger.log('❌ i18n locales');
+      Logger.log('â i18n locales');
       exit(1);
     }
     final (Map<String, String> rootAlternates, String? rootDefault) =
@@ -4822,7 +4858,7 @@ class BuildCommand extends Command<void> {
       if (verdict.message != null) {
         // Built, and worse for it. Loud enough to notice, not fatal: there is
         // nothing on this machine to fix.
-        Logger.log('   ⚠ ${verdict.message}');
+        Logger.log('   â  ${verdict.message}');
       } else {
         Logger.log('   Captured ${run.captured} of ${routes.length}.');
       }
@@ -4836,7 +4872,7 @@ class BuildCommand extends Command<void> {
     // reports success hides the failure until someone checks a search result
     // weeks later, and the fix -- rerun it -- costs a minute.
     Logger.error('   ${verdict.message}');
-    Logger.log('❌ semantics capture incomplete');
+    Logger.log('â semantics capture incomplete');
     exit(1);
   }
 
@@ -4867,7 +4903,7 @@ class BuildCommand extends Command<void> {
       Logger.error('   $problem');
     }
     if (waivers.problems.isNotEmpty) {
-      Logger.log('❌ accessibility waivers');
+      Logger.log('â accessibility waivers');
       exit(1);
     }
     final DVA11yVerdict verdict = waivers.apply(findings);
@@ -4877,7 +4913,7 @@ class BuildCommand extends Command<void> {
     }
     for (final DVA11yWaiver waiver in verdict.unused) {
       // Either a typo or a finding since fixed; either way not for ever.
-      Logger.log('   ⚠ waiver matched nothing: ${waiver.route} ${waiver.rule} '
+      Logger.log('   â  waiver matched nothing: ${waiver.route} ${waiver.rule} '
           '(${waiver.reason})');
     }
     if (verdict.ok) {
@@ -4889,7 +4925,7 @@ class BuildCommand extends Command<void> {
     for (final DVA11yFinding finding in verdict.failing) {
       Logger.error('   $finding');
     }
-    Logger.log('❌ ${verdict.failing.length} accessibility finding(s)');
+    Logger.log('â ${verdict.failing.length} accessibility finding(s)');
     exit(1);
   }
 
@@ -4979,7 +5015,7 @@ class BuildCommand extends Command<void> {
             ? rootHead.title
             : meta?.title ??
                 declared[route] ??
-                '${_routeLabel(route)} — $baseTitle',
+                '${_routeLabel(route)} â $baseTitle',
         description: home
             ? rootHead.description
             : dvHostPageDescription(hosts, route,
@@ -5011,7 +5047,7 @@ class BuildCommand extends Command<void> {
   }
 
   void _logUncaptured(String route) {
-    Logger.log('   ⚠ $route has no captured page; its crawler text is the '
+    Logger.log('   â  $route has no captured page; its crawler text is the '
         'plain lines from its source.');
   }
 
@@ -5242,7 +5278,7 @@ class BuildCommand extends Command<void> {
     }
     if (platform != 'web-server' || _servesStudio(root) == null) {
       if (compiledIn) {
-        Logger.log("❌ Studio's code is in this build, which has no server to "
+        Logger.log("â Studio's code is in this build, which has no server to "
             'guard it. Only dartvel build web-server carries Studio.');
         return false;
       }
@@ -5253,7 +5289,7 @@ class BuildCommand extends Command<void> {
       partsRoot: p.join(root, dvStudioPartsDirectory),
     );
     if (parts.problem != null) {
-      Logger.log('❌ ${parts.problem}');
+      Logger.log('â ${parts.problem}');
       return false;
     }
     Logger.log("   Studio's code: ${parts.parts.length} part(s), carried apart "
@@ -5269,7 +5305,7 @@ class BuildCommand extends Command<void> {
           wasmMap == null ? null : dvStudioWasmModules(wasmMap);
       if (modules == null) {
         dvDropWasmApp(web);
-        Logger.log("⚠️  WebAssembly left out of this build: Studio's code "
+        Logger.log("â ï¸  WebAssembly left out of this build: Studio's code "
             'could not be told apart from public code in the wasm app, so '
             'every browser runs dart2js, whose Studio parts are kept back.');
       } else {
@@ -5308,7 +5344,7 @@ class BuildCommand extends Command<void> {
       final String problem =
           dvAdminMountProblem(dvAdminMount(_dartvelSection(root), release: false).path) ?? '';
       Logger.log(problem.isNotEmpty
-          ? '❌ $problem'
+          ? 'â $problem'
           : '   No Studio in this build. A release build serves one only when '
               'dartvel.admin.enabled says so; --profile development gets it '
               'with no configuration.');
@@ -5384,7 +5420,7 @@ class BuildCommand extends Command<void> {
 
     final String? problem = dvDocsMountProblem(docs.path);
     if (problem != null) {
-      Logger.log('❌ dartvel.docs.path: $problem');
+      Logger.log('â dartvel.docs.path: $problem');
       return (ok: false, docs: null);
     }
 
@@ -5407,7 +5443,7 @@ class BuildCommand extends Command<void> {
     };
     final String? conflict = dvDocsMountConflict(docs.path, pages);
     if (conflict != null) {
-      Logger.log('❌ $conflict');
+      Logger.log('â $conflict');
       return (ok: false, docs: null);
     }
 
@@ -5417,14 +5453,14 @@ class BuildCommand extends Command<void> {
       studioServed: admin != null && admin.enabled,
     );
     if (placed.problem != null) {
-      Logger.log('❌ ${placed.problem}');
+      Logger.log('â ${placed.problem}');
       return (ok: false, docs: null);
     }
     final Directory docsRoot = Directory(p.join(web.path, placed.directory!));
     if (docsRoot.existsSync() && docsRoot.listSync().isNotEmpty) {
       // Something of the web build's own is already there -- its assets,
       // its renderer -- and a site written over it would break the app.
-      Logger.log('❌ dartvel.docs.path is ${docs.path}, and build/web/'
+      Logger.log('â dartvel.docs.path is ${docs.path}, and build/web/'
           '${placed.directory} is already the web build\'s own. Move the '
           'docs with dartvel.docs.path in pubspec.yaml.');
       return (ok: false, docs: null);
@@ -5762,7 +5798,7 @@ class BuildCommand extends Command<void> {
     // Said once per build, here, rather than every time the list is read.
     for (final String problem
         in DVImageVariants.parse(_dartvelSection(root)['images']).problems) {
-      Logger.log('   ⚠ $problem');
+      Logger.log('   â  $problem');
     }
     final DVImageVariants variants = _imageVariants(root, platform);
     if (variants.assetWidths.isEmpty) return;
@@ -5847,7 +5883,7 @@ class BuildCommand extends Command<void> {
       Logger.log('   $line');
     }
     if (subsetTool == null && report.lines.isNotEmpty) {
-      Logger.log('   ⚠ Flutter\'s font-subset was not found, so fonts were not '
+      Logger.log('   â  Flutter\'s font-subset was not found, so fonts were not '
           'subset. Run `flutter precache --web` and build again.');
     }
   }
@@ -5858,7 +5894,7 @@ class BuildCommand extends Command<void> {
     final Map<String, DVConfiguredRedirectDeclaration> redirects =
         dvParseRedirects(_dartvelSection(root)['redirects'], problems);
     for (final String problem in problems) {
-      Logger.log('⚠️  $problem');
+      Logger.log('â ï¸  $problem');
     }
     return redirects;
   }
@@ -5898,7 +5934,7 @@ class BuildCommand extends Command<void> {
   ///
   /// Returns null when the build was killed, having already reported why. A
   /// build that hangs is worse than one that fails: it is indistinguishable
-  /// from a slow one, so it runs to whatever cap it was given — a silent
+  /// from a slow one, so it runs to whatever cap it was given â a silent
   /// `flutter build macos` once burned 41 minutes and reported nothing.
   Future<int?> _awaitBuild(
     Process proc, {
@@ -5915,7 +5951,7 @@ class BuildCommand extends Command<void> {
       proc.kill(ProcessSignal.sigkill);
       Logger.log('');
       Logger.log(
-        '❌ $description produced no result within '
+        'â $description produced no result within '
         '${timeout.inMinutes} minute(s) and was killed.',
       );
       Logger.log(
@@ -6018,7 +6054,7 @@ class BuildCommand extends Command<void> {
       );
       if (lookup.file == null) {
         Logger.log('');
-        Logger.log('⚠️  web-server: build/server will not be written. '
+        Logger.log('â ï¸  web-server: build/server will not be written. '
             '${lookup.problem}');
       }
     }
@@ -6028,9 +6064,9 @@ class BuildCommand extends Command<void> {
     if (!isPlatformAvailableOn(platform, Platform.operatingSystem) &&
         (packaged != null || !embeddedBuildPlatforms.contains(platform))) {
       Logger.log('');
-      Logger.log('🔨 Checking $platform...');
+      Logger.log('ð¨ Checking $platform...');
       Logger.log(
-        '⚠️  ${Platform.operatingSystem} cannot build $platform. Skipping...',
+        'â ï¸  ${Platform.operatingSystem} cannot build $platform. Skipping...',
       );
       return false;
     }
@@ -6058,9 +6094,9 @@ class BuildCommand extends Command<void> {
     if (missing.isEmpty) return true;
 
     Logger.log('');
-    Logger.log('🔎 $platform is missing ${missing.length} required tool(s):');
+    Logger.log('ð $platform is missing ${missing.length} required tool(s):');
     for (final requirement in missing) {
-      Logger.log('   • ${requirement.name} (${requirement.executable})');
+      Logger.log('   â¢ ${requirement.name} (${requirement.executable})');
     }
 
     final isCi = isCiEnvironment(Platform.environment);
@@ -6076,7 +6112,7 @@ class BuildCommand extends Command<void> {
         return true;
       case AutoInstallDecision.installWithoutPrompting:
         if (isCi && autoInstall == null) {
-          Logger.log('🤖 CI detected; installing without prompting.');
+          Logger.log('ð¤ CI detected; installing without prompting.');
         }
         shouldInstall = true;
       case AutoInstallDecision.prompt:
@@ -6095,20 +6131,20 @@ class BuildCommand extends Command<void> {
         }
       }
       if (missing.isEmpty) {
-        Logger.log('✅ $platform toolchain ready.');
+        Logger.log('â $platform toolchain ready.');
         return true;
       }
     }
 
     reportUnresolved(platform, missing);
-    Logger.log('⚠️  Skipping $platform.');
+    Logger.log('â ï¸  Skipping $platform.');
     return false;
   }
 
   Future<bool> _isExecutableAvailable(String executable) async {
     // An absolute path is not a PATH lookup. Fuchsia's embedder is a script
     // inside its own checkout rather than an installed binary, so asking
-    // `which` about it is the wrong question — and on Windows `where` answers
+    // `which` about it is the wrong question â and on Windows `where` answers
     // a different one entirely.
     if (p.isAbsolute(executable)) {
       return File(executable).existsSync();
@@ -6310,8 +6346,8 @@ EmbeddedBuildPlan _withScaffold(
 
 /// The embedder scaffold [platform] needs, or null when it needs none.
 ///
-/// These embedders refuse to build a project that has no platform directory —
-/// `This project is not configured for <platform>` — and the directory is
+/// These embedders refuse to build a project that has no platform directory â
+/// `This project is not configured for <platform>` â and the directory is
 /// generated output, not application code, so Dartvel generates it rather
 /// than making every developer run the vendor's `create` by hand. The vendor
 /// `create` commands write only files that do not already exist, so an
@@ -6361,8 +6397,8 @@ String resolveEmbeddedArch(String platform, String arch,
 
 /// How long a build may run before it is treated as stalled.
 ///
-/// Null means no limit. The default is deliberately generous — a clean
-/// release build of a large app on a cold cache is genuinely slow — but it is
+/// Null means no limit. The default is deliberately generous â a clean
+/// release build of a large app on a cold cache is genuinely slow â but it is
 /// finite, because a build that hangs looks exactly like a slow one and keeps
 /// costing until something else stops it.
 Duration? parseBuildTimeout(String? minutes) {
@@ -6438,8 +6474,8 @@ EmbeddedBuildPlan? resolveEmbeddedBuildPlan({
         'tvos',
         simulator ? '--debug' : buildMode,
         if (simulator) '--simulator',
-        // tvOS presents itself to Flutter as iOS — there is no
-        // TargetPlatform.tvOS — so a running app reports `Platform: ios` and,
+        // tvOS presents itself to Flutter as iOS â there is no
+        // TargetPlatform.tvOS â so a running app reports `Platform: ios` and,
         // being a wide screen, `Device: tablet`. A screenshot from a tvOS
         // simulator showed exactly that.
         //

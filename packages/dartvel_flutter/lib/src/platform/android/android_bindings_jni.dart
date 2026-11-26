@@ -48,6 +48,8 @@ import 'android_media_jni.dart';
 import 'android_push_jni.dart';
 import 'android_radios_jni.dart';
 import 'android_system_jni.dart';
+import 'android_timers_jni.dart';
+import '../../timers/timers.dart' show DVTimers;
 import 'generated/android/app/Activity.dart';
 import 'generated/android/app/Application.dart';
 import 'generated/android/content/ClipData.dart';
@@ -319,6 +321,11 @@ class DVAndroidBindings {
   static void _registerDeviceAndFiles(Context context) {
     final String? files = context.filesDir?.absolutePath
         ?.toDartString(releaseOriginal: true);
+    // DV.Timers rung by the receiver dartvel.timers writes, reading back
+    // what was pressed in its notifications from the files directory.
+    if (files != null) {
+      DVTimers.nativeDelivery = () => DVAndroidTimerDelivery(context, files);
+    }
     final String? state = dvAndroidStateDirectory(files);
     final String? root = dvAndroidFilesRoot(files);
     if (state == null || root == null) {

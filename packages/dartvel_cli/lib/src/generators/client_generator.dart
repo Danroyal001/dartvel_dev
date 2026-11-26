@@ -4280,6 +4280,7 @@ void startDartvelKiosk() {
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('  final router = createDartvelRouter(arguments: args);')
+      ..write(dv['timers'] == true ? "  DVTimers.install(app: '${esc(pkgName)}');\n" : '')
       ..writeln(accessibilityDefaultControls.enabled
           ? "  ${accessibilityDefaultControls.installSource(app: pkgName)}\n"
               '  return DVAccessibilityFrame(child: $rootWidget);'
@@ -4416,6 +4417,7 @@ void startDartvelKiosk() {
   static core.DVCSRF get Csrf => runtime.DV.Csrf;
   static DVI18n get I18n => runtime.DV.I18n;
   static DVAccessibility get Accessibility => runtime.DV.Accessibility;
+  static DVTimers get Timers => runtime.DV.Timers;
   static DVObservabilityAndLogging get ObservabilityAndLogging => runtime.DV.ObservabilityAndLogging;
   static DVTenants get Tenants => runtime.DV.Tenants;
   static DVCrashes get Crashes => runtime.DV.Crashes;
