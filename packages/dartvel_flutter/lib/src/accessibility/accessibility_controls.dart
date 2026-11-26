@@ -16,9 +16,10 @@
 // On the web with SSR-first, the head reads the same stored value before the
 // first paint, so the server-rendered page is already in the visitor's
 // settings (see dvSsrFirstHead in dartvel_core).
-import 'package:dartvel_core/dartvel.dart'
-    show DVAccessibilityVoiceConfig, DVTextSize, DVVoiceLanguage, dvAccessibilityStorageKey, dvVoiceStorageKey;
 import 'dart:ui' show AccessibilityFeatures;
+
+import 'package:dartvel_core/dartvel.dart'
+    show DVAccessibilityVoiceConfig, DVTextSize, DVVoiceLanguage, dvAccessibilityStorageKey;
 
 import 'package:flutter/material.dart';
 
@@ -405,7 +406,7 @@ class DVAccessibilityButton extends StatelessWidget {
         tooltip ?? (DVAccessibilityControls.instance.voice == null ? dvAccessibilityButtonLabel : dvAccessibilityVoiceButtonLabel);
     final DVBox<Object?> button = DVBox.row(<Widget>[
       Icon(Icons.accessibility_new_rounded, size: 22, color: colours.onSurface),
-      if (!compact) DVText('Accessibility').fontSize(15).fontWeight(.w600).color(colours.onSurface),
+      if (!compact) const DVText('Accessibility').fontSize(15).fontWeight(.w600).color(colours.onSurface),
     ], spacing: 8)
         .paddingSymmetric(horizontal: compact ? 12 : 14, vertical: 12)
         .minimumTapTarget(width: 48, height: 48)
@@ -450,10 +451,13 @@ class DVAccessibilityPanel extends StatelessWidget {
     DVText help(String words) => DVText(words).fontSize(14).color(colours.onSurfaceVariant);
 
     return AlertDialog(
-      title: DVText('Accessibility').fontSize(24).fontWeight(.w800).color(colours.onSurface).heading(2),
+      title: const DVText('Accessibility').fontSize(24).fontWeight(.w800).color(colours.onSurface).heading(2),
       // A set width: without one the dialog sizes to its widest child and
       // the switches run past its edge.
-      content: DVBox.list(<Widget>[
+      // Built whole, not as a lazy list: a dialog of a dozen rows is read
+      // by a screen reader and found by Ctrl+F all at once.
+      content: SingleChildScrollView(
+          child: DVBox.list(<Widget>[
         help('Kept on this device for your next visit.'),
         heading('Text size'),
         help('On top of your device’s own text size.'),
@@ -484,10 +488,9 @@ class DVAccessibilityPanel extends StatelessWidget {
         if (controls.voice != null) ..._voiceSection(controls, heading, help),
         if (more != null) more!(context),
       ], spacing: 12)
-          .width(520)
-          .scrollable(),
+              .width(520)),
       actions: <Widget>[
-        DVText('Done')
+        const DVText('Done')
             .fontSize(15)
             .fontWeight(.w700)
             .color(colours.onPrimary)

@@ -128,7 +128,7 @@ void main() {
   group('the button', () {
     testWidgets('has its name as a tooltip and as its accessible label', (WidgetTester tester) async {
       final SemanticsHandle semantics = tester.ensureSemantics();
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       expect(find.byTooltip(_tooltip), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Accessibility')), findsWidgets);
       expect(find.text('Accessibility'), findsOneWidget);
@@ -139,13 +139,13 @@ void main() {
     });
 
     testWidgets('compact is the icon alone, still named', (WidgetTester tester) async {
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton(compact: true)))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton(compact: true)))));
       expect(find.text('Accessibility'), findsNothing);
       expect(find.byTooltip(_tooltip), findsOneWidget);
     });
 
     testWidgets('opens the panel; each choice applies at once and is kept', (WidgetTester tester) async {
-      await tester.pumpWidget(_app(home: Scaffold(body: Column(children: <Widget>[DVAccessibilityButton(), Expanded(child: _probe())]))));
+      await tester.pumpWidget(_app(home: Scaffold(body: Column(children: <Widget>[const DVAccessibilityButton(), Expanded(child: _probe())]))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(find.text('Text size'), findsOneWidget);
@@ -174,7 +174,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textScale: 1.7));
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -189,7 +189,7 @@ void main() {
 
     testWidgets('the panel itself is pure black and white in high contrast', (WidgetTester tester) async {
       DVAccessibilityControls.instance.update(const DVAccessibilitySettings(highContrast: true));
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       final Material dialog = tester.widget<Material>(find.descendant(of: find.byType(AlertDialog), matching: find.byType(Material)).first);
@@ -199,7 +199,7 @@ void main() {
     testWidgets('reduce motion the device asks for shows as on, and cannot be turned off here', (WidgetTester tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAllTestValues);
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(find.text('Already on, because your device asks for less motion.'), findsOneWidget);
@@ -210,7 +210,7 @@ void main() {
 
     testWidgets('an app whose panel has more in it can say so in the name', (WidgetTester tester) async {
       await tester.pumpWidget(_app(
-        home: Scaffold(body: Center(child: DVAccessibilityButton(tooltip: 'Accessibility: text size, contrast, motion and voice language'))),
+        home: const Scaffold(body: const Center(child: const DVAccessibilityButton(tooltip: 'Accessibility: text size, contrast, motion and voice language'))),
       ));
       expect(find.byTooltip('Accessibility: text size, contrast, motion and voice language'), findsOneWidget);
       expect(find.byTooltip(_tooltip), findsNothing);
@@ -236,7 +236,7 @@ void main() {
 
     testWidgets('is left out when the app places the button itself', (WidgetTester tester) async {
       DVAccessibilityControls.instance.install(floatingButton: false);
-      await tester.pumpWidget(_app(home: _page(header: DVAccessibilityButton())));
+      await tester.pumpWidget(_app(home: _page(header: const DVAccessibilityButton())));
       expect(find.byTooltip(_tooltip), findsOneWidget, reason: 'only the header one');
     });
 
@@ -286,7 +286,7 @@ void main() {
     );
 
     testWidgets('absent: no voice settings, and the button does not mention voice', (WidgetTester tester) async {
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       expect(find.byTooltip(_tooltip), findsOneWidget);
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
@@ -296,7 +296,7 @@ void main() {
     testWidgets('on: the button names voice, the panel offers where voice mode sits, kept for the next visit',
         (WidgetTester tester) async {
       DVAccessibilityControls.instance.install(voice: voice);
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       expect(find.byTooltip(dvAccessibilityVoiceButtonLabel), findsOneWidget);
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
@@ -313,7 +313,7 @@ void main() {
     testWidgets('the panel says what this device can do in the chosen language', (WidgetTester tester) async {
       DVSpeech.instance = const _Speech(canSpeak: true, voices: <String>{'en-US'});
       DVAccessibilityControls.instance.install(voice: voice);
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(find.text('Voice available.'), findsOneWidget);
