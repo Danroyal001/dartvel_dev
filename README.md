@@ -68,7 +68,7 @@ Dartvel simplifies developer workflows. Instead of writing controllers, reposito
 * **Pages** (`@DVPage()`)
 * **Models** (`@DVModel`)
 * **Backend Functions** (`@DVBackendFunction()`)
-* **UI & Style Modifiers** (`DVBox`, `DVText`, `.modifier()`)
+* **UI & Style Modifiers** (`DVBox`, `DVText`, chained on the widget: `DVText('Save').fontSize(17).onTap(save)`)
 * **Business Logic**
 
 Everything else is automatically compiled, generated, or served by the framework.
@@ -84,7 +84,7 @@ A page whose content comes from your data sends that content in the first
 document too: export `dartvelRoutePageData` from `lib/backend/page_data/index.dart`
 and return `DVPageData` with a `document` of headings, paragraphs and links.
 Text that depends on when the page is asked for (a date, today's menu) is marked
-in the widget with `DVModifier().pageSlot('name')`; return
+in the widget with `.pageSlot('name')`; return
 `DVPageData.slots({'name': ...})` for that route and the binary serves the
 captured page with each request's own text in it, instead of the build's.
 With SSR-first, a `document` that only repeats words the captured page already
