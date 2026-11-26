@@ -111,6 +111,12 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
                 'and CDNs can reuse the same document with a 304 response, '
                 'while a content change reaches the next request. The cache '
                 'is bounded and local to each server process.'),
+            DocsText('After it starts, the server renders each static page into '
+                'this cache, one at a time, so the first visitor does not wait '
+                'for a render. It warms each page once without Accept-Language '
+                '(as crawlers ask) and, for a site with locales, once in the '
+                'default locale. The log says how many pages it warmed and how '
+                'long it took. DARTVEL_OFF=cache-warm turns this off.'),
             DocsStatus('Web Server Rendering', missing: <String>[
               'Widgets are not rendered to HTML on each request. Crawlers get '
                   'the text, links and headings the build captured from each '
@@ -178,6 +184,40 @@ Widget _docsDeployingPage(BuildContext context) => const DocsArticle(
             ]),
             DocsText('A value it cannot use, such as a port that is not a '
                 'number, stops the process at startup.'),
+          ],
+        ),
+        DocsSection(
+          id: 'off-switches',
+          title: 'Turn a framework feature off without a rebuild',
+          children: <Widget>[
+            DocsText('Set DARTVEL_OFF in the server\'s environment (or its .env) '
+                'and restart the binary. Names are separated by commas or '
+                'spaces. The server logs which switches are on when it starts, '
+                'and names any it does not know.'),
+            DocsShell(<String>[
+              'DARTVEL_OFF=page-scroll-button,ssr-first',
+            ]),
+            DocsTable(columns: <String>[
+              'Switch',
+              'What it turns off',
+            ], rows: <List<String>>[
+              <String>['page-scroll-button', 'The "To the bottom / Back to '
+                  'top" button of pageScrollToTop. The page still scrolls.'],
+              <String>['ssr-first', 'SSR-first pages. Each page is served as a '
+                  'build with ssrFirst: false serves it.'],
+              <String>['analytics', 'Every analytics module (Meta Pixel, Google '
+                  'Analytics): no vendor script loads and the server sends '
+                  'nothing on.'],
+              <String>['module:<id>', 'One mounted module, by its id in '
+                  'dartvel.modules.'],
+              <String>['cache-warm', 'Filling the page cache when the server '
+                  'starts.'],
+            ]),
+            DocsText('The browser learns which switches are off from one '
+                '<meta name="dartvel-off"> tag the server adds to every page. '
+                'With nothing off, or only server switches off, there is no '
+                'tag and every page is exactly as before. Apps outside the '
+                'browser have nothing switched off.'),
           ],
         ),
         DocsSection(

@@ -73,6 +73,33 @@ void main() {
     });
   });
 
+  group("Flutter's own module, compiled unoptimised", () {
+    test('only a release or profile build asks for it', () {
+      expect(dvThrowawayWasmArguments('--release'),
+          <String>['--optimization-level=0', '--dart2js-optimization=O4']);
+      expect(dvThrowawayWasmArguments('--profile'),
+          <String>['--optimization-level=0', '--dart2js-optimization=O4']);
+      // A debug build is -O0 for wasm already, and dart2js -O1.
+      expect(dvThrowawayWasmArguments('--debug'), isEmpty);
+    });
+
+    test('the deferred rerun is the command an optimised build ran, to the '
+        'argument', () {
+      final String unoptimised = verboseLog.replaceFirst(' -O2 ', ' -O0 ');
+      expect(unoptimised, contains(' -O0 '));
+      final List<String> rerun = dvDeferredWasmCommand(
+          dvDart2WasmCommand(unoptimised)!,
+          outputDirectory: '/out',
+          deferredMap: '/out/map.json',
+          optimization: dvWasmReleaseOptimization);
+      final List<String> before = dvDeferredWasmCommand(
+          dvDart2WasmCommand(verboseLog)!,
+          outputDirectory: '/out',
+          deferredMap: '/out/map.json');
+      expect(rerun, before);
+    });
+  });
+
   group('the loader', () {
     // The anchor dart2wasm writes in main.dart.mjs.
     const String mjs = 'class CompiledApp {\n'
@@ -278,6 +305,36 @@ console.log(JSON.stringify({ fetched, loaded }));
       expect(split.problem, isNotNull);
       expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
           'one module');
+    });
+
+    test('when the deferred compile fails after an unoptimised Flutter '
+        'module, the site gets an optimised one-module app instead', () async {
+      final String unoptimised = verboseLog.replaceFirst(' -O2 ', ' -O0 ');
+      final List<List<String>> runs = <List<String>>[];
+      final DVWasmSplit split = await dvSplitWasmModules(
+          webRoot: web,
+          workRoot: work,
+          verboseLog: unoptimised,
+          optimization: dvWasmReleaseOptimization,
+          compiling: Future<int>.value(1),
+          run: (String executable, List<String> arguments) async {
+            runs.add(arguments);
+            final String out =
+                p.dirname(arguments[arguments.indexOf('-o') + 1]);
+            Directory(out).createSync(recursive: true);
+            File(p.join(out, 'main.dart.wasm')).writeAsStringSync('optimised');
+            File(p.join(out, 'main.dart.mjs')).writeAsStringSync('runtime');
+            return 0;
+          });
+      expect(split.problem, isNotNull, reason: 'it is still not split');
+      expect(runs, hasLength(1));
+      expect(runs.single, contains('-O2'));
+      expect(runs.single, isNot(contains('-O0')));
+      expect(runs.single, isNot(contains('--enable-deferred-loading')));
+      expect(runs.single.where((String a) => a.contains('--depfile')), isEmpty);
+      expect(File(p.join(web, 'main.dart.wasm')).readAsStringSync(),
+          'optimised');
+      expect(File(p.join(web, 'main.dart.mjs')).readAsStringSync(), 'runtime');
     });
 
     test('no dart2wasm command in the log is said, not run blind', () async {

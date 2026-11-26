@@ -145,7 +145,7 @@ const List<DocsCliCommand> kCliCommands = <DocsCliCommand>[
       '                                 (defaults to on)',
       '    --[no-]prerender             Read the semantics tree of each page into the HTML a crawler sees. --no-prerender skips it, and every page then ships with an empty body to anything that does not run scripts. For a build nobody serves: a screenshot, a smoke test, a local run.',
       '                                 (defaults to on)',
-      '    --capture-jobs               How many pages the semantics read keeps open at once. Defaults to three quarters of the cores, at most eight.',
+      '    --capture-jobs               How many pages the semantics read keeps open at once. Defaults to three quarters of the cores, at most eight, and no more than fit in the memory the build may use.',
       '    --[no-]capture-in-app        Boot the app once in each page of the semantics read and move it between routes, rather than loading every route afresh. A route that redirects is still loaded afresh.',
       '                                 (defaults to on)',
       '    --[no-]minify                Take the whitespace and the comments out of the HTML, CSS and JavaScript the build writes. Nobody downloads the indentation. --no-minify leaves it in, for a build somebody is about to read.',

@@ -552,6 +552,37 @@ Use `cache: false` on a `DVRoute` in route config to opt out. Safe pages
 send ETags and require revalidation, so browsers and CDNs can reuse bytes while
 seeing content changes. See [the cache policy](docs/web-server-binary.md#rendered-public-page-cache).
 
+After it starts, the server renders each static page into that cache, one at
+a time with a short pause between, so the first visitor does not wait for a
+render: once without Accept-Language (as crawlers ask) and, when the pages
+declare locales, once in the default one. It logs how many pages it warmed and
+how long it took. The cache keys on the host, Accept-Language, the theme,
+locale and Sec-GPC headers (and a tenant header), not on per-visitor headers
+such as User-Agent or X-Forwarded-For.
+
+### Turn a framework feature off without a rebuild
+
+Set `DARTVEL_OFF` in the server's environment (or `.env`) and restart the
+binary; nothing is rebuilt. Names are separated by commas or spaces, and the
+server logs at start which are on and any name it does not know.
+
+```bash
+DARTVEL_OFF=page-scroll-button,ssr-first ./server
+```
+
+| Switch | What it turns off |
+|---|---|
+| `page-scroll-button` | The `pageScrollToTop` "To the bottom / Back to top" button, and its tap target. The page still scrolls. |
+| `ssr-first` | SSR-first: pages are served as a `ssrFirst: false` build serves them. |
+| `analytics` | Every analytics module (Meta Pixel, Google Analytics): no vendor script loads, the server forwards nothing. |
+| `module:<id>` | One mounted module, by its `dartvel.modules` id. |
+| `cache-warm` | Warming the page cache at start. |
+
+The browser learns what is off from one `<meta name="dartvel-off">` tag the
+server adds to every page it serves. With nothing off, or only server switches
+off, no tag is added and every byte is what it was. Apps outside a browser have
+nothing off.
+
 
 Studio inherits the application’s effective Material theme. New projects use
 `dartvelDefaultTheme(.light)` and `dartvelDefaultTheme(.dark)`, shared with the
@@ -1593,7 +1624,10 @@ each route's capture and the backend compile while their inputs are
 unchanged (`.dartvel/cache`, `--no-cache` to bypass). The steps that run
 overlap: the backend compile beside Flutter's, and a semantics read that
 boots the app once per browser window and moves it between routes (35
-routes: 387 s before, 24 s now). Measured build times are in
+routes: 387 s before, 24 s now). A rebuild after an edit re-reads only the
+routes whose code changed (sigmadev.digital, one-line edit: 23.1 min before,
+13.1 min now; cold 27.6 to 21.7 min), and every build ends with a table of
+where its time went. Measured build times are in
 [docs/web-performance.md](docs/web-performance.md#build-time-after-01324);
 see the CLI README.
 

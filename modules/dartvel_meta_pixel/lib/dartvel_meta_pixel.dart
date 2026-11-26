@@ -45,6 +45,10 @@ export 'src/events.dart';
 void startMetaPixel(DVModule module) {
   final MetaPixelRuntime runtime = MetaPixelRuntime.instance;
   runtime.moduleId = module.id;
+  // DARTVEL_OFF=analytics or module:<id>: nothing loads, nothing is sent
+  // and nothing is listened for, until the server is restarted without it.
+  runtime.switchedOff = DVOffSwitches.current.moduleOff(module.id, groups: const <String>[DVOffSwitches.analytics]);
+  if (runtime.switchedOff) return;
   final Object? settings = module.config['config'];
   if (settings is Map) {
     try {

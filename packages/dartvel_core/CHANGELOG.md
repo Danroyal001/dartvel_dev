@@ -1,3 +1,7 @@
+## 3.47.18 — 2026-11-26
+
+- `DARTVEL_OFF` runtime off switches (`DVOffSwitches`): `page-scroll-button`, `ssr-first`, `analytics`, `module:<id>`, `cache-warm`; `dvWithoutSsrFirst`. The rendered-page cache keys on the headers a kept page can depend on, so a kept page is shared between visitors. `dvSsrFirstThemePage` / `dvSsrFirstThemeFromPages` split the SSR-first theme per page (same result) so a build can work it out on every core.
+
 ## 3.47.17 — 2026-11-26
 
 - `dartvel.accessibility.defaultControls` replaces `dartvel.accessibility.controls` (`DartvelConfig.accessibilityDefaultControls`, `DVAccessibilityDefaultControlsConfig`). The old key, getter and class name are read for one more release (deprecated); both keys at once is refused.
