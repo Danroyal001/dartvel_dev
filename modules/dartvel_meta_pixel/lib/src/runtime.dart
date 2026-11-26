@@ -24,7 +24,7 @@ typedef MetaPixelRelay = Future<void> Function(Map<String, Object?> event);
 /// fail because an advertiser's script or endpoint did.
 final class MetaPixelRuntime {
   MetaPixelRuntime({
-    this.config = const MetaPixelConfig(),
+    MetaPixelConfig config = const MetaPixelConfig(),
     MetaPixelBrowser? browser,
     MetaPixelRelay? relay,
     bool Function(String category)? consentGranted,
@@ -35,7 +35,8 @@ final class MetaPixelRuntime {
     Future<String?> Function()? serverPixelId,
     this.scriptUrl = defaultScriptUrl,
     this.moduleId = 'metaPixel',
-  })  : browser = browser ?? createMetaPixelBrowser(),
+  })  : _config = config, // ignore: prefer_initializing_formals
+        browser = browser ?? createMetaPixelBrowser(),
         // ignore: prefer_initializing_formals
         _relay = relay,
         _consentGranted = consentGranted ?? dvMetaPixelConsentGranted,
@@ -61,7 +62,17 @@ final class MetaPixelRuntime {
   /// knows about the visitor.
   static const String contextTopic = 'analytics.context';
 
-  MetaPixelConfig config;
+  MetaPixelConfig _config;
+
+  /// The settings in force: the ones given, or, while [switchedOff], none --
+  /// so nothing is loaded, sent or forwarded whatever the mount, the
+  /// environment or a call to `configure` says.
+  MetaPixelConfig get config => switchedOff ? const MetaPixelConfig(switchedOff: true) : _config;
+  set config(MetaPixelConfig value) => _config = value;
+
+  /// Whether `DARTVEL_OFF` switched the module off (`analytics` or
+  /// `module:<id>`), decided when it starts.
+  bool switchedOff = false;
   final MetaPixelBrowser browser;
   final DVModuleEnvironment environment;
   String scriptUrl;
@@ -103,6 +114,7 @@ final class MetaPixelRuntime {
   /// never loads. The id is public: it is in every request the pixel makes.
   /// Asked once per page load, and only for a visitor who has consented.
   Future<bool> _configured() async {
+    if (switchedOff) return false;
     if (config.isConfigured) return true;
     if (_isBackend) return false;
     final String? own = config.pixelId?.trim();
@@ -377,6 +389,7 @@ final class MetaPixelRuntime {
     Map<String, Object?> refused(String reason) =>
         <String, Object?>{'sent': false, 'reason': reason};
 
+    if (switchedOff) return refused('the pixel is switched off');
     if (!config.isConfigured) return refused('no pixel id is configured');
     // The visitor's own instruction, sent with the request: honoured here
     // as well as in the client, which may be an older build.
