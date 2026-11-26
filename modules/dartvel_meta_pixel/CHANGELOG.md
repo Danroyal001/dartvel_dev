@@ -1,3 +1,7 @@
+## 3.47.19 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.19.
+
 ## 3.47.18 — 2026-11-26
 
 - Switched off by `DARTVEL_OFF=analytics` or `module:<id>`: no script loaded, nothing forwarded.
