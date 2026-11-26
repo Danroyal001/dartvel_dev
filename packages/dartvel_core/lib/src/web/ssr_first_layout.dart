@@ -830,9 +830,25 @@ class _Layout {
       // same words painted at this width are more likely something else's,
       // a footer heading's, and taking them first would leave that without
       // its text and the link a Tab stop of no size.
+      //
+      // The same goes for a control laid out at this width with no text
+      // painted in its box: a link below the fold of a panel that scrolls on
+      // its own (dartvel.dev's docs menu at 1024 and 1366), which took the
+      // footer's "Privacy" for its "Privacy and erasure".
       bool late(_TextNode text) {
         final _Node? control = text.control?.node;
-        return control != null && control.boxes.isNotEmpty && control.boxes[w] == null;
+        if (control == null || control.boxes.isEmpty) return false;
+        final List<double>? box = control.boxes[w];
+        if (box == null) return true;
+        for (final _Item item in width.items) {
+          if (item.kind != 't') continue;
+          final List<double> r = item.rect;
+          if (r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
+              r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1) {
+            return false;
+          }
+        }
+        return true;
       }
 
       final List<int> order = <int>[
