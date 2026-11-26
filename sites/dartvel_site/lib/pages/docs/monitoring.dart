@@ -193,8 +193,6 @@ Widget _docsMonitoringPage(BuildContext context) => const DocsArticle(
                   'and asks again when your policy version changes.',
             ]),
             DocsStatus('Product Analytics and Consent', missing: <String>[
-              'On the web, consent is held in memory, so the banner asks again '
-                  'on each visit.',
               'Events from the app stay on the device. No backend endpoint '
                   'receives them yet.',
               'No PostHog or Mixpanel adapter, and the banner is English only.',

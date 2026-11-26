@@ -217,12 +217,22 @@ Widget _docsModulesPage(BuildContext context) => const DocsArticle(
           'choice is remembered in the browser, so the banner asks once, and '
           'withdrawing in Settings stops the modules.',
         ),
+        DocsText(
+          'An app served on several hosts under one domain (example.com, '
+          'tools.example.com and each <tool>.tools.example.com) asks once for '
+          'all of them with consent.domain: the choice also goes in a '
+          'first-party dv_consent cookie for that domain (Secure over https, '
+          'SameSite=Lax, a year), and each host keeps it as its own record. '
+          'The newest choice wins, so a withdrawal on one host reaches the '
+          'others. A public suffix such as co.uk is refused at build time.',
+        ),
         DocsShell(<String>[
           '# pubspec.yaml',
           'dartvel:',
           '  analytics:',
           '    consent:',
           '      version: "2026-11-18"',
+          '      domain: example.com  # one choice for every host under it',
           '      categories:',
           '        essential: { required: true }',
           '        analytics: { default: denied }',
