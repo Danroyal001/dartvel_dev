@@ -115,7 +115,7 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/removed_web_options.dart';
 import '../build/semantics_capture.dart';
-import '../build/ssr_first_capture.dart' show dvApplySsrFirstLayout, dvLayoutCapturePathFor, dvLayoutFonts;
+import '../build/ssr_first_capture.dart' show dvApplySsrFirstLayout, dvLayoutCapturePathFor, dvLayoutFonts, dvWithSsrFirstTheme;
 import '../build/server_config.dart';
 import '../build/supervisor_unit.dart';
 import '../build/render_backends.dart';
@@ -5385,6 +5385,21 @@ class BuildCommand extends Command<void> {
 
     final routes = _generatedRoutes(root);
     if (routes.isEmpty) return;
+
+    // SSR-first: the app's look for a page the build could not capture (a
+    // parameterised route's data document), from the pages it did, so the
+    // server lays such a page out in it rather than as a reading column.
+    if (DVSplash.of(root).ssrFirst && shellFile.existsSync()) {
+      final Map<String, String> captured = <String, String>{};
+      for (final String route in routes) {
+        final File tree = File(dvSemanticsPathFor(root, route));
+        if (!tree.existsSync()) continue;
+        final String html = dvSemanticHtml(DVSemanticNode.listFromJson(tree.readAsStringSync()));
+        if (html.trim().isNotEmpty) captured[route] = html;
+      }
+      shellFile.writeAsStringSync(dvWithSsrFirstTheme(
+          root, shellFile.readAsStringSync(), captured, dvLayoutFonts(web.path)));
+    }
 
     // A previous static build in this directory left a file per route, and a
     // server that falls through to a file would serve those instead of the

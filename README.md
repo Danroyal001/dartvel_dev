@@ -90,7 +90,13 @@ captured page with each request's own text in it, instead of the build's.
 With SSR-first, a `document` that only repeats words the captured page already
 has (a sign-in page's heading and links) is served as the captured page, laid
 out in the app's look, under the data's title and description; a document
-with anything more is the request's own and is served as written.
+with anything more is the request's own and is served as written. A page the
+build could not capture (a parameterised route such as `/r/:slug`, whose
+document comes from the data) is laid out in the app's look the web-server
+build works out from every page it did capture: the fonts, sizes, weights and
+colours (light and dark) the app gives a heading of each level, a paragraph, a
+list item and a link, the column it sets text in at each width, where its first
+block starts and the space after each kind of block.
 
 ---
 
@@ -596,7 +602,10 @@ there. Each width is also read at a taller screen, so a section the height
 of the screen fits any screen. A custom painter or shader is code the build
 cannot read; draw glows with `DVRadialGradient`/`DVGradientPainter` and
 gradient-filled text with `DVGradientSpan` in a `DVGradientText`, and the
-document draws them too. See docs/web-performance.md.
+document draws them too. A link or button whose name is not the words it
+paints ("Browse every recipe" painting "Recipes") carries the painted words
+as its own text, so Ctrl+F finds the link by what is on screen while a screen
+reader still hears its name. See docs/web-performance.md.
 
 Earlier releases (0.13.22 to 0.13.24) showed a picture of each page, captured
 at build time, before the app loaded. It was removed: it looked finished but

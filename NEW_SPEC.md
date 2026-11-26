@@ -546,7 +546,16 @@ The table is the contract. Each row says which entries a target has, what
   document meanwhile gives the keyboard back to the document field. With
   SSR-first, a `DVPageData.document` whose every block is already in the
   route's laid-out capture (link addresses included) is served as that
-  capture under the data's head. A `role="button"` pressed before the handover is marked
+  capture under the data's head. A data document with no capture of its own (a
+  parameterised route's, written from the data) is wrapped in `.dvt` and
+  laid out by the theme the web-server build writes into the shell
+  (`<style id="dv-ssr-theme">`, `dvSsrFirstTheme`): from every captured
+  route, the usual font, size, weight, letter spacing and colours (light
+  and dark) of each heading level, paragraph, list item and link, the
+  column's left edge and right gutter and the first block's top at each
+  captured width (linear between widths), and the median space after each
+  kind of block, gated like the layout (screen, scripting, before
+  `data-dv-app`). A `role="button"` pressed before the handover is marked
   `aria-busy` and pressed again on the app's semantics button of the same
   name once `data-dv-app` is set. The document keeps taking presses during
   the fade: links navigate, buttons queue, any other press is replayed on the
@@ -586,7 +595,13 @@ The table is the contract. Each row says which entries a target has, what
   drawn by an `aria-hidden` layer of empty elements (text through CSS
   `content`, so it is not selectable, findable or indexed twice). Text the
   document carries that the app does not paint (a button's label for a
-  screen reader) is kept for readers and hidden from the eye. A paragraph
+  screen reader) is kept for readers and hidden from the eye. A control
+  whose text matched nothing painted at any width, while words are painted
+  in its box (its name is not the words it paints), carries those words as
+  an `aria-hidden` span of its own (`dvo`, shown only while laid out), so
+  find and selection reach the words on screen and a screen reader hears
+  the name once. Text in a control laid out at a width takes only words
+  painted in that control's box (centre inside it) at that width. A paragraph
   with links in its line (`<p>words <a>link</a> words</p>`, what the build
   writes for a sentence laid out with `DVWidgetSpan`) is placed as one
   block: the app paints its words as one paragraph with a gap for each link

@@ -15,7 +15,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dartvel_core/dartvel.dart' show DVLayoutFont, dvSsrFirstLayout;
+import 'package:dartvel_core/dartvel.dart'
+    show DVLayoutFont, dvSsrFirstLayout, dvSsrFirstTheme, dvSsrFirstThemeStyle, dvSsrThemeId;
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 
@@ -305,4 +306,35 @@ String dvApplySsrFirstLayout(
   }
   if (capture is! Map) return html;
   return dvSsrFirstLayout(html, capture.cast<String, Object?>(), fonts: fonts);
+}
+
+/// [shell] carrying the app's look for a page the build could not capture
+/// (`dvSsrFirstTheme`), worked out from each route of [pages] (its semantic
+/// HTML, before it was laid out) that has a layout capture. The web-server
+/// binary renders a parameterised route's data document in it. A theme from
+/// an earlier build is replaced; with nothing captured the shell is returned
+/// without one.
+String dvWithSsrFirstTheme(
+  String projectRoot,
+  String shell,
+  Map<String, String> pages,
+  Map<String, List<DVLayoutFont>> fonts,
+) {
+  final String bare = shell.replaceAll(RegExp('<style id="$dvSsrThemeId">[\\s\\S]*?</style>'), '');
+  final List<(String, Map<String, Object?>)> captured = <(String, Map<String, Object?>)>[];
+  pages.forEach((String route, String html) {
+    final File file = File(dvLayoutCapturePathFor(projectRoot, route));
+    if (!file.existsSync()) return;
+    try {
+      final Object? capture = jsonDecode(file.readAsStringSync());
+      if (capture is Map) captured.add((html, capture.cast<String, Object?>()));
+    } on FormatException {
+      return;
+    }
+  });
+  final String? theme = dvSsrFirstTheme(captured, fonts: fonts);
+  if (theme == null) return bare;
+  final int head = bare.indexOf('</head>');
+  if (head < 0) return bare;
+  return '${bare.substring(0, head)}${dvSsrFirstThemeStyle(theme)}${bare.substring(head)}';
 }

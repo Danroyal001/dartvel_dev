@@ -587,6 +587,57 @@ label, the same before), median offsets the same or 1 px lower. Page text
 (220 sitemap paths) is identical to the build before, apart from the random
 and clock tools.
 
+### Every link findable, and pages the build could not capture (26 November 2026, 3.47.14)
+
+Found in the 3.47.12/13 rollout, checked on web-server builds of EatingToday
+and ChopDesk in Chrome (document with the app's code refused, 390 and
+1366 px), before (live, 3.47.13) and after:
+
+- **A link's words on screen are in the link.** A link or button whose name
+  is not the words it paints held only its name, hidden from the eye, and
+  the painted words were CSS content in the decoration layer, so Ctrl+F
+  found no link for them and they could not be selected: EatingToday's
+  header "Recipes" (named "Browse every recipe") and "Create account"
+  ("Start planning for free"), ChopDesk's hero "Set up your restaurant"
+  ("..., first month free"), "Try the demo menu" ("Order from the demo
+  menu") and footer "About". Such a control now carries the painted words
+  as an `aria-hidden` span of its own (`dvo`, only while laid out), so
+  find and selection reach them and a screen reader hears the name once.
+  Links whose visible text is found, before → after: EatingToday `/` 11/14
+  → 14/14, `/recipes` 69/71 → 71/71; ChopDesk `/` 3/6 → 6/6, `/sign-in`
+  3/5 → 5/5.
+- **A link takes only words painted in its own box.** ChopDesk's header
+  "Sign in to your desk" (painting "Sign in") came first in the sign-in
+  page's document and took the heading of the same words; the header's
+  "Start free" (named "Set up your restaurant") took the hero button's
+  words. Words must overlap the control's box at that width (overlap, not
+  inside: the semantics host clips a box to the screen, and a card title
+  across the bottom edge at 1024 is still its card's).
+- **EatingToday's recipe titles were never cut.** The gate's "2 of 20"
+  searched each link's accessible name ("Recipe for ..."), and "Recipe for"
+  is not painted, so it is kept for readers only. Every visible title was
+  found before and after; text the app cuts short with an ellipsis or a
+  line clamp is whole in the document (a test holds it).
+- **A page the build could not capture is in the app's look.** A
+  parameterised route's document is written from the data on each request
+  (ChopDesk's menu, `/r/<slug>`), so there is no paint snapshot to place it
+  box by box, and it was the reading column in the system font. The
+  web-server build now works out from every page it captured the font,
+  size, weight and colours (light and dark) of each heading level, a
+  paragraph, a list item and a link, the column and where it starts at each
+  captured width, and the space around headings and between blocks of a
+  kind (`dvSsrFirstTheme`), writes it into the shell
+  (`<style id="dv-ssr-theme">`), and the server wraps such a document in
+  it (`.dvt`). It is not the app's layout box for box (ChopDesk's dish
+  cards and Add buttons are the app's own widgets, which only a capture
+  shows); it is the app's type, colour and column, so the handover changes
+  the arrangement and not the look.
+
+Typing before the app loads and carrying it over (ChopDesk `/sign-in`,
+EatingToday `/login`), Tab to every link, a drag selection of the heading,
+the accessibility tree's link names and a tap on a link before and after
+the takeover were checked on the same builds.
+
 ## Still to do
 
 Ranked by what they would save:

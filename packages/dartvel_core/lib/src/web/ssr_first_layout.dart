@@ -265,6 +265,10 @@ class _Token {
 
   /// What replaces a text token: the same text, with its runs wrapped.
   String? replacement;
+
+  /// Written right after the token: the words a control paints that are
+  /// not its name (see [_Layout._adoptPaintedWords]).
+  String? after;
 }
 
 final RegExp _tokens = RegExp(r'<!--.*?-->|<[^>]*>', dotAll: true);
@@ -336,6 +340,10 @@ class _TextNode {
 
   late final String norm;
   late final List<int> normToRaw;
+
+  /// The block it is in: h1 to h6, p, li or a (a link), for the theme the
+  /// build works out (see [dvSsrFirstTheme]).
+  String? block;
 
   /// The runs: ranges of [norm] and the node id of each.
   final List<_Segment> segments = <_Segment>[];
@@ -471,6 +479,7 @@ class _Layout {
     }
 
     final List<_TextNode> all = _readDocument(tokens);
+    _texts = all;
     _assignControlBoxes();
     _fillFields();
     // A sentence placed as one block takes its own words out of the
@@ -481,6 +490,7 @@ class _Layout {
         if (!inSentences.contains(text)) text,
     ];
     _matchText(texts);
+    _adoptPaintedWords();
     for (final _Node run in runs) {
       if (run.container?.inline ?? false) run.inline = true;
     }
@@ -493,6 +503,7 @@ class _Layout {
     final StringBuffer body = StringBuffer();
     for (final _Token token in tokens) {
       body.write(token.replacement ?? token.source);
+      if (token.after != null) body.write(token.after);
     }
     final (String first, String rest) = _css();
     // What is below the fold is placed by a second stylesheet after the
@@ -517,6 +528,14 @@ class _Layout {
     final List<_TextNode> texts = <_TextNode>[];
     final List<(String name, _Element? control)> stack =
         <(String, _Element?)>[];
+    String? blockOf() {
+      for (int at = stack.length - 1; at >= 0; at--) {
+        final String name = stack[at].$1;
+        if (name == 'a' || _themeRoles.contains(name)) return name;
+      }
+      return null;
+    }
+
     String? raw;
     for (int index = 0; index < tokens.length; index++) {
       final _Token token = tokens[index];
@@ -531,7 +550,7 @@ class _Layout {
             token,
             _unescape(token.source),
             stack.isEmpty ? null : stack.last.$2,
-          ),
+          )..block = blockOf(),
         );
         continue;
       }
@@ -577,7 +596,7 @@ class _Layout {
             stack.isEmpty ? null : stack.last.$2,
             slotOpen: token,
             slotClose: tokens[index + 2],
-          ),
+          )..block = blockOf(),
         );
         index += 2;
         continue;
@@ -869,16 +888,38 @@ class _Layout {
         final _TextNode text = texts[textIndex];
         final List<(int, int, _Item)> pieces = found[textIndex];
         final String value = text.norm;
+        // Text in a control laid out at this width takes only words painted
+        // in that control's box. ChopDesk's header link "Sign in to your
+        // desk" (painting "Sign in") came first in the document and took the
+        // page's heading of the same words, painted far below it: the
+        // heading lost its text and the link held a heading in a header-
+        // sized box (Dartvel 3.47.12).
+        final List<double>? own = text.control?.node.boxes[w];
+        int pick(List<_Item> queue) {
+          if (own == null) return queue.isEmpty ? -1 : 0;
+          for (int index = 0; index < queue.length; index++) {
+            final List<double> r = queue[index].rect;
+            // Overlapping the box, not inside it: the semantics host clips a
+            // box to the screen, and a card title painted across the bottom
+            // edge is still its link's (EatingToday /recipes at 1024).
+            if (r[0] < own[0] + own[2] + 1 && r[0] + r[2] > own[0] - 1 &&
+                r[1] < own[1] + own[3] + 1 && r[1] + r[3] > own[1] - 1) {
+              return index;
+            }
+          }
+          return -1;
+        }
+
         final List<String> candidates = <String>[
           for (final String key in keys)
-            if (value.contains(key) && queues[key]!.isNotEmpty) key,
+            if (value.contains(key) && pick(queues[key]!) >= 0) key,
         ];
         int at = 0;
         while (at < value.length && candidates.isNotEmpty) {
           int bestStart = -1;
           String? best;
           for (final String key in candidates) {
-            if (queues[key]!.isEmpty) continue;
+            if (pick(queues[key]!) < 0) continue;
             int from = at;
             while (true) {
               final int hit = value.indexOf(key, from);
@@ -908,7 +949,7 @@ class _Layout {
           pieces.add((
             bestStart,
             bestStart + best.length,
-            queues[best]!.removeAt(0),
+            queues[best]!.removeAt(pick(queues[best]!)),
           ));
           at = bestStart + best.length;
         }
@@ -949,6 +990,92 @@ class _Layout {
         text.segments.add(segment);
         runs.add(node);
       }
+    }
+  }
+
+  /// The words a link or button paints that are not its name, as its own
+  /// text.
+  ///
+  /// A control's name is what the app says it is ("Browse every recipe",
+  /// "Set up your restaurant, first month free"); what it paints can be other
+  /// words ("Recipes", "Set up your restaurant"). The document holds the
+  /// name, hidden from the eye where none of it is painted, and the painted
+  /// words were drawn by the aria-hidden layer as CSS content: Ctrl+F found
+  /// no link for the words on screen and they could not be selected
+  /// (EatingToday's header, ChopDesk's landing page, Dartvel 3.47.12).
+  ///
+  /// A control none of whose text was matched at any width takes the words
+  /// painted inside its box that nothing else took, as a span of its own
+  /// (`dvo`, shown only while the document is laid out). It is
+  /// `aria-hidden`, so a screen reader still hears the name and nothing
+  /// twice; find and selection read it like any other text. Icon glyphs
+  /// stay with the layer: they are not words.
+  /// Every text node of the document, once [run] has read it.
+  List<_TextNode> _texts = const <_TextNode>[];
+
+  final Set<_Node> _paintedOnly = <_Node>{};
+
+  void _adoptPaintedWords() {
+    final Set<_Node> spoken = <_Node>{
+      for (final _Node run in runs)
+        if (run.container != null) run.container!,
+    };
+    bool words(String text) {
+      if (text.trim().isEmpty) return false;
+      bool letter = false;
+      for (final int rune in text.runes) {
+        if (_privateUse(rune) && rune != 0x20) return false;
+        if (_readable(rune)) letter = true;
+      }
+      return letter;
+    }
+
+    for (final (_Node control, String _, _Token token) in _docControls) {
+      if (control.kind != 'control' || control.boxes.isEmpty) continue;
+      if (spoken.contains(control)) continue;
+      // Each painted paragraph inside the box, by its words and which of
+      // those words it is, so the same paragraph is one run at every width.
+      final Map<String, _Node> byKey = <String, _Node>{};
+      final List<_Node> order = <_Node>[];
+      for (int w = 0; w < widths.length; w++) {
+        final List<double>? box = control.boxes[w];
+        if (box == null) continue;
+        final List<_Item> inside = <_Item>[
+          for (final _Item item in widths[w].items)
+            if (!item.used &&
+                item.kind == 't' &&
+                words(item.text) &&
+                item.rect[0] >= box[0] - 1 &&
+                item.rect[1] >= box[1] - 1 &&
+                item.rect[0] + item.rect[2] <= box[0] + box[2] + 1 &&
+                item.rect[1] + item.rect[3] <= box[1] + box[3] + 1)
+              item,
+        ]..sort((_Item a, _Item b) => a.rect[1] != b.rect[1]
+            ? a.rect[1].compareTo(b.rect[1])
+            : a.rect[0].compareTo(b.rect[0]));
+        final Map<String, int> seen = <String, int>{};
+        for (final _Item item in inside) {
+          final int occurrence = seen[item.norm] = (seen[item.norm] ?? -1) + 1;
+          final _Node node = byKey.putIfAbsent('${item.norm}#$occurrence', () {
+            final _Node created = _Node('dvr${_ids++}', 'run')..container = control;
+            order.add(created);
+            return created;
+          });
+          node.items[w] = item;
+          item.used = true;
+        }
+      }
+      if (order.isEmpty) continue;
+      final StringBuffer spans = StringBuffer();
+      for (final _Node node in order) {
+        runs.add(node);
+        _paintedOnly.add(node);
+        spans.write(
+          '<span id="${node.id}" class="dvo" aria-hidden="true">'
+          '${_elementText.convert(node.items.values.first.text)}</span>',
+        );
+      }
+      token.after = '${token.after ?? ''}$spans';
     }
   }
 
@@ -1488,6 +1615,11 @@ class _Layout {
 
     out.write(_fontFaces());
     out.write('.dvl .dvp{display:none}');
+    // A control's painted words that are not its name: only while laid out
+    // (the reading column shows the name itself).
+    if (_paintedOnly.isNotEmpty) {
+      out.write('.dvl .dvo{display:none}');
+    }
     out.write(
       '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated'
       '.dvl .dvu{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);'
@@ -2180,3 +2312,220 @@ bool _readable(int rune) =>
 /// glyphs (MaterialIcons, CupertinoIcons).
 bool _privateUse(int rune) =>
     (rune >= 0xE000 && rune <= 0xF8FF) || rune >= 0xF0000 || rune == 0x20;
+
+// ---------------------------------------------------------------------------
+// The theme: a page the build could not capture, in the app's own look.
+
+/// The blocks the theme styles, besides links.
+const Set<String> _themeRoles = <String>{'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li'};
+
+/// The id of the style element that carries [dvSsrFirstTheme] in a shell.
+const String dvSsrThemeId = 'dv-ssr-theme';
+
+/// [css] as the shell's theme style element.
+String dvSsrFirstThemeStyle(String css) => '<style id="$dvSsrThemeId">${css.replaceAll('</', r'<\/')}</style>';
+
+/// Whether [shell] carries a theme for pages the build could not capture.
+bool dvHasSsrFirstTheme(String shell) => shell.contains('<style id="$dvSsrThemeId">');
+
+/// The class a document laid out in the theme is wrapped in.
+const String dvSsrThemeClass = 'dvt';
+
+/// The app's look for a page the build could not capture, from the pages it
+/// did: each `(semantic html, layout capture)` in [pages] is matched as
+/// [dvSsrFirstLayout] matches it, and what the app painted for each kind of
+/// block is read off the result.
+///
+/// A parameterised route's document is written on request from the
+/// application's data (ChopDesk's menu at `/r/<slug>`), so there is no paint
+/// snapshot of it to place box by box. Shown as the reading column in the
+/// system font, it changed look entirely at the handover. With the theme it
+/// is in the app's fonts, sizes, weights and colours for a heading of each
+/// level, a paragraph, a list item and a link (light and dark), set in the
+/// column the app sets its text in at each captured width, starting where the
+/// app starts its first block and spaced as the app spaces blocks.
+///
+/// The stylesheet applies to a `.dvt` document, only on a screen with
+/// scripting before the handover, like the layout. Null when nothing was
+/// captured.
+String? dvSsrFirstTheme(
+  List<(String, Map<String, Object?>)> pages, {
+  Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
+}) {
+  // By width: each role's painted paragraphs, and each page's column.
+  final Map<int, Map<String, List<_Item>>> styles = <int, Map<String, List<_Item>>>{};
+  final Map<int, List<double>> lefts = <int, List<double>>{};
+  final Map<int, List<double>> gutters = <int, List<double>>{};
+  final Map<int, List<double>> tops = <int, List<double>>{};
+  final Map<int, Map<String, List<double>>> after = <int, Map<String, List<double>>>{};
+  _Layout? styler;
+  for (final (String html, Map<String, Object?> capture) in pages) {
+    final List<_Width> widths = <_Width>[
+      for (final Object? entry in (capture['widths'] as List<Object?>? ?? const <Object?>[]))
+        if (entry is Map) _Width.fromJson(entry.cast<String, Object?>()),
+    ]..sort((_Width a, _Width b) => a.width.compareTo(b.width));
+    if (widths.isEmpty) continue;
+    final _Layout layout = _Layout(widths, fonts)..run(html);
+    styler ??= layout;
+    for (int w = 0; w < widths.length; w++) {
+      final int width = widths[w].width.round();
+      final List<(String, _Item)> blocks = <(String, _Item)>[];
+      for (final _TextNode text in layout._texts) {
+        final String? role = text.block;
+        if (role == null || (text.control != null && role != 'a')) continue;
+        for (final _Segment segment in text.segments) {
+          final _Item? item = segment.node.items[w];
+          if (item == null || !item.scrolls) continue;
+          blocks.add((role, item));
+          styles.putIfAbsent(width, () => <String, List<_Item>>{}).putIfAbsent(role, () => <_Item>[]).add(item);
+        }
+      }
+      final List<(String, _Item)> column = <(String, _Item)>[
+        for (final (String role, _Item item) in blocks)
+          if (role != 'a') (role, item),
+      ]..sort(((String, _Item) a, (String, _Item) b) => a.$2.rect[1].compareTo(b.$2.rect[1]));
+      if (column.isEmpty) continue;
+      double left = double.infinity, right = 0;
+      for (final (String _, _Item item) in column) {
+        left = math.min(left, item.rect[0]);
+        right = math.max(right, item.rect[0] + item.rect[2]);
+      }
+      lefts.putIfAbsent(width, () => <double>[]).add(left);
+      gutters.putIfAbsent(width, () => <double>[]).add(math.max(0, widths[w].width - right));
+      tops.putIfAbsent(width, () => <double>[]).add(column.first.$2.rect[1]);
+      for (int index = 0; index + 1 < column.length; index++) {
+        // The block under this one in the same column of text: the next
+        // below it that it overlaps side to side, not the next in a grid
+        // row beside it (ChopDesk's landing page).
+        final _Item one = column[index].$2;
+        int below = -1;
+        for (int other = index + 1; other < column.length; other++) {
+          final _Item candidate = column[other].$2;
+          if (candidate.rect[1] < one.rect[1] + one.rect[3] - 1) continue;
+          if (candidate.rect[0] < one.rect[0] + one.rect[2] && candidate.rect[0] + candidate.rect[2] > one.rect[0]) {
+            below = other;
+            break;
+          }
+        }
+        if (below < 0) continue;
+        final _Item next = column[below].$2;
+        final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
+        // A heading's space above it is the gap before it, and below it
+        // the gap after it; a paragraph's or list item's is the gap to the
+        // next of its kind. Margins collapse, so a paragraph followed by a
+        // heading is as far from it as the app puts a heading.
+        final String a = column[index].$1, b = column[below].$1;
+        final String key = b.startsWith('h') && b != 'li'
+            ? 'before:$b'
+            : a.startsWith('h') && a != 'li'
+                ? 'after:$a'
+                : a == b
+                    ? 'same:$a'
+                    : '';
+        if (key.isEmpty) continue;
+        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(key, () => <double>[]).add(math.max(0, gap));
+      }
+    }
+  }
+  if (styler == null || lefts.isEmpty) return null;
+  final _Layout layout = styler;
+
+  double median(List<double> values) {
+    final List<double> sorted = <double>[...values]..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  /// The paragraph that says most of [items]' text: the role's usual look.
+  _Item usual(List<_Item> items) {
+    final Map<String, int> weight = <String, int>{};
+    final Map<String, _Item> sample = <String, _Item>{};
+    for (final _Item item in items) {
+      if (item.runs.isEmpty) continue;
+      final String key = '${layout._font(item.runs.first, item.json['lh'])}|${item.runs.first['c']}';
+      weight[key] = (weight[key] ?? 0) + item.text.length;
+      sample.putIfAbsent(key, () => item);
+    }
+    String best = sample.keys.first;
+    for (final String key in sample.keys) {
+      if (weight[key]! > weight[best]!) best = key;
+    }
+    return sample[best]!;
+  }
+
+  final List<int> widths = lefts.keys.toList()..sort();
+  final StringBuffer gated = StringBuffer()
+    ..write('.dv-fallback:has(>.$dvSsrThemeClass){padding:0}')
+    ..write('.$dvSsrThemeClass{box-sizing:border-box;padding-bottom:48px}')
+    // `*:is`, not ` :is`: the page minifier takes the space before a colon.
+    ..write('.$dvSsrThemeClass *:is(h1,h2,h3,h4,h5,h6,p,li){margin:0 0 16px}');
+  final Map<String, String> lastMargin = <String, String>{};
+  final Map<String, String> lastLight = <String, String>{};
+  final Map<String, String> lastDark = <String, String>{};
+  for (int index = 0; index < widths.length; index++) {
+    final int width = widths[index];
+    final StringBuffer block = StringBuffer();
+    final StringBuffer dark = StringBuffer();
+    // The column: its left edge and right gutter move linearly to the next
+    // captured width, as the layout's boxes do.
+    String between(Map<int, List<double>> values) {
+      final double here = median(values[width]!);
+      if (widths.length < 2) return '${_num(here)}px';
+      final int from = index + 1 < widths.length ? index : index - 1;
+      final int a = widths[from], b = widths[from + 1];
+      return _linear(a.toDouble(), median(values[a]!), b.toDouble(), median(values[b]!));
+    }
+
+    block.write('.$dvSsrThemeClass{padding-left:${between(lefts)};padding-right:${between(gutters)};'
+        'padding-top:${_num(median(tops[width]!))}px}');
+    final Map<String, List<_Item>> roles = styles[width] ?? const <String, List<_Item>>{};
+    for (final String role in <String>[..._themeRoles, 'a']) {
+      final List<_Item>? items = roles[role];
+      if (items == null || items.isEmpty) continue;
+      final _Item item = usual(items);
+      final Map<String, Object?> run = item.runs.first;
+      final String light = <String>[
+        'font:${layout._font(run, item.json['lh'])}',
+        ...layout._inlineExtras(run),
+        if (role == 'a') 'text-decoration:none',
+      ].join(';');
+      // The space the app leaves after this kind of block at this width.
+      final Map<String, List<double>> gapsHere = after[width] ?? const <String, List<double>>{};
+      final bool heading = role.startsWith('h') && role != 'li';
+      // The lower quartile, so the space where one section ends and the
+      // next begins is not read as the space inside a text; below a block,
+      // at most one and a half of its lines.
+      final double line = (items.isEmpty ? null : usual(items).json['lh'] as num?)?.toDouble() ?? 24;
+      String? space(String key, {required bool capped}) {
+        final List<double>? gaps = gapsHere[key];
+        if (gaps == null) return null;
+        final List<double> sorted = <double>[...gaps]..sort();
+        final double quartile = sorted[sorted.length ~/ 4];
+        return '${_num(math.min(quartile, capped ? line * 1.5 : 96).clamp(0, 96).roundToDouble())}px';
+      }
+
+      final String? top = heading ? space('before:$role', capped: false) : null;
+      final String? bottom = heading ? space('after:$role', capped: true) : space('same:$role', capped: true);
+      if (role != 'a' && (top != null || bottom != null)) {
+        final String margin = 'margin:${top ?? '0'} 0 ${bottom ?? '16px'}';
+        if (lastMargin[role] != margin) {
+          block.write('.$dvSsrThemeClass $role{$margin}');
+          lastMargin[role] = margin;
+        }
+      }
+      if (lastLight[role] != light) {
+        block.write('.$dvSsrThemeClass $role{$light}');
+        lastLight[role] = light;
+      }
+      final Map<String, Object?>? darkRun = item.dark == null || item.dark!.runs.isEmpty ? null : item.dark!.runs.first;
+      final String? darkColour = darkRun == null ? null : _colour(darkRun['c']);
+      if (darkColour != null && lastDark[role] != darkColour) {
+        dark.write('.$dvSsrThemeClass $role{color:$darkColour}');
+        lastDark[role] = darkColour;
+      }
+    }
+    if (dark.isNotEmpty) block.write('@media (prefers-color-scheme:dark){$dark}');
+    gated.write(index == 0 ? '$block' : '@media (min-width:${width}px){$block}');
+  }
+  return '${layout._fontFaces()}'
+      '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated}}';
+}
