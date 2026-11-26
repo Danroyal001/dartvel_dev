@@ -40,6 +40,7 @@ import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
 import 'src/accessibility/accessibility_controls.dart';
+import 'src/primitives/modifier_chain.dart';
 import 'src/accessibility/selection_mirror.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
@@ -903,6 +904,7 @@ export 'src/platform/printing.dart';
 export 'src/platform/raster.dart';
 export 'src/platform/storage/device_storage.dart';
 export 'src/platform/storage/preference_store.dart';
+export 'src/primitives/modifier_chain.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
@@ -2290,7 +2292,7 @@ WrapCrossAlignment dvWrapCrossAlignmentOf(DVCrossAlign align) =>
 
 typedef DVWidgetBuilder<T> = Widget Function(T item);
 
-class DVBox<T> extends StatelessWidget {
+class DVBox<T> extends StatelessWidget with DVModifierChain<DVBox<T>> {
   /// A 3D viewport: `DVBox.scene(DVScene(nodes: [...]))`. The box owns size,
   /// modifiers, gestures and semantics; the scene owns the 3D content.
   static const DVSceneBoxFactory scene = DVSceneBoxFactory();
@@ -2757,6 +2759,14 @@ class DVBox<T> extends StatelessWidget {
   DVBox<T> modifier(DVModifier mod) =>
       _copyWith(modifier: _modifier?.merge(mod) ?? mod);
   DVBox<T> styleModifier(DVModifier mod) => modifier(mod);
+
+  @override
+  DVModifier? get chainModifier => _modifier;
+
+  /// This box with [modifier] in place of its own; every chain step goes
+  /// through here.
+  @override
+  DVBox<T> withModifier(DVModifier modifier) => _copyWith(modifier: modifier);
 
   DVBox<T> row({double spacing = 8, DVAlign align = DVAlign.start}) =>
       _copyWith(layout: _DVBoxLayout.row, spacing: spacing, align: align);
@@ -4378,7 +4388,7 @@ class _DVInputFieldState extends State<_DVInputField>
   }
 }
 
-class DVText extends StatelessWidget {
+class DVText extends StatelessWidget with DVModifierChain<DVText> {
   final String text;
   final DVModifier? _modifier;
 
@@ -4388,6 +4398,14 @@ class DVText extends StatelessWidget {
   DVText modifier(DVModifier mod) =>
       DVText(text, _modifier?.merge(mod) ?? mod);
   DVText styleModifier(DVModifier mod) => modifier(mod);
+
+  @override
+  DVModifier? get chainModifier => _modifier;
+
+  /// This text with [modifier] in place of its own; every chain step goes
+  /// through here.
+  @override
+  DVText withModifier(DVModifier modifier) => DVText(text, modifier);
 
   @override
   Widget build(BuildContext context) {
