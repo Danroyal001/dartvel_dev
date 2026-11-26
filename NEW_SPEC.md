@@ -601,7 +601,13 @@ The table is the contract. Each row says which entries a target has, what
   an `aria-hidden` span of its own (`dvo`, shown only while laid out), so
   find and selection reach the words on screen and a screen reader hears
   the name once. Text in a control laid out at a width takes only words
-  painted in that control's box (centre inside it) at that width. A paragraph
+  painted over that control's box at that width. The semantics host clips
+  a box to the screen, so a box that ends at the screen's bottom or right
+  edge reaches past it (by the most the control is long that way at any
+  width or screen height, else a screen) and, once matched, grows to hold
+  the words it took. Text with no box of its own there (a heading) leaves
+  words painted in a control's reach that are that control's own words to
+  it. A paragraph
   with links in its line (`<p>words <a>link</a> words</p>`, what the build
   writes for a sentence laid out with `DVWidgetSpan`) is placed as one
   block: the app paints its words as one paragraph with a gap for each link

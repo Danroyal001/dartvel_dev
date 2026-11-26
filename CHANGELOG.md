@@ -1,5 +1,6 @@
 ## Unreleased
 
+- With SSR-first, a link on the fold keeps its own words and its box. The semantics host clips a box to the screen, so at a phone's width a link whose words are painted just below the screen's bottom edge came as a sliver with its words outside it; a heading further down with the same words took them, the link was left with no box (not shown and not reachable before the app took over) and the heading's words were drawn again as decoration (sigmadev.digital's pricing page at 360 and 390, 3.47.14 to 3.47.16). A box cut by the screen's bottom or right edge now reaches past it, grows to hold the words it took, and text with no box of its own leaves a control's own words to that control.
 - `dartvel upgrade --project` moves the first-party modules (`dartvel_google_analytics`, `dartvel_meta_pixel`, ...) with the framework. They are published with every release, and one left on an older release is no longer "released with the framework", so the next build refused it as an unpinned module (sigmadev.digital on 3.47.15 with its analytics and pixel modules still on 3.47.13).
 
 ## 3.47.16 — 2026-11-26

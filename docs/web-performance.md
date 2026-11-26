@@ -587,6 +587,28 @@ label, the same before), median offsets the same or 1 px lower. Page text
 (220 sitemap paths) is identical to the build before, apart from the random
 and clock tools.
 
+### Links on the fold keep their words (26 November 2026, Unreleased)
+
+Found in the 3.47.16 rollout on sigmadev.digital
+`/pricing-plans-and-services`: three category links near the top ("Apps,
+software and automation", "Cloud and DevOps", "Care plans") have the same
+words as three section headings further down. At 390 x 844 the second row of
+links sits on the fold, and the semantics host clipped their boxes to the
+screen: 3.39 px high at y 840.6, the words painted wholly below at 851.1. The
+words were not in the box, so the heading (matched first, with no box of its
+own) took the link's painted words, the link was left with no words and no
+box (`display:none`, not reachable before the takeover), and the heading's
+own words were drawn by the decoration layer at the heading's place. At 360
+the first link was cut the same way (15.39 px). Since 3.47.14 a link takes
+only words over its own box, which is what exposed it.
+
+Now a box that ends at the screen's bottom or right edge reaches past it, a
+link's words found there are its own and its box grows to hold them, and a
+heading leaves a control's own words in the control's reach to that control.
+Run on the build's own capture of that page (3.47.16): all three links are
+placed at 360 and 390 (44 px high), each heading holds its own words, and no
+decoration copy of them is left.
+
 ### Every link findable, and pages the build could not capture (26 November 2026, 3.47.14)
 
 Found in the 3.47.12/13 rollout, checked on web-server builds of EatingToday
