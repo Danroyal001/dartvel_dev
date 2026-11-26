@@ -532,7 +532,7 @@ class DVAccessibilityPanel extends StatelessWidget {
       if (config.languages.length > 1) ...<Widget>[
         heading('Voice language'),
         DVChoice<DVVoiceLanguage>(
-          label: 'Language voice mode speaks and listens in',
+          label: 'Language',
           style: DVChoiceStyle.menu,
           options: config.languages,
           selected: language,

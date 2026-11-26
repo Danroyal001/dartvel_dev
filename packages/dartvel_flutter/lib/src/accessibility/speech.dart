@@ -86,7 +86,8 @@ final class DVSilentSpeech implements DVSpeech {
 
 /// What the panel says beside [language] on this device: whether its prompts
 /// were machine translated, whether the device can speak at all, and whether
-/// it has a voice for the language. One sentence; "Voice available." when
+/// it has a voice for the language (another language falls back to reading
+/// in English; English itself has nothing to fall back to). One sentence; "Voice available." when
 /// there is nothing to warn about.
 String dvVoiceAvailability(DVVoiceLanguage language, {required DVSpeech speech, bool machineTranslated = false}) {
   final List<String> notes = <String>[
@@ -94,7 +95,9 @@ String dvVoiceAvailability(DVVoiceLanguage language, {required DVSpeech speech, 
     if (!speech.canSpeak)
       'this browser cannot speak; prompts are shown as text'
     else if (!language.hasVoiceIn(speech.voiceLanguages))
-      'no ${language.englishName} voice on this device; shown as text, read in English',
+      language == DVVoiceLanguage.english
+          ? 'no English voice on this device; prompts are shown as text'
+          : 'no ${language.englishName} voice on this device; shown as text, read in English',
   ];
   if (notes.isEmpty) return 'Voice available.';
   final String sentence = notes.join('; ');

@@ -6,7 +6,7 @@
 // system asks for.
 import 'package:dartvel_flutter/dartvel_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const String _tooltip = 'Accessibility: text size, contrast and motion';
@@ -327,6 +327,26 @@ void main() {
       );
     });
 
+    testWidgets('at 390 px the voice language menu label is shown whole, not cut off', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      DVAccessibilityControls.instance.install(voice: voice);
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      final Finder menu = find.byType(DropdownButtonFormField<DVVoiceLanguage>);
+      await tester.ensureVisible(menu);
+      await tester.pumpAndSettle();
+      final String label =
+          tester.widget<InputDecorator>(find.descendant(of: menu, matching: find.byType(InputDecorator))).decoration.labelText!;
+      final RenderParagraph paragraph = tester.renderObject<RenderParagraph>(find.descendant(
+        of: menu,
+        matching: find.byWidgetPredicate((Widget widget) => widget is RichText && widget.text.toPlainText() == label),
+      ));
+      expect(paragraph.didExceedMaxLines, isFalse, reason: 'label "$label" is cut off at 390 px');
+    });
+
     test('a kept language the app no longer offers falls back to its first one', () {
       store.write(dvVoiceStorageKey, const DVVoiceSettings(language: 'ha').encode());
       DVAccessibilityControls.instance.install(voice: voice);
@@ -343,6 +363,11 @@ void main() {
     test('no voice for the language', () {
       expect(dvVoiceAvailability(DVVoiceLanguage.igbo, speech: const _Speech(canSpeak: true, voices: <String>{'en-GB'})),
           'No Igbo voice on this device; shown as text, read in English.');
+    });
+
+    test('no English voice: English prompts are shown as text, with no "read in English"', () {
+      expect(dvVoiceAvailability(DVVoiceLanguage.english, speech: const _Speech(canSpeak: true, voices: <String>{'fr-FR'})),
+          'No English voice on this device; prompts are shown as text.');
     });
 
     test('a voice for the language', () {
