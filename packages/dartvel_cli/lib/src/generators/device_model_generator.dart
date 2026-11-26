@@ -115,6 +115,10 @@ const List<DVFrameworkDeviceModel> dvFrameworkDeviceModels = <DVFrameworkDeviceM
     'packages/dartvel_flutter/lib/src/accessibility/voice_settings.dart',
     'packages/dartvel_flutter/lib/src/accessibility/voice_settings.g.dart',
   ),
+  DVFrameworkDeviceModel(
+    'packages/dartvel_flutter/lib/src/accessibility/former_settings.dart',
+    'packages/dartvel_flutter/lib/src/accessibility/former_settings.g.dart',
+  ),
 ];
 
 /// The generated library for a framework device model whose input is [source].
