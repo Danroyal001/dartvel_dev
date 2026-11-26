@@ -43,6 +43,9 @@ class ProjectTemplates {
     }
 
     final StringBuffer dartvelPlatformsYaml = StringBuffer();
+    // SSR-first is on by default, so the scaffold only says how to turn it
+    // off. A comment, not a `web:` key: a project or a tool that adds its own
+    // `web:` section would otherwise have two, which YAML refuses.
     if (flutterPlatforms.isNotEmpty) {
       dartvelPlatformsYaml.writeln('  platforms:');
       for (final p in flutterPlatforms) {
@@ -103,12 +106,7 @@ dartvel:
   envFiles: [.env, .env.local]
   plugins: []
   ota: false
-  web:
-    # Each page is its server-rendered document, in the app's own look, from
-    # the first paint; Flutter takes over in place. On by default; false
-    # shows the splash until the app's first frame instead.
-    ssrFirst: true
-${dartvelPlatformsYaml.toString()}
+${web ? dvScaffoldSsrFirstNote : ''}${dartvelPlatformsYaml.toString()}
   transitions:
     default: fade
     durationMs: 200
@@ -433,3 +431,12 @@ dartvel build
 MIT
 ''';
 }
+
+/// What a new web project's pubspec says about SSR-first (on by default since
+/// 3.47.11): how to turn it off, commented out.
+const String dvScaffoldSsrFirstNote =
+    '  # Each page shows its server-rendered document, in the app\'s own look,\n'
+    '  # from the first paint, and Flutter takes over in place (SSR-first, on by\n'
+    '  # default). To show the splash until the app\'s first frame instead:\n'
+    '  # web:\n'
+    '  #   ssrFirst: false\n';
