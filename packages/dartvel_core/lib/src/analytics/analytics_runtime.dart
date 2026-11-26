@@ -19,6 +19,7 @@ import '../privacy/privacy.dart';
 import '../scheduling/scheduler.dart';
 import 'attribution.dart';
 import 'consent.dart';
+import 'consent_cookie.dart' show dvConsentCookieJar;
 import 'product_analytics.dart';
 import 'standard_events.dart';
 
@@ -247,6 +248,9 @@ class DVAnalyticsRuntime {
         policy: settings.consent,
         database: db,
         installId: await _installId(db),
+        // A browser keeps consent per origin: with consent.domain the choice
+        // reaches the application's other hosts through a cookie.
+        sharedCookie: settings.consent.domain == null ? null : dvConsentCookieJar(),
       );
       await consent.ensureSchema();
       final DVAnalytics analytics = DVAnalytics(
