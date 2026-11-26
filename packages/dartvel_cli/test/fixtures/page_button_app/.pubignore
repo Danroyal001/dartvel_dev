@@ -1,0 +1,3 @@
+# A Flutter app the browser test builds from this checkout; not part of the
+# published CLI (pub would read its imports as the CLI's).
+*
