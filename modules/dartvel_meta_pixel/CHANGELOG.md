@@ -1,3 +1,8 @@
+## 3.47.10 — 2026-11-25
+
+- Meta Pixel turns on from the server's secrets alone. With `pixelId` left empty the backend read `META_PIXEL_ID`, but a browser has no environment, so the client never saw an id and the pixel never loaded. The client now asks its backend which pixel to load (a new internal `settings` operation that answers the server's id and nothing else), once per page load and only after consent; setting `META_PIXEL_ID` and `META_CONVERSIONS_API_TOKEN` turns the pixel on with no rebuild.
+- Meta Pixel counts each route change once. Meta's `fbevents.js` sends a `PageView` of its own, with no event id, on every `history.pushState`, which in a Dartvel app is every route change, while the module sends that view itself with the event id its Conversions API twin carries: with the pixel on, every route change after the first page counted twice and could not be de-duplicated. `fbevents.js` also drops every `PageView` after the first of a page load, so the module's own browser views of later routes never left the page. The module now sets `fbq.disablePushState` and `fbq.allowDuplicatePageViews` before `init`; each `PageView`, `ViewContent`, `Lead`, `InitiateCheckout` and `Purchase` goes out once from the browser and once to the Conversions API with the same event id.
+
 ## 3.47.6 — 2026-11-18
 
 - Ad conversions: `DV.Analytics.track(DVPurchase(...))` and the other recommended events go out as the Meta standard event (`ViewContent`, `AddToCart`, `InitiateCheckout`, `Purchase`, `CompleteRegistration`, `Lead`) in the browser and through the Conversions API with one event id.

@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.10 — 2026-11-25
 
 - One page_view per page: Google's tag counts the page it loads on (it ignores `send_page_view: false` when *Ignore duplicate instances of on-page configuration* is on, the default), the module each route change after it, with `page_location` the page's own address rather than the address bar's.
 
