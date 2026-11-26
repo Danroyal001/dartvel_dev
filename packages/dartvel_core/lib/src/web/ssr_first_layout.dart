@@ -899,10 +899,11 @@ class _Layout {
           if (own == null) return queue.isEmpty ? -1 : 0;
           for (int index = 0; index < queue.length; index++) {
             final List<double> r = queue[index].rect;
-            final double x = r[0] + r[2] / 2;
-            final double y = r[1] + r[3] / 2;
-            if (x >= own[0] - 1 && x <= own[0] + own[2] + 1 &&
-                y >= own[1] - 1 && y <= own[1] + own[3] + 1) {
+            // Overlapping the box, not inside it: the semantics host clips a
+            // box to the screen, and a card title painted across the bottom
+            // edge is still its link's (EatingToday /recipes at 1024).
+            if (r[0] < own[0] + own[2] + 1 && r[0] + r[2] > own[0] - 1 &&
+                r[1] < own[1] + own[3] + 1 && r[1] + r[3] > own[1] - 1) {
               return index;
             }
           }

@@ -1198,6 +1198,25 @@ void main() {
       expect(out, contains('#${link.group(1)}{left:10px;top:10px'));
     });
 
+    // EatingToday /recipes at 1024: the semantics host clips a card's box to
+    // the screen, so a title painted across the bottom edge has its centre
+    // outside its link's box. It is still the link's own text.
+    test("a link's box cut by the screen edge still takes the words painted across it", () {
+      const String doc = '<a href="/recipes/jollof" title="Recipe for Jollof" aria-label="Recipe for Jollof">Recipe for Jollof</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1024, <Map<String, Object?>>[
+            _text('Jollof', <num>[69, 755, 422, 54], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/recipes/jollof', 'name': 'Recipe for Jollof', 'r': <num>[50, 735, 460, 33]},
+          ]),
+        ]),
+      );
+      expect(out, matches(RegExp(r'<span id="dvr\d+">Jollof</span>')), reason: out);
+      expect(out, isNot(contains('content:"Jollof"')));
+    });
+
     // EatingToday /recipes: every card title is the whole title in the
     // document, however the app cuts it short on screen, so find reaches it.
     test('text the app cuts short with an ellipsis is whole in the document', () {
