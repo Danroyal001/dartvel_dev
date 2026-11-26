@@ -436,6 +436,11 @@ class _Layout {
   final List<_Node> controls = <_Node>[];
   final List<_Node> layer = <_Node>[];
   final Set<String> families = <String>{};
+
+  /// The families some text is painted in that is not an icon: anything
+  /// outside the private use areas. A family only ever painted with icons
+  /// is an icon font.
+  final Set<String> _readableFamilies = <String>{};
   int _ids = 0;
 
   /// The lowest z-index of anything painted inside a link or field, at any
@@ -1929,6 +1934,10 @@ class _Layout {
         ? run['f'] as String
         : dvLayoutDefaultFamily;
     families.add(family);
+    final Object? text = run['t'];
+    if (text is! String || text.runes.any((int rune) => !_privateUse(rune))) {
+      _readableFamilies.add(family);
+    }
     // Only the fallbacks the app bundles: Flutter on the web draws with
     // those and its own fallback fonts, never the visitor's system fonts.
     // The theme's list is the capture host's platform default (Material's
@@ -2054,7 +2063,11 @@ class _Layout {
         out.write(
           '@font-face{font-family:"${_cssString(family)}";src:url(${_cssUrl(url)});'
           'font-weight:${font.weight ?? (files.length == 1 ? '1 1000' : 400)};'
-          'font-style:${font.style == 'italic' ? 'italic' : 'normal'};font-display:swap}',
+          'font-style:${font.style == 'italic' ? 'italic' : 'normal'};'
+          // An icon font is blocked until it arrives: swapped, each icon is
+          // the fallback's missing-glyph box in the first paint (dartvel.dev
+          // on a phone). Text swaps, readable at once.
+          'font-display:${_readableFamilies.contains(family) ? 'swap' : 'block'}}',
         );
       }
     }
@@ -2162,3 +2175,8 @@ bool _readable(int rune) =>
     !(rune >= 0xE000 && rune <= 0xF8FF) &&
     !(rune >= 0xF0000) &&
     String.fromCharCode(rune).trim().isNotEmpty;
+
+/// Whether [rune] is in a private use area, where icon fonts put their
+/// glyphs (MaterialIcons, CupertinoIcons).
+bool _privateUse(int rune) =>
+    (rune >= 0xE000 && rune <= 0xF8FF) || rune >= 0xF0000 || rune == 0x20;
