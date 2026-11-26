@@ -337,7 +337,10 @@ What a visitor sees at the handover, checked in Chrome at 390 px, light and dark
   app's field is there, the app goes to another address, or 6 s pass
   (`dvSsrFieldHold`). With nothing typed nothing waits. The app's first
   frame focusing its own view behind the document does not take the
-  keyboard from the field being typed in.
+  keyboard from the field being typed in. A form that reads the
+  server-rendered field as it is built (`dvTakeOverServerField`) gets
+  nothing while the document is the page; the handover carries each field
+  and then empties it in the document.
 - A button pressed before the app loads shows it is busy, and its press is
   made on the app's button of the same name once the app has taken over.
   Buttons are Tab stops and take Enter and Space.
