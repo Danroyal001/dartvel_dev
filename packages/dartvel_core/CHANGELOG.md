@@ -2,6 +2,7 @@
 
 - With SSR-first, a page's links and buttons take their clicks before the app loads at every width. On sigmadev.digital at 1366 px every click on the header links and the hero's buttons landed on the page shell's "To the bottom" button, whose box on the semantics host is the whole screen: it paints no words of its own, but everything painted lies inside its box, so it was placed above the page. A control that paints no words of its own and covers half the screen or more is no longer placed; it stays a Tab stop that shows itself when focused.
 - With SSR-first, a menu link laid out below the fold of a panel that scrolls on its own no longer takes another link's words. On dartvel.dev's docs pages at 1024 and 1366 px "Privacy and erasure" (low in the side menu, nothing painted) took the footer's "Privacy", which was then drawn as a picture of text under an empty link. Text of a control with nothing painted in its box at a width is matched last at that width.
+- With SSR-first, code samples drawn with SelectableText are the document's own text where they are drawn: selectable, and found by Ctrl+F there. They were drawn as pictures of text (CSS content), the document's copy hidden, on every dartvel.dev docs page.
 
 ## 3.47.10 — 2026-11-25
 
