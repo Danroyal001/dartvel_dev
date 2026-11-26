@@ -103,6 +103,11 @@ dartvel:
   envFiles: [.env, .env.local]
   plugins: []
   ota: false
+  web:
+    # Each page is its server-rendered document, in the app's own look, from
+    # the first paint; Flutter takes over in place. On by default; false
+    # shows the splash until the app's first frame instead.
+    ssrFirst: true
 ${dartvelPlatformsYaml.toString()}
   transitions:
     default: fade
