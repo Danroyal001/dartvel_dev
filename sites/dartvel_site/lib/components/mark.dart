@@ -30,7 +30,8 @@ Widget _dartvelMark(BuildContext context, {double size = 22, Color? color}) =>
 /// Public because a @DVFunctionalWidget body is lowered into the generated
 /// widget file, where a class private to this one cannot be seen. The
 /// generator says so rather than emitting code that will not compile.
-class const DartvelMarkPainter(final Color? color) extends CustomPainter {
+class const DartvelMarkPainter(final Color? color) extends CustomPainter
+    implements DVDescribedPainter, DVDescribedShape {
   /// The D, with the dart as its counter.
   ///
   /// The same numbers the SVGs in `assets/brand` carry, in the same 512-unit
@@ -105,6 +106,65 @@ class const DartvelMarkPainter(final Color? color) extends CustomPainter {
       );
     }
     canvas.restore();
+  }
+
+  /// The D's outline and counter as numbers, the same ones [_d] is built
+  /// from, for the server-rendered page to draw the mark before the app
+  /// starts (SSR-first): CSS clips the box to [describeShape] and fills it
+  /// with [describePaint].
+  static const List<(String, List<double>)> _commands = <(String, List<double>)>[
+    ('M', <double>[112, 100]), ('L', <double>[256, 100]),
+    ('C', <double>[336, 100, 400, 170, 400, 256]), ('C', <double>[400, 342, 336, 412, 256, 412]),
+    ('L', <double>[112, 412]), ('Z', <double>[]),
+    ('M', <double>[176, 170]), ('L', <double>[256, 170]), ('L', <double>[320, 256]),
+    ('L', <double>[256, 342]), ('L', <double>[176, 342]), ('L', <double>[240, 256]), ('Z', <double>[]),
+  ];
+
+  @override
+  DVShape describeShape(Size size) {
+    final double scale = size.shortestSide / _bounds.longestSide;
+    final double left = (size.width - _bounds.width * scale) / 2;
+    final double top = (size.height - _bounds.height * scale) / 2;
+    String number(double value) => value.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+    final StringBuffer path = StringBuffer();
+    for (final (String command, List<double> points) in _commands) {
+      path.write(command);
+      for (int index = 0; index < points.length; index += 2) {
+        if (index > 0) path.write(' ');
+        path.write('${number(left + (points[index] - _bounds.left) * scale)} '
+            '${number(top + (points[index + 1] - _bounds.top) * scale)}');
+      }
+    }
+    return DVShape(path.toString(), evenOdd: true);
+  }
+
+  /// The brand gradient, and over it the fold: the shade below the line
+  /// from the stem's foot to the bowl's shoulder, as a hard stop.
+  @override
+  List<Gradient> describePaint(Size size) {
+    if (color != null) return <Gradient>[LinearGradient(colors: <Color>[color!, color!])];
+    final double scale = size.shortestSide / _bounds.longestSide;
+    final double left = (size.width - _bounds.width * scale) / 2;
+    final double top = (size.height - _bounds.height * scale) / 2;
+    // Where the fold's edge crosses the box's diagonal, as a fraction of it.
+    double along(double x, double y) =>
+        ((left + (x - _bounds.left) * scale) + (top + (y - _bounds.top) * scale)) /
+        (size.width + size.height);
+    final double fold = (along(112, 412) + along(400, 140)) / 2;
+    return <Gradient>[
+      const LinearGradient(
+        begin: .topLeft,
+        end: .bottomRight,
+        colors: <Color>[Color(0xFF7A3BFF), Color(0xFF2F6BFF), Color(0xFF1FB6F5)],
+        stops: <double>[0, 0.55, 1],
+      ),
+      LinearGradient(
+        begin: .topLeft,
+        end: .bottomRight,
+        colors: const <Color>[Color(0x000B1020), Color(0x000B1020), Color(0x330B1020), Color(0x330B1020)],
+        stops: <double>[0, fold, fold, 1],
+      ),
+    ];
   }
 
   @override
