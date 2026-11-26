@@ -8765,13 +8765,15 @@ Runtime and tooling:
 
 Runtime API:
 ```dart
-DVBox(DVText('Submit')).modifier(
-  const DVModifier()
-      .semanticLabel('Submit order')
-      .semanticHint('Sends the order for processing')
-      .semanticButton()
-      .minimumTapTarget(),
-);
+DVText('Submit')
+    .semanticLabel('Submit order')
+    .semanticHint('Sends the order for processing')
+    .semanticButton()
+    .minimumTapTarget();
+
+// What the reader chose in the accessibility panel, typed:
+final bool largeText = DV.Accessibility.controls.settings.textSize != .standard;
+final Alignment voiceOverlay = DV.Accessibility.controls.voiceSettings.position.alignment;
 
 final contrast = DV.Accessibility.contrast(
   foreground: Colors.black,
