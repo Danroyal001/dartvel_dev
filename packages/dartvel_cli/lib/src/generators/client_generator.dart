@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:dartvel_core/dartvel.dart'
     show
+        DVAccessibilityControlsConfig,
         DVCrashBuildMode,
         DVCrashConfig,
         DVFileStorageConfig,
@@ -4256,11 +4257,28 @@ void startDartvelKiosk() {
     if (appRoot != null) {
       imports.add("import 'widgets.g.dart';");
     }
+    // dartvel.accessibility.controls: installed before the first frame and
+    // the root inside the frame, above the MaterialApp, so an app's own
+    // highContrastTheme is chosen as Flutter chooses it. A misspelt setting
+    // stops the build rather than being read as off.
+    final DVAccessibilityControlsConfig accessibilityControls;
+    try {
+      accessibilityControls = DVAccessibilityControlsConfig.fromSection(dv);
+    } on ArgumentError catch (error) {
+      throw StateError('${error.name}: ${error.message}');
+    }
+    final String defaultRoot = "MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark)"
+        "${accessibilityControls.enabled ? ', highContrastTheme: dvHighContrastTheme(dartvelDefaultTheme(.light)), highContrastDarkTheme: dvHighContrastTheme(dartvelDefaultTheme(.dark))' : ''}"
+        ', themeMode: .system, routerConfig: router)';
+    final String rootWidget = appRoot == null ? defaultRoot : 'Builder(builder: $appRoot)';
     final out = StringBuffer('// GENERATED – do not edit.\n// ignore_for_file: non_constant_identifier_names, unused_import\n')
       ..writeln(imports.join('\n'))
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('  final router = createDartvelRouter(arguments: args);')
-      ..writeln(appRoot == null ? "  return MaterialApp.router(title: '${esc(title)}', theme: dartvelDefaultTheme(.light), darkTheme: dartvelDefaultTheme(.dark), themeMode: .system, routerConfig: router);" : '  return Builder(builder: $appRoot);')
+      ..writeln(accessibilityControls.enabled
+          ? "  DVAccessibilityControls.instance.install(floatingButton: ${accessibilityControls.floatingButton}, app: '${esc(pkgName)}');\n"
+              '  return DVAccessibilityFrame(child: $rootWidget);'
+          : '  return $rootWidget;')
       ..writeln('}')
       // Outside the DV class: a boot body naming the application's own
       // Session, Auth or Cache would otherwise resolve to DV's static.

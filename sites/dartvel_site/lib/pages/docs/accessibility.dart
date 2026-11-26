@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel accessibility: audits, switch control and remote keys',
+  title: 'Dartvel accessibility: reader controls, audits, switch control and remote keys',
   description: 'dartvel build web fails when a screen reader would meet an '
       'unnamed button or a broken heading order, and switch users and TV '
       'remotes drive any page with nothing added.',
@@ -16,11 +16,60 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
         '`dartvel build web` fails when a screen reader would meet an unnamed '
             'button or a broken heading order.',
         'Switch users and TV remotes can drive any page with nothing added.',
+        'One line in pubspec.yaml gives every page an accessibility button: '
+            'text size, high contrast and reduced motion, kept for each visitor.',
         'Forms are driven from the keyboard with nothing added too: Tab walks '
             'them, Enter submits, and a refused save puts the focus on the '
             'field at fault.',
       ],
       sections: <DocsSection>[
+        DocsSection(
+          id: 'controls',
+          title: 'Give readers text size, contrast and motion controls',
+          children: <Widget>[
+            DocsText('Opt in once and every page has an accessibility button. '
+                'It opens a panel in the app\'s own theme, light and dark, '
+                'and each choice applies to the whole app at once.'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  accessibility:',
+              '    controls: true',
+            ]),
+            DocsTable(columns: <String>[
+              'Control',
+              'What it does',
+            ], rows: <List<String>>[
+              <String>['Text size', 'Default, Large (135%) or Larger (170%), '
+                  'on top of the device\'s own text size'],
+              <String>['High contrast', 'Pure black and white with strong '
+                  'outlines; the app\'s highContrastTheme when it has one, '
+                  'otherwise one made from its theme'],
+              <String>['Reduce motion', 'No sliding or fading between screens; '
+                  'DV.Accessibility.reducedMotion follows it'],
+            ]),
+            Bullets(<String>[
+              'Choices are kept for each visitor: localStorage in a browser, '
+                  'a small file on a device.',
+              'The device\'s own settings always count. When it asks for less '
+                  'motion or more contrast (prefers-reduced-motion, '
+                  'prefers-contrast), the switch shows as on and says why.',
+              'With SSR-first, the page served before the app loads is already '
+                  'in the visitor\'s settings: no fade with reduced motion, and '
+                  'with large text or high contrast the page is a reading column '
+                  'in their text size and colours until the app takes over.',
+              'The button has a tooltip and an accessible name, a 48 px target, '
+                  'and is a Tab stop; the panel is a dialog a screen reader '
+                  'announces.',
+              'By default the button floats in the bottom corner of every page, '
+                  'on the reading side. To put it in your header instead, set '
+                  'controls: {floatingButton: false} and place '
+                  'DVAccessibilityButton() where you want it.',
+              'A Dart config class says the same with accessibilityControls.',
+            ]),
+            DocsCode('a11y-controls'),
+          ],
+        ),
         DocsSection(
           id: 'semantics',
           title: 'Name what a screen reader announces',

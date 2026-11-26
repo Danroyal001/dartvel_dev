@@ -39,6 +39,7 @@ import 'src/accessibility/browser_clicks.dart';
 import 'src/accessibility/keyboard_scroll.dart';
 import 'src/accessibility/lazy_traversal.dart';
 import 'src/accessibility/page_escape.dart';
+import 'src/accessibility/accessibility_controls.dart';
 import 'src/accessibility/selection_mirror.dart';
 import 'src/accessibility/switch_control.dart';
 import 'src/accessibility/tooltips.dart';
@@ -818,6 +819,8 @@ export 'package:go_router/go_router.dart';
 export 'src/accessibility/keyboard_scroll.dart';
 export 'src/media/picked_files.dart' show DVPickUnsupported;
 export 'src/accessibility/selection_column.dart';
+export 'src/accessibility/accessibility_controls.dart'
+    hide dvAccessibleTheme, dvFloatingAccessibilityButton;
 export 'src/accessibility/switch_control.dart';
 export 'src/accessibility/tooltips.dart'
     show DVTooltipTarget, dvDeriveLabel;
@@ -12525,12 +12528,20 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
             _pageAddress().path.startsWith('/__studio')
         ? safe
         : DVConsentBanner(child: safe);
+    // The accessibility button, when the app opted into the controls and
+    // left the button to the framework; not on Studio's canvas or screens,
+    // like the consent banner.
+    final bool floatsAccessibility = DVAccessibilityControls.instance.enabled &&
+        DVAccessibilityControls.instance.floatingButton &&
+        !DVPagePreviewScope.of(context) &&
+        !_pageAddress().path.startsWith('/__studio');
     // What the application tracks through DV.progress, across the top of
     // the page, over whatever it is showing.
-    final Widget framed = Stack(
+    final Widget framed = dvAccessibleTheme(context, Stack(
       fit: StackFit.passthrough,
       children: <Widget>[
         asked,
+        if (floatsAccessibility) dvFloatingAccessibilityButton(),
         // Below the status bar or the notch, where it can be seen, on every
         // page: under the bar it was drawn where nobody could see it.
         const Positioned(
@@ -12545,7 +12556,7 @@ class _DVPageShellState extends State<DVPageShell> implements DVFindPage {
           ),
         ),
       ],
-    );
+    ));
     if (!selectable || Theme.of(context).platform != TargetPlatform.iOS) {
       return framed;
     }
@@ -13333,6 +13344,11 @@ class DVAccessibility {
   /// Switch control, on or off, for the whole application. See
   /// [DVSwitchControl] and [DVAccessibilityToggle].
   DVSwitchControlState get switchControl => DVAccessibilitySwitchControl.state;
+
+  /// The reader's text size, high contrast and reduced motion, chosen in the
+  /// accessibility panel (`dartvel.accessibility.controls`). See
+  /// [DVAccessibilityControls] and [DVAccessibilityButton].
+  DVAccessibilityControls get controls => DVAccessibilityControls.instance;
 
   void useReducedMotion(bool value) {
     _reducedMotionOverride = value;

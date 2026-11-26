@@ -105,7 +105,7 @@ void main() {
     // The rules in force on a screen [width] wide: the base, then each
     // min-width block up to it.
     String rulesAt(int width) {
-      final String body = theme!.substring(theme!.indexOf('html:not([data-dv-app]){'));
+      final String body = theme!.substring(theme!.indexOf('html:not([data-dv-app]):not([data-dv-plain]){'));
       final int media = body.indexOf('@media (min-width:1366px)');
       return width >= 1366 ? body : body.substring(0, media);
     }

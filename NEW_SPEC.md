@@ -8681,6 +8681,31 @@ Runtime and tooling:
   because a release build compiles the run-time assert away
 - accessibility regressions fail the release gate unless explicitly waived with
   a documented reason
+- **reader controls, opt-in** (`dartvel.accessibility.controls: true`, or
+  `accessibilityControls` on a `DartvelConfig` class): an accessibility button
+  on every page opens a panel with text size (Default 100%, Large 135%, Larger
+  170%, multiplied with the device's own size), high contrast and reduced
+  motion. Each choice applies to the whole app at once through the
+  MediaQuery above the app's root (`DVAccessibilityFrame`, placed by the
+  generated root), so Flutter picks the app's own `highContrastTheme`, and a
+  theme made from the app's with `dvHighContrastTheme` is used where it has
+  none. Choices are kept per visitor under `dartvel.accessibility`
+  (`localStorage` in a browser, a file in the state directory on a device)
+  and are on `DV.Accessibility.controls`. The operating system's reduce-motion
+  and more-contrast settings (`prefers-reduced-motion`, `prefers-contrast:
+  more` on the web) cannot be turned off from the panel: the switch shows as
+  on and says why. The button floats in the bottom corner on the reading side
+  of every page unless `controls: {floatingButton: false}`, in which case the
+  app places `DVAccessibilityButton()` (usually in its header; `compact` is
+  the icon alone, `tooltip` renames it, `more` adds the app's own settings to
+  the panel). It has its tooltip as its accessible name and a 48 px target,
+  and is a `role=button` in the server-rendered document, so a press before
+  the app loads is made once it has. With SSR-first the head reads the stored
+  settings before the first paint: reduced motion skips the handover's fade,
+  and large text or high contrast (including the system's) shows the
+  document as the reading column in the visitor's text size and in pure black
+  and white, because the captured layout is the app at the default settings
+  (`data-dv-plain` turns the layout off)
 
 Runtime API:
 ```dart
