@@ -7395,6 +7395,15 @@ deployment require: what was asked, what was answered, when, and under which
 version of the categories. A consent choice that cannot be written is not
 treated as consent (`DV-ANALYTICS-006`).
 
+An application served on several hosts under one domain is asked once for all
+of them: `consent.domain: example.com` carries the latest choice in a
+first-party `dv_consent` cookie for that domain (`Secure` over https,
+`SameSite=Lax`, a year), and each host writes it into its own consent records as
+consent loads. The newest choice wins; a choice under another version, an
+unreadable cookie and an undeclared category in it are ignored; a public suffix
+is refused when the application is generated. A browser keeps storage per
+origin, so without it every host asks again and the first answer is lost there.
+
 ## The store
 
 The default store is the application's own database, which makes local
