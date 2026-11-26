@@ -1,3 +1,8 @@
+## 3.47.11 — 2026-11-26
+
+- With SSR-first, a style one width sets and the next does not is undone at the next width. A clip at 1024 px (dartvel.dev's docs menu item at its panel's bottom edge) stayed in force at every wider width and cut the item in half.
+- A painter can say the outline it fills: `DVDescribedShape.describeShape` returns a `DVShape` (SVG path data in the box's pixels, even-odd or non-zero) beside `DVDescribedPainter`'s gradients, and the SSR-first document clips the box to it (`clip-path: path(...)`). A logo drawn as a path (dartvel.dev's mark) is there from the first paint instead of appearing at the handover.
+
 ## 3.47.10 — 2026-11-25
 
 - What a visitor typed before the app loaded is in the app's field after it, with the caret or selection and the focus, and typing never waits: just before the app says it has drawn, each document field's text goes into the app's field of the same name (its semantics label; by order when no name matches and both pages have the same fields), as typing (formatters and `onChanged` run), focus moves to the field the visitor was in, and each keystroke that still lands in the document's field follows until the app's field has the keyboard. A field the visitor never touched keeps the app's value; a selection inside a field no longer holds the handover.
