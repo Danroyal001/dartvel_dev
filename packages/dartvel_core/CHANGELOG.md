@@ -1,3 +1,7 @@
+## 3.47.19 — 2026-11-26
+
+- `DVModelStorage` and `DVModel(storage:, storageKey:)` for models kept on the device; typed `defaultControls.voice` (`DVAccessibilityVoiceConfig`, the `DVVoiceLanguage` catalog) and `defaultControls.formerKey`. The hand-written `DVAccessibilitySettings` moved to dartvel_flutter as a generated device model.
+
 ## 3.47.18 — 2026-11-26
 
 - `DARTVEL_OFF` runtime off switches (`DVOffSwitches`): `page-scroll-button`, `ssr-first`, `analytics`, `module:<id>`, `cache-warm`; `dvWithoutSsrFirst`. The rendered-page cache keys on the headers a kept page can depend on, so a kept page is shared between visitors. `dvSsrFirstThemePage` / `dvSsrFirstThemeFromPages` split the SSR-first theme per page (same result) so a build can work it out on every core.

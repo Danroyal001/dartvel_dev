@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.19 — 2026-11-26
 
 - Generates `@DVModel(storage: DVModelStorage.device)` models declared outside `lib/models/` into `lib/dartvel_client/device_models.g.dart` (exported by the barrel; the runtime reads each before the first frame). A device model in `lib/models/`, a non-nullable field without a default, or a field type a device cannot keep stops generation with the file, field and type named.
 
