@@ -20,6 +20,7 @@ import 'page_shots.dart' show DVInFlight, DVTextSettle, dvCaptureHeldScript;
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
+import 'capture_deps.dart' show dvAppCodePathOf;
 import 'route_prefetch.dart';
 import 'ssr_first_capture.dart' show dvCaptureLayout, dvLayoutCapturePathFor, dvSemanticsReadViewport;
 
@@ -376,6 +377,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
 
   var captured = 0;
   final Map<String, Duration> routeTimes = <String, Duration>{};
+  final Map<String, Set<String>> appCode = <String, Set<String>>{};
   Duration layoutTime = Duration.zero;
   Duration bootTime = Duration.zero;
   int boots = 0;
@@ -477,6 +479,9 @@ Future<DVCaptureRun> dvCaptureSemantics({
           layout.deleteSync();
         }
       } finally {
+        // Every code file this tab has fetched since it booted: what this
+        // route ran, and what the routes before it here left running.
+        appCode[route] = Set<String>.of(tab.appCode);
         if (!reuse) await tab.close();
         routeTimes[route] = routeClock.elapsed;
       }
@@ -520,6 +525,7 @@ Future<DVCaptureRun> dvCaptureSemantics({
     pages: slotsUsed,
     bootTime: bootTime,
     boots: boots,
+    appCode: appCode,
   );
 }
 
@@ -540,6 +546,10 @@ class _CaptureTab {
   /// its own head and for the links that point at it to fetch early.
   final List<DVCapturedImage> images = <DVCapturedImage>[];
   final DVInFlight flight = DVInFlight();
+
+  /// The app's code files ([dvAppCodePathOf]) this tab has fetched since it
+  /// booted.
+  final Set<String> appCode = <String>{};
   final List<StreamSubscription<Object?>> _listening =
       <StreamSubscription<Object?>>[];
   bool _closed = false;
@@ -586,7 +596,11 @@ class _CaptureTab {
           tab.images.add(image);
         }
       }),
-      tab.page.onRequest.listen((Object? _) => tab.flight.started()),
+      tab.page.onRequest.listen((Request request) {
+        tab.flight.started();
+        final String? code = dvAppCodePathOf(request.url, base);
+        if (code != null) tab.appCode.add(code);
+      }),
       tab.page.onRequestFinished.listen((Object? _) => tab.flight.ended()),
       tab.page.onRequestFailed.listen((Object? _) => tab.flight.ended()),
     ]);

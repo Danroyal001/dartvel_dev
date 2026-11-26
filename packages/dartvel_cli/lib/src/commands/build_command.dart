@@ -106,6 +106,9 @@ import '../build/cross_origin_isolation.dart'
 import '../build/wasm_deferred.dart';
 import '../build/build_timings.dart';
 import '../build/route_documents.dart';
+import '../build/capture_deps.dart';
+import '../build/chrome_launch.dart' show dvSystemChrome, dvNewestCachedChrome;
+import 'package:puppeteer/puppeteer.dart' as puppeteer show puppeteer;
 import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
@@ -4621,10 +4624,26 @@ class BuildCommand extends Command<void> {
     return _cachedFlutterVersion!;
   }
 
-  /// What the capture reads: every file of the web output except the
-  /// prefetch manifest, which the capture itself refuses to serve.
-  String _captureInputHash(Directory web) =>
-      dvCaptureInputHash(web, skip: const <String>{dvPrefetchManifestFile});
+  /// What every route's capture reads: every file of the web output except
+  /// the app's code files (tracked per route) and the prefetch manifest,
+  /// which the capture itself refuses to serve.
+  String _captureStaticHash(Directory web) =>
+      dvCaptureStaticHash(web, skip: const <String>{dvPrefetchManifestFile});
+
+  /// The browser the read draws in, by path and version: another Chrome may
+  /// lay a page out otherwise. Never downloads one to find out.
+  Future<String> _browserIdentity() async {
+    final String? path = dvSystemChrome();
+    if (path == null) {
+      return 'cached ${dvNewestCachedChrome(puppeteer.puppeteer.userCachePath) ?? 'none'}';
+    }
+    try {
+      final ProcessResult version = await Process.run(path, <String>['--version']);
+      return '$path ${version.stdout}'.trim();
+    } on Object {
+      return path;
+    }
+  }
 
   /// [route]'s capture outputs (its tree and its images), copied into a
   /// directory of their own for the cache.
@@ -4696,17 +4715,22 @@ class BuildCommand extends Command<void> {
     );
     if (routes.isEmpty) return null;
 
-    // Each route's capture is cached under (the web output's hash, the
-    // route, the capture's version): an unchanged build is not read again.
+    // Each route's capture is cached under (every file of the web output but
+    // the app's code, the route, the capture's version, the browser), with
+    // the code files the route's tab fetched beside it (capture_deps.dart):
+    // it is reused while those are byte-identical too. An edit to one page
+    // re-reads the routes that ran its code, not every route.
     final DVBuildCache cache = _buildCache;
-    final String webHash = cache.enabled ? _captureInputHash(web) : '';
+    final String webHash = cache.enabled ? _captureStaticHash(web) : '';
+    final String browser = cache.enabled ? await _browserIdentity() : '';
     DVContentHash captureKey(String route) => DVContentHash()
       ..addText('stage', 'semantics')
       ..addText('web', webHash)
       ..addText('route', route)
       ..addText('capture', '$dvSemanticsCaptureVersion')
       ..addText('layout', DVSplash.of(root).ssrFirstWidths.join(','))
-      ..addText('dartvel', dartvelCliVersion);
+      ..addText('dartvel', dartvelCliVersion)
+      ..addText('browser', browser);
     // One stage per web output: every route's capture of one build is a
     // group, and the newest three groups are kept.
     final String captureStage =
@@ -4722,8 +4746,13 @@ class BuildCommand extends Command<void> {
           '${route.hashCode}',
         ),
       );
-      if (cache.enabled &&
-          cache.restore(captureStage, captureKey(route).digest, outputs)) {
+      final File deps = File(p.join(outputs.path, 'deps.json'));
+      final Map<String, String>? recorded = cache.enabled &&
+              cache.restore(captureStage, captureKey(route).digest, outputs) &&
+              deps.existsSync()
+          ? dvDecodeCaptureDeps(deps.readAsStringSync())
+          : null;
+      if (recorded != null && dvCaptureDepsHold(recorded, web)) {
         _placeCaptureOutputs(root, route, outputs);
         reused++;
       } else {
@@ -4757,6 +4786,9 @@ class BuildCommand extends Command<void> {
         for (final String route in toCapture) {
           final Directory outputs = _collectCaptureOutputs(root, route);
           if (outputs.listSync().isNotEmpty) {
+            File(p.join(outputs.path, 'deps.json')).writeAsStringSync(
+                dvEncodeCaptureDeps(dvAppCodeHashes(
+                    web, fresh.appCode[route] ?? const <String>{})));
             cache.store(
               captureStage,
               captureKey(route).digest,
