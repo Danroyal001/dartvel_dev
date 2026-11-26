@@ -1,3 +1,7 @@
+## 3.47.13 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.13.
+
 ## 3.47.12 — 2026-11-26
 
 - Version aligned with dartvel_core 3.47.12.

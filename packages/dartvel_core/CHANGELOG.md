@@ -1,3 +1,7 @@
+## 3.47.13 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.13.
+
 ## 3.47.12 — 2026-11-26
 
 - With SSR-first, what a visitor typed on a sign-in page before the app loaded is no longer lost. The sign-in form of eatingtoday, Elena, Wahala, Tori and Cloud is built after the app's first frame, once the session check says nobody is signed in, so at the handover there was no app field to carry the text into, and the document went away with it. The handover now waits for the app's field: the document stays the page and keeps taking typing, and the text, caret and focus go over as soon as the field is there (or the app goes to another address, or 6 s pass; with nothing typed nothing waits). The app's first frame focusing its view or a node of its semantics behind the document no longer takes the keyboard from the field being typed in.
