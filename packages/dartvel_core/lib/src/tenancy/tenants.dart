@@ -145,6 +145,13 @@ class DVTenants {
   DVTenantIsolation get isolation => _isolation;
   DVTenantSource get source => _source;
 
+  /// The header a tenant is read from with [DVTenantSource.header].
+  String get headerName => _headerName;
+
+  /// Whether an application resolver decides the tenant, from anything in
+  /// the request.
+  bool get hasResolver => _resolver != null;
+
   /// Zone key carrying the tenant through [withTenant] scopes.
   static const Symbol _zoneTenant = #dartvelTenant;
 

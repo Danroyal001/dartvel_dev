@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dartvel_core/src/tenancy/tenants.dart';
 import 'package:dartvel_core/src/updates/ota_updates.dart';
 import 'package:dartvel_core/src/web/rendered_page_cache.dart';
 import 'package:test/test.dart';
@@ -116,5 +117,50 @@ void main() {
     expect(cache.get('a'), isNotNull);
     cache.put('large', [1, 2, 3, 4], {}, status: 200);
     expect(cache.get('large'), isNull);
+  });
+
+  // Behind a proxy every visitor sent a different X-Forwarded-For and
+  // User-Agent, so no page rendered for one visitor was ever served to the
+  // next, and a cache filled at start (cache-warm) could never be hit.
+  test('headers that cannot change a document do not partition entries', () {
+    String key(Map<String, String> headers) =>
+        dvRenderedPageKey('site', Uri.parse('http://127.0.0.1:8740/pricing'), headers);
+    final String warmed = key(<String, String>{'host': 'example.com'});
+    expect(
+      key(<String, String>{
+        'Host': 'example.com',
+        'user-agent': 'Mozilla/5.0 (Phone)',
+        'accept': 'text/html',
+        'accept-encoding': 'gzip, br, zstd',
+        'x-forwarded-for': '203.0.113.7',
+        'x-real-ip': '203.0.113.7',
+        'sec-ch-ua': '"Chromium";v="142"',
+        'connection': 'keep-alive',
+        'referer': 'https://search.example/',
+      }),
+      warmed,
+    );
+    for (final MapEntry<String, String> partition in <String, String>{
+      'host': 'www.example.com',
+      'x-forwarded-host': 'other.example',
+      'accept-language': 'fr',
+      'x-dartvel-theme': 'dark',
+      'x-dartvel-locale': 'fr',
+      'sec-gpc': '1',
+    }.entries) {
+      expect(key(<String, String>{'host': 'example.com', partition.key: partition.value}), isNot(warmed),
+          reason: partition.key);
+    }
+  });
+
+  test('a tenant read from a header, or by a resolver of its own, partitions entries', () {
+    addTearDown(DVTenants.reset);
+    String key(Map<String, String> headers) =>
+        dvRenderedPageKey('site', Uri.parse('http://a/pricing'), headers);
+    const DVTenants().configure(source: DVTenantSource.header, headerName: 'X-Shop');
+    expect(key(<String, String>{'x-shop': 'one'}), isNot(key(<String, String>{'x-shop': 'two'})));
+    DVTenants.reset();
+    const DVTenants().configure(resolver: (Uri uri, Map<String, String> headers) => headers['x-anything']);
+    expect(key(<String, String>{'x-anything': 'one'}), isNot(key(<String, String>{'x-anything': 'two'})));
   });
 }
