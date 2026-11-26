@@ -107,6 +107,45 @@ void main() {
     expect(laid, contains('Pricing</span></h1>'));
   });
 
+  // ChopDesk's menu at /r/<slug>: a page the build cannot capture, served by
+  // the web-server binary from the data. The shell carries the app's look,
+  // worked out from the pages that were captured, for such a page.
+  test("the web-server shell carries the app's look for the pages it could not capture", () {
+    final Directory root = Directory.systemTemp.createTempSync('dv_theme');
+    addTearDown(() => root.deleteSync(recursive: true));
+    const String shell = '<!DOCTYPE html><html><head><title>x</title></head><body></body></html>';
+    const Map<String, String> pages = <String, String>{'/pricing': '<h1>Pricing</h1>'};
+    expect(dvWithSsrFirstTheme(root.path, shell, pages, const {}), shell,
+        reason: 'nothing captured: no theme');
+    File(dvLayoutCapturePathFor(root.path, '/pricing'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(jsonEncode(<String, Object?>{
+        'widths': <Object?>[
+          <String, Object?>{
+            'width': 390,
+            'height': 844,
+            'light': <String, Object?>{
+              'items': <Object?>[
+                <String, Object?>{
+                  'k': 't', 'r': <num>[16, 80, 200, 40], 'z': 0, 's': true, 'text': 'Pricing',
+                  'runs': <Object?>[<String, Object?>{'t': 'Pricing', 'f': 'Inter', 'fs': 32, 'fw': 700, 'c': '#000000'}],
+                  'al': 'left', 'lines': 1, 'lh': 40, 'nw': true,
+                },
+              ],
+            },
+            'controls': <Object?>[],
+          },
+        ],
+      }));
+    final String themed = dvWithSsrFirstTheme(root.path, shell, pages, const {});
+    expect(themed, contains('<style id="dv-ssr-theme">'));
+    expect(themed.indexOf('<style id="dv-ssr-theme">'), lessThan(themed.indexOf('</head>')));
+    expect(themed, contains('.dvt h1{font:700 32px/40px'));
+    // Built again: one theme, the new one.
+    expect(RegExp('id="dv-ssr-theme"').allMatches(dvWithSsrFirstTheme(root.path, themed, pages, const {})),
+        hasLength(1));
+  });
+
   group('a slow scheme switch', _laggingSchemeTests);
   group('an app that says when it is idle', _idleTests);
 
