@@ -605,7 +605,9 @@ gradient-filled text with `DVGradientSpan` in a `DVGradientText`, and the
 document draws them too. A link or button whose name is not the words it
 paints ("Browse every recipe" painting "Recipes") carries the painted words
 as its own text, so Ctrl+F finds the link by what is on screen while a screen
-reader still hears its name. See docs/web-performance.md.
+reader still hears its name. A link on the fold, its box cut by the screen's
+edge, keeps its own words even when a heading further down has the same ones.
+See docs/web-performance.md.
 
 Earlier releases (0.13.22 to 0.13.24) showed a picture of each page, captured
 at build time, before the app loaded. It was removed: it looked finished but

@@ -1219,6 +1219,93 @@ void main() {
       expect(out, isNot(contains('content:"Jollof"')));
     });
 
+    // sigmadev.digital /pricing-plans-and-services, 3.47.14 to 3.47.16: a row
+    // of category links near the fold whose names are also section headings
+    // further down. At 360 and 390 the semantics host clipped the links' boxes
+    // to the screen's bottom edge (a 3 px sliver, the painted words wholly
+    // below it), so the words were not in the box: the heading, earlier in
+    // the matching, took the link's painted words, the link was left with no
+    // text and no box, and the heading's own words were drawn as decoration.
+    test('a link row cut by the bottom screen edge keeps its own words; headings of the same words keep theirs', () {
+      const String doc =
+          '<a href="/c/build" title="Apps and automation" aria-label="Apps and automation">Apps and automation</a>\n'
+          '<a href="/c/cloud" title="Cloud and DevOps" aria-label="Cloud and DevOps">Cloud and DevOps</a>\n'
+          '<a href="/c/care" title="Care plans" aria-label="Care plans">Care plans</a>\n'
+          '<h2>Apps and automation</h2>\n<h2>Cloud and DevOps</h2>\n<h2>Care plans</h2>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            // Painted across the edge (800): its box is cut to 20 px.
+            _text('Apps and automation', <num>[36, 790.5, 216, 23], z: 3),
+            // Painted wholly below the edge: their boxes are cut to 3 px.
+            _text('Cloud and DevOps', <num>[36, 807.5, 129, 23], z: 4),
+            _text('Care plans', <num>[205, 807.5, 74, 23], z: 5),
+            _text('Apps and automation', <num>[20, 3000, 350, 34], z: 1),
+            _text('Cloud and DevOps', <num>[20, 4000, 350, 34], z: 1),
+            _text('Care plans', <num>[20, 5000, 350, 34], z: 1),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/c/build', 'name': 'Apps and automation', 'r': <num>[20, 780, 249, 20]},
+            <String, Object?>{'k': 'a', 'href': '/c/cloud', 'name': 'Cloud and DevOps', 'r': <num>[20, 797, 161, 3]},
+            <String, Object?>{'k': 'a', 'href': '/c/care', 'name': 'Care plans', 'r': <num>[189, 797, 106, 3]},
+          ]),
+        ]),
+      );
+      for (final (String words, num top) in <(String, num)>[
+        ('Apps and automation', 3000),
+        ('Cloud and DevOps', 4000),
+        ('Care plans', 5000),
+      ]) {
+        final RegExpMatch? link =
+            RegExp('<a id="(dva\\d+)"[^>]*><span id="(dvr\\d+)">$words</span></a>').firstMatch(out);
+        expect(link, isNotNull, reason: '$words link\n$out');
+        // The link is placed, with its own words in it, and its box reaches
+        // the words painted in it rather than stopping at the screen's edge.
+        expect(out, isNot(contains('#${link!.group(1)}{display:none')), reason: words);
+        final RegExpMatch? box = RegExp('#${link.group(1)}\\{left:[^;]+;top:[^;]+;width:[^;]+;height:([\\d.]+)px').firstMatch(out);
+        expect(box, isNotNull, reason: '$words link box\n$out');
+        expect(double.parse(box!.group(1)!), greaterThanOrEqualTo(33), reason: words);
+        expect(out, isNot(contains('#${link.group(2)}{display:none')), reason: words);
+        expect(out, contains('#${link.group(2)}{left:16px;'), reason: words);
+        // The heading holds its own words, painted where the heading is.
+        final RegExpMatch? heading = RegExp('<h2><span id="(dvr\\d+)">$words</span></h2>').firstMatch(out);
+        expect(heading, isNotNull, reason: '$words heading\n$out');
+        expect(out, contains('#${heading!.group(1)}{left:20px;top:${top}px'), reason: words);
+        // And nothing draws the words a second time as decoration.
+        expect(out, isNot(contains('content:"$words"')), reason: words);
+      }
+    });
+
+    // The same row cut by the right edge: the second link's box ends at the
+    // screen (390), its words painted across it.
+    test('a link cut by the right screen edge keeps its own words over a later heading of the same words', () {
+      const String doc =
+          '<a href="/c/build" title="Apps" aria-label="Apps">Apps</a>\n'
+          '<a href="/c/cloud" title="Cloud and DevOps" aria-label="Cloud and DevOps">Cloud and DevOps</a>\n'
+          '<h2>Cloud and DevOps</h2>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Apps', <num>[36, 110.5, 200, 23], z: 3),
+            _text('Cloud and DevOps', <num>[316, 110.5, 129, 23], z: 4),
+            _text('Cloud and DevOps', <num>[20, 3000, 350, 34], z: 1),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/c/build', 'name': 'Apps', 'r': <num>[20, 100, 249, 44]},
+            <String, Object?>{'k': 'a', 'href': '/c/cloud', 'name': 'Cloud and DevOps', 'r': <num>[300, 100, 90, 44]},
+          ]),
+        ]),
+      );
+      final RegExpMatch? link =
+          RegExp(r'<a id="(dva\d+)"[^>]*><span id="(dvr\d+)">Cloud and DevOps</span></a>').firstMatch(out);
+      expect(link, isNotNull, reason: out);
+      expect(out, contains('#${link!.group(2)}{left:16px;top:10.5px'), reason: out);
+      final RegExpMatch? heading = RegExp(r'<h2><span id="(dvr\d+)">Cloud and DevOps</span></h2>').firstMatch(out);
+      expect(heading, isNotNull, reason: out);
+      expect(out, contains('#${heading!.group(1)}{left:20px;top:3000px'), reason: out);
+      expect(out, isNot(contains('content:"Cloud and DevOps"')));
+    });
+
     // EatingToday /recipes: every card title is the whole title in the
     // document, however the app cuts it short on screen, so find reaches it.
     test('text the app cuts short with an ellipsis is whole in the document', () {
