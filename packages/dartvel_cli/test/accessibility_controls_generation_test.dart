@@ -1,4 +1,4 @@
-// `dartvel.accessibility.controls` reaches the app: the generated root is
+// `dartvel.accessibility.defaultControls` reaches the app: the generated root is
 // wrapped in the accessibility frame and the controls are installed before
 // the first frame, the default root gets a high-contrast theme, and the
 // SSR-first head reads the visitor's settings before the first paint. A
@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/native_splash.dart';
+import 'package:dartvel_cli/src/config/dartvel_config.dart' show dvDeprecatedConfigWarnings;
 import 'package:dartvel_cli/src/generators/client_generator.dart';
 import 'package:dartvel_core/dartvel.dart' show dvAccessibilityStorageKey;
 import 'package:path/path.dart' as p;
@@ -73,7 +74,7 @@ void main() {
     final Directory root = _project();
     addTearDown(() => root.deleteSync(recursive: true));
     final String app = _createApp(await _applicationFor(root, <String, Object?>{
-      'accessibility': <String, Object?>{'controls': true},
+      'accessibility': <String, Object?>{'defaultControls': true},
     }));
     expect(app, contains("DVAccessibilityControls.instance.install(floatingButton: true, app: 'a11y_app')"));
     expect(app, contains('DVAccessibilityFrame(child: MaterialApp.router('));
@@ -93,7 +94,7 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
     addTearDown(() => root.deleteSync(recursive: true));
     final String app = _createApp(await _applicationFor(root, <String, Object?>{
       'accessibility': <String, Object?>{
-        'controls': <String, Object?>{'floatingButton': false},
+        'defaultControls': <String, Object?>{'floatingButton': false},
       },
     }));
     expect(app, contains('install(floatingButton: false'));
@@ -106,11 +107,50 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
     await expectLater(
       _applicationFor(root, <String, Object?>{
         'accessibility': <String, Object?>{
-          'controls': <String, Object?>{'floatingButon': false},
+          'defaultControls': <String, Object?>{'floatingButon': false},
         },
       }),
       throwsA(predicate((Object error) => '$error'.contains('floatingButon'))),
     );
+  });
+
+  // 3.47.16 shipped the key as `controls`. It still works for one release, and
+  // the build says to rename it, so no published project loses the panel.
+  group('the old `controls` key', () {
+    test('still installs the controls', () async {
+      final Directory root = _project();
+      addTearDown(() => root.deleteSync(recursive: true));
+      final String app = _createApp(await _applicationFor(root, <String, Object?>{
+        'accessibility': <String, Object?>{
+          'controls': <String, Object?>{'floatingButton': false},
+        },
+      }));
+      expect(app, contains("DVAccessibilityControls.instance.install(floatingButton: false, app: 'a11y_app')"));
+    });
+
+    test('the build and doctor warn, naming the new key', () {
+      final List<String> warnings = dvDeprecatedConfigWarnings(<String, Object?>{
+        'accessibility': <String, Object?>{'controls': true},
+      }, 'pubspec.yaml');
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains('dartvel.accessibility.controls'));
+      expect(warnings.single, contains('defaultControls'));
+      expect(
+        dvDeprecatedConfigWarnings(<String, Object?>{
+          'accessibility': <String, Object?>{'defaultControls': true},
+        }, 'pubspec.yaml'),
+        isEmpty,
+      );
+    });
+
+    test('the SSR-first head still reads the settings', () {
+      final Directory root = Directory.systemTemp.createTempSync('dv_a11y_head_old_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final DVSplash on = DVSplash.fromConfig(const <String, Object?>{
+        'accessibility': <String, Object?>{'controls': true},
+      }, root: root.path);
+      expect(on.accessibilityDefaultControls, isTrue);
+    });
   });
 
   group('the SSR-first head', () {
@@ -120,11 +160,11 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
 
     test('reads the stored settings only when the app opted in', () {
       final DVSplash off = DVSplash.fromConfig(const <String, Object?>{}, root: root.path);
-      expect(off.accessibilityControls, isFalse);
+      expect(off.accessibilityDefaultControls, isFalse);
       final DVSplash on = DVSplash.fromConfig(const <String, Object?>{
-        'accessibility': <String, Object?>{'controls': true},
+        'accessibility': <String, Object?>{'defaultControls': true},
       }, root: root.path);
-      expect(on.accessibilityControls, isTrue);
+      expect(on.accessibilityDefaultControls, isTrue);
       const String shell = '<!DOCTYPE html><html><head><title>a</title></head><body></body></html>';
       expect(dvWebSplashApply(shell, off), isNot(contains(dvAccessibilityStorageKey)));
       expect(dvWebSplashApply(shell, on), contains(dvAccessibilityStorageKey));

@@ -236,9 +236,26 @@ const Map<String, String> dvDeprecatedConfigKeys = <String, String>{
       'renders on request. This key is ignored and will be removed.',
 };
 
+/// Keys under `dartvel.accessibility` that were renamed: the old key, then
+/// what to say. The old key is still read until it is removed.
+const Map<String, String> dvDeprecatedAccessibilityKeys = <String, String>{
+  'controls': 'renamed `dartvel.accessibility.defaultControls` in 3.47.18 '
+      '(same values: true, or a map such as {floatingButton: false}). The old '
+      'key still works in this release and is removed in the next; rename it. '
+      'A DartvelConfig class renames accessibilityControls to '
+      'accessibilityDefaultControls.',
+};
+
 /// One warning line per deprecated key found in [dartvelSection].
-List<String> dvDeprecatedConfigWarnings(Map<dynamic, dynamic> dartvelSection, String pubspecPath) => <String>[
-      for (final MapEntry<String, String> deprecated in dvDeprecatedConfigKeys.entries)
-        if (dartvelSection.containsKey(deprecated.key))
-          '[!] Deprecated config: `dartvel.${deprecated.key}` in $pubspecPath: ${deprecated.value}',
-    ];
+List<String> dvDeprecatedConfigWarnings(Map<dynamic, dynamic> dartvelSection, String pubspecPath) {
+  final Object? accessibility = dartvelSection['accessibility'];
+  return <String>[
+    for (final MapEntry<String, String> deprecated in dvDeprecatedConfigKeys.entries)
+      if (dartvelSection.containsKey(deprecated.key))
+        '[!] Deprecated config: `dartvel.${deprecated.key}` in $pubspecPath: ${deprecated.value}',
+    if (accessibility is Map)
+      for (final MapEntry<String, String> deprecated in dvDeprecatedAccessibilityKeys.entries)
+        if (accessibility.containsKey(deprecated.key))
+          '[!] Deprecated config: `dartvel.accessibility.${deprecated.key}` in $pubspecPath: ${deprecated.value}',
+  ];
+}
