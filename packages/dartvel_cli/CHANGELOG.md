@@ -1,3 +1,7 @@
+## 3.47.12 — 2026-11-26
+
+- Version aligned with dartvel_core 3.47.12.
+
 ## 3.47.11 — 2026-11-26
 
 - **SSR-first is on by default.** Every web and web-server build shows each page's server-rendered document, laid out in the app's own look, from the first paint, and Flutter takes over in place: the page can be read, searched, selected, tabbed through and typed into from the first round trip instead of after the splash. `dartvel.web.ssrFirst: false` (or `ssrFirst: {enabled: false}`) turns it off and keeps the splash until the app's first frame; `ssrFirst: {widths: [...]}` still picks the widths. A new project's pubspec says, commented out, how to turn it off. The build now also records the layout capture for every route, which adds to the capture time.
