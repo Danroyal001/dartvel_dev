@@ -660,6 +660,79 @@ EatingToday `/login`), Tab to every link, a drag selection of the heading,
 the accessibility tree's link names and a tap on a link before and after
 the takeover were checked on the same builds.
 
+## Build time, cold and hot (3.47.18, 26 November 2026)
+
+Measured on the shared 8-core server while other builds ran (load 3 to 15;
+the column says which). Web-server builds through `dartvel build web-server`
+with `SOURCE_DATE_EPOCH` fixed. Cold: a fresh checkout state (no `build/`,
+`.dart_tool/` or `.dartvel/`; the pub cache kept). Hot: the same project
+after a one-line text edit to one page (`lib/pages/about.dart`, and
+`lib/pages/index.dart` in the small app), with the previous build's caches.
+"Before" is 3.47.15; "after" is this release.
+
+sigmadev.digital (225 routes, SSR-first at six widths):
+
+| Phase | Cold before | Cold after | Hot before | Hot after |
+|---|---:|---:|---:|---:|
+| `dart run` start and generation | 93 s | 100 s | 41 s | 43 s |
+| Flutter compile with the deferred wasm split | 482 s | 315 s | 483 s | 386 s |
+| fonts, image variants, sitemap | 27 s | 21 s | 20 s | 15 s |
+| semantics + SSR-first layout read | 894 s ¹ | 691 s | 684 s | 193 s (38 read, 187 reused) |
+| routes manifest (SSR documents, theme) | 51 s | 50 s ² | 56 s | 35 s |
+| backend wait and pack | 93 s | 102 s | 98 s | 97 s |
+| **Total** | **1655 s (27.6 min)** | **1300 s (21.7 min)** | **1389 s (23.1 min)** | **787 s (13.1 min)** |
+
+¹ The cold "before" read ran while a 7 GB test kernel filled the RAM tmpfs and
+the server was swapping; the hot "before" read, 684 s, is the fairer figure for
+reading every route. ² Before the documents and theme were split across cores
+in the build measured; 28 to 35 s after.
+
+A fresh `dartvel create` app (5 routes):
+
+| | Before | After |
+|---|---:|---:|
+| Cold | 250 s (load 4) | 274 s (load 10) |
+| Hot | 242 s (load 4) | 272 s (load 10) |
+
+The small app is all compile, and its critical path is the deferred-loading
+dart2wasm (165 to 200 s), which ran beside Flutter's own module before too:
+on a quiet machine the `-O0` throwaway saves CPU and memory, not wall time.
+On sigmadev.digital, under load, it took the compile from 482 s to 315 s.
+
+What changed:
+
+- **Per-route code tracking.** A one-line edit to the about page changed
+  `main.dart.js`, six of its parts and one wasm module of 370;
+  `main.dart.wasm` was byte-identical. Each route's capture now keeps the
+  code files its tab fetched and is reused while they and the rest of the
+  output are unchanged. Links preload nothing during the capture, or every
+  route would have fetched 114 to 150 modules through the header and footer
+  links.
+- **`-O0` throwaway wasm module** (from #240), **no wasm dry run** on a
+  JS-only build.
+- **SSR-first documents and the data-page theme on every core** (23 s and
+  26 s on one core).
+- **The read sized to memory** (MemAvailable or the build's cgroup).
+- **Shared subset fonts** in `~/.dartvel/cache/web_fonts`.
+- **A timings table at the end of every build**
+  (`build/dartvel_build_timings.json`).
+
+Same output: on sigmadev.digital, cold after vs cold before, every one of 932
+web files is byte-identical except `dartvel_routes.json` (and the service
+worker's list of hashes, which names it), whose only differences are the four
+routes that print random values or the clock (password, random number and
+UUID generators, time zone converter); the two server binaries answered 229 of
+233 requests identically, the other four being those routes. Hot after (187
+routes reused, 38 read) vs hot before: the same four routes are the only
+differing documents and the shell is identical; the compiled files differ
+because the link preload change is in `dartvel_flutter`.
+
+Still slow, and why: the SSR-first layout is 80% of the read (3,300 of 4,100
+route-seconds: six widths, light, tall and dark, each a software-rendered
+relayout), and a hot build still recompiles the whole app (dart2js and
+dart2wasm have no incremental release mode). A production fix that only turns
+a framework feature off needs no build at all: `DARTVEL_OFF` on the server.
+
 ## Still to do
 
 Ranked by what they would save:
