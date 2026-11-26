@@ -133,6 +133,26 @@ abstract interface class DVDescribedPainter {
   List<Gradient> describePaint(Size size);
 }
 
+/// The outline a painter fills, as SVG path data in the box's own pixels
+/// (0, 0 at its top left), filled even-odd when [evenOdd] (a letter with a
+/// counter) and non-zero otherwise.
+class DVShape {
+  const DVShape(this.path, {this.evenOdd = false});
+
+  /// SVG path data: `M`, `L`, `C`, `Q`, `A`, `Z` and the rest, with numbers.
+  final String path;
+  final bool evenOdd;
+}
+
+/// A [DVDescribedPainter] whose gradients fill an outline rather than the
+/// whole box: a logo drawn as a path. The SSR-first document clips the box
+/// to it (CSS `clip-path: path(...)`), so the mark is there from the first
+/// paint instead of appearing at the handover.
+abstract interface class DVDescribedShape {
+  /// The outline over a box of [size]; null fills the box.
+  DVShape? describeShape(Size size);
+}
+
 /// Gradients stacked over a box, bottom first: two soft glows behind a hero,
 /// a sheen over a card. Use it as a `CustomPaint`'s painter; the SSR-first
 /// document draws the same layers in CSS.

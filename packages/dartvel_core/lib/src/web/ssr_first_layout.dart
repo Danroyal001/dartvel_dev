@@ -1435,7 +1435,7 @@ class _Layout {
           }
           final _Item? item = _nearItem(node, range);
           if (item == null) continue;
-          final String style = _style(node, item);
+          final String style = _withResets(lastStyle[node.id], _style(node, item));
           bool styleWritten = false;
           if (style.isNotEmpty && lastStyle[node.id] != style) {
             styleGroups.putIfAbsent(style, () => <String>[]).add('#${node.id}');
@@ -1959,9 +1959,23 @@ class _Layout {
       if (json['bd'] is List) ..._border(json['bd']! as List<Object?>),
       if (json['sh'] is String) 'box-shadow:${_cssValue(json['sh'] as String)}',
       if (json['op'] is num) 'opacity:${_num((json['op']! as num).toDouble())}',
-      ..._clip(item),
+      // An outline a described painter fills (a logo drawn as a path) clips
+      // the box to it; a clip from a scroller is dropped for it, CSS taking
+      // one clip-path.
+      if (_shape(json['shape']) case final String shape) 'clip-path:$shape' else ..._clip(item),
     ];
     return out.join(';');
+  }
+
+  /// A described painter's outline as CSS `path()`: the SVG path data, in
+  /// the box's own pixels, filled even-odd or non-zero. Anything but path
+  /// commands and numbers is taken out, so the data cannot end the string
+  /// or the style element.
+  static String? _shape(Object? shape) {
+    if (shape is! Map || shape['d'] is! String) return null;
+    final String path = (shape['d']! as String).replaceAll(RegExp(r'[^MLHVCSQTAZmlhvcsqtaz0-9.,eE+\- ]'), '');
+    if (path.trim().isEmpty) return null;
+    return 'path(${shape['eo'] == true ? 'evenodd' : 'nonzero'},"$path")';
   }
 
   List<String> _border(List<Object?> border) {
@@ -1979,6 +1993,42 @@ class _Layout {
       'border:${_num((border[0]! as num).toDouble())}px solid $colour',
     ];
   }
+
+  /// [style] for a width, with each property a narrower width's [previous]
+  /// style set and this one does not set back to its initial value. Each
+  /// width's style is written only where it changes, and a later rule
+  /// without a property leaves the earlier one in force: a clip at 1024
+  /// (dartvel.dev's docs menu item at its panel's bottom edge) cut the item
+  /// in half at every wider width.
+  static String _withResets(String? previous, String style) {
+    if (previous == null || previous.isEmpty || style.isEmpty) return style;
+    Set<String> names(String css) => <String>{
+      for (final String declaration in css.split(';'))
+        if (declaration.contains(':')) declaration.substring(0, declaration.indexOf(':')).trim(),
+    };
+    final Set<String> now = names(style);
+    final List<String> resets = <String>[
+      for (final String name in names(previous))
+        if (!now.contains(name) && _resettable.containsKey(name)) '$name:${_resettable[name]}',
+    ];
+    return resets.isEmpty ? style : '$style;${resets.join(';')}';
+  }
+
+  /// The properties a width's style may set and the next may not, with the
+  /// value that undoes them.
+  static const Map<String, String> _resettable = <String, String>{
+    // Only properties no shorthand of another width's style overlaps:
+    // undoing a `background` after a `background-image` would undo both.
+    'clip-path': 'none',
+    'opacity': '1',
+    'box-shadow': 'none',
+    'text-shadow': 'none',
+    'filter': 'none',
+    'transform': 'none',
+    'border-radius': '0',
+    'letter-spacing': 'normal',
+    '-webkit-line-clamp': 'none',
+  };
 
   List<String> _clip(_Item item) {
     final Object? clip = item.json['cl'];
