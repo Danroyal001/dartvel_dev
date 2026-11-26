@@ -1,3 +1,7 @@
+## Unreleased
+
+- Accessibility panel wording: with no English voice on the device, the note for English now reads "No English voice on this device; prompts are shown as text" (it said "read in English", which is the fallback for other languages). The voice language menu is labelled "Language" under its "Voice language" heading, so the label is no longer cut off on a phone ("Language voice mode speaks and li…" at 390 px).
+
 ## 3.47.20 — 2026-11-26
 
 - **Timers that ring: `DV.Timers` (`dartvel.timers: true`).** Named countdowns, several at once, kept across a reload or a restart: `DV.Timers.start(label, duration, id:, route:)`, `snooze`, `pause`, `resume`, `dismiss`, `watch(context)`. A timer rings with a chime, a vibration and a notification. On the web the one service worker gives the notification +1 min and +5 min buttons, swiping it away dismisses the timer and a button pressed with every window closed opens the app with the action in the address; it rings while a tab or window is open, in the background included, and `DV.Timers.reach` says plainly that a closed browser cannot ring. On Android the build writes `DartvelTimerReceiver` beside MainActivity: a system alarm-clock alarm, an insistent alarm-sound notification with +1 min, +5 min and Dismiss, re-armed after a reboot, so a timer rings with the app closed and the screen off. `DVTimerCountdown` shows `14:05` and gives a screen reader a polite live region that changes once a minute, then at 30 and 10 seconds. iOS and the desktop ring through the plain local notification while the app runs.
