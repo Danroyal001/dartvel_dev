@@ -21,9 +21,7 @@ Widget articleSummaryForm(Article article) => DVForm<Article>.builder(
         return DVBox.list(<Widget>[
           DVText('Title: ${fields.title}'),
           if (!fields.titleIsValid) const DVText('Add a title first'),
-          DVText('Publish').modifier(
-            const DVModifier().semanticButton().onTap(controls.submit),
-          ),
+          DVText('Publish').semanticButton().onTap(controls.submit),
         ]);
       },
       article,
@@ -48,13 +46,9 @@ Widget articleForm(Article article) => DVForm<Article>.builder(
           // A refusal naming TITLE is shown under this field, announced with
           // it, and given the focus, so Enter in a form the model refused
           // lands where the fix is.
-          DVText(fields.title).modifier(const DVModifier().input(label: 'TITLE')),
-          DVText(fields.body).modifier(
-            const DVModifier().input(label: 'BODY', multiline: true),
-          ),
-          const DVText('Publish').modifier(
-            DVModifier().semanticButton().onTap(controls.submit),
-          ),
+          DVText(fields.title).input(label: 'TITLE'),
+          DVText(fields.body).input(label: 'BODY', multiline: true),
+          DVText('Publish').semanticButton().onTap(controls.submit),
         ]);
       },
       article,
@@ -70,33 +64,26 @@ Widget articleForm(Article article) => DVForm<Article>.builder(
 // A field that hides what is typed into it gets the eye by default, so nobody
 // has to ask for it and nobody has to check a mistyped password by deleting
 // the whole thing.
-Widget passwordField() => DVText('')
-    .modifier(const DVModifier().input(label: 'PASSWORD', obscureText: true));
+Widget passwordField() => DVText('').input(label: 'PASSWORD', obscureText: true);
 
 // Turn it off where the eye is in the way: a field asking for a key somebody
 // can see on the machine in front of them, say.
-Widget unlockKeyField() => DVText('').modifier(
-      const DVModifier().input(
-        label: 'UNLOCK KEY',
-        obscureText: true,
-        visibilityToggle: .none,
-      ),
+Widget unlockKeyField() => DVText('').input(
+      label: 'UNLOCK KEY',
+      obscureText: true,
+      visibilityToggle: .none,
     );
 
 // Or draw your own. The builder is told whether the field is obscured and
 // given the way to change that, so a custom control cannot get the state wrong,
 // and it is an ordinary focusable control like any other: Tab reaches it and
 // Enter or Space presses it.
-Widget ownToggleField() => DVText('').modifier(
-      DVModifier().input(
-        label: 'PASSWORD',
-        obscureText: true,
-        visibilityToggle: .custom(
-          (BuildContext context, bool obscured, VoidCallback toggle) =>
-              DVText(obscured ? 'Show' : 'Hide').modifier(
-                DVModifier().semanticButton().onPressed(toggle),
-              ),
-        ),
+Widget ownToggleField() => DVText('').input(
+      label: 'PASSWORD',
+      obscureText: true,
+      visibilityToggle: .custom(
+        (BuildContext context, bool obscured, VoidCallback toggle) =>
+            DVText(obscured ? 'Show' : 'Hide').semanticButton().onPressed(toggle),
       ),
     );
 // docs:end
@@ -104,16 +91,10 @@ Widget ownToggleField() => DVText('').modifier(
 // docs:start forms-input-kind
 // What a field holds picks the keyboard a phone opens and what it offers to
 // fill in. Leave it out and the field is the plain text field it was.
-Widget phoneField() => DVText('').modifier(
-      const DVModifier().input(label: 'PHONE', kind: .phone),
-    );
+Widget phoneField() => DVText('').input(label: 'PHONE', kind: .phone);
 
-Widget priceField() => DVText('').modifier(
-      const DVModifier().input(label: 'PRICE', kind: .decimal),
-    );
+Widget priceField() => DVText('').input(label: 'PRICE', kind: .decimal);
 
 // A password kind also hides what is typed, with the eye.
-Widget newPasswordField() => DVText('').modifier(
-      const DVModifier().input(label: 'PASSWORD', kind: .newPassword),
-    );
+Widget newPasswordField() => DVText('').input(label: 'PASSWORD', kind: .newPassword);
 // docs:end

@@ -122,10 +122,7 @@ import 'package:flutter/material.dart';
 
 @DVPage()
 @pragma('vm:entry-point')
-Widget _${pageName.toLowerCase()}Page(BuildContext context) => DVBox(
-      const DVText('$capitalized Page'),
-      const DVModifier().align(.center),
-    );
+Widget _${pageName.toLowerCase()}Page(BuildContext context) => const DVBox(DVText('$capitalized Page')).align(.center);
 ''');
     Logger.log('Generated page: ${file.path}');
   }

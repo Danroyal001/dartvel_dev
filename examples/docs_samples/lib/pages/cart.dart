@@ -17,9 +17,7 @@ Widget _cartPage(BuildContext context) {
     // Reading .value in build redraws this page when a source changes.
     DVText('Total: ${total.value}'),
     DVText(inStock.value ? 'Ready to order' : 'Add something first'),
-    DVText('Add one').modifier(
-      DVModifier().onTap(() => quantity.value = quantity.value + 1),
-    ),
+    DVText('Add one').onTap(() => quantity.value = quantity.value + 1),
   ]);
 }
 // docs:end
