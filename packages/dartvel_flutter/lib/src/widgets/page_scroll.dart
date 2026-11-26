@@ -8,6 +8,7 @@
 /// takes the app theme's colours, light and dark.
 library;
 
+import 'package:dartvel_core/dartvel.dart' show DVOffSwitches;
 import 'package:flutter/material.dart';
 
 import 'page_viewport.dart' show DVPageViewportScope, DVPageViewportState;
@@ -36,12 +37,17 @@ class DVPageScrollFrame extends StatefulWidget {
 class _DVPageScrollFrameState extends State<DVPageScrollFrame> {
   final ScrollController _controller = ScrollController();
 
+  /// Whether the server turned the button off (DARTVEL_OFF=page-scroll-button).
+  bool get _switchedOff => DVOffSwitches.current.isOff(DVOffSwitches.pageScrollButton);
+
   /// The page shell this frame hands its button to, when there is one.
   DVPageViewportState? _host;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // DARTVEL_OFF=page-scroll-button: no button and no tap target.
+    if (_switchedOff) return;
     final DVPageViewportState? host = DVPageViewportScope.maybeOf(context);
     if (identical(host, _host)) return;
     _host?.removeJumpFrame(_controller);
@@ -57,6 +63,7 @@ class _DVPageScrollFrameState extends State<DVPageScrollFrame> {
 
   @override
   Widget build(BuildContext context) {
+    if (_switchedOff) return widget.child;
     final Widget primary = PrimaryScrollController(
       controller: _controller,
       automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
