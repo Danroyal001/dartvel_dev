@@ -165,6 +165,33 @@ void main() {
       expect(find.text('Text size'), findsNothing);
     });
 
+    testWidgets('on a phone at the largest text every size still reads on one line', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textSize: DVTextSize.larger));
+      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final double dialogRight = tester.getRect(find.byType(AlertDialog)).right;
+      for (final String size in <String>['Default', 'Large', 'Larger']) {
+        final Rect label = tester.getRect(find.text(size));
+        final double line = tester.getRect(find.text('Text size')).height;
+        expect(label.height, lessThan(line * 1.5), reason: '$size on one line');
+        expect(label.right, lessThanOrEqualTo(dialogRight), reason: '$size inside the panel');
+      }
+    });
+
+    testWidgets('the panel itself is pure black and white in high contrast', (WidgetTester tester) async {
+      DVAccessibilityControls.instance.update(const DVAccessibilitySettings(highContrast: true));
+      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      final Material dialog = tester.widget<Material>(find.descendant(of: find.byType(AlertDialog), matching: find.byType(Material)).first);
+      expect(dialog.color, const Color(0xFFFFFFFF));
+    });
+
     testWidgets('reduce motion the device asks for shows as on, and cannot be turned off here', (WidgetTester tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAllTestValues);

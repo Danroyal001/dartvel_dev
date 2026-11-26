@@ -343,18 +343,22 @@ class DVAccessibilityPanel extends StatelessWidget {
             DVText('Kept on this device for your next visit.', help),
             DVText('Text size', heading.paddingOnly(top: 8)),
             DVText('On top of your device’s own text size.', help),
-            SegmentedButton<DVTextSize>(
-              showSelectedIcon: false,
-              segments: <ButtonSegment<DVTextSize>>[
+            // Chips that wrap rather than one segmented row: at the largest
+            // size on a phone a row cut "Default" in two and ran "Larger"
+            // past the panel's edge.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
                 for (final DVTextSize size in DVTextSize.values)
-                  ButtonSegment<DVTextSize>(
-                    value: size,
+                  ChoiceChip(
                     label: Text(size.label),
                     tooltip: '${size.label} text (${(size.scale * 100).round()}%)',
+                    selected: settings.textSize == size,
+                    showCheckmark: true,
+                    onSelected: (bool _) => controls.update(settings.copyWith(textSize: size)),
                   ),
               ],
-              selected: <DVTextSize>{settings.textSize},
-              onSelectionChanged: (Set<DVTextSize> chosen) => controls.update(settings.copyWith(textSize: chosen.first)),
             ),
             toggle(
               'High contrast',
