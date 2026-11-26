@@ -464,6 +464,36 @@ The table is the contract. Each row says which entries a target has, what
 
 ### Web — static, web-server, PWA
 
+- **Runtime off switches.** The web-server binary reads `DARTVEL_OFF` once at
+  start (process environment, then systemd credential, then `.env`): names
+  separated by commas and/or white space, any case. Switches:
+  `page-scroll-button`, `ssr-first`, `analytics`, `module:<id>` (a mounted
+  module by its `dartvel.modules` id) and `cache-warm`. It logs which are on
+  and every unknown name. The server applies them to the shell every page is
+  rendered from (`DVOffSwitches.document`), so whole, streamed, refused and
+  not-found pages and an `.html` file asked for by name all carry them:
+  `ssr-first` serves the shell a `ssrFirst: false` build writes
+  (`dvWithoutSsrFirst`; captured pages keep their layout markup inside the
+  clipped `.dv-fallback` box), and the client switches (`page-scroll-button`,
+  `analytics`, `module:*`) go in one `<meta name="dartvel-off">` tag that
+  `DVOffSwitches.current` reads once in a browser. Nothing off, or only
+  server switches off, adds no tag. A native client has nothing off.
+  `DVPageScrollFrame` builds no button and registers no jump frame when
+  `page-scroll-button` is off. Analytics modules check
+  `DVOffSwitches.current.moduleOff(id, groups: [analytics])` in their start
+  function; switched off they subscribe to nothing, report themselves
+  unconfigured whatever is configured later, and refuse to forward on the
+  backend.
+- **Rendered-page cache warm.** After `serve()` binds, it renders every
+  static route `dvMayCacheRenderedPage` allows into the rendered-page cache,
+  sequentially with a short delay, stopping when the server stops: once with
+  no Accept-Language and, when the pages declare a default locale through
+  their alternates, once with it, on the host the manifest's `siteUrl`
+  names. It logs the count and the time. `cache-warm` turns it off. The
+  cache key holds the URL and only `host`, `x-forwarded-host`,
+  `accept-language`, `x-dartvel-theme`, `x-dartvel-locale`, `sec-gpc`, the
+  tenant header (all headers when an application resolver picks the
+  tenant); per-visitor headers no longer split entries.
 - `main()` takes no arguments: `void main() => DV.run();`.
 - Phase 1 sets the path URL strategy before the router exists, so a reload at
   `/users/42` is `/users/42` and not `/#/users/42` — the canonical-URL rule
