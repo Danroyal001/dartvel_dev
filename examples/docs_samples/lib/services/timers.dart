@@ -25,12 +25,10 @@ Widget timerList(BuildContext context) => DVBox.list(<Widget>[
         DVBox.row(<Widget>[
           DVTimerCountdown(timer),
           if (timer.stateAt(DV.Timers.now) == DVTimerState.ringing)
-            DVText('Snooze 5 min').modifier(const DVModifier()
+            DVText('Snooze 5 min')
                 .tooltip('Ring again in 5 minutes')
-                .onTap(() => DV.Timers.snooze(timer.id, const Duration(minutes: 5)))),
-          DVText('Stop').modifier(const DVModifier()
-              .tooltip('Stop this timer')
-              .onTap(() => DV.Timers.dismiss(timer.id))),
+                .onTap(() => DV.Timers.snooze(timer.id, const Duration(minutes: 5))),
+          DVText('Stop').tooltip('Stop this timer').onTap(() => DV.Timers.dismiss(timer.id)),
         ]),
     ]);
 // docs:end
