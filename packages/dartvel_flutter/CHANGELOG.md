@@ -1,3 +1,7 @@
+## 3.47.17 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.17.
+
 ## 3.47.16 — 2026-11-26
 
 - Accessibility controls, opt-in: `DV.Accessibility.controls`, `DVAccessibilityFrame` (text size, high contrast and reduced motion for the whole app, the device's settings always counting), `DVAccessibilityButton` (the app's own placement, `more:` for its own settings) and its panel, the framework's floating button on every page, and `dvHighContrastTheme` for an app with no high-contrast theme of its own. Kept per visitor.

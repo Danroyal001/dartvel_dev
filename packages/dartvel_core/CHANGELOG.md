@@ -1,6 +1,7 @@
-## Unreleased
+## 3.47.17 — 2026-11-26
 
 - `dartvel.accessibility.defaultControls` replaces `dartvel.accessibility.controls` (`DartvelConfig.accessibilityDefaultControls`, `DVAccessibilityDefaultControlsConfig`). The old key, getter and class name are read for one more release (deprecated); both keys at once is refused.
+- SSR-first: a link on the fold keeps its own words and its box (the layout capture no longer loses a link clipped by the screen edge at a phone's width).
 
 ## 3.47.16 — 2026-11-26
 
