@@ -89,7 +89,7 @@ void main() {
   });
 
 
-  // 3.47.16 shipped the key as `controls`; 3.47.18 renamed it `defaultControls`.
+  // 3.47.16 shipped the key as `controls`; 3.47.17 renamed it `defaultControls`.
   // The old spelling keeps working for one release (the build warns, naming the
   // new key), so a published project never silently loses the panel.
   group('the old `controls` key, for one release', () {

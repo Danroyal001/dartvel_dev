@@ -8712,7 +8712,7 @@ Runtime and tooling:
   document as the reading column in the visitor's text size and in pure black
   and white, because the captured layout is the app at the default settings
   (`data-dv-plain` turns the layout off). 3.47.16 named the key `controls`
-  (and the config field `accessibilityControls`); 3.47.18 still reads it, with
+  (and the config field `accessibilityControls`); 3.47.17 still reads it, with
   a build and `dartvel doctor` warning to rename it, and removes it after that
 
 Runtime API:

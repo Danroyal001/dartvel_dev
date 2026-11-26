@@ -239,7 +239,7 @@ const Map<String, String> dvDeprecatedConfigKeys = <String, String>{
 /// Keys under `dartvel.accessibility` that were renamed: the old key, then
 /// what to say. The old key is still read until it is removed.
 const Map<String, String> dvDeprecatedAccessibilityKeys = <String, String>{
-  'controls': 'renamed `dartvel.accessibility.defaultControls` in 3.47.18 '
+  'controls': 'renamed `dartvel.accessibility.defaultControls` in 3.47.17 '
       '(same values: true, or a map such as {floatingButton: false}). The old '
       'key still works in this release and is removed in the next; rename it. '
       'A DartvelConfig class renames accessibilityControls to '
