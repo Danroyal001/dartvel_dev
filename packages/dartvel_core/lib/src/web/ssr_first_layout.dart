@@ -817,7 +817,10 @@ class _Layout {
     for (final _Width width in widths) {
       final Map<String, List<_Item>> queues = <String, List<_Item>>{};
       for (final _Item item in width.items) {
-        if (item.used || item.kind != 't' || item.norm.isEmpty) continue;
+        // A paragraph, or selectable text (an editable no field took: a code
+        // sample drawn with SelectableText), which is the document's own
+        // text as much as a paragraph is.
+        if (item.used || (item.kind != 't' && item.kind != 'e') || item.norm.isEmpty) continue;
         queues.putIfAbsent(item.norm, () => <_Item>[]).add(item);
       }
       final List<String> keys = queues.keys.toList()

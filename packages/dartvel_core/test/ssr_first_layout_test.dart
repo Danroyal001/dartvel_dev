@@ -284,6 +284,35 @@ void main() {
       expect(out, isNot(contains('content:"Privacy"')), reason: 'no picture of the words');
     });
 
+    test('selectable text (a code sample) is the document\'s own text at its box, not a picture of it', () {
+      // dartvel.dev's docs draw code with SelectableText, which the snapshot
+      // reports as an editable ('e'). Only 't' paragraphs were matched, so
+      // every code sample was drawn as CSS content: not selectable, and
+      // Ctrl+F found it only in the hidden copy.
+      const String doc = '<h2>Write a policy class</h2>\n<pre><code>// lib/policies/order_policy.dart\n'
+          'class OrderPolicy {}</code></pre>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _text('Write a policy class', <num>[344, 560, 400, 32]),
+            <String, Object?>{
+              ..._text('// lib/policies/order_policy.dart\nclass OrderPolicy {}', <num>[344, 635, 552, 48]),
+              'k': 'e', 'nw': null, 'lines': 2,
+              'runs': <Object?>[
+                <String, Object?>{'t': '// lib/policies/order_policy.dart\n', 'f': 'JetBrains Mono', 'fs': 13, 'fw': 400, 'c': '#888888'},
+                <String, Object?>{'t': 'class OrderPolicy {}', 'f': 'JetBrains Mono', 'fs': 13, 'fw': 400, 'c': '#2f6bff'},
+              ],
+            },
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('content:"// lib')), reason: 'not a picture of the code');
+      expect(out, isNot(contains('<span class="dvu">// lib')), reason: 'not hidden from the eye');
+      final String run = RegExp(r'<code><span id="(dvr\d+)"').firstMatch(out)!.group(1)!;
+      expect(out, contains('#$run{left:344px;top:635px'));
+    });
+
     test('a link whose box was not found keeps its painted text on screen', () {
       final String out = dvSsrFirstLayout(
         _doc,
