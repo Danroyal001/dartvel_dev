@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../dartvel_client/dartvel_client.dart';
 
 @DVPage(
-  title: 'Dartvel notifications: email, in-app and push',
+  title: 'Dartvel notifications: email, in-app, push and timers',
   description: 'Send email, in-app and push notifications through '
       'DV.Notifications, with mail as part of it at '
-      'DV.Notifications.mail.',
+      'DV.Notifications.mail, and ring timers with DV.Timers.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
@@ -15,6 +15,7 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
       lead: <String>[
         'Send email, in-app and push notifications through DV.Notifications.',
         'Mail is part of it, at DV.Notifications.mail.',
+        'Timers that ring, several at once, are DV.Timers.',
       ],
       sections: <DocsSection>[
         DocsSection(
@@ -140,10 +141,56 @@ Widget _docsNotificationsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'timers',
+          title: 'Timers that ring',
+          children: <Widget>[
+            DocsText('DV.Timers is a countdown that rings with a sound and a '
+                'notification: a cooking timer, a break, a parking meter. '
+                'Several run at once, each with its own name, and they are '
+                'kept across a reload or a restart. Turn it on with '
+                'dartvel.timers: true in pubspec.yaml.'),
+            DocsCode('timers-start'),
+            DocsCode('timers-list'),
+            Bullets(<String>[
+              'snooze adds time: to a ringing timer from now, to a running '
+                  'or paused one on top of what is left. dismiss stops it for '
+                  'good. pause and resume keep what was left.',
+              'A timer that fell due while the app was closed is ringing '
+                  'when it opens again, and overdueAt says how long ago.',
+              'The notification has +1 min and +5 min buttons; swiping it '
+                  'away dismisses the timer, and a click on it opens the page '
+                  'the timer was started from.',
+              'DV.Timers.reach says whether a timer here rings with the app '
+                  'closed. Say it to the person: nobody should trust a timer '
+                  'to wake them that cannot.',
+            ]),
+            DocsTable(columns: <String>[
+              'Where',
+              'When it rings',
+            ], rows: <List<String>>[
+              <String>['Android', 'With the app closed and the screen off: a '
+                  'system alarm, a notification on an alarm-sound channel that '
+                  'repeats until answered, snooze and dismiss buttons. Exact '
+                  'from Android 12 only with the alarms permission; without it '
+                  'a few minutes late while the phone dozes.'],
+              <String>['Web and installed web app', 'While a tab or window of '
+                  'the app is open, in the background included: a chime, a '
+                  'vibration and a notification with snooze buttons from the '
+                  'service worker. Not once the browser is closed: no browser '
+                  'runs a timer then.'],
+              <String>['iOS, macOS, Windows, Linux', 'While the app runs: the '
+                  'platform\'s plain notification, with no buttons.'],
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'status',
           title: 'Status',
           children: <Widget>[
             DocsStatus('Mail and Notifications', missing: <String>[
+              'Timers on Android have been built and compiled, not rung on a '
+                  'phone. iOS and the desktop do not schedule a timer with the '
+                  'system, so they ring only while the app runs.',
               'Web Push has been run against Chrome\'s real push service. FCM '
                   'has not: no Firebase project or Android device was '
                   'available, so no token has come from a phone and no '

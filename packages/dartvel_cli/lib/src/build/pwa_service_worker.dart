@@ -61,6 +61,7 @@ String dvServiceWorker({
   String? offlineRoute = dvOfflineRoute,
   bool backgroundSync = true,
   bool push = false,
+  bool timers = false,
   String? adminPath,
   String? apiBasePath,
   String? engineRevision,
@@ -90,6 +91,7 @@ String dvServiceWorker({
       // tag by accident.
       .replaceAll('__OUTBOX__', backgroundSync ? _outbox : '')
       .replaceAll('__PUSH__', push ? _pushHandlers : '')
+      .replaceAll('__TIMERS__', timers ? _timerHandlers : '')
       .replaceAll('__QUEUE_ON_FAILURE__',
           backgroundSync ? _queueOnFailure : _noQueue);
 }
@@ -275,6 +277,8 @@ function sameOriginTarget(raw) {
 }
 
 self.addEventListener('notificationclick', (event) => {
+  // A DV.Timers notification is the timer handlers' below.
+  if (event.notification.data && event.notification.data.dartvelTimer) return;
   event.notification.close();
   const data = event.notification.data || {};
   const target = sameOriginTarget(data.url);
@@ -294,6 +298,56 @@ self.addEventListener('notificationclick', (event) => {
     }
     await self.clients.openWindow(target.href);
   })());
+});
+''';
+
+/// DV.Timers in the worker: what a timer notification's buttons, a click on
+/// it and swiping it away do. Present only when the project turns on
+/// `dartvel.timers`.
+const String _timerHandlers = r'''
+// DV.Timers. The page rings a timer and shows the notification; the buttons
+// and the dismissal come back here, and every open window of the app is
+// told, since each keeps the same timers. A worker cannot ring a timer itself:
+// it is stopped within seconds of going idle, so the page stays the clock.
+function dartvelTimerTarget(raw) {
+  try {
+    const target = new URL(typeof raw === 'string' ? raw : '/', self.location.origin);
+    return target.origin === self.location.origin ? target : new URL('/', self.location.origin);
+  } catch (_) {
+    return new URL('/', self.location.origin);
+  }
+}
+
+async function dartvelTimerTell(id, action, data, bringForward) {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of windows) client.postMessage({ type: 'dartvel-timer', id, action });
+  if (!bringForward) return;
+  if (windows.length > 0) {
+    // A snooze from the notification leaves the person where they are.
+    if (action === 'open') await windows[0].focus();
+    return;
+  }
+  // No window left to tell: open the app with the action in the address,
+  // and it applies it on load.
+  const target = dartvelTimerTarget(data.url);
+  target.searchParams.set('dartvel-timer', id);
+  target.searchParams.set('dartvel-timer-action', action);
+  await self.clients.openWindow(target.href);
+}
+
+self.addEventListener('notificationclick', (event) => {
+  const data = event.notification.data || {};
+  if (typeof data.dartvelTimer !== 'string') return;
+  event.notification.close();
+  const action = /^(snooze-\d{1,3}|dismiss)$/.test(event.action || '') ? event.action : 'open';
+  event.waitUntil(dartvelTimerTell(data.dartvelTimer, action, data, true));
+});
+
+// Swiped away or cleared: the person has seen it.
+self.addEventListener('notificationclose', (event) => {
+  const data = event.notification.data || {};
+  if (typeof data.dartvelTimer !== 'string') return;
+  event.waitUntil(dartvelTimerTell(data.dartvelTimer, 'dismiss', data, false));
 });
 ''';
 
@@ -488,6 +542,7 @@ async function activate() {
 
 __OUTBOX__
 __PUSH__
+__TIMERS__
 // The page reporting what it downloaded before this worker controlled it:
 // the first visit, which nothing intercepted. Each one is kept, read from the
 // browser's own HTTP cache rather than the network, so the second visit is

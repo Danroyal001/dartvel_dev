@@ -119,6 +119,7 @@ import 'src/widgets/password_reveal.dart';
 import 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
 import 'src/widgets/page_safe_box.dart' show DVPageSafeBox, dvMeasurePageOuterBox;
 import 'src/widgets/page_viewport.dart' show DVPageViewport, DVLayoutSlots;
+import 'src/timers/timers.dart' show DVTimers;
 import 'src/windowing/window.dart';
 
 export 'package:dartvel_core/dartvel.dart'
@@ -917,6 +918,10 @@ export 'src/purchases/purchases_runtime.dart'
     show DVPurchasesWatch, dvPurchaseChannel, dvInstallPurchaseRuntime;
 export 'src/push/device_push.dart';
 export 'src/pwa/install_prompt.dart';
+export 'src/timers/timer.dart' hide DVTimerTransitions;
+export 'src/timers/timer_countdown.dart';
+export 'src/timers/timer_delivery.dart';
+export 'src/timers/timers.dart';
 export 'src/routing/account_pages.dart';
 export 'src/routing/client_hosts.dart';
 export 'src/routing/sitemap_page.dart' show DVSitemapPage, dvSitemapDate;
@@ -11360,6 +11365,10 @@ class DV {
   static DVCSRF get Csrf => const DVCSRF();
   static DVI18n get I18n => const DVI18n();
   static DVAccessibility get Accessibility => const DVAccessibility();
+
+  /// `DV.Timers`: countdowns that ring with a sound and a notification,
+  /// several at once, kept across a reload.
+  static DVTimers get Timers => DVTimers.instance;
   static DVObservabilityAndLogging get ObservabilityAndLogging =>
       const DVObservabilityAndLogging();
   static DVTenants get Tenants => const DVTenants();
