@@ -21,7 +21,7 @@
 ///   switches at the midpoint.
 ///
 /// The stylesheet applies only on a screen, with scripting, before the
-/// handover (`html:not([data-dv-app])`), and only in a browser that reads
+/// handover (`html:not([data-dv-app])`; and not for a visitor whose accessibility settings ask for large text or high contrast, `data-dv-plain`, who gets the reading column in those settings), and only in a browser that reads
 /// nested CSS. Print, a browser with scripting off, an older browser and the
 /// page after the handover all get the reading column as before.
 ///
@@ -1621,7 +1621,7 @@ class _Layout {
       out.write('.dvl .dvo{display:none}');
     }
     out.write(
-      '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated'
+      '@media screen and (scripting:enabled){html:not([data-dv-app]):not([data-dv-plain]){$gated'
       '.dvl .dvu{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);'
       'white-space:nowrap}'
       // A link or field kept only for readers (a closed menu's) is still a
@@ -1637,7 +1637,7 @@ class _Layout {
     );
     final String rest = later.isEmpty
         ? ''
-        : '@media screen and (scripting:enabled){html:not([data-dv-app]){$later}}';
+        : '@media screen and (scripting:enabled){html:not([data-dv-app]):not([data-dv-plain]){$later}}';
     return (out.toString(), rest);
   }
 
@@ -2527,5 +2527,5 @@ String? dvSsrFirstTheme(
     gated.write(index == 0 ? '$block' : '@media (min-width:${width}px){$block}');
   }
   return '${layout._fontFaces()}'
-      '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated}}';
+      '@media screen and (scripting:enabled){html:not([data-dv-app]):not([data-dv-plain]){$gated}}';
 }

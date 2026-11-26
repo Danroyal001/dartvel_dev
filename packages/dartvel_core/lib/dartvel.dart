@@ -345,6 +345,7 @@ export 'src/web/host_routing.dart';
 export 'src/web/public_suffix.dart' show dvRegistrableDomain, dvIsPublicSuffix;
 export 'src/web/page_data.dart' hide dvPageResolverIsStatic;
 export 'src/web/page_text.dart';
+export 'src/config/accessibility_controls.dart';
 export 'src/web/ssr_first.dart';
 export 'src/web/ssr_first_layout.dart';
 export 'src/web/inline_script_csp.dart';

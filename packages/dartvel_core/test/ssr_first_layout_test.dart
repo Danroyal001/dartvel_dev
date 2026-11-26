@@ -737,7 +737,9 @@ void main() {
         ]),
       );
       final String style = RegExp(r'<style class="dvl-style">(.*?)</style>', dotAll: true).firstMatch(out)!.group(1)!;
-      final int gate = style.indexOf('@media screen and (scripting:enabled){html:not([data-dv-app]){');
+      // Not for a visitor whose accessibility settings ask for large text or
+      // high contrast (data-dv-plain): the layout is the default settings'.
+      final int gate = style.indexOf('@media screen and (scripting:enabled){html:not([data-dv-app]):not([data-dv-plain]){');
       expect(gate, greaterThanOrEqualTo(0));
       // The layer is hidden outside the gate: print, scripting off, after the
       // handover, and a browser that cannot read the nested rules.

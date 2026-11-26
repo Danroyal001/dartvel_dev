@@ -24,10 +24,12 @@
 /// a page importing both would not compile.
 library;
 
+import 'src/config/accessibility_controls.dart';
 import 'src/config/file_associations.dart';
 import 'src/config/platforms.dart';
 import 'src/observability/open_telemetry_config.dart';
 
+export 'src/config/accessibility_controls.dart';
 export 'src/config/file_associations.dart';
 export 'src/config/platforms.dart';
 export 'src/observability/logging.dart' show DVLogLevel;
@@ -40,6 +42,10 @@ abstract class DartvelConfig {
 
   /// `dartvel.fileAssociations`: the file types the application opens.
   List<DVFileAssociation> get fileAssociations => const <DVFileAssociation>[];
+
+  /// `dartvel.accessibility.controls`: the accessibility button and panel
+  /// (text size, high contrast, reduced motion). Off unless the app asks.
+  DVAccessibilityControlsConfig get accessibilityControls => DVAccessibilityControlsConfig.off;
 
   /// `dartvel.openTelemetry`: where traces, metrics and logs are exported.
   /// Null leaves the section out, which is export off unless the deployment
@@ -57,6 +63,8 @@ abstract class DartvelConfig {
           'fileAssociations': <Object?>[
             for (final DVFileAssociation association in fileAssociations) association.toPubspec(),
           ],
+        if (accessibilityControls.enabled)
+          'accessibility': <String, Object?>{'controls': accessibilityControls.toPubspec()},
         if (openTelemetry != null) 'openTelemetry': openTelemetry!.toDeclaration(),
         if (!platforms.isEmpty) 'platforms': platforms.toPubspec(),
       };
@@ -67,7 +75,8 @@ abstract class DartvelConfig {
 /// What the YAML spelling becomes on its way into the same typed shape, and
 /// the other half of the round trip the parity tests hold.
 class DartvelPubspecConfig extends DartvelConfig {
-  DartvelPubspecConfig._(this.fileAssociations, this.platforms, this.problems, {this.openTelemetry});
+  DartvelPubspecConfig._(this.fileAssociations, this.platforms, this.problems,
+      {this.openTelemetry, this.accessibilityControls = DVAccessibilityControlsConfig.off});
 
   /// Reads [section], the `dartvel:` object. Problems are collected, not
   /// thrown, in the same words the build prints.
@@ -84,11 +93,18 @@ class DartvelPubspecConfig extends DartvelConfig {
         problems.add('${error.name}: ${error.message}');
       }
     }
+    DVAccessibilityControlsConfig accessibilityControls = DVAccessibilityControlsConfig.off;
+    try {
+      accessibilityControls = DVAccessibilityControlsConfig.fromSection(section);
+    } on ArgumentError catch (error) {
+      problems.add('${error.name}: ${error.message}');
+    }
     return DartvelPubspecConfig._(
       associations.associations,
       platforms.settings,
       problems,
       openTelemetry: openTelemetry,
+      accessibilityControls: accessibilityControls,
     );
   }
 
@@ -100,6 +116,9 @@ class DartvelPubspecConfig extends DartvelConfig {
 
   @override
   final DVOpenTelemetryConfig? openTelemetry;
+
+  @override
+  final DVAccessibilityControlsConfig accessibilityControls;
 
 
   final List<String> problems;

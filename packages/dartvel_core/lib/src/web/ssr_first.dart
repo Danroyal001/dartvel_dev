@@ -25,6 +25,7 @@ library;
 
 import 'dart:math' as math;
 
+import '../config/accessibility_controls.dart' show dvAccessibilityStorageKey;
 import 'page_text.dart' show dvApplyPageHtml, dvApplyPageText;
 import 'ssr_first_layout.dart' show dvFirstScreenId;
 
@@ -153,7 +154,7 @@ const String _handoverScript = '(function(){'
     'q.shift();n=Date.now();next()})()}'
     'addEventListener("dartvel-first-frame",function(){'
     'var b=d.querySelector(".dv-fallback"),t=Date.now(),'
-    'rm=matchMedia("(prefers-reduced-motion: reduce)").matches;'
+    'rm=matchMedia("(prefers-reduced-motion: reduce)").matches||h.hasAttribute("data-dv-reduce-motion");'
     'function go(){'
     'var s=window.getSelection&&getSelection(),a=d.activeElement,'
     'typing=!!(b&&a&&b.contains(a)&&a.matches&&a.matches(F));'
@@ -192,7 +193,49 @@ const String _firstScreenScript = '(function(){'
     'l.setAttribute("blocking","render");'
     'd.head.appendChild(l)})()';
 
+/// The visitor's accessibility settings (`dartvel.accessibility.controls`),
+/// read before the first paint and written on `<html>`:
+///
+/// * `data-dv-reduce-motion`: the handover does not fade;
+/// * `data-dv-contrast`: the document in pure black and white (also when the
+///   operating system asks for more contrast);
+/// * `data-dv-text` and `--dv-text-scale`: the document's text at the
+///   visitor's size;
+/// * `data-dv-plain`: large text or high contrast. The captured layout is the
+///   app drawn at the default settings, so the document is shown as the
+///   reading column in the visitor's settings instead (the layout and theme
+///   stylesheets are gated on `:not([data-dv-plain])`).
+const String _accessibilityScript = '(function(){try{'
+    'var h=document.documentElement,s={};'
+    'try{s=JSON.parse(localStorage.getItem("$dvAccessibilityStorageKey")||"{}")||{}}catch(e){}'
+    'var t=+s.textScale;if(!(t>1&&t<4))t=1;'
+    'if(t>1){h.setAttribute("data-dv-text","");h.style.setProperty("--dv-text-scale",String(t))}'
+    'if(s.highContrast===true||matchMedia("(prefers-contrast: more)").matches)h.setAttribute("data-dv-contrast","");'
+    'if(s.reducedMotion===true)h.setAttribute("data-dv-reduce-motion","");'
+    'if(t>1||h.hasAttribute("data-dv-contrast"))h.setAttribute("data-dv-plain","")'
+    '}catch(e){}})()';
+
+/// The document in the visitor's settings: text size and pure black and
+/// white, as the app draws them once it has taken over.
+const String _accessibilityStyle = '@media screen{'
+    'html[data-dv-text]:not([data-dv-app]) .dv-fallback{font-size:calc(1rem * var(--dv-text-scale,1))}'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback{background:#FFFFFF;color:#000000}'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback a{color:#000000;text-decoration:underline}'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback a:focus-visible,'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback [role=button]:focus-visible'
+    '{outline:3px solid #000000;outline-offset:2px}}'
+    '@media screen and (prefers-color-scheme:dark){'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback{background:#000000;color:#FFFFFF}'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback a{color:#FFFFFF}'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback a:focus-visible,'
+    'html[data-dv-contrast]:not([data-dv-app]) .dv-fallback [role=button]:focus-visible'
+    '{outline-color:#FFFFFF}}'
+    'html[data-dv-reduce-motion][data-dv-handover] .dv-fallback{transition:none}';
+
 /// The style and script an SSR-first shell carries in its head.
+///
+/// With [accessibilityControls] (`dartvel.accessibility.controls`) it also
+/// reads the visitor's accessibility settings before the first paint.
 ///
 /// [background] and [darkBackground] are the app's page colours (the
 /// splash's, which come from `dartvel.splash` or `dartvel.pwa`); [accent] is
@@ -201,6 +244,7 @@ String dvSsrFirstHead({
   required String background,
   required String darkBackground,
   required String accent,
+  bool accessibilityControls = false,
 }) {
   const String on = 'html:not([data-dv-app]) .dv-fallback';
   final String css = '@media screen{'
@@ -237,6 +281,7 @@ String dvSsrFirstHead({
       // on the app (see the handover script).
       'html[data-dv-handover] .dv-fallback{opacity:0}';
   return '<script>$_firstScreenScript</script>\n'
-      '<style $dvSsrFirstMarker>$css</style>\n'
+      '${accessibilityControls ? '<script>$_accessibilityScript</script>\n' : ''}'
+      '<style $dvSsrFirstMarker>$css${accessibilityControls ? _accessibilityStyle : ''}</style>\n'
       '<script>$_handoverScript</script>\n';
 }
