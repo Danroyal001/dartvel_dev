@@ -26,7 +26,7 @@ import 'accessibility_platform_stub.dart'
     if (dart.library.io) 'accessibility_platform_io.dart' as platform;
 import 'accessibility_store.dart';
 
-export 'package:dartvel_core/dartvel.dart' show DVAccessibilitySettings, DVTextSize;
+export 'package:dartvel_core/dartvel.dart' show DVAccessibilitySettings, DVTextSize, dvAccessibilityStorageKey;
 
 export 'accessibility_store.dart';
 
