@@ -231,6 +231,31 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
           ],
         ),
         DocsSection(
+          id: 'device',
+          title: 'Keep settings on the device',
+          children: <Widget>[
+            DocsCode('models-device'),
+            DocsCode('models-device-use'),
+            Bullets(<String>[
+              'storage: DVModelStorage.device keeps the model on the reader\'s '
+                  'device: localStorage in a browser, a small file on a phone '
+                  'or desktop. It has no table, page, admin or sync.',
+              'Declare it outside lib/models. One in lib/models stops the '
+                  'build.',
+              'Every field needs a default, so const ReadingSettings() is what '
+                  'a new reader has. Fields are String, bool, int, double, num, '
+                  'DateTime or an enum from the same file.',
+              'ReadingSettings.kept is read before the first frame. '
+                  'settings.keep() saves it, and widgets that read '
+                  'context.global<ReadingSettings>() rebuild.',
+              'storageKey: names where it is kept. Without it the key is '
+                  '<package>.<Model>.',
+              'A stored value that is old or broken reads back as the defaults '
+                  'for the fields it cannot read.',
+            ]),
+          ],
+        ),
+        DocsSection(
           id: 'sensitive',
           title: 'Protect sensitive fields',
           children: <Widget>[

@@ -12,6 +12,7 @@ import 'package:file/local.dart';
 import 'package:glob/glob.dart';
 import 'package:path/path.dart' as p;
 import 'annotation_args.dart';
+import 'device_model_generator.dart' show dvIsDeviceModelArgs;
 import 'model_rules.dart';
 import 'model_field_defaults.dart';
 import 'policy_classes.dart';
@@ -197,6 +198,14 @@ class ModelGenerator {
         final modelArgs =
             dvAnnotationArgs(content.substring(match.start), 'DVModel') ?? '';
         final sourceClassName = match.group(2)!;
+        if (dvIsDeviceModelArgs(modelArgs)) {
+          final String where = p.relative(file.path, from: root).replaceAll(r'\', '/');
+          throw StateError(
+            'Dartvel: $where declares $sourceClassName with storage: DVModelStorage.device. '
+            'A model kept on the visitor\'s device has no table, so it is declared outside lib/models '
+            '(lib/settings/, say), where the database scanners do not read. Move it there.',
+          );
+        }
         if (!sourceClassName.startsWith('_')) {
           throw StateError(
             'Dartvel model generation inputs must be private. Rename '

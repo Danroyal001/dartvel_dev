@@ -1,3 +1,7 @@
+## Unreleased
+
+- Generates `@DVModel(storage: DVModelStorage.device)` models declared outside `lib/models/` into `lib/dartvel_client/device_models.g.dart` (exported by the barrel; the runtime reads each before the first frame). A device model in `lib/models/`, a non-nullable field without a default, or a field type a device cannot keep stops generation with the file, field and type named.
+
 ## 3.47.18 — 2026-11-26
 
 - Faster web and web-server builds with the same output: a route's capture is reused while the app code its tab fetched is unchanged (a one-line page edit re-read 38 of sigmadev.digital's 225 routes instead of all), Flutter's throwaway one-module wasm is compiled at -O0, the SSR-first documents and data-page theme are laid out on every core, the read fits the memory the build may use, subset fonts are shared in ~/.dartvel/cache/web_fonts, and every build prints a timings table (build/dartvel_build_timings.json).

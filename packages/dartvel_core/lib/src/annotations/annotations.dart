@@ -182,6 +182,16 @@ class DVFunctionalWidget {
 }
 
 /// How a generated `Model.Page(...)` resolves the data it renders.
+/// Where a `@DVModel` is kept.
+enum DVModelStorage {
+  /// The application's database: a table, pages, admin, sync. The default.
+  database,
+
+  /// The visitor's own device, through `DVPreferenceStore`: a settings
+  /// object read before the first frame. No table, page, admin or sync.
+  device,
+}
+
 enum DVModelPageDataMode {
   /// Picks the mode from the input: an existing model renders synchronously,
   /// an id or route parameter triggers an async query, a signal renders
@@ -453,6 +463,17 @@ class DVModel {
   /// The indexes the model asks its database for, beyond its key.
   final List<DVIndex> indexes;
 
+  /// Where the model is kept: the database (the default), or the visitor's
+  /// own device for a settings object such as a text size or a voice
+  /// language. A device model is declared outside `lib/models/`, is read
+  /// before the first frame with `Model.kept` and written with
+  /// `model.keep()`, and has no table, page, admin or sync.
+  final DVModelStorage storage;
+
+  /// For a device model, the key it is kept under (`localStorage` in a
+  /// browser, a small file on a device). Defaults to `<package>.<Model>`.
+  final String? storageKey;
+
   /// `@DVModel.uniqueField()`: no two records hold the same value here.
   final bool unique;
 
@@ -484,6 +505,8 @@ class DVModel {
     this.softDelete = false,
     this.access,
     this.indexes = const <DVIndex>[],
+    this.storage = DVModelStorage.database,
+    this.storageKey,
   }) : encrypted = false,
        unique = false,
        min = null,
@@ -533,6 +556,8 @@ class DVModel {
     this.onErase = DVErase.delete,
   }) : access = null,
        indexes = const <DVIndex>[],
+       storage = DVModelStorage.database,
+       storageKey = null,
        unique = false,
        min = null,
        max = null,
@@ -580,6 +605,8 @@ class DVModel {
     this.pattern,
   }) : access = null,
        indexes = const <DVIndex>[],
+       storage = DVModelStorage.database,
+       storageKey = null,
        unique = false,
        searchable = false,
        subject = null,
@@ -619,6 +646,8 @@ class DVModel {
     : unique = true,
       access = null,
       indexes = const <DVIndex>[],
+      storage = DVModelStorage.database,
+      storageKey = null,
       min = null,
       max = null,
       minLength = null,
@@ -659,6 +688,8 @@ class DVModel {
   const DVModel.searchableField()
     : access = null,
       indexes = const <DVIndex>[],
+      storage = DVModelStorage.database,
+      storageKey = null,
       unique = false,
       min = null,
       max = null,
@@ -746,6 +777,8 @@ class DVModel {
     int? maxTriangles,
   }) : access = null,
        indexes = const <DVIndex>[],
+       storage = DVModelStorage.database,
+       storageKey = null,
        unique = false,
        min = null,
        max = null,
@@ -792,6 +825,8 @@ class DVModel {
   const DVModel.retain({required int years, required String because})
     : access = null,
       indexes = const <DVIndex>[],
+      storage = DVModelStorage.database,
+      storageKey = null,
       unique = false,
       min = null,
       max = null,
@@ -831,6 +866,8 @@ class DVModel {
   const DVModel._page(this.pageRole, [this.pageOrderIndex])
     : access = null,
       indexes = const <DVIndex>[],
+      storage = DVModelStorage.database,
+      storageKey = null,
       unique = false,
       min = null,
       max = null,
