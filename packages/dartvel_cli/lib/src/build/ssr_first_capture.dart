@@ -14,9 +14,10 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:dartvel_core/dartvel.dart'
-    show DVLayoutFont, dvSsrFirstLayout, dvSsrFirstTheme, dvSsrFirstThemeStyle, dvSsrThemeId;
+    show DVLayoutFont, DVSsrThemePage, dvSsrFirstLayout, dvSsrFirstTheme, dvSsrFirstThemeFromPages, dvSsrFirstThemePage, dvSsrFirstThemeStyle, dvSsrThemeId;
 import 'package:path/path.dart' as p;
 import 'package:puppeteer/puppeteer.dart';
 
@@ -320,7 +321,7 @@ String dvWithSsrFirstTheme(
   Map<String, String> pages,
   Map<String, List<DVLayoutFont>> fonts,
 ) {
-  final String bare = shell.replaceAll(RegExp('<style id="$dvSsrThemeId">[\\s\\S]*?</style>'), '');
+  final String bare = _withoutTheme(shell);
   final List<(String, Map<String, Object?>)> captured = <(String, Map<String, Object?>)>[];
   pages.forEach((String route, String html) {
     final File file = File(dvLayoutCapturePathFor(projectRoot, route));
@@ -332,9 +333,73 @@ String dvWithSsrFirstTheme(
       return;
     }
   });
-  final String? theme = dvSsrFirstTheme(captured, fonts: fonts);
+  return _withTheme(bare, dvSsrFirstTheme(captured, fonts: fonts));
+}
+
+String _withoutTheme(String shell) => shell.replaceAll(RegExp('<style id="$dvSsrThemeId">[\\s\\S]*?</style>'), '');
+
+String _withTheme(String bare, String? theme) {
   if (theme == null) return bare;
   final int head = bare.indexOf('</head>');
   if (head < 0) return bare;
   return '${bare.substring(0, head)}${dvSsrFirstThemeStyle(theme)}${bare.substring(head)}';
+}
+
+/// [dvWithSsrFirstTheme], each page laid out in one of [workers] isolates
+/// (by default the cores, less one): the same shell, byte for byte, in a
+/// fraction of the time on a site of hundreds of routes.
+Future<String> dvWithSsrFirstThemeInParallel(
+  String projectRoot,
+  String shell,
+  Map<String, String> pages,
+  Map<String, List<DVLayoutFont>> fonts, {
+  int? workers,
+}) async {
+  final List<MapEntry<String, String>> entries = pages.entries.toList();
+  final int count = (workers ?? Platform.numberOfProcessors - 1).clamp(1, entries.isEmpty ? 1 : entries.length);
+  final List<List<(int, String, String)>> shares = <List<(int, String, String)>>[
+    for (int share = 0; share < count; share++)
+      <(int, String, String)>[
+        for (int index = share; index < entries.length; index += count) (index, entries[index].key, entries[index].value),
+      ],
+  ];
+  final List<List<(int, DVSsrThemePage?)>> done = await Future.wait(<Future<List<(int, DVSsrThemePage?)>>>[
+    for (final List<(int, String, String)> share in shares)
+      Isolate.run(() {
+        // Only the first page with a layout lends the theme its layout, and
+        // the first of all is the first of its share.
+        bool first = true;
+        return <(int, DVSsrThemePage?)>[
+          for (final (int index, String route, String html) in share)
+            (index, switch (_themePageOf(projectRoot, route, html, fonts)) {
+              null => null,
+              final DVSsrThemePage page when first => (() {
+                  first = false;
+                  return page;
+                })(),
+              final DVSsrThemePage page => page.withoutLayout,
+            }),
+        ];
+      }),
+  ]);
+  final List<DVSsrThemePage?> ordered = List<DVSsrThemePage?>.filled(entries.length, null);
+  for (final List<(int, DVSsrThemePage?)> part in done) {
+    for (final (int index, DVSsrThemePage? page) in part) {
+      ordered[index] = page;
+    }
+  }
+  return _withTheme(_withoutTheme(shell), dvSsrFirstThemeFromPages(ordered, fonts: fonts));
+}
+
+/// One page's part of the theme, from its layout capture; null as
+/// [dvWithSsrFirstTheme] skips it (no capture, unreadable, not a map).
+DVSsrThemePage? _themePageOf(String projectRoot, String route, String html, Map<String, List<DVLayoutFont>> fonts) {
+  final File file = File(dvLayoutCapturePathFor(projectRoot, route));
+  if (!file.existsSync()) return null;
+  try {
+    final Object? capture = jsonDecode(file.readAsStringSync());
+    return capture is Map ? dvSsrFirstThemePage(html, capture.cast<String, Object?>(), fonts: fonts) : null;
+  } on FormatException {
+    return null;
+  }
 }

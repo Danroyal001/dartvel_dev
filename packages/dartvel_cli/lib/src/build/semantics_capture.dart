@@ -20,6 +20,7 @@ import 'page_shots.dart' show DVInFlight, DVTextSettle, dvCaptureHeldScript;
 import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
+import 'capture_deps.dart' show dvAppCodePathOf;
 import 'route_prefetch.dart';
 import 'ssr_first_capture.dart' show dvCaptureLayout, dvLayoutCapturePathFor, dvSemanticsReadViewport;
 
@@ -212,10 +213,15 @@ shelf.Handler dvCaptureHandler(String webRoot) {
 /// the machine idle; a site of two hundred routes took most of an hour. Each
 /// open page is a Flutter app drawing in software, so the count follows the
 /// cores, leaves a quarter of them for the browser and everything else, and
-/// stops at eight,
-/// past which pages only slow each other down. [requested] (the build's
-/// `--capture-jobs`) overrides it.
-int dvCaptureConcurrency({required int processors, String? requested}) {
+/// stops at eight, past which pages only slow each other down.
+///
+/// Each page also holds an app's memory. With [availableMemoryMb] (what the
+/// build may still use: [dvAvailableMemoryMb]) the count is also no more than
+/// fit in it beside a reserve of [dvCaptureMemoryReserveMb], and never less
+/// than one: on a busy server a read that opens six apps into two gigabytes
+/// does not finish sooner, it swaps, or takes the server's own services down
+/// with it. [requested] (the build's `--capture-jobs`) overrides both.
+int dvCaptureConcurrency({required int processors, String? requested, int? availableMemoryMb}) {
   if (requested != null) {
     final int? count = int.tryParse(requested.trim());
     if (count == null || count < 1) {
@@ -225,7 +231,66 @@ int dvCaptureConcurrency({required int processors, String? requested}) {
     }
     return count;
   }
-  return (processors * 3 ~/ 4).clamp(1, 8);
+  final int byCores = (processors * 3 ~/ 4).clamp(1, 8);
+  if (availableMemoryMb == null) return byCores;
+  final int byMemory = (availableMemoryMb - dvCaptureMemoryReserveMb) ~/ dvCaptureTabMemoryMb;
+  return byMemory.clamp(1, byCores);
+}
+
+/// What one open page of the semantics read holds, browser renderer and the
+/// app drawing in software together (a 225-route site measured).
+const int dvCaptureTabMemoryMb = 700;
+
+/// What the read leaves for the browser itself, the build and everything else.
+const int dvCaptureMemoryReserveMb = 1536;
+
+/// The memory this build may still use, in MiB: the machine's
+/// `MemAvailable`, or less when the build runs in a cgroup with a limit (a
+/// systemd scope, a container) that is nearer. Null when neither can be read.
+int? dvAvailableMemoryMb() {
+  String? read(String path) {
+    try {
+      return File(path).readAsStringSync();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  final String? meminfo = read('/proc/meminfo');
+  if (meminfo == null) return null;
+  String? group;
+  final String? cgroups = read('/proc/self/cgroup');
+  if (cgroups != null) {
+    for (final String line in cgroups.split('\n')) {
+      // cgroup v2: "0::/user.slice/.../run-1234.scope"
+      if (line.startsWith('0::')) group = '/sys/fs/cgroup${line.substring(3).trim()}';
+    }
+  }
+  return dvAvailableMemoryMbFrom(
+    meminfo: meminfo,
+    cgroupMax: group == null ? null : read('$group/memory.max'),
+    cgroupCurrent: group == null ? null : read('$group/memory.current'),
+    cgroupStat: group == null ? null : read('$group/memory.stat'),
+  );
+}
+
+/// [dvAvailableMemoryMb] from the text of `/proc/meminfo` and the cgroup's
+/// `memory.max`, `memory.current` and `memory.stat`. The cgroup's page
+/// cache (`file` in `memory.stat`: the build's own output, just written) is
+/// counted as free, since the kernel gives it back before it refuses memory.
+int? dvAvailableMemoryMbFrom({required String meminfo, String? cgroupMax, String? cgroupCurrent, String? cgroupStat}) {
+  final RegExpMatch? available = RegExp(r'^MemAvailable:\s+(\d+)\s*kB', multiLine: true).firstMatch(meminfo);
+  if (available == null) return null;
+  int megabytes = int.parse(available.group(1)!) ~/ 1024;
+  final int? limit = int.tryParse(cgroupMax?.trim() ?? '');
+  final int? current = int.tryParse(cgroupCurrent?.trim() ?? '');
+  final int cached = int.tryParse(RegExp(r'^file (\d+)$', multiLine: true).firstMatch(cgroupStat ?? '')?.group(1) ?? '') ?? 0;
+  final int? used = current == null ? null : current - cached;
+  if (limit != null && used != null) {
+    final int left = (limit - used) ~/ (1024 * 1024);
+    if (left < megabytes) megabytes = left < 0 ? 0 : left;
+  }
+  return megabytes;
 }
 
 /// Runs [read] on each of [items], up to [concurrency] at once, and counts
@@ -311,6 +376,12 @@ Future<DVCaptureRun> dvCaptureSemantics({
   final String base = 'http://${server.address.host}:${server.port}';
 
   var captured = 0;
+  final Map<String, Duration> routeTimes = <String, Duration>{};
+  final Map<String, Set<String>> appCode = <String, Set<String>>{};
+  Duration layoutTime = Duration.zero;
+  Duration bootTime = Duration.zero;
+  int boots = 0;
+  int slotsUsed = 0;
   try {
     Directory(p.join(projectRoot, '.dart_tool', 'dartvel_semantics'))
         .createSync(recursive: true);
@@ -321,11 +392,13 @@ Future<DVCaptureRun> dvCaptureSemantics({
     final bool reuse = inApp;
     final int slots = concurrency ??
         dvCaptureConcurrency(processors: Platform.numberOfProcessors);
+    slotsUsed = slots;
     final List<_CaptureTab?> tabs = List<_CaptureTab?>.filled(slots, null);
 
     /// Reads one route, in the app [slot]'s tab is running when it can move
     /// there and in a fresh load otherwise, and says whether it drew a tree.
     Future<bool> readRoute(String route, int slot) async {
+      final Stopwatch routeClock = Stopwatch()..start();
       _CaptureTab? tab = reuse ? tabs[slot] : null;
       if (tab != null && !await tab.moveTo(route)) {
         // No hook, or the router went somewhere else: a redirect, which a
@@ -339,7 +412,12 @@ Future<DVCaptureRun> dvCaptureSemantics({
       final Page page = tab.page;
       bool drew = false;
       try {
-        if (fresh) await tab.load(route);
+        if (fresh) {
+          final Stopwatch bootClock = Stopwatch()..start();
+          await tab.load(route);
+          bootTime += bootClock.elapsed;
+          boots++;
+        }
 
         // Polled rather than slept: a page that is ready early should not
         // cost the whole budget, and one that never builds a tree has to be
@@ -391,15 +469,21 @@ Future<DVCaptureRun> dvCaptureSemantics({
         // the document to be laid out as the first frame draws the page.
         final File layout = File(dvLayoutCapturePathFor(projectRoot, route));
         if (drew && layoutWidths.isNotEmpty) {
+          final Stopwatch layoutClock = Stopwatch()..start();
           if (!await dvCaptureLayout(page, layoutWidths, path: layout.path) &&
               layout.existsSync()) {
             layout.deleteSync();
           }
+          layoutTime += layoutClock.elapsed;
         } else if (layout.existsSync()) {
           layout.deleteSync();
         }
       } finally {
+        // Every code file this tab has fetched since it booted: what this
+        // route ran, and what the routes before it here left running.
+        appCode[route] = Set<String>.of(tab.appCode);
         if (!reuse) await tab.close();
+        routeTimes[route] = routeClock.elapsed;
       }
       return drew;
     }
@@ -433,7 +517,16 @@ Future<DVCaptureRun> dvCaptureSemantics({
     }
   }
 
-  return DVCaptureRun(captured: captured, browserAvailable: true);
+  return DVCaptureRun(
+    captured: captured,
+    browserAvailable: true,
+    routeTimes: routeTimes,
+    layoutTime: layoutTime,
+    pages: slotsUsed,
+    bootTime: bootTime,
+    boots: boots,
+    appCode: appCode,
+  );
 }
 
 /// Run in every captured page before it loads: tells the app it is being
@@ -453,6 +546,10 @@ class _CaptureTab {
   /// its own head and for the links that point at it to fetch early.
   final List<DVCapturedImage> images = <DVCapturedImage>[];
   final DVInFlight flight = DVInFlight();
+
+  /// The app's code files ([dvAppCodePathOf]) this tab has fetched since it
+  /// booted.
+  final Set<String> appCode = <String>{};
   final List<StreamSubscription<Object?>> _listening =
       <StreamSubscription<Object?>>[];
   bool _closed = false;
@@ -499,7 +596,11 @@ class _CaptureTab {
           tab.images.add(image);
         }
       }),
-      tab.page.onRequest.listen((Object? _) => tab.flight.started()),
+      tab.page.onRequest.listen((Request request) {
+        tab.flight.started();
+        final String? code = dvAppCodePathOf(request.url, base);
+        if (code != null) tab.appCode.add(code);
+      }),
       tab.page.onRequestFinished.listen((Object? _) => tab.flight.ended()),
       tab.page.onRequestFailed.listen((Object? _) => tab.flight.ended()),
     ]);
@@ -601,3 +702,23 @@ const String _enableSemantics = '''() => {
   spot.click();
   return true;
 }''';
+
+/// One line for the build's timings: how many routes were read and with
+/// how many pages open, the typical route, the three slowest, and how much
+/// of the read was the SSR-first layout at each width.
+String dvCaptureTimesSummary(DVCaptureRun run, {int reused = 0}) {
+  String seconds(Duration elapsed) => '${(elapsed.inMilliseconds / 1000).toStringAsFixed(1)} s';
+  final List<MapEntry<String, Duration>> byTime = run.routeTimes.entries.toList()
+    ..sort((MapEntry<String, Duration> a, MapEntry<String, Duration> b) => b.value.compareTo(a.value));
+  final StringBuffer line = StringBuffer('${run.routeTimes.length} read, ${run.pages} pages at once');
+  if (reused > 0) line.write(', $reused reused');
+  if (byTime.isEmpty) return line.toString();
+  final Duration median = byTime[byTime.length ~/ 2].value;
+  final Duration total = byTime.fold(Duration.zero, (Duration sum, MapEntry<String, Duration> route) => sum + route.value);
+  line
+    ..write('; median ${seconds(median)} a route, slowest ')
+    ..write(<String>[for (final MapEntry<String, Duration> route in byTime.take(3)) '${route.key} ${seconds(route.value)}'].join(', '))
+    ..write('; SSR-first layout ${seconds(run.layoutTime)} of ${seconds(total)} route time');
+  if (run.boots > 0) line.write('; ${run.boots} app boot(s), ${seconds(run.bootTime)}');
+  return line.toString();
+}

@@ -13297,7 +13297,35 @@ whose location after `go` is not the route (a redirect) and an app without
 the hook use fresh loads;
 `--no-capture-in-app` forces them. Results are identical to the serial fresh
 read and are written per route, so their order does not depend on which
-window finishes first.
+window finishes first. The pool is also no larger than fits in the memory the
+build may use (`dvAvailableMemoryMb`: `MemAvailable`, or the cgroup's
+`memory.max` less `memory.current` net of its page cache, whichever is
+smaller), at 700 MB a window beside a 1.5 GB reserve, and never below one.
+
+`dartvel build` times every phase (`DVBuildTimings`) and prints the table at
+the end, also as `build/dartvel_build_timings.json`; Flutter's own targets
+(dart2js, dart2wasm) are read from its verbose log's relative stamps. A wasm
+release build passes Flutter `--optimization-level=0 --dart2js-optimization=O4`:
+Flutter's one-module dart2wasm, which the deferred-loading compile replaces, is
+built without binaryen, the deferred rerun substitutes `-O2` (so its command
+equals the one an optimised Flutter build led to), and dart2js keeps `-O4`;
+if the split fails, an optimised one-module compile replaces the `-O0`
+module. A JS-only build passes `--no-wasm-dry-run`. The routes manifest lays
+each route's SSR-first document out in isolates (`dvRouteSemanticHtmlInParallel`)
+while the data-page theme is worked out a page per isolate
+(`dvSsrFirstThemePage`, merged in page order by `dvSsrFirstThemeFromPages`);
+both are byte-identical to the one-core pass. Web fonts are kept in
+`~/.dartvel/cache/web_fonts/<version>` keyed by font content, kept characters
+and the font-subset binary's hash, trimmed to 128 MB least recently used.
+A route capture is keyed by every web-output file but the app's code files
+(`dvCaptureStaticHash`), the route, the capture version and the browser
+(path and `--version`); the entry keeps the code files the route's tab
+fetched from boot to the end of its read (`DVCaptureRun.appCode`,
+`dvAppCodeHashes`) and is reused only while every one is byte-identical
+(`dvCaptureDepsHold`; a record naming no code never holds). Under the
+capture's mark (`window.__dvCapture`) links preload nothing
+(`DVRoutePrefetch.offForCapture`), so a tab fetches only the code of the
+routes it reads.
 
 `SOURCE_DATE_EPOCH` (seconds, the reproducible-builds convention) fixes the
 build id in Dartvel's service worker; without it the id is the build time.

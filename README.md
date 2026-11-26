@@ -1593,7 +1593,10 @@ each route's capture and the backend compile while their inputs are
 unchanged (`.dartvel/cache`, `--no-cache` to bypass). The steps that run
 overlap: the backend compile beside Flutter's, and a semantics read that
 boots the app once per browser window and moves it between routes (35
-routes: 387 s before, 24 s now). Measured build times are in
+routes: 387 s before, 24 s now). A rebuild after an edit re-reads only the
+routes whose code changed (sigmadev.digital, one-line edit: 23.1 min before,
+13.1 min now; cold 27.6 to 21.7 min), and every build ends with a table of
+where its time went. Measured build times are in
 [docs/web-performance.md](docs/web-performance.md#build-time-after-01324);
 see the CLI README.
 

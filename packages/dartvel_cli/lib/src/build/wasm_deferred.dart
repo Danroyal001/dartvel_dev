@@ -20,6 +20,35 @@ import 'dart:io';
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:path/path.dart' as p;
 
+/// The optimisation the deferred compile is given when Flutter's own module
+/// was asked for unoptimised: what Flutter gives a release or profile wasm
+/// build when it chooses (`-O2`, its sound optimisations).
+const String dvWasmReleaseOptimization = '-O2';
+
+/// What `flutter build web --wasm` is given so that its own dart2wasm module,
+/// which the build replaces with the deferred compile, costs as little as it
+/// can: `-O0`, which leaves out binaryen's optimiser, the slowest part of a
+/// wasm compile. `--optimization-level` sets dart2js's level too, so dart2js
+/// is pinned to `-O4`, the level Flutter gives it in release and profile
+/// anyway: its command, and so main.dart.js, are what they were.
+///
+/// Nothing for a debug build, whose wasm is `-O0` already and whose dart2js
+/// is `-O1`.
+List<String> dvThrowawayWasmArguments(String buildMode) =>
+    buildMode == '--release' || buildMode == '--profile'
+    ? const <String>['--optimization-level=0', '--dart2js-optimization=O4']
+    : const <String>[];
+
+/// [command] with its `-O<n>` replaced by [optimization], or as it was when
+/// [optimization] is null.
+List<String> _withOptimization(List<String> command, String? optimization) =>
+    optimization == null
+    ? command
+    : <String>[
+        for (final String argument in command)
+          RegExp(r'^-O\d$').hasMatch(argument) ? optimization : argument,
+      ];
+
 /// The deferred-loading map the build asks dart2wasm for, kept in the web
 /// output only until the build has read it.
 const String dvWasmDeferredMapFile = 'main.dart.wasm.deferred.json';
@@ -39,9 +68,7 @@ List<String>? dvDart2WasmCommand(String verboseLog) {
         .substring(at + 'executing: '.length)
         .trim()
         .split(RegExp(r'\s+'));
-    if (command.length > 3 &&
-        command[1] == 'compile' &&
-        command[2] == 'wasm') {
+    if (command.length > 3 && command[1] == 'compile' && command[2] == 'wasm') {
       found = command;
     }
   }
@@ -53,11 +80,17 @@ List<String>? dvDart2WasmCommand(String verboseLog) {
 /// directory. Flutter's dependency file and recorded uses are left out: they
 /// describe Flutter's own build, and a second writer would mislead its next
 /// incremental one.
+///
+/// [optimization] replaces Flutter's `-O<n>` when Flutter's module was asked
+/// for unoptimised ([dvThrowawayWasmArguments]), so the rerun is the command
+/// an optimised Flutter build would have led to, argument for argument.
 List<String> dvDeferredWasmCommand(
   List<String> command, {
   required String outputDirectory,
   required String deferredMap,
+  String? optimization,
 }) {
+  command = _withOptimization(command, optimization);
   final List<String> result = <String>[];
   for (int index = 0; index < command.length; index++) {
     final String argument = command[index];
@@ -121,8 +154,9 @@ void dvDropWasmApp(String webRoot) {
   final File bootstrap = File(p.join(webRoot, 'flutter_bootstrap.js'));
   if (bootstrap.existsSync()) {
     final String source = bootstrap.readAsStringSync();
-    final RegExp configLine =
-        RegExp(r'_flutter\.buildConfig\s*=\s*(\{[^\n]*\})\s*;');
+    final RegExp configLine = RegExp(
+      r'_flutter\.buildConfig\s*=\s*(\{[^\n]*\})\s*;',
+    );
     final RegExpMatch? match = configLine.firstMatch(source);
     if (match != null) {
       final Object? config = jsonDecode(match.group(1)!);
@@ -134,8 +168,13 @@ void dvDropWasmApp(String webRoot) {
               if (build is Map && build['compileTarget'] != 'dart2wasm') build,
           ],
         };
-        bootstrap.writeAsStringSync(source.replaceRange(match.start, match.end,
-            '_flutter.buildConfig = ${jsonEncode(kept)};'));
+        bootstrap.writeAsStringSync(
+          source.replaceRange(
+            match.start,
+            match.end,
+            '_flutter.buildConfig = ${jsonEncode(kept)};',
+          ),
+        );
       }
     }
   }
@@ -167,7 +206,9 @@ class DVWasmSplit {
 
 /// Runs [executable] with [arguments] and returns its exit code.
 typedef DVWasmCompilerRun = Future<int> Function(
-    String executable, List<String> arguments);
+  String executable,
+  List<String> arguments,
+);
 
 /// Recompiles the wasm app in [webRoot] with deferred loading, from the
 /// dart2wasm command in Flutter's [verboseLog], working in [workRoot].
@@ -188,24 +229,102 @@ Future<int> dvCompileDeferredWasm({
   required List<String> command,
   required String workRoot,
   required DVWasmCompilerRun run,
+  String? optimization,
 }) {
   final Directory work = Directory(workRoot);
   if (work.existsSync()) work.deleteSync(recursive: true);
   work.createSync(recursive: true);
-  final List<String> deferred = dvDeferredWasmCommand(command,
-      outputDirectory: work.path,
-      deferredMap: p.join(work.path, 'deferred_map.json'));
+  final List<String> deferred = dvDeferredWasmCommand(
+    command,
+    outputDirectory: work.path,
+    deferredMap: p.join(work.path, 'deferred_map.json'),
+    optimization: optimization,
+  );
   return run(deferred.first, deferred.sublist(1));
+}
+
+/// [command] (Flutter's dart2wasm, unoptimised) as an optimised one-module
+/// compile writing into [outputDirectory]: what Flutter itself would have
+/// built, for a site the deferred compile could not split.
+List<String> _oneModuleWasmCommand(
+  List<String> command, {
+  required String outputDirectory,
+  required String optimization,
+}) {
+  final List<String> result = <String>[];
+  final List<String> source = _withOptimization(command, optimization);
+  for (int index = 0; index < source.length; index++) {
+    final String argument = source[index];
+    if (argument.startsWith('--extra-compiler-option=--depfile=') ||
+        argument.startsWith('--recorded-uses=')) {
+      continue;
+    }
+    if (argument == '-o' && index + 1 < source.length) {
+      index++;
+      continue;
+    }
+    result.add(argument);
+  }
+  final String entry = result.removeLast();
+  return <String>[...result, '-o', '$outputDirectory/main.dart.wasm', entry];
 }
 
 /// [compiling] is the deferred compile the build began while Flutter was
 /// still running ([dvCompileDeferredWasm]); without one it is run here.
+///
+/// [optimization] is given when Flutter's own module was compiled
+/// unoptimised ([dvThrowawayWasmArguments]). Should the split then fail, the
+/// site is not left with that module: an optimised one-module app is
+/// compiled in its place, as Flutter would have built it.
 Future<DVWasmSplit> dvSplitWasmModules({
   required String webRoot,
   required String workRoot,
   required String verboseLog,
   required DVWasmCompilerRun run,
   Future<int>? compiling,
+  String? optimization,
+}) async {
+  final DVWasmSplit split = await _splitWasmModules(
+    webRoot: webRoot,
+    workRoot: workRoot,
+    verboseLog: verboseLog,
+    run: run,
+    compiling: compiling,
+    optimization: optimization,
+  );
+  if (split.problem == null || optimization == null) return split;
+  final List<String>? command = dvDart2WasmCommand(verboseLog);
+  if (command == null) return split;
+  final Directory one = Directory(p.join(workRoot, 'one-module'));
+  if (one.existsSync()) one.deleteSync(recursive: true);
+  one.createSync(recursive: true);
+  final List<String> full = _oneModuleWasmCommand(
+    command,
+    outputDirectory: one.path,
+    optimization: optimization,
+  );
+  final int exit = await run(full.first, full.sublist(1));
+  final File wasm = File(p.join(one.path, 'main.dart.wasm'));
+  final File mjs = File(p.join(one.path, 'main.dart.mjs'));
+  if (exit != 0 || !wasm.existsSync() || !mjs.existsSync()) {
+    return DVWasmSplit(
+      problem:
+          '${split.problem} The optimised one-module compile failed '
+          'too (exit $exit), so main.dart.wasm is unoptimised.',
+    );
+  }
+  wasm.copySync(p.join(webRoot, 'main.dart.wasm'));
+  mjs.copySync(p.join(webRoot, 'main.dart.mjs'));
+  return split;
+}
+
+Future<DVWasmSplit> _splitWasmModules({
+  required String webRoot,
+  required String workRoot,
+  required String verboseLog,
+  required DVWasmCompilerRun run,
+  Future<int>? compiling,
+  String? optimization,
 }) async {
   final Directory work = Directory(workRoot);
   final File flutterWasm = File(p.join(webRoot, 'main.dart.wasm'));
@@ -215,8 +334,9 @@ Future<DVWasmSplit> dvSplitWasmModules({
   // Which one-module app the split in [work] was made from: Flutter's own
   // build cache skips dart2wasm when nothing changed and logs no command,
   // and then the last split is this app's split.
-  final String flutterHash =
-      sha256.convert(flutterWasm.readAsBytesSync()).toString();
+  final String flutterHash = sha256
+      .convert(flutterWasm.readAsBytesSync())
+      .toString();
   final File source = File(p.join(work.path, 'flutter-main.dart.wasm.sha256'));
   final List<String>? command = dvDart2WasmCommand(verboseLog);
   if (command == null) {
@@ -224,16 +344,25 @@ Future<DVWasmSplit> dvSplitWasmModules({
       return _installSplit(webRoot, work);
     }
     return const DVWasmSplit(
-        problem: "Flutter's log names no dart2wasm command to rerun with "
-            'deferred loading.');
+      problem:
+          "Flutter's log names no dart2wasm command to rerun with "
+          'deferred loading.',
+    );
   }
   // Begun while Flutter was still building, when the build saw the command;
   // otherwise now.
-  final int exit = await (compiling ??
-      dvCompileDeferredWasm(command: command, workRoot: workRoot, run: run));
+  final int exit =
+      await (compiling ??
+          dvCompileDeferredWasm(
+            command: command,
+            workRoot: workRoot,
+            run: run,
+            optimization: optimization,
+          ));
   if (exit != 0) {
     return DVWasmSplit(
-        problem: 'dart2wasm with --enable-deferred-loading exited $exit.');
+      problem: 'dart2wasm with --enable-deferred-loading exited $exit.',
+    );
   }
   final DVWasmSplit split = _installSplit(webRoot, work);
   if (split.problem == null) source.writeAsStringSync(flutterHash);
@@ -247,14 +376,18 @@ DVWasmSplit _installSplit(String webRoot, Directory work) {
   final File mjs = File(p.join(work.path, 'main.dart.mjs'));
   if (!wasm.existsSync() || !mjs.existsSync() || !File(map).existsSync()) {
     return const DVWasmSplit(
-        problem: 'dart2wasm with --enable-deferred-loading wrote no '
-            'main.dart.wasm, main.dart.mjs or deferred map.');
+      problem:
+          'dart2wasm with --enable-deferred-loading wrote no '
+          'main.dart.wasm, main.dart.mjs or deferred map.',
+    );
   }
   final String? loader = dvWithDeferredModuleLoader(mjs.readAsStringSync());
   if (loader == null) {
     return const DVWasmSplit(
-        problem: "This dart2wasm's main.dart.mjs has no instantiate() this "
-            'build knows how to give a module loader.');
+      problem:
+          "This dart2wasm's main.dart.mjs has no instantiate() this "
+          'build knows how to give a module loader.',
+    );
   }
   final List<File> modules = <File>[
     for (final FileSystemEntity entity in work.listSync())

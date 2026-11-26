@@ -18,7 +18,37 @@ library dartvel_cli.build.capture_completeness;
 /// Chrome on it, and those want opposite answers: one is worth failing a
 /// build for and the other is the ordinary state of a slim CI image.
 class DVCaptureRun {
-  const DVCaptureRun({required this.captured, required this.browserAvailable});
+  const DVCaptureRun({
+    required this.captured,
+    required this.browserAvailable,
+    this.routeTimes = const <String, Duration>{},
+    this.layoutTime = Duration.zero,
+    this.pages = 0,
+    this.bootTime = Duration.zero,
+    this.boots = 0,
+    this.appCode = const <String, Set<String>>{},
+  });
+
+  /// Per route, the app's code files its tab had fetched by the end of its
+  /// read (capture_deps.dart): what its capture depends on besides the rest
+  /// of the web output.
+  final Map<String, Set<String>> appCode;
+
+  /// How many routes were read by loading the app afresh rather than moving
+  /// an app already running in a tab, and the time those loads took.
+  final int boots;
+  final Duration bootTime;
+
+  /// How long each route's read took, from opening it to its files written
+  /// (layout widths included), for the build's timings.
+  final Map<String, Duration> routeTimes;
+
+  /// Of [routeTimes], the part spent laying the SSR-first document out at
+  /// each width and scheme, summed over every route.
+  final Duration layoutTime;
+
+  /// How many pages the read kept open at once.
+  final int pages;
 
   /// Routes whose semantics tree was read.
   final int captured;

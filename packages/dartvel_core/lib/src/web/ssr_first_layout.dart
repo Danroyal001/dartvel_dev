@@ -2445,6 +2445,120 @@ const String dvSsrThemeClass = 'dvt';
 String? dvSsrFirstTheme(
   List<(String, Map<String, Object?>)> pages, {
   Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
+}) =>
+    dvSsrFirstThemeFromPages(<DVSsrThemePage?>[
+      for (final (String html, Map<String, Object?> capture) in pages) dvSsrFirstThemePage(html, capture, fonts: fonts),
+    ], fonts: fonts);
+
+/// What one page contributes to [dvSsrFirstTheme]: each captured width's
+/// painted blocks, column and gaps, and the page's layout. Worked out page by
+/// page, so a build can do it for many pages at once (each in an isolate)
+/// and hand the results, in page order, to [dvSsrFirstThemeFromPages].
+final class DVSsrThemePage {
+  DVSsrThemePage._(this._layout, this._widths);
+
+  /// The page's whole layout, which only the first page's is read from.
+  final _Layout? _layout;
+  final List<_ThemeWidth> _widths;
+
+  /// This page's part without its layout: what a page after the first needs
+  /// to carry, a fraction of the size to pass between isolates.
+  DVSsrThemePage get withoutLayout => DVSsrThemePage._(null, _widths);
+}
+
+/// One width of one page, for the theme.
+final class _ThemeWidth {
+  _ThemeWidth(this.width);
+
+  final int width;
+  final List<(String, _Item)> styled = <(String, _Item)>[];
+
+  /// The text column's left edge, right gutter and first block's top, when
+  /// the page has a column at this width.
+  (double, double, double)? column;
+  final List<(String, double)> after = <(String, double)>[];
+}
+
+/// [html]'s contribution to the theme, laid out from [capture]; null when
+/// the capture has no widths.
+DVSsrThemePage? dvSsrFirstThemePage(
+  String html,
+  Map<String, Object?> capture, {
+  Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
+}) {
+  final List<_Width> widths = <_Width>[
+    for (final Object? entry in (capture['widths'] as List<Object?>? ?? const <Object?>[]))
+      if (entry is Map) _Width.fromJson(entry.cast<String, Object?>()),
+  ]..sort((_Width a, _Width b) => a.width.compareTo(b.width));
+  if (widths.isEmpty) return null;
+  final _Layout layout = _Layout(widths, fonts)..run(html);
+  final List<_ThemeWidth> parts = <_ThemeWidth>[];
+  for (int w = 0; w < widths.length; w++) {
+    final int width = widths[w].width.round();
+    final _ThemeWidth part = _ThemeWidth(width);
+    parts.add(part);
+    final List<(String, _Item)> blocks = <(String, _Item)>[];
+    for (final _TextNode text in layout._texts) {
+      final String? role = text.block;
+      if (role == null || (text.control != null && role != 'a')) continue;
+      for (final _Segment segment in text.segments) {
+        final _Item? item = segment.node.items[w];
+        if (item == null || !item.scrolls) continue;
+        blocks.add((role, item));
+        part.styled.add((role, item));
+      }
+    }
+    final List<(String, _Item)> column = <(String, _Item)>[
+      for (final (String role, _Item item) in blocks)
+        if (role != 'a') (role, item),
+    ]..sort(((String, _Item) a, (String, _Item) b) => a.$2.rect[1].compareTo(b.$2.rect[1]));
+    if (column.isEmpty) continue;
+    double left = double.infinity, right = 0;
+    for (final (String _, _Item item) in column) {
+      left = math.min(left, item.rect[0]);
+      right = math.max(right, item.rect[0] + item.rect[2]);
+    }
+    part.column = (left, math.max(0, widths[w].width - right), column.first.$2.rect[1]);
+    for (int index = 0; index + 1 < column.length; index++) {
+      // The block under this one in the same column of text: the next
+      // below it that it overlaps side to side, not the next in a grid
+      // row beside it (ChopDesk's landing page).
+      final _Item one = column[index].$2;
+      int below = -1;
+      for (int other = index + 1; other < column.length; other++) {
+        final _Item candidate = column[other].$2;
+        if (candidate.rect[1] < one.rect[1] + one.rect[3] - 1) continue;
+        if (candidate.rect[0] < one.rect[0] + one.rect[2] && candidate.rect[0] + candidate.rect[2] > one.rect[0]) {
+          below = other;
+          break;
+        }
+      }
+      if (below < 0) continue;
+      final _Item next = column[below].$2;
+      final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
+      // A heading's space above it is the gap before it, and below it
+      // the gap after it; a paragraph's or list item's is the gap to the
+      // next of its kind. Margins collapse, so a paragraph followed by a
+      // heading is as far from it as the app puts a heading.
+      final String a = column[index].$1, b = column[below].$1;
+      final String key = b.startsWith('h') && b != 'li'
+          ? 'before:$b'
+          : a.startsWith('h') && a != 'li'
+              ? 'after:$a'
+              : a == b
+                  ? 'same:$a'
+                  : '';
+      if (key.isEmpty) continue;
+      part.after.add((key, math.max(0, gap)));
+    }
+  }
+  return DVSsrThemePage._(layout, parts);
+}
+
+/// [dvSsrFirstTheme] from each page's [dvSsrFirstThemePage], in page order.
+String? dvSsrFirstThemeFromPages(
+  List<DVSsrThemePage?> pages, {
+  Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
 }) {
   // By width: each role's painted paragraphs, and each page's column.
   final Map<int, Map<String, List<_Item>>> styles = <int, Map<String, List<_Item>>>{};
@@ -2453,71 +2567,24 @@ String? dvSsrFirstTheme(
   final Map<int, List<double>> tops = <int, List<double>>{};
   final Map<int, Map<String, List<double>>> after = <int, Map<String, List<double>>>{};
   _Layout? styler;
-  for (final (String html, Map<String, Object?> capture) in pages) {
-    final List<_Width> widths = <_Width>[
-      for (final Object? entry in (capture['widths'] as List<Object?>? ?? const <Object?>[]))
-        if (entry is Map) _Width.fromJson(entry.cast<String, Object?>()),
-    ]..sort((_Width a, _Width b) => a.width.compareTo(b.width));
-    if (widths.isEmpty) continue;
-    final _Layout layout = _Layout(widths, fonts)..run(html);
-    styler ??= layout;
-    for (int w = 0; w < widths.length; w++) {
-      final int width = widths[w].width.round();
-      final List<(String, _Item)> blocks = <(String, _Item)>[];
-      for (final _TextNode text in layout._texts) {
-        final String? role = text.block;
-        if (role == null || (text.control != null && role != 'a')) continue;
-        for (final _Segment segment in text.segments) {
-          final _Item? item = segment.node.items[w];
-          if (item == null || !item.scrolls) continue;
-          blocks.add((role, item));
-          styles.putIfAbsent(width, () => <String, List<_Item>>{}).putIfAbsent(role, () => <_Item>[]).add(item);
-        }
+  for (final DVSsrThemePage? page in pages) {
+    if (page == null) continue;
+    if (styler == null) {
+      styler = page._layout;
+      if (styler == null) throw StateError('The first page of the SSR-first theme was given without its layout.');
+    }
+    for (final _ThemeWidth part in page._widths) {
+      final int width = part.width;
+      for (final (String role, _Item item) in part.styled) {
+        styles.putIfAbsent(width, () => <String, List<_Item>>{}).putIfAbsent(role, () => <_Item>[]).add(item);
       }
-      final List<(String, _Item)> column = <(String, _Item)>[
-        for (final (String role, _Item item) in blocks)
-          if (role != 'a') (role, item),
-      ]..sort(((String, _Item) a, (String, _Item) b) => a.$2.rect[1].compareTo(b.$2.rect[1]));
-      if (column.isEmpty) continue;
-      double left = double.infinity, right = 0;
-      for (final (String _, _Item item) in column) {
-        left = math.min(left, item.rect[0]);
-        right = math.max(right, item.rect[0] + item.rect[2]);
-      }
-      lefts.putIfAbsent(width, () => <double>[]).add(left);
-      gutters.putIfAbsent(width, () => <double>[]).add(math.max(0, widths[w].width - right));
-      tops.putIfAbsent(width, () => <double>[]).add(column.first.$2.rect[1]);
-      for (int index = 0; index + 1 < column.length; index++) {
-        // The block under this one in the same column of text: the next
-        // below it that it overlaps side to side, not the next in a grid
-        // row beside it (ChopDesk's landing page).
-        final _Item one = column[index].$2;
-        int below = -1;
-        for (int other = index + 1; other < column.length; other++) {
-          final _Item candidate = column[other].$2;
-          if (candidate.rect[1] < one.rect[1] + one.rect[3] - 1) continue;
-          if (candidate.rect[0] < one.rect[0] + one.rect[2] && candidate.rect[0] + candidate.rect[2] > one.rect[0]) {
-            below = other;
-            break;
-          }
-        }
-        if (below < 0) continue;
-        final _Item next = column[below].$2;
-        final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
-        // A heading's space above it is the gap before it, and below it
-        // the gap after it; a paragraph's or list item's is the gap to the
-        // next of its kind. Margins collapse, so a paragraph followed by a
-        // heading is as far from it as the app puts a heading.
-        final String a = column[index].$1, b = column[below].$1;
-        final String key = b.startsWith('h') && b != 'li'
-            ? 'before:$b'
-            : a.startsWith('h') && a != 'li'
-                ? 'after:$a'
-                : a == b
-                    ? 'same:$a'
-                    : '';
-        if (key.isEmpty) continue;
-        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(key, () => <double>[]).add(math.max(0, gap));
+      final (double, double, double)? column = part.column;
+      if (column == null) continue;
+      lefts.putIfAbsent(width, () => <double>[]).add(column.$1);
+      gutters.putIfAbsent(width, () => <double>[]).add(column.$2);
+      tops.putIfAbsent(width, () => <double>[]).add(column.$3);
+      for (final (String key, double gap) in part.after) {
+        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(key, () => <double>[]).add(gap);
       }
     }
   }

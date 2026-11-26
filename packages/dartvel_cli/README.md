@@ -429,6 +429,42 @@ cores, at most eight; `--capture-jobs N`), boots the app once in each and
 moves it from route to route through a hook the app installs only in a
 browser under automation. A route that redirects, and an app without the
 hook, are loaded afresh; `--no-capture-in-app` loads every route afresh.
+The read also keeps no more windows open than fit in the memory the build may
+use: `MemAvailable`, or the build's cgroup limit (a systemd scope, a
+container) less what it holds besides page cache, with 1.5 GB kept back and
+700 MB counted a window.
+
+Every build ends with a table of where its time went, also written to
+`build/dartvel_build_timings.json`: generation, Flutter's compile (dart2js,
+Flutter's own dart2wasm module and the deferred-loading split apart), image
+variants, fonts, the semantics and SSR-first layout read (with its median and
+slowest routes and how many app boots), the document writes, the routes
+manifest, Studio, docs, minify, and the backend wait and pack. Phases marked
+`(beside)` ran beside another and are not added to the total.
+
+A WebAssembly release build asks Flutter for its own one-module dart2wasm at
+`-O0` (no binaryen), because the deferred-loading compile replaces it, and
+gives the deferred compile the `-O2` Flutter's module had: its command is
+argument for argument what it was, and dart2js stays at `-O4`. Should the
+split fail, an optimised one-module compile replaces the `-O0` module. A
+JavaScript-only build (`dartvel.web.wasm: false`) skips Flutter's wasm dry
+run. After the read, each route's SSR-first document and the theme for data
+pages are laid out on every core instead of one. Subset and WOFF2 fonts are
+kept by content (and by the font-subset binary that made them) in
+`~/.dartvel/cache/web_fonts/<version>`, shared by every project and trimmed to
+128 MB.
+
+A route's capture is reused while nothing it could have read has changed:
+it is keyed by every file of the web output except the app's code files
+(`main.dart.js` and its parts, `main.dart.wasm`, `main.dart.mjs`, the deferred
+modules), the route, the capture version and the browser, and keeps the code
+files its tab fetched from boot to the end of its read with their hashes.
+An edit to one page changes that page's module (and `main.dart.js`), not
+`main.dart.wasm`, so only the routes whose tab ran that code are read again.
+While the capture reads, links preload nothing (a preload fetches another
+page's code without running it). A change to anything else in the output
+re-reads every route. To turn a framework feature off in production without
+a rebuild, use the server's runtime off switches (`DARTVEL_OFF`).
 
 ### File types the app opens
 

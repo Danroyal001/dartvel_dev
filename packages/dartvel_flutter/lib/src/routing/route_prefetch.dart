@@ -13,6 +13,7 @@
 /// browser has finished is a cache hit.
 library dartvel_flutter.routing.route_prefetch;
 
+import '../lists/capture_flag_stub.dart' if (dart.library.js_interop) '../lists/capture_flag_web.dart';
 import 'package:dartvel_core/dartvel.dart' show dvStaticImageVariantDir;
 import 'package:flutter/widgets.dart';
 
@@ -29,6 +30,13 @@ class DVRoutePrefetch {
   /// Fetches the document for a route and its images, and completes with the
   /// images the browser now has. Nothing, off the web.
   static Future<List<String>> Function(String path) fetch = dvPrefetchDocument;
+
+  /// True while the build's page capture reads the page
+  /// (`window.__dvCapture`): links preload nothing then. A preload fetches
+  /// another page's code without running it, so it cannot change what this
+  /// page draws, and the capture keys each route on the code its tab fetched;
+  /// with every header link preloading, an edit to one page re-read them all.
+  static bool offForCapture = dvCaptureRequested();
 
   /// Puts one fetched image into Flutter's image cache.
   static Future<void> Function(BuildContext context, String url) precache =

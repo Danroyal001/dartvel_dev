@@ -104,6 +104,11 @@ import '../build/renderer_hints.dart';
 import '../build/cross_origin_isolation.dart'
     show dvCrossOriginIsolationBlockers;
 import '../build/wasm_deferred.dart';
+import '../build/build_timings.dart';
+import '../build/route_documents.dart';
+import '../build/capture_deps.dart';
+import '../build/chrome_launch.dart' show dvSystemChrome, dvNewestCachedChrome;
+import 'package:puppeteer/puppeteer.dart' as puppeteer show puppeteer;
 import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
@@ -115,7 +120,7 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/removed_web_options.dart';
 import '../build/semantics_capture.dart';
-import '../build/ssr_first_capture.dart' show dvApplySsrFirstLayout, dvLayoutCapturePathFor, dvLayoutFonts, dvWithSsrFirstTheme;
+import '../build/ssr_first_capture.dart' show dvLayoutCapturePathFor, dvLayoutFonts, dvWithSsrFirstThemeInParallel;
 import '../build/server_config.dart';
 import '../build/supervisor_unit.dart';
 import '../build/render_backends.dart';
@@ -123,7 +128,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
-import '../build/server_assets.dart' show dvPreEncodeAssets, dvSharedAssetEncodings;
+import '../build/server_assets.dart' show dvPreEncodeAssets, dvSharedAssetEncodings, dvSharedBuildCache, dvTrimSharedBuildCache;
 import '../build/server_compile.dart'
     show DVCompiledServer, dvReadCompiledServer, dvServerCompileKey, dvWriteCompiledServer;
 import '../build/web_server.dart';
@@ -377,6 +382,22 @@ bool isPlatformAvailableOn(String platform, String hostOs) {
 }
 
 class BuildCommand extends Command<void> {
+  /// Where this build's time goes, printed when it ends
+  /// (build/dartvel_build_timings.json).
+  final DVBuildTimings _timings = DVBuildTimings();
+
+  /// The timings table, once the build has finished or failed.
+  void _reportTimings() {
+    final List<String> table = _timings.table();
+    if (table.isEmpty) return;
+    Logger.log('');
+    Logger.log('⏱  Build timings (build/dartvel_build_timings.json):');
+    for (final String line in table) {
+      Logger.log('   $line');
+    }
+    _timings.write(_projectRoot);
+  }
+
   @override
   final String name = 'build';
 
@@ -490,7 +511,8 @@ class BuildCommand extends Command<void> {
               'test, a local run.')
       ..addOption('capture-jobs',
           help: 'How many pages the semantics read keeps open at once. '
-              'Defaults to three quarters of the cores, at most eight.')
+              'Defaults to three quarters of the cores, at most eight, and '
+              'no more than fit in the memory the build may use.')
       ..addFlag('capture-in-app',
           defaultsTo: true,
           help: 'Boot the app once in each page of the semantics read and '
@@ -926,7 +948,7 @@ class BuildCommand extends Command<void> {
     _checkSecrets(root);
 
     Logger.log('📝 Generating Dartvel artifacts...');
-    final routesResult = await stages.run(
+    final routesResult = await _timings.time('generate (dartvel routes)', () => stages.run(
       DVBuildLifecycle.generating,
       () => _processRun(
         'dart',
@@ -945,7 +967,7 @@ class BuildCommand extends Command<void> {
         workingDirectory: root,
         runInShell: true,
       ),
-    );
+    ));
 
     if (routesResult.exitCode != 0) {
       // Reported before the exit, because a process that leaves on a non-zero
@@ -961,7 +983,7 @@ class BuildCommand extends Command<void> {
 
     if (_hasBuildRunner(root)) {
       Logger.log('📦 Running build_runner...');
-      final buildRunnerResult = await stages.run(
+      final buildRunnerResult = await _timings.time('build_runner', () => stages.run(
         DVBuildLifecycle.generating,
         () => _processRun(
           'dart',
@@ -969,7 +991,7 @@ class BuildCommand extends Command<void> {
           workingDirectory: root,
           runInShell: true,
         ),
-      );
+      ));
 
       if (buildRunnerResult.exitCode != 0) {
         Logger.log('⚠️  build_runner failed');
@@ -1097,6 +1119,7 @@ class BuildCommand extends Command<void> {
       }
     }
 
+    _reportTimings();
     Logger.log('');
     if (failures > 0) {
       stages.failed();
@@ -1508,11 +1531,13 @@ class BuildCommand extends Command<void> {
           )
         : null;
     int? exitCode;
+    final Stopwatch compileClock = Stopwatch()..start();
     if (webKey != null && cache.restore('flutter-web', webKey, webOutput)) {
       Logger.log(
         '   Flutter web build: inputs unchanged, reused cached output.',
       );
       exitCode = 0;
+      _timings.add('flutter build $platform', compileClock.elapsed, detail: 'inputs unchanged, reused');
     } else {
       // From an empty directory: Flutter writes into build/web without
       // clearing it, so what an earlier build's later steps left there
@@ -1532,6 +1557,20 @@ class BuildCommand extends Command<void> {
       // only Flutter's own progress lines reach the console.
       final bool splitWasm = webWasm &&
           (platform == 'web' || platform == 'web-server');
+      // Flutter's own dart2wasm module is replaced by the deferred compile,
+      // so it is compiled unoptimised (no binaryen); the deferred compile
+      // gets the optimisation instead. Only where the split runs.
+      final List<String> throwaway =
+          splitWasm ? dvThrowawayWasmArguments(buildMode) : const <String>[];
+      final String? wasmOptimization =
+          throwaway.isEmpty ? null : dvWasmReleaseOptimization;
+      // A JavaScript-only build: Flutter otherwise runs a dart2wasm dry run
+      // beside dart2js to warn about wasm incompatibilities, a compiler front
+      // end's worth of work whose only output is those warnings.
+      final List<String> noDryRun = !webWasm &&
+              (platform == 'web' || platform == 'web-server')
+          ? const <String>['--no-wasm-dry-run']
+          : const <String>[];
       final StringBuffer verboseLog = StringBuffer();
       final String wasmWork =
           p.join(_projectRoot, '.dart_tool', 'dartvel_wasm');
@@ -1540,6 +1579,7 @@ class BuildCommand extends Command<void> {
                   workingDirectory: _projectRoot))
               .exitCode;
       Future<int>? earlyWasm;
+      Duration? deferredWasmTime;
       Future<List<void>>? streamsDone;
       final Map<String, String>? signingEnvironment =
           _androidSigningEnvironment;
@@ -1547,8 +1587,8 @@ class BuildCommand extends Command<void> {
         'flutter',
         // -v straight after `build web`, leaving every argument as it was.
         splitWasm
-            ? <String>[...args.take(2), '-v', ...args.skip(2)]
-            : args,
+            ? <String>[...args.take(2), '-v', ...args.skip(2), ...throwaway]
+            : <String>[...args, ...noDryRun],
         workingDirectory: _projectRoot,
         runInShell: true,
         // The release key reaches Gradle through the environment only: never
@@ -1569,11 +1609,13 @@ class BuildCommand extends Command<void> {
           if (earlyWasm == null) {
             final List<String>? command = dvDart2WasmCommand(line);
             if (command != null) {
+              final Stopwatch deferredClock = Stopwatch()..start();
               earlyWasm = dvCompileDeferredWasm(
                 command: command,
                 workRoot: wasmWork,
                 run: runCompiler,
-              );
+                optimization: wasmOptimization,
+              ).whenComplete(() => deferredWasmTime = deferredClock.elapsed);
             }
           }
           final String shown = dvWithoutLogStamp(line);
@@ -1651,6 +1693,7 @@ class BuildCommand extends Command<void> {
             verboseLog: verboseLog.toString(),
             run: runCompiler,
             compiling: earlyWasm,
+            optimization: wasmOptimization,
           );
           Logger.log(split.problem == null
               ? '   WebAssembly: split into main.dart.wasm and '
@@ -1660,6 +1703,21 @@ class BuildCommand extends Command<void> {
         }
       }
 
+      _timings.add('flutter build $platform', compileClock.elapsed,
+          detail: splitWasm ? 'Flutter, then the deferred wasm split' : null);
+      if (splitWasm) {
+        final Map<String, Duration> targets =
+            dvFlutterTargetTimes(verboseLog.toString());
+        for (final String name in const <String>['dart2js', 'dart2wasm']) {
+          final Duration? elapsed = targets[name];
+          if (elapsed != null) {
+            _timings.add(name == 'dart2wasm' ? "dart2wasm (Flutter's one module)" : 'dart2js', elapsed, beside: true, depth: 1);
+          }
+        }
+        if (deferredWasmTime != null) {
+          _timings.add('dart2wasm (deferred split)', deferredWasmTime!, beside: true, depth: 1);
+        }
+      }
       if (exitCode == 0 && webKey != null)
         cache.store('flutter-web', webKey, webOutput);
     }
@@ -1678,28 +1736,29 @@ class BuildCommand extends Command<void> {
         // First, before anything reads build/web or lists its parts: Studio's
         // code comes out of the web root, whose every file is public, and a
         // static build is checked to carry none of it.
-        if (!_separateStudioCode(root, platform)) {
+        if (!_timings.timeSync('separate Studio code', () => _separateStudioCode(root, platform))) {
           Logger.log('❌ $platform build failed');
           return DVBuildTargetResult.failed;
         }
         // Before the capture loads a page: the variants DVImageView asks for
         // have to be there, or the capture records a 404 for every image.
-        await _writeStaticImageVariants(root, platform);
+        await _timings.time('image variants', () => _writeStaticImageVariants(root, platform));
         for (final String warning
             in dvRemovedWebOptionWarnings(_dartvelSection(root))) {
           Logger.log('   ⚠ $warning');
         }
         // Before the capture too: the capture lays the page out with the
         // fonts the page will download.
-        await _optimizeWebFonts(root);
+        await _timings.time('fonts (WOFF2, subsetting)', () => _optimizeWebFonts(root));
         // Before anything reads it. The crawler-visible HTML on every page
         // comes from these trees, and a build that skipped the capture would
         // publish whatever the last one produced -- including for a route
         // that has since stopped rendering.
         // The readable /sitemap page reads sitemap.xml, so it has to exist
         // when the capture loads that page.
-        await _writeSitemapBeforeCapture(root);
+        await _timings.time('sitemap', () => _writeSitemapBeforeCapture(root));
         await _captureSemantics(root);
+        final Stopwatch documentClock = Stopwatch()..start();
         await _writePwaManifest(root);
         _writeSeoHead(root);
         // Into index.html before the route pages are made from it, so every
@@ -1719,10 +1778,11 @@ class BuildCommand extends Command<void> {
           Logger.log('❌ $platform build failed');
           return DVBuildTargetResult.failed;
         }
+        _timings.add('PWA, SEO, splash, hints, versioning, document slots', documentClock.elapsed);
         if (platform == 'web-server') {
-          _writeWebServerManifest(root);
+          await _timings.time('routes manifest (SSR documents)', () => _writeWebServerManifest(root));
           final ({bool ok, DVAdminMount? admin}) dashboard =
-              await _writeAdminDashboard(root);
+              await _timings.time('Studio pages', () => _writeAdminDashboard(root));
           if (!dashboard.ok) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
@@ -1732,18 +1792,18 @@ class BuildCommand extends Command<void> {
           // beside Studio and carried the way Studio is, outside the files
           // the binary serves to anybody.
           final ({bool ok, DVDocsMount? docs}) documentation =
-              await _writeDocsSite(root, server: true, admin: admin);
+              await _timings.time('docs site', () => _writeDocsSite(root, server: true, admin: admin));
           if (!documentation.ok) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
           }
           // Before the executable packs build/web into itself: what is not
           // minified by now ships inside the binary as it was written.
-          _minifyWebOutput(root);
-          _writeServiceWorkerAssets(root);
+          _timings.timeSync('minify', () => _minifyWebOutput(root));
+          _timings.timeSync('service worker asset list', () => _writeServiceWorkerAssets(root));
           // The backend that serves all of it, as one executable file.
-          if (await _buildServerBinary(root,
-                  admin: admin, docs: documentation.docs) ==
+          if (await _timings.time('backend compile wait + pack into one binary', () => _buildServerBinary(root,
+                  admin: admin, docs: documentation.docs)) ==
               DVBuildTargetResult.failed) {
             Logger.log('❌ $platform build failed');
             return DVBuildTargetResult.failed;
@@ -1754,7 +1814,7 @@ class BuildCommand extends Command<void> {
           final String? hostsWarning =
               dvStaticHostsWarning(_dartvelSection(root));
           if (hostsWarning != null) Logger.log('⚠️  $hostsWarning');
-          await _writeStaticPages(root);
+          await _timings.time('static pages', () => _writeStaticPages(root));
           // The documentation site, when pubspec asks for a public one: files
           // at its mount like every other page of a static site.
           final ({bool ok, DVDocsMount? docs}) documentation =
@@ -4564,10 +4624,26 @@ class BuildCommand extends Command<void> {
     return _cachedFlutterVersion!;
   }
 
-  /// What the capture reads: every file of the web output except the
-  /// prefetch manifest, which the capture itself refuses to serve.
-  String _captureInputHash(Directory web) =>
-      dvCaptureInputHash(web, skip: const <String>{dvPrefetchManifestFile});
+  /// What every route's capture reads: every file of the web output except
+  /// the app's code files (tracked per route) and the prefetch manifest,
+  /// which the capture itself refuses to serve.
+  String _captureStaticHash(Directory web) =>
+      dvCaptureStaticHash(web, skip: const <String>{dvPrefetchManifestFile});
+
+  /// The browser the read draws in, by path and version: another Chrome may
+  /// lay a page out otherwise. Never downloads one to find out.
+  Future<String> _browserIdentity() async {
+    final String? path = dvSystemChrome();
+    if (path == null) {
+      return 'cached ${dvNewestCachedChrome(puppeteer.puppeteer.userCachePath) ?? 'none'}';
+    }
+    try {
+      final ProcessResult version = await Process.run(path, <String>['--version']);
+      return '$path ${version.stdout}'.trim();
+    } on Object {
+      return path;
+    }
+  }
 
   /// [route]'s capture outputs (its tree and its images), copied into a
   /// directory of their own for the cache.
@@ -4606,6 +4682,17 @@ class BuildCommand extends Command<void> {
   }
 
   Future<void> _captureSemantics(String root) async {
+    final Stopwatch clock = Stopwatch()..start();
+    String? detail;
+    try {
+      detail = await _captureSemanticsTimed(root);
+    } finally {
+      _timings.add('semantics + SSR-first layout read', clock.elapsed, detail: detail);
+    }
+  }
+
+  /// [_captureSemantics], saying what it read for the timings table.
+  Future<String?> _captureSemanticsTimed(String root) async {
     // First, whatever else this build does: a guarded route is never
     // captured, so an old capture of it would be served as its page.
     final Set<String> guarded = dvGuardedRoutes(_routerSource(root));
@@ -4618,27 +4705,32 @@ class BuildCommand extends Command<void> {
         '   Skipping the semantics capture: --no-prerender. Every '
         'page in this build has an empty body to a crawler.',
       );
-      return;
+      return null;
     }
     final web = Directory(p.join(root, 'build', 'web'));
-    if (!web.existsSync()) return;
+    if (!web.existsSync()) return null;
     final routes = dvRoutesToCapture(
       routes: await _pagesToGenerate(root),
       guarded: guarded,
     );
-    if (routes.isEmpty) return;
+    if (routes.isEmpty) return null;
 
-    // Each route's capture is cached under (the web output's hash, the
-    // route, the capture's version): an unchanged build is not read again.
+    // Each route's capture is cached under (every file of the web output but
+    // the app's code, the route, the capture's version, the browser), with
+    // the code files the route's tab fetched beside it (capture_deps.dart):
+    // it is reused while those are byte-identical too. An edit to one page
+    // re-reads the routes that ran its code, not every route.
     final DVBuildCache cache = _buildCache;
-    final String webHash = cache.enabled ? _captureInputHash(web) : '';
+    final String webHash = cache.enabled ? _captureStaticHash(web) : '';
+    final String browser = cache.enabled ? await _browserIdentity() : '';
     DVContentHash captureKey(String route) => DVContentHash()
       ..addText('stage', 'semantics')
       ..addText('web', webHash)
       ..addText('route', route)
       ..addText('capture', '$dvSemanticsCaptureVersion')
       ..addText('layout', DVSplash.of(root).ssrFirstWidths.join(','))
-      ..addText('dartvel', dartvelCliVersion);
+      ..addText('dartvel', dartvelCliVersion)
+      ..addText('browser', browser);
     // One stage per web output: every route's capture of one build is a
     // group, and the newest three groups are kept.
     final String captureStage =
@@ -4654,8 +4746,13 @@ class BuildCommand extends Command<void> {
           '${route.hashCode}',
         ),
       );
-      if (cache.enabled &&
-          cache.restore(captureStage, captureKey(route).digest, outputs)) {
+      final File deps = File(p.join(outputs.path, 'deps.json'));
+      final Map<String, String>? recorded = cache.enabled &&
+              cache.restore(captureStage, captureKey(route).digest, outputs) &&
+              deps.existsSync()
+          ? dvDecodeCaptureDeps(deps.readAsStringSync())
+          : null;
+      if (recorded != null && dvCaptureDepsHold(recorded, web)) {
         _placeCaptureOutputs(root, route, outputs);
         reused++;
       } else {
@@ -4664,6 +4761,7 @@ class BuildCommand extends Command<void> {
     }
     int captured = 0;
     bool browserAvailable = true;
+    String? readDetail = reused == 0 ? null : 'all $reused routes reused';
     if (toCapture.isNotEmpty) {
       Logger.log(
         '   Reading the semantics tree for ${toCapture.length} routes'
@@ -4676,16 +4774,21 @@ class BuildCommand extends Command<void> {
         concurrency: dvCaptureConcurrency(
           processors: Platform.numberOfProcessors,
           requested: argResults?['capture-jobs'] as String?,
+          availableMemoryMb: dvAvailableMemoryMb(),
         ),
         inApp: argResults?['capture-in-app'] as bool? ?? true,
         layoutWidths: DVSplash.of(root).ssrFirstWidths,
       );
       captured = fresh.captured;
       browserAvailable = fresh.browserAvailable;
+      readDetail = dvCaptureTimesSummary(fresh, reused: reused);
       if (cache.enabled && fresh.browserAvailable) {
         for (final String route in toCapture) {
           final Directory outputs = _collectCaptureOutputs(root, route);
           if (outputs.listSync().isNotEmpty) {
+            File(p.join(outputs.path, 'deps.json')).writeAsStringSync(
+                dvEncodeCaptureDeps(dvAppCodeHashes(
+                    web, fresh.appCode[route] ?? const <String>{})));
             cache.store(
               captureStage,
               captureKey(route).digest,
@@ -4726,7 +4829,7 @@ class BuildCommand extends Command<void> {
       // Only when there is a tree to judge. An accessibility audit of the
       // page-text fallback would report the fallback, not the application.
       if (run.browserAvailable) _auditAccessibility(root, routes);
-      return;
+      return readDetail;
     }
 
     // Fatal rather than a warning. A build that ships most of its SEO and
@@ -4798,16 +4901,25 @@ class BuildCommand extends Command<void> {
   /// returns null and the caller falls back to the source-literal extractor,
   /// so a build with no browser still produces something rather than failing.
   String? _semanticHtmlFor(String root, String route) {
-    final file = File(dvSemanticsPathFor(root, route));
-    if (!file.existsSync()) return null;
-    final String html =
-        dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
-    if (html.trim().isEmpty) return null;
+    // Worked out for every route at once, on several cores, by
+    // [_primeSemanticHtml] once the capture is done.
+    if (_semanticHtml.containsKey(route)) return _semanticHtml[route];
     // SSR-first: laid out as the app's first frame draws the page, from what
     // the capture recorded at each width, in the app's own fonts.
-    if (!DVSplash.of(root).ssrFirst) return html;
-    return dvApplySsrFirstLayout(root, route, html,
-        dvLayoutFonts(p.join(root, 'build', 'web')));
+    return dvRouteSemanticHtml(root, route,
+        ssrFirst: DVSplash.of(root).ssrFirst,
+        fonts: dvLayoutFonts(p.join(root, 'build', 'web')));
+  }
+
+  /// Each route's document, once [_primeSemanticHtml] has worked them out.
+  final Map<String, String?> _semanticHtml = <String, String?>{};
+
+  /// [_semanticHtmlFor] for every one of [routes], in isolates: the same
+  /// documents, laid out on every core instead of one after another.
+  Future<void> _primeSemanticHtml(String root, List<String> routes) async {
+    _semanticHtml.addAll(await dvRouteSemanticHtmlInParallel(root, routes,
+        ssrFirst: DVSplash.of(root).ssrFirst,
+        fonts: dvLayoutFonts(p.join(root, 'build', 'web'))));
   }
 
   /// Each route's page, as both targets render it: `dartvel build web` at
@@ -4985,6 +5097,7 @@ class BuildCommand extends Command<void> {
     );
     // The same pages the web server renders on request, rendered by the same
     // function: the only difference between the two targets is when.
+    await _primeSemanticHtml(root, routes);
     final Map<String, DVRoutePage> pages = _routePages(root, routes);
     var written = 0;
 
@@ -5359,7 +5472,7 @@ class BuildCommand extends Command<void> {
   /// target. The sitemap and robots stay files, because each is one document
   /// that does not vary by request and generating them per fetch would be
   /// work for nothing.
-  void _writeWebServerManifest(String root) {
+  Future<void> _writeWebServerManifest(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
 
@@ -5386,6 +5499,12 @@ class BuildCommand extends Command<void> {
     final routes = _generatedRoutes(root);
     if (routes.isEmpty) return;
 
+    // Every route's document, laid out in isolates while the theme below is
+    // worked out in one of its own: two passes over every capture that took
+    // 23 and 26 seconds one after the other on a site of 225 routes.
+    final Stopwatch documentsClock = Stopwatch()..start();
+    final Future<void> documents = _primeSemanticHtml(root, routes);
+
     // SSR-first: the app's look for a page the build could not capture (a
     // parameterised route's data document), from the pages it did, so the
     // server lays such a page out in it rather than as a reading column.
@@ -5397,9 +5516,21 @@ class BuildCommand extends Command<void> {
         final String html = dvSemanticHtml(DVSemanticNode.listFromJson(tree.readAsStringSync()));
         if (html.trim().isNotEmpty) captured[route] = html;
       }
-      shellFile.writeAsStringSync(dvWithSsrFirstTheme(
-          root, shellFile.readAsStringSync(), captured, dvLayoutFonts(web.path)));
+      final String shell = shellFile.readAsStringSync();
+      final fonts = dvLayoutFonts(web.path);
+      shellFile.writeAsStringSync(
+          await dvWithSsrFirstThemeInParallel(root, shell, captured, fonts));
     }
+    await documents;
+    _timings.add('documents and theme, on every core', documentsClock.elapsed, depth: 1);
+    final Stopwatch pagesClock = Stopwatch()..start();
+    final Map<String, List<String>> routeText = _routeText(root);
+    _timings.add('page text from the sources', pagesClock.elapsed, depth: 1);
+    pagesClock
+      ..reset()
+      ..start();
+    final Map<String, DVRoutePage> routePages = _routePages(root, routes, hosts: hosts);
+    _timings.add('route pages', pagesClock.elapsed, depth: 1);
 
     // A previous static build in this directory left a file per route, and a
     // server that falls through to a file would serve those instead of the
@@ -5429,9 +5560,9 @@ class BuildCommand extends Command<void> {
         images: _imageVariants(root, 'web-server'),
         routes: routes,
         titles: dvRouteTitles(_routerSource(root)),
-        text: _routeText(root),
+        text: routeText,
         siteUrl: siteUrl,
-        pages: _routePages(root, routes, hosts: hosts),
+        pages: routePages,
         // dartvel.seo, carried so the server can put it back. _writeSeoHead
         // wrote these into the shell a moment ago and rendering a route
         // replaces that whole block -- so a server without them served every
@@ -5683,6 +5814,14 @@ class BuildCommand extends Command<void> {
         library == null ? null : DVNativeCodec.of(DynamicLibrary.open(library));
     final Set<int> project = dvProjectCharacters(root);
     // Studio's pages name fonts as data; they are read wherever they live.
+    // Subset and encoded fonts are kept by content for every project on the
+    // machine, so a fresh checkout reuses what any earlier build made.
+    final Directory? shared = _buildCache.enabled
+        ? dvSharedBuildCache('web_fonts', version: dartvelCliVersion)
+        : null;
+    final Directory? fontCache = !_buildCache.enabled
+        ? null
+        : shared ?? Directory(p.join(root, '.dart_tool', 'dartvel', 'web_fonts'));
     final Directory studio = Directory(p.join(root, dvStudioDataDirectory));
     final DVWebFontsReport report = await dvOptimizeWebFonts(
       web: Directory(p.join(root, 'build', 'web')),
@@ -5701,8 +5840,9 @@ class BuildCommand extends Command<void> {
             if (f is File && f.path.endsWith('.json'))
               utf8.decode(f.readAsBytesSync(), allowMalformed: true),
       ],
-      cache: Directory(p.join(root, '.dart_tool', 'dartvel', 'web_fonts')),
+      cache: fontCache,
     );
+    if (shared != null) dvTrimSharedBuildCache(shared, maxBytes: 128 * 1024 * 1024);
     for (final String line in report.lines) {
       Logger.log('   $line');
     }
