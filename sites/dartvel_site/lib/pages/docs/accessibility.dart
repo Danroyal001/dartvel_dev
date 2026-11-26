@@ -36,6 +36,19 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               '  accessibility:',
               '    defaultControls: true',
             ]),
+            DocsText('Or, with the button in your own header, voice mode in three '
+                'languages and settings your app kept itself before:'),
+            DocsShell(<String>[
+              '# pubspec.yaml',
+              'dartvel:',
+              '  accessibility:',
+              '    defaultControls:',
+              '      floatingButton: false',
+              '      voice:',
+              '        languages: [en, pcm, yo]',
+              '        machineTranslated: [yo]',
+              '      formerKey: shop.display',
+            ]),
             DocsTable(columns: <String>[
               'Control',
               'What it does',
@@ -65,6 +78,19 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'on the reading side. To put it in your header instead, set '
                   'defaultControls: {floatingButton: false} and place '
                   'DVAccessibilityButton() where you want it.',
+              'Voice mode\'s settings join the same panel with voice: where '
+                  'voice mode sits (top, or centre for a narrow field of view) and '
+                  'the language it speaks, from the languages the app names. Beside '
+                  'the language the panel says what this device can do: no voice for '
+                  'it, a browser that cannot speak, or prompts machine translated.',
+              'An app that kept its own display or voice settings before names '
+                  'that storage key once with formerKey; each visitor\'s choices '
+                  'are carried over on their first visit and the old value is left.',
+              'What a visitor chose is a data model kept on the device '
+                  '(DVAccessibilitySettings, DVVoiceSettings): read it with '
+                  'DV.Accessibility.controls.settings and .voiceSettings, or '
+                  'context.global<DVVoiceSettings>() in a widget. The app writes '
+                  'no settings code of its own.',
               'A Dart config class says the same with accessibilityDefaultControls.',
               'Projects from 3.47.16 that wrote controls: still work for one '
                   'release; the build warns until it is renamed defaultControls.',
