@@ -13371,6 +13371,10 @@ class DVAccessibility {
   /// [DVAccessibilityControls] and [DVAccessibilityButton].
   DVAccessibilityControls get controls => DVAccessibilityControls.instance;
 
+  /// The device's speech engines, for voice mode: whether it can speak or
+  /// listen, its voices, and speaking and listening. See [DVSpeech].
+  DVSpeech get speech => DVSpeech.instance;
+
   void useReducedMotion(bool value) {
     _reducedMotionOverride = value;
   }

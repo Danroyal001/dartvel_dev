@@ -4,14 +4,12 @@ import 'package:flutter/material.dart';
 import '../dartvel_client/dartvel_client.dart';
 
 // docs:start a11y-semantics
-Widget checkoutButton(VoidCallback onCheckout) => DVText('Pay now').modifier(
-      DVModifier()
-          .paddingSymmetric(horizontal: 20, vertical: 14)
-          .minimumTapTarget()
-          .semanticButton()
-          .semanticLabel('Pay for the items in your cart')
-          .onTap(onCheckout),
-    );
+Widget checkoutButton(VoidCallback onCheckout) => DVText('Pay now')
+    .paddingSymmetric(horizontal: 20, vertical: 14)
+    .minimumTapTarget()
+    .semanticButton()
+    .semanticLabel('Pay for the items in your cart')
+    .onTap(onCheckout);
 // docs:end
 
 // docs:start a11y-switch-control
@@ -34,20 +32,22 @@ void oneSwitch() {
 // docs:end
 
 // docs:start a11y-controls
-// With dartvel.accessibility.defaultControls on, the framework draws the button on
-// every page. An app with a header of its own puts it there instead
-// (defaultControls: {floatingButton: false}); more adds the app's own settings to
-// the bottom of the panel, and the tooltip names them.
+// With dartvel.accessibility.defaultControls on, the framework draws the
+// button on every page. An app with a header of its own puts it there instead
+// (defaultControls: {floatingButton: false}); the button names what the panel
+// holds, voice mode's settings included when defaultControls.voice is on.
 Widget siteHeader() => DVBox.row(<Widget>[
-      DVText('Shop'),
-      DVAccessibilityButton(
-        tooltip: 'Accessibility: text size, contrast, motion and reading voice',
-        more: (BuildContext context) => DVText('Reading voice: English'),
-      ),
-    ], align: DVAlign.spaceBetween);
+      DVText('Shop').fontSize(20).fontWeight(.w700),
+      const DVAccessibilityButton(),
+    ], align: .spaceBetween);
 
-// What the reader chose, for code that draws its own motion or text.
-bool readerWantsLargeText() => DV.Accessibility.controls.settings.textSize != DVTextSize.standard;
+// What the reader chose, typed, for code that draws its own motion, text or
+// voice overlay. Nothing here is the app's to keep: the framework stores it.
+bool readerWantsLargeText() => DV.Accessibility.controls.settings.textSize != .standard;
+
+Alignment voiceModePlacement() => DV.Accessibility.controls.voiceSettings.position.alignment;
+
+DVVoiceLanguage voiceModeLanguage() => DV.Accessibility.controls.voiceLanguage;
 // docs:end
 
 bool checks() {
