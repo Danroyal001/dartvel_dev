@@ -491,6 +491,7 @@ class _Layout {
     ];
     _matchText(texts);
     _adoptPaintedWords();
+    _growCutBoxes();
     for (final _Node run in runs) {
       if (run.container?.inline ?? false) run.inline = true;
     }
@@ -865,17 +866,22 @@ class _Layout {
       bool late(_TextNode text) {
         final _Node? control = text.control?.node;
         if (control == null || control.boxes.isEmpty) return false;
-        final List<double>? box = control.boxes[w];
+        final List<double>? box = _reach(control, w);
         if (box == null) return true;
         for (final _Item item in width.items) {
           if (item.kind != 't') continue;
-          final List<double> r = item.rect;
-          if (r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
-              r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1) {
-            return false;
-          }
+          if (_inside(item.rect, box)) return false;
         }
         return true;
+      }
+
+      // Each control's text, so a paragraph painted in a control's reach
+      // with words of that control's own is known to be its.
+      final Map<_Node, String> controlWords = <_Node, String>{};
+      for (final _TextNode text in texts) {
+        final _Node? control = text.control?.node;
+        if (control == null || control.boxes[w] == null) continue;
+        controlWords[control] = '${controlWords[control] ?? ''} ${text.norm}';
       }
 
       final List<int> order = <int>[
@@ -894,17 +900,31 @@ class _Layout {
         // page's heading of the same words, painted far below it: the
         // heading lost its text and the link held a heading in a header-
         // sized box (Dartvel 3.47.12).
-        final List<double>? own = text.control?.node.boxes[w];
+        final _Node? ownControl = text.control?.node;
+        final List<double>? own = ownControl?.boxes[w];
+        final List<double>? reach = ownControl == null ? null : _reach(ownControl, w);
         int pick(List<_Item> queue) {
-          if (own == null) return queue.isEmpty ? -1 : 0;
-          for (int index = 0; index < queue.length; index++) {
-            final List<double> r = queue[index].rect;
-            // Overlapping the box, not inside it: the semantics host clips a
-            // box to the screen, and a card title painted across the bottom
-            // edge is still its link's (EatingToday /recipes at 1024).
-            if (r[0] < own[0] + own[2] + 1 && r[0] + r[2] > own[0] - 1 &&
-                r[1] < own[1] + own[3] + 1 && r[1] + r[3] > own[1] - 1) {
-              return index;
+          if (own == null) {
+            if (queue.isEmpty) return -1;
+            // Text with no box of its own at this width (a heading) leaves
+            // the words painted in a control's reach that are that control's
+            // own words to it: sigmadev.digital's section headings took the
+            // words of the category links at the top of the page, which have
+            // the same words (Dartvel 3.47.14 to 3.47.16). When every
+            // candidate is some control's, the first is taken as before.
+            for (int index = 0; index < queue.length; index++) {
+              if (!_anotherControlsWords(queue[index], controlWords, w)) return index;
+            }
+            return 0;
+          }
+          // Overlapping the box, not inside it: the semantics host clips a
+          // box to the screen, and a card title painted across the bottom
+          // edge is still its link's (EatingToday /recipes at 1024). Then
+          // the box's reach past the screen's edge: words painted wholly
+          // below the edge of a box cut to a sliver are its own too.
+          for (final List<double> box in <List<double>>[own, ?reach]) {
+            for (int index = 0; index < queue.length; index++) {
+              if (_overlaps(queue[index].rect, box)) return index;
             }
           }
           return -1;
@@ -1038,17 +1058,11 @@ class _Layout {
       final Map<String, _Node> byKey = <String, _Node>{};
       final List<_Node> order = <_Node>[];
       for (int w = 0; w < widths.length; w++) {
-        final List<double>? box = control.boxes[w];
+        final List<double>? box = _reach(control, w);
         if (box == null) continue;
         final List<_Item> inside = <_Item>[
           for (final _Item item in widths[w].items)
-            if (!item.used &&
-                item.kind == 't' &&
-                words(item.text) &&
-                item.rect[0] >= box[0] - 1 &&
-                item.rect[1] >= box[1] - 1 &&
-                item.rect[0] + item.rect[2] <= box[0] + box[2] + 1 &&
-                item.rect[1] + item.rect[3] <= box[1] + box[3] + 1)
+            if (!item.used && item.kind == 't' && words(item.text) && _inside(item.rect, box))
               item,
         ]..sort((_Item a, _Item b) => a.rect[1] != b.rect[1]
             ? a.rect[1].compareTo(b.rect[1])
@@ -1076,6 +1090,86 @@ class _Layout {
         );
       }
       token.after = '${token.after ?? ''}$spans';
+    }
+  }
+
+  // -- A control's box cut by the screen's edge.
+  //
+  // The semantics host clips a box to the screen. A link on the fold at a
+  // phone's width (sigmadev.digital's category links at 360 and 390) came
+  // as a sliver 3 px high whose words are painted wholly below it, so they
+  // were not inside it, and whatever else had the same words (a section
+  // heading further down) took them (Dartvel 3.47.14 to 3.47.16).
+
+  /// [control]'s box at width [w], reaching past each screen edge it is cut
+  /// by (the bottom and the right; the capture is taken at the top left) by
+  /// the most it is long that way at any width or screen height, or by a
+  /// screen when it is never seen whole. Null when it has no box there.
+  List<double>? _reach(_Node control, int w) {
+    final List<double>? box = control.boxes[w];
+    if (box == null) return null;
+    final _Width width = widths[w];
+    double right = box[0] + box[2];
+    double bottom = box[1] + box[3];
+    double most(int index, double screen) {
+      double longest = 0;
+      for (final List<double> other in <List<double>>[...control.boxes.values, ...control.tallBoxes.values]) {
+        longest = math.max(longest, other[index]);
+      }
+      return longest > box[index] + 1 ? longest : screen;
+    }
+
+    if (width.width > 0 && right >= width.width - 0.5) right = box[0] + most(2, width.width);
+    if (width.height > 0 && bottom >= width.height - 0.5) bottom = box[1] + most(3, width.height);
+    if (right == box[0] + box[2] && bottom == box[1] + box[3]) return box;
+    return <double>[box[0], box[1], right - box[0], bottom - box[1]];
+  }
+
+  /// Whether [rect] lies inside [box] (within a pixel).
+  static bool _inside(List<double> rect, List<double> box) =>
+      rect[0] >= box[0] - 1 && rect[1] >= box[1] - 1 &&
+      rect[0] + rect[2] <= box[0] + box[2] + 1 && rect[1] + rect[3] <= box[1] + box[3] + 1;
+
+  /// Whether [rect] overlaps [box] (within a pixel).
+  static bool _overlaps(List<double> rect, List<double> box) =>
+      rect[0] < box[0] + box[2] + 1 && rect[0] + rect[2] > box[0] - 1 &&
+      rect[1] < box[1] + box[3] + 1 && rect[1] + rect[3] > box[1] - 1;
+
+  /// Whether [item] is painted in the reach of a control at width [w] whose
+  /// own text has its words: that control's words, not another text's.
+  bool _anotherControlsWords(_Item item, Map<_Node, String> controlWords, int w) {
+    final String words = item.norm;
+    for (final MapEntry<_Node, String> entry in controlWords.entries) {
+      if (!entry.value.contains(words)) continue;
+      final List<double>? reach = _reach(entry.key, w);
+      if (reach != null && _overlaps(item.rect, reach)) return true;
+    }
+    return false;
+  }
+
+  /// A control's box cut by the screen's edge grows to hold the words it
+  /// took, with as much room past them as before them: a link is placed,
+  /// focused and pressed where it is painted, not in the sliver above the
+  /// fold.
+  void _growCutBoxes() {
+    for (final (_Node control, String _, _Token _) in _docControls) {
+      for (final int w in control.boxes.keys.toList()) {
+        final List<double> box = control.boxes[w]!;
+        final List<double>? reach = _reach(control, w);
+        if (reach == null || identical(reach, box)) continue;
+        double right = box[0] + box[2];
+        double bottom = box[1] + box[3];
+        for (final _Node run in runs) {
+          if (run.container != control) continue;
+          final List<double>? r = run.items[w]?.rect;
+          if (r == null) continue;
+          if (reach[2] > box[2]) right = math.max(right, r[0] + r[2] + math.max(0, r[0] - box[0]));
+          if (reach[3] > box[3]) bottom = math.max(bottom, r[1] + r[3] + math.max(0, r[1] - box[1]));
+        }
+        right = math.min(right, reach[0] + reach[2]);
+        bottom = math.min(bottom, reach[1] + reach[3]);
+        control.boxes[w] = <double>[box[0], box[1], math.max(box[2], right - box[0]), math.max(box[3], bottom - box[1])];
+      }
     }
   }
 
