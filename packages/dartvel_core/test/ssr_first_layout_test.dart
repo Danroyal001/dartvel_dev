@@ -313,6 +313,65 @@ void main() {
       expect(out, contains('#$run{left:344px;top:635px'));
     });
 
+    test('a clip at one width does not stay on at the next width, where nothing clips the text', () {
+      // dartvel.dev's docs menu: at 1024 x 768 "Sync and offline" sits at
+      // the bottom edge of the menu panel and is clipped by it; at 1366 x 900
+      // it is whole. The 1366 style was written without a clip-path, which
+      // left the 1024 one in force: the item was cut in half at every wider
+      // width.
+      const String doc = '<p>Sync and offline</p>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1024, <Map<String, Object?>>[
+            <String, Object?>{..._text('Sync and offline', <num>[32, 760, 117, 21]), 'cl': <num>[32, 760, 149, 768]},
+          ]),
+          _width(1366, <Map<String, Object?>>[
+            _text('Sync and offline', <num>[32, 765, 117, 21]),
+          ]),
+        ]),
+      );
+      final String run = RegExp(r'<span id="(dvr\d+)">Sync and offline').firstMatch(out)!.group(1)!;
+      final int clipped = out.indexOf('clip-path:inset(0px 0px 13px 0px)');
+      expect(clipped, greaterThan(0), reason: 'clipped at 1024');
+      final int wide = out.indexOf('@media (min-width:1366px)');
+      final String after = wide < 0 ? out.substring(clipped + 1) : out.substring(wide);
+      expect(after, matches(RegExp('#$run[,{][^}]*clip-path:(none|initial|unset)|[^}]*#$run\\{[^}]*clip-path:(none|initial|unset)')),
+          reason: 'the clip is lifted where the text is whole');
+    });
+
+    test('a box with a shape is clipped to it: a logo drawn as a path', () {
+      final String out = dvSsrFirstLayout(
+        '<a href="/" aria-label="Home">Home</a>\n',
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            <String, Object?>{
+              'k': 'b', 'r': <num>[163, 22, 24, 24], 'z': 1, 's': false,
+              'g': 'linear-gradient(135deg,#7c3aed 0%,#2f6bff 100%)',
+              'shape': <String, Object?>{'d': 'M0 0L24 0L24 24Z M6 6L12 6L12 12Z', 'eo': true},
+            },
+          ]),
+        ]),
+      );
+      expect(out, contains('clip-path:path(evenodd,"M0 0L24 0L24 24Z M6 6L12 6L12 12Z")'));
+    });
+
+    test('a shape cannot carry anything but path data into the stylesheet', () {
+      final String out = dvSsrFirstLayout(
+        '<p>x</p>\n',
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            <String, Object?>{
+              'k': 'b', 'r': <num>[0, 0, 24, 24], 'z': 1, 's': false, 'bg': '#000000',
+              'shape': <String, Object?>{'d': 'M0 0"}</style><script>alert(1)</script>', 'eo': false},
+            },
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('<script>')));
+      expect(out, isNot(contains('alert(1)')));
+    });
+
     test('a link whose box was not found keeps its painted text on screen', () {
       final String out = dvSsrFirstLayout(
         _doc,
