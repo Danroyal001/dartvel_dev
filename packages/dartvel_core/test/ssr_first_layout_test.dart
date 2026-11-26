@@ -260,6 +260,30 @@ void main() {
       expect(out, contains('#$heading{left:20px;top:calc(2199.8px + -51.23vw)'));
     });
 
+    test('a menu link laid out below its panel\'s fold does not take a shorter link\'s words painted elsewhere', () {
+      // dartvel.dev docs at 1024 and 1366: the side menu scrolls on its own,
+      // so "Privacy and erasure" has a box (below the panel's fold) and
+      // nothing painted. It took the footer's "Privacy" (its words are in
+      // its own), the footer link lost its text, and "Privacy" was painted
+      // as a picture of text under an empty link.
+      const String doc = '<nav><a href="/docs/privacy" aria-label="Privacy and erasure">Privacy and erasure</a></nav>\n'
+          '<footer><a href="/privacy" aria-label="Privacy">Privacy</a></footer>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _text('Privacy', <num>[712, 3320, 50, 20], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/docs/privacy', 'name': 'Privacy and erasure', 'r': <num>[32, 991, 142, 31]},
+            <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'Privacy', 'r': <num>[708, 3314, 58, 32]},
+          ]),
+        ]),
+      );
+      final String footer = RegExp(r'<a id="(dva\d+)" href="/privacy"[^>]*><span id="(dvr\d+)">Privacy</span>').firstMatch(out)!.group(2)!;
+      expect(out, contains('#$footer{left:4px;top:6px'), reason: 'the footer link keeps its own painted words');
+      expect(out, isNot(contains('content:"Privacy"')), reason: 'no picture of the words');
+    });
+
     test('a link whose box was not found keeps its painted text on screen', () {
       final String out = dvSsrFirstLayout(
         _doc,
