@@ -905,6 +905,8 @@ export 'src/platform/raster.dart';
 export 'src/platform/storage/device_storage.dart';
 export 'src/platform/storage/preference_store.dart';
 export 'src/primitives/modifier_chain.dart';
+export 'src/primitives/choice.dart';
+export 'src/primitives/switch.dart';
 export 'src/platform/web/web_bindings.dart';
 export 'src/platform/webcrypto_key_store_io.dart'
     if (dart.library.js_interop) 'src/platform/webcrypto_key_store_web.dart';
