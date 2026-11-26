@@ -1,3 +1,7 @@
+## 3.47.15 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.15.
+
 ## 3.47.14 — 2026-11-26
 
 - With SSR-first, every link's painted words are findable text in it (a link whose name is not the words it paints carried only its hidden name), a link takes only words painted over its own box, and `dvSsrFirstTheme` lays a page the build could not capture (a parameterised route's data document) out in the app's fonts, colours and column.
