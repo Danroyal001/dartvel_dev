@@ -630,7 +630,7 @@ Flutter 3.47) and run `flutter pub get` in the project.
 each page's semantics tree and fails on a page a screen reader cannot use,
 such as `page-heading` for a page with no level 1 heading. Give the page a
 heading (`@DVPage(title: ..., showAppBar: true)` makes the bar title one, or
-`DVText(...).modifier(const DVModifier().semanticHeading(1))`), or record a
+`DVText(...).semanticHeading(1)`), or record a
 documented exception under `dartvel.accessibility.waivers` as a list of
 `route`, `rule` and `reason`. The files in
 `build/web` are already written when the audit runs. `--no-prerender` skips
