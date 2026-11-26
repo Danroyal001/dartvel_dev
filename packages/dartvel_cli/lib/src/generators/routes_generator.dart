@@ -20,6 +20,7 @@ import 'config_routes.dart';
 import 'flag_generator.dart';
 import 'http_hosts_generator.dart';
 import 'job_generator.dart';
+import 'device_model_generator.dart';
 import 'model_generator.dart';
 import 'platform_api_generator.dart';
 import '../build/runtime_packages.dart' show dvRuntimeRefusalFor;
@@ -340,6 +341,9 @@ Future<void> generate({
     pkgName: pkgName,
     takenRoutes: takenRoutes,
   );
+  // Models kept on the visitor's device (@DVModel(storage: DVModelStorage.device)),
+  // declared outside lib/models: device_models.g.dart.
+  await DeviceModelGenerator.generate(root: root, pkgName: pkgName);
   // dartvel.capture against the data models that are captured: a
   // destination naming one that is not (DV-CDC-008) would be delivered
   // nothing, which looks exactly like a quiet day.
