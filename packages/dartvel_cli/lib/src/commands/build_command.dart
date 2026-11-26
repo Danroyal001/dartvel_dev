@@ -125,7 +125,7 @@ import '../build/static_seo.dart';
 import '../build/static_paths_runner.dart';
 import '../build/static_generation.dart';
 import '../build/server_binary.dart';
-import '../build/server_assets.dart' show dvPreEncodeAssets, dvSharedAssetEncodings;
+import '../build/server_assets.dart' show dvPreEncodeAssets, dvSharedAssetEncodings, dvSharedBuildCache, dvTrimSharedBuildCache;
 import '../build/server_compile.dart'
     show DVCompiledServer, dvReadCompiledServer, dvServerCompileKey, dvWriteCompiledServer;
 import '../build/web_server.dart';
@@ -5772,6 +5772,14 @@ class BuildCommand extends Command<void> {
         library == null ? null : DVNativeCodec.of(DynamicLibrary.open(library));
     final Set<int> project = dvProjectCharacters(root);
     // Studio's pages name fonts as data; they are read wherever they live.
+    // Subset and encoded fonts are kept by content for every project on the
+    // machine, so a fresh checkout reuses what any earlier build made.
+    final Directory? shared = _buildCache.enabled
+        ? dvSharedBuildCache('web_fonts', version: dartvelCliVersion)
+        : null;
+    final Directory? fontCache = !_buildCache.enabled
+        ? null
+        : shared ?? Directory(p.join(root, '.dart_tool', 'dartvel', 'web_fonts'));
     final Directory studio = Directory(p.join(root, dvStudioDataDirectory));
     final DVWebFontsReport report = await dvOptimizeWebFonts(
       web: Directory(p.join(root, 'build', 'web')),
@@ -5790,8 +5798,9 @@ class BuildCommand extends Command<void> {
             if (f is File && f.path.endsWith('.json'))
               utf8.decode(f.readAsBytesSync(), allowMalformed: true),
       ],
-      cache: Directory(p.join(root, '.dart_tool', 'dartvel', 'web_fonts')),
+      cache: fontCache,
     );
+    if (shared != null) dvTrimSharedBuildCache(shared, maxBytes: 128 * 1024 * 1024);
     for (final String line in report.lines) {
       Logger.log('   $line');
     }

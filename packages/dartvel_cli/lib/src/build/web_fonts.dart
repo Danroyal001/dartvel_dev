@@ -600,8 +600,14 @@ Future<DVWebFontsReport> dvOptimizeWebFonts({
   if (out.existsSync()) out.deleteSync(recursive: true);
   out.createSync(recursive: true);
 
+  // The characters kept, and which font-subset keeps them: the cache can be
+  // shared by every project on the machine (~/.dartvel/cache), and another
+  // Flutter's tool is another tool, whose output is not this one's.
+  final String toolIdentity = subsetTool != null && File(subsetTool).existsSync()
+      ? sha256.convert(File(subsetTool).readAsBytesSync()).toString()
+      : '-';
   final String keepKey = sha256
-      .convert(utf8.encode((characters.toList()..sort()).join(',')))
+      .convert(utf8.encode('${(characters.toList()..sort()).join(',')}|$toolIdentity'))
       .toString();
   final Map<String, String> written = <String, String>{};
   int subsetCount = 0;
@@ -770,6 +776,12 @@ Future<({Uint8List bytes, String extension, bool subset})?> _make(
   final File? cached = cache == null ? null : File(p.join(cache.path, '$key.$extension'));
   final File? cachedFlag = cache == null ? null : File(p.join(cache.path, '$key.subset'));
   if (cached != null && cached.existsSync()) {
+    // Touched, so a trimmed shared cache keeps what is in use.
+    try {
+      cached.setLastModifiedSync(DateTime.now());
+    } on FileSystemException {
+      // Read-only: still a hit.
+    }
     return (bytes: cached.readAsBytesSync(), extension: extension, subset: cachedFlag!.existsSync());
   }
 

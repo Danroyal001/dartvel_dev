@@ -430,6 +430,44 @@ void main() {
       );
       expect(File(p.join(web.path, 'assets', 'FontManifest.json')).readAsStringSync(), before);
     });
+
+    test('a font kept by one font-subset is not reused by another, and is by the same', () async {
+      if (subsetTool == null || roboto == null) {
+        markTestSkipped('no Flutter SDK with font-subset and material_fonts here');
+        return;
+      }
+      final Directory cache = Directory.systemTemp.createTempSync('dv_web_fonts_cache_');
+      final Directory tools = Directory.systemTemp.createTempSync('dv_web_fonts_tools_');
+      addTearDown(() {
+        cache.deleteSync(recursive: true);
+        tools.deleteSync(recursive: true);
+      });
+      // Another build of the same tool: it runs the same, and is not the same file.
+      final File other = File(p.join(tools.path, 'font-subset'))..writeAsBytesSync(<int>[...File(subsetTool).readAsBytesSync(), 0]);
+      Process.runSync('chmod', <String>['+x', other.path]);
+      final String manifestBefore = File(p.join(web.path, 'assets', 'FontManifest.json')).readAsStringSync();
+      Future<Uint8List> build(String tool) async {
+        File(p.join(web.path, 'assets', 'FontManifest.json')).writeAsStringSync(manifestBefore);
+        await dvOptimizeWebFonts(
+          web: web,
+          characters: dvFontSubsetCharacters(project: <int>{'ŋ'.runes.single}),
+          subsetTool: tool,
+          brotli: (Uint8List b) => codec.encode(DVAssetEncoding.br, b)!,
+          cache: cache,
+        );
+        final List<DVManifestFamily> manifest = dvParseFontManifest(
+            File(p.join(web.path, 'assets', 'FontManifest.json')).readAsStringSync());
+        return File(p.join(web.path, 'assets', manifest.first.fonts.single.asset)).readAsBytesSync();
+      }
+
+      await build(subsetTool);
+      // Mark every kept font, so a reuse shows.
+      for (final File kept in cache.listSync().whereType<File>().where((File f) => f.path.endsWith('.woff2'))) {
+        kept.writeAsBytesSync(<int>[...'wOF2'.codeUnits, ...'kept'.codeUnits]);
+      }
+      expect(String.fromCharCodes((await build(subsetTool)).sublist(4, 8)), 'kept', reason: 'the same tool reuses');
+      expect(String.fromCharCodes((await build(other.path)).sublist(4, 8)), isNot('kept'), reason: 'another tool makes its own');
+    });
   });
 }
 

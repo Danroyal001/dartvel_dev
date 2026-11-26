@@ -328,3 +328,38 @@ Map<String, Uint8List?> _encodeAll(
       },
   };
 }
+
+/// Where builds on this machine keep [stage]'s results for each other:
+/// `~/.dartvel/cache/<stage>/<version>`. Keyed by content inside, so any
+/// project may reuse what another made; one folder per Dartvel [version],
+/// because another version's code may make other bytes from the same input.
+/// Null without a home directory.
+Directory? dvSharedBuildCache(String stage, {required String version, Map<String, String>? environment}) {
+  final Map<String, String> env = environment ?? Platform.environment;
+  final String? home = env['HOME'] ?? env['USERPROFILE'];
+  if (home == null || home.isEmpty) return null;
+  return Directory(p.join(home, '.dartvel', 'cache', stage, version));
+}
+
+/// Keeps [cache] (one version's folder from [dvSharedBuildCache]) under
+/// [maxBytes], removing the files written or used longest ago first, and
+/// removes every other version's folder beside it, which no build of this
+/// version asks for again.
+void dvTrimSharedBuildCache(Directory cache, {int maxBytes = 256 * 1024 * 1024}) {
+  final Directory stage = cache.parent;
+  if (stage.existsSync()) {
+    for (final FileSystemEntity other in stage.listSync()) {
+      if (other is Directory && !p.equals(other.path, cache.path)) other.deleteSync(recursive: true);
+    }
+  }
+  if (!cache.existsSync()) return;
+  final List<(File, int, DateTime)> files = <(File, int, DateTime)>[
+    for (final FileSystemEntity entity in cache.listSync(recursive: true))
+      if (entity is File) (entity, entity.lengthSync(), entity.lastModifiedSync()),
+  ]..sort(((File, int, DateTime) a, (File, int, DateTime) b) => b.$3.compareTo(a.$3));
+  int total = 0;
+  for (final (File file, int size, DateTime _) in files) {
+    total += size;
+    if (total > maxBytes) file.deleteSync();
+  }
+}
