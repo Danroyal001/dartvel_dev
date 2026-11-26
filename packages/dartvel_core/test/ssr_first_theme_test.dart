@@ -147,6 +147,28 @@ void main() {
       expect(theme, isNot(contains('</style')));
     });
 
+    // ChopDesk's landing page: paragraphs side by side in a grid, and the
+    // last paragraph of one section above the first of the next. Neither is
+    // the space between two paragraphs of one text; the theme took 96 px.
+    test('the space between paragraphs is measured within one column of text', () {
+      Map<String, Object?> page(List<Map<String, Object?>> items) =>
+          <String, Object?>{'widths': <Object?>[_width(1366, items, items)]};
+      const String grid = '<p>Put your menu in.</p>\n<p>Share the link.</p>\n<p>Cook and close.</p>\n'
+          '<p>Paid your way.</p>\n<p>Walk-ins too.</p>\n';
+      final String? css = dvSsrFirstTheme(<(String, Map<String, Object?>)>[
+        (grid, page(<Map<String, Object?>>[
+          _text('Put your menu in.', <num>[93, 600, 360, 48]),
+          _text('Share the link.', <num>[494, 600, 360, 48]),
+          _text('Cook and close.', <num>[895, 600, 360, 48]),
+          // The next section, 200 px below.
+          _text('Paid your way.', <num>[93, 848, 360, 24]),
+          // A paragraph 12 px under the one above it, in the same column.
+          _text('Walk-ins too.', <num>[93, 884, 360, 24]),
+        ])),
+      ]);
+      expect(css, contains('.dvt p{margin:0 0 12px'));
+    });
+
     test('no capture: no theme', () {
       expect(dvSsrFirstTheme(const <(String, Map<String, Object?>)>[]), isNull);
     });

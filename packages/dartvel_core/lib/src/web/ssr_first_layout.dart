@@ -2394,14 +2394,27 @@ String? dvSsrFirstTheme(
       gutters.putIfAbsent(width, () => <double>[]).add(math.max(0, widths[w].width - right));
       tops.putIfAbsent(width, () => <double>[]).add(column.first.$2.rect[1]);
       for (int index = 0; index + 1 < column.length; index++) {
-        final _Item one = column[index].$2, next = column[index + 1].$2;
+        // The block under this one in the same column of text: the next
+        // below it that it overlaps side to side, not the next in a grid
+        // row beside it (ChopDesk's landing page).
+        final _Item one = column[index].$2;
+        int below = -1;
+        for (int other = index + 1; other < column.length; other++) {
+          final _Item candidate = column[other].$2;
+          if (candidate.rect[1] < one.rect[1] + one.rect[3] - 1) continue;
+          if (candidate.rect[0] < one.rect[0] + one.rect[2] && candidate.rect[0] + candidate.rect[2] > one.rect[0]) {
+            below = other;
+            break;
+          }
+        }
+        if (below < 0) continue;
+        final _Item next = column[below].$2;
         final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
-        if (gap < -1) continue;
         // A heading's space above it is the gap before it, and below it
         // the gap after it; a paragraph's or list item's is the gap to the
         // next of its kind. Margins collapse, so a paragraph followed by a
         // heading is as far from it as the app puts a heading.
-        final String a = column[index].$1, b = column[index + 1].$1;
+        final String a = column[index].$1, b = column[below].$1;
         final String key = b.startsWith('h') && b != 'li'
             ? 'before:$b'
             : a.startsWith('h') && a != 'li'
@@ -2478,13 +2491,20 @@ String? dvSsrFirstTheme(
       // The space the app leaves after this kind of block at this width.
       final Map<String, List<double>> gapsHere = after[width] ?? const <String, List<double>>{};
       final bool heading = role.startsWith('h') && role != 'li';
-      String? space(String key) {
+      // The lower quartile, so the space where one section ends and the
+      // next begins is not read as the space inside a text; below a block,
+      // at most one and a half of its lines.
+      final double line = (items.isEmpty ? null : usual(items).json['lh'] as num?)?.toDouble() ?? 24;
+      String? space(String key, {required bool capped}) {
         final List<double>? gaps = gapsHere[key];
-        return gaps == null ? null : '${_num(median(gaps).clamp(0, 96).toDouble())}px';
+        if (gaps == null) return null;
+        final List<double> sorted = <double>[...gaps]..sort();
+        final double quartile = sorted[sorted.length ~/ 4];
+        return '${_num(math.min(quartile, capped ? line * 1.5 : 96).clamp(0, 96).roundToDouble())}px';
       }
 
-      final String? top = heading ? space('before:$role') : null;
-      final String? bottom = heading ? space('after:$role') : space('same:$role');
+      final String? top = heading ? space('before:$role', capped: false) : null;
+      final String? bottom = heading ? space('after:$role', capped: true) : space('same:$role', capped: true);
       if (role != 'a' && (top != null || bottom != null)) {
         final String margin = 'margin:${top ?? '0'} 0 ${bottom ?? '16px'}';
         if (lastMargin[role] != margin) {
