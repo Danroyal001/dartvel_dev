@@ -1,0 +1,6 @@
+# The working tree's Dartvel packages, as in packages/dartvel_flutter.
+dependency_overrides:
+  dartvel_core:
+    path: ../../../../dartvel_core
+  dartvel_shelf:
+    path: ../../../../dartvel_shelf
