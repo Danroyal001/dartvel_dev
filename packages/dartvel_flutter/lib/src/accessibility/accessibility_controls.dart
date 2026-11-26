@@ -404,10 +404,12 @@ class DVAccessibilityButton extends StatelessWidget {
     final ColorScheme colours = Theme.of(context).colorScheme;
     final String name =
         tooltip ?? (DVAccessibilityControls.instance.voice == null ? dvAccessibilityButtonLabel : dvAccessibilityVoiceButtonLabel);
-    final DVBox<Object?> button = DVBox.row(<Widget>[
+    // The row inside a box of its own, as before: the box is the control,
+    // sized to the row, and the row stays packed to its icon and words.
+    final DVBox<Object?> button = DVBox(DVBox.row(<Widget>[
       Icon(Icons.accessibility_new_rounded, size: 22, color: colours.onSurface),
       if (!compact) const DVText('Accessibility').fontSize(15).fontWeight(.w600).color(colours.onSurface),
-    ], spacing: 8)
+    ], spacing: 8))
         .paddingSymmetric(horizontal: compact ? 12 : 14, vertical: 12)
         .minimumTapTarget(width: 48, height: 48)
         .tooltip(name)
