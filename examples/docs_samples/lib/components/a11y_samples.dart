@@ -33,6 +33,23 @@ void oneSwitch() {
 }
 // docs:end
 
+// docs:start a11y-controls
+// With dartvel.accessibility.controls on, the framework draws the button on
+// every page. An app with a header of its own puts it there instead
+// (controls: {floatingButton: false}); more adds the app's own settings to
+// the bottom of the panel, and the tooltip names them.
+Widget siteHeader() => DVBox.row(<Widget>[
+      DVText('Shop'),
+      DVAccessibilityButton(
+        tooltip: 'Accessibility: text size, contrast, motion and reading voice',
+        more: (BuildContext context) => DVText('Reading voice: English'),
+      ),
+    ], align: DVAlign.spaceBetween);
+
+// What the reader chose, for code that draws its own motion or text.
+bool readerWantsLargeText() => DV.Accessibility.controls.settings.textSize != DVTextSize.standard;
+// docs:end
+
 bool checks() {
   // docs:start a11y-checks
   final DVAccessibilityReport report = DV.Accessibility.report(<DVAccessibilityCheck>[
