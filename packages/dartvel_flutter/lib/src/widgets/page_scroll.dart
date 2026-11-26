@@ -134,7 +134,13 @@ class DVPageJumpButton extends StatelessWidget {
       // The Semantics below names the button; Tooltip would publish the same
       // message again and a screen reader would read the name twice.
       excludeFromSemantics: true,
+      // A node of its own (container): without it Flutter merges the name,
+      // the role and the tap up into the nearest node above, which here is the
+      // page shell spanning the window, and that node took every click on the
+      // page (sigmadev.digital, 3.47.11 to 3.47.13: a click on the logo
+      // scrolled to the bottom, the next back to the top).
       child: Semantics(
+        container: true,
         button: true,
         label: label,
         excludeSemantics: true,
