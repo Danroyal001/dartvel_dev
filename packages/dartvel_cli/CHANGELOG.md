@@ -1,4 +1,4 @@
-## Unreleased
+## 3.47.17 — 2026-11-26
 
 - Reads `dartvel.accessibility.defaultControls`. The 3.47.16 key `dartvel.accessibility.controls` still works for one release, with a `[!] Deprecated config` line in the build and in `dartvel doctor`.
 - `dartvel upgrade --project` moves the first-party modules (`dartvel_google_analytics`, `dartvel_meta_pixel`, ...) with the framework. They are published with every release, and one left on an older release is no longer "released with the framework", so the next build refused it as an unpinned module (sigmadev.digital on 3.47.15 with its analytics and pixel modules still on 3.47.13).
