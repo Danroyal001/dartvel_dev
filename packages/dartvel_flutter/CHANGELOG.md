@@ -1,3 +1,7 @@
+## 3.47.16 — 2026-11-26
+
+- Accessibility controls, opt-in: `DV.Accessibility.controls`, `DVAccessibilityFrame` (text size, high contrast and reduced motion for the whole app, the device's settings always counting), `DVAccessibilityButton` (the app's own placement, `more:` for its own settings) and its panel, the framework's floating button on every page, and `dvHighContrastTheme` for an app with no high-contrast theme of its own. Kept per visitor.
+
 ## 3.47.15 — 2026-11-26
 
 - The long-page "To the bottom / Back to top" button (`pageScrollToTop`) takes clicks only on its own 44 px circle. Its semantics node was not a node of its own, so where nothing beside it had a tap or a name of its own (sigmadev.digital's header links are separate nodes), Flutter merged its name, role and tap up into the page shell's node, which fills the window: after the app took over, a click on an empty part of the header or the page scrolled to the bottom, the next one back to the top. 3.47.11 (#326) had only kept the server-rendered document from drawing that node over the page. The button is now a semantics container, and a browser test builds an app with `flutter build web` and presses it with a mouse and a finger at 390 and 1366 px.
