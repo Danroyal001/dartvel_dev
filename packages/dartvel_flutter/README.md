@@ -117,19 +117,15 @@ Widget _indexPage(BuildContext context) {
   final total = unitPrice * quantity;
 
   return DVBox.list(<Widget>[
-    const DVText('House espresso').modifier(
-      DVModifier().fontSize(28).fontWeight(FontWeight.w700).semanticHeading(1),
-    ),
+    DVText('House espresso').fontSize(28).fontWeight(.w700).semanticHeading(1),
     DVText('${quantity.value} bags, EUR ${(total.value / 100).toStringAsFixed(2)}'),
-    const DVText('Add one').modifier(
-      DVModifier()
-          .paddingSymmetric(horizontal: 16, vertical: 10)
-          .rounded(8)
-          .semanticButton()
-          .onTap(() => quantity.value = quantity.value + 1),
-    ),
+    DVText('Add one')
+        .paddingSymmetric(horizontal: 16, vertical: 10)
+        .rounded(8)
+        .semanticButton()
+        .onTap(() => quantity.value = quantity.value + 1),
     DVNavLink(to: DVRoutes.about, child: const DVText('About the roastery')),
-  ]).modifier(const DVModifier().padding(24));
+  ]).padding(24);
 }
 ```
 
@@ -165,8 +161,8 @@ Gestures are named, not built: `.onTap()` (alias `.onPressed()`),
 also a screen-reader action.
 
 ```dart
-DVBox(page, DVModifier().onSwipeUp(openDrawer));
-DVText(app.label).modifier(DVModifier().onTap(open).onLongPress(showMenu));
+DVBox(page).onSwipeUp(openDrawer);
+DVText(app.label).onTap(open).onLongPress(showMenu);
 ```
 
 `.offset(dx, dy)` moves a box after layout without changing its size, and its
@@ -174,7 +170,7 @@ taps move with it; with `.animate(...)` it slides. A panel that waits
 off-screen is the box moved by the screen height:
 
 ```dart
-DVBox(drawer, DVModifier().offset(0, open ? 0 : screenHeight).animate(const Duration(milliseconds: 220)));
+DVBox(drawer).offset(0, open ? 0 : screenHeight).animate(const Duration(milliseconds: 220));
 ```
 
 `.fill()` gives a child of `DVBox.list` or `DVBox.row` the room the others
@@ -182,23 +178,47 @@ leave, so a header keeps the height its contents need and the list under it
 takes the rest, with nothing fixed for a larger font to overflow:
 
 ```dart
-DVBox.list([header, DVBox(apps, DVModifier().fill())], spacing: 0);
+DVBox.list([header, DVBox(apps).fill()], spacing: 0);
 ```
 
-`DVBox` is the one layout primitive and `DVText` the one text primitive. Both
-take a `DVModifier`, an immutable chain of styling, layout, interaction and
-semantics. The chain is Dartvel's own, rendered with Flutter widgets; it is
-not built on `mix`.
+`DVBox` is the one layout primitive and `DVText` the one text primitive.
+Styling, layout, interaction and semantics are one immutable chain of
+modifiers, written on the widget itself. The chain is Dartvel's own, rendered
+with Flutter widgets; it is not built on `mix`.
 
 ```dart
-Widget card() => DVBox(
-      const DVText('One child, with padding and a border'),
-      const DVModifier()
-          .padding(16)
-          .backgroundColor(Color(0xFFF4F6FB))
-          .border(Border.fromBorderSide(BorderSide(color: Color(0xFFE3E7EF))))
-          .rounded(12),
-    );
+Widget card() => DVBox(const DVText('One child, with padding and a border'))
+    .padding(16)
+    .backgroundColor(const Color(0xFFF4F6FB))
+    .border(const Border.fromBorderSide(BorderSide(color: Color(0xFFE3E7EF))))
+    .rounded(12);
+
+Widget title() => DVText('Where voice mode sits').fontSize(17).fontWeight(.w700);
+```
+
+Every step is a `DVModifier` step with the same parameters, applied to the
+modifier the widget already has. A style shared by several widgets is a
+`DVModifier` value, layered on with `.modifier(shared)`, and the chain goes on
+after it.
+
+`DVChoice` picks one of a few values and `DVSwitch` turns one thing on or off;
+both take the same chain:
+
+```dart
+DVChoice<DVTextSize>(
+  options: DVTextSize.values,
+  selected: size,
+  name: (DVTextSize size) => size.label,
+  label: 'Text size',
+  onChanged: choose,
+).paddingOnly(top: 8)                    // chips that wrap; style: .menu for a long list
+
+DVSwitch(
+  label: 'High contrast',
+  explanation: 'Pure black and white with strong outlines.',
+  value: highContrast,
+  onChanged: setHighContrast,           // null: shown as given, not changeable
+)
 ```
 
 `DVBox(child)` is for one child. A collection uses a named constructor, so the
@@ -238,18 +258,16 @@ Interaction and semantics are on the same chain, so a tappable label is a
 `DVText` rather than a button widget wrapped round one:
 
 ```dart
-Widget saveButton(VoidCallback onSave) => DVText('Save').modifier(
-      const DVModifier()
-          .paddingSymmetric(horizontal: 20, vertical: 12)
-          .backgroundColor(Color(0xFF2F6BFF))
-          .color(Color(0xFFFFFFFF))
-          .rounded(8)
-          .animate(Duration(milliseconds: 150))
-          .hover(DVModifier().opacity(0.9))
-          .minimumTapTarget()
-          .semanticButton()
-          .onTap(onSave),
-    );
+Widget saveButton(VoidCallback onSave) => DVText('Save')
+    .paddingSymmetric(horizontal: 20, vertical: 12)
+    .backgroundColor(const Color(0xFF2F6BFF))
+    .color(const Color(0xFFFFFFFF))
+    .rounded(8)
+    .animate(const Duration(milliseconds: 150))
+    .hover(const DVModifier().opacity(0.9))
+    .minimumTapTarget()
+    .semanticButton()
+    .onTap(onSave);
 ```
 
 The Styling section is `Partial`: the chain covers padding, borders, radius,
@@ -321,9 +339,7 @@ only targets:
 ```dart
 DVNavLink(to: DVRoutes.about, child: const DVText('About us'))
 
-DVText('Open post 7').modifier(
-  DVModifier().onTap(DV.Navigation.to(DVRoutes.blog(id: '7'))),
-)
+DVText('Open post 7').onTap(DV.Navigation.to(DVRoutes.blog(id: '7')))
 
 // A query is still a typed route: both halves are generated targets.
 DV.Navigation.to(
@@ -444,7 +460,7 @@ person who declined it, iOS, which gives apps no font files):
 ```dart
 final DVFontFamilies families = await DV.Platform.fonts.families();
 final String family = await DV.Platform.fonts.load(families.first);
-final Widget line = DVText('Amazing grace').modifier(DVModifier().fontFamily(family));
+final Widget line = DVText('Amazing grace').fontFamily(family);
 ```
 
 fontconfig on Linux (verified against `fc-list` in a running app), the
@@ -736,7 +752,7 @@ unrelated package.
 ## Drag and drop
 
 Drag and drop uses `DV.Platform.dragDrop` for a whole window, or
-`DVModifier().dropTarget(onDrop: ...)` for one widget; a drop goes to the
+`.dropTarget(onDrop: ...)` on a widget; a drop goes to the
 smallest drop target under it that takes what it carries, else to the
 window. `DVDropEvent` carries `files`, `urls`, `text` and where it landed,
 in logical pixels. `DVIncomingFile.readBytes()` reads a file whether the
@@ -745,7 +761,7 @@ platform gave a path (desktop), a content URI (Android) or a browser `File`
 an accepting window, and `onHover` on `.dropTarget(...)` when it is over that
 widget.
 
-`DVModifier().draggable(DVDragPayload(...))` carries text, links or files.
+`.draggable(DVDragPayload(...))` on a widget carries text, links or files.
 In a browser the press starts the browser's own drag, so it can land in
 another tab or application as well as on a drop target in the page; where
 the platform has no drag out (the desktops, today), the drag stays inside
@@ -783,10 +799,10 @@ Widget fileInbox(BuildContext context) {
   }
   return DVBox.list([
     DVText(message.value),
-    const DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+    DVText('Choose files instead').onTap(() async {
       final event = await DV.Platform.dragDrop.chooseInstead();
       if (event != null) received(event);
-    })),
-  ]).modifier(DVModifier().dropTarget(onDrop: received));
+    }),
+  ]).dropTarget(onDrop: received);
 }
 ```

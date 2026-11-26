@@ -34,15 +34,20 @@ Widget _page({Widget? header}) => DVPageShell(
     );
 
 void main() {
-  late DVMemoryAccessibilityStore store;
+  late DVMemoryPreferenceStore store;
+  DVAccessibilitySettings kept() => DVAccessibilitySettings.decode(store.read(dvAccessibilityStorageKey));
 
   setUp(() {
-    store = DVMemoryAccessibilityStore();
-    DVAccessibilityControls.instance.install(store: store);
+    store = DVMemoryPreferenceStore();
+    DVPreferenceStore.instance = store;
+    DVSpeech.instance = const DVSilentSpeech();
+    DVAccessibilityControls.instance.install();
   });
 
   tearDown(() {
     DVAccessibilityControls.instance.reset();
+    DVPreferenceStore.reset();
+    DVSpeech.reset();
   });
 
   test('DV.Accessibility.controls is the one instance', () {
@@ -51,24 +56,23 @@ void main() {
   });
 
   test('install reads what the visitor chose last time', () {
-    final DVMemoryAccessibilityStore kept = DVMemoryAccessibilityStore()
-      ..value = const DVAccessibilitySettings(textSize: DVTextSize.larger, highContrast: true).encode();
-    DVAccessibilityControls.instance.install(store: kept);
+    store.write(dvAccessibilityStorageKey, DVAccessibilitySettings(textScale: DVTextSize.larger.scale, highContrast: true).encode());
+    DVAccessibilityControls.instance.install();
     expect(DVAccessibilityControls.instance.settings.textSize, DVTextSize.larger);
     expect(DVAccessibilityControls.instance.settings.highContrast, isTrue);
   });
 
   test('a change is kept, and reduced motion reaches DV.Accessibility.reducedMotion', () {
     DVAccessibilityControls.instance.update(const DVAccessibilitySettings(reducedMotion: true));
-    expect(DVAccessibilitySettings.decode(store.value).reducedMotion, isTrue);
+    expect(kept().reducedMotion, isTrue);
     expect(const DVAccessibility().reducedMotion, isTrue);
     DVAccessibilityControls.instance.update(const DVAccessibilitySettings());
-    expect(DVAccessibilitySettings.decode(store.value).reducedMotion, isFalse);
+    expect(kept().reducedMotion, isFalse);
   });
 
   testWidgets('the settings apply to the whole app: text size, contrast and motion', (WidgetTester tester) async {
     DVAccessibilityControls.instance
-        .update(const DVAccessibilitySettings(textSize: DVTextSize.large, highContrast: true, reducedMotion: true));
+        .update(const DVAccessibilitySettings(textScale: 1.35, highContrast: true, reducedMotion: true));
     await tester.pumpWidget(_app());
     expect(_seen.textScaler.scale(10), closeTo(13.5, 0.001));
     expect(_seen.highContrast, isTrue);
@@ -85,7 +89,7 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 1.2;
     tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.platformDispatcher.clearAllTestValues);
-    DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textSize: DVTextSize.large));
+    DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textScale: 1.35));
     await tester.pumpWidget(_app());
     expect(_seen.textScaler.scale(10), closeTo(10 * 1.2 * 1.35, 0.01));
     expect(_seen.disableAnimations, isTrue);
@@ -124,7 +128,7 @@ void main() {
   group('the button', () {
     testWidgets('has its name as a tooltip and as its accessible label', (WidgetTester tester) async {
       final SemanticsHandle semantics = tester.ensureSemantics();
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       expect(find.byTooltip(_tooltip), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Accessibility')), findsWidgets);
       expect(find.text('Accessibility'), findsOneWidget);
@@ -135,13 +139,13 @@ void main() {
     });
 
     testWidgets('compact is the icon alone, still named', (WidgetTester tester) async {
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton(compact: true)))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton(compact: true)))));
       expect(find.text('Accessibility'), findsNothing);
       expect(find.byTooltip(_tooltip), findsOneWidget);
     });
 
     testWidgets('opens the panel; each choice applies at once and is kept', (WidgetTester tester) async {
-      await tester.pumpWidget(_app(home: Scaffold(body: Column(children: <Widget>[DVAccessibilityButton(), Expanded(child: _probe())]))));
+      await tester.pumpWidget(_app(home: Scaffold(body: Column(children: <Widget>[const DVAccessibilityButton(), Expanded(child: _probe())]))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(find.text('Text size'), findsOneWidget);
@@ -157,7 +161,7 @@ void main() {
       await tester.ensureVisible(find.text('High contrast'));
       await tester.tap(find.text('High contrast'));
       await tester.pumpAndSettle();
-      expect(DVAccessibilitySettings.decode(store.value).highContrast, isTrue);
+      expect(kept().highContrast, isTrue);
 
       await tester.ensureVisible(find.text('Done'));
       await tester.tap(find.text('Done'));
@@ -169,8 +173,8 @@ void main() {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textSize: DVTextSize.larger));
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      DVAccessibilityControls.instance.update(const DVAccessibilitySettings(textScale: 1.7));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -185,7 +189,7 @@ void main() {
 
     testWidgets('the panel itself is pure black and white in high contrast', (WidgetTester tester) async {
       DVAccessibilityControls.instance.update(const DVAccessibilitySettings(highContrast: true));
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       final Material dialog = tester.widget<Material>(find.descendant(of: find.byType(AlertDialog), matching: find.byType(Material)).first);
@@ -195,18 +199,18 @@ void main() {
     testWidgets('reduce motion the device asks for shows as on, and cannot be turned off here', (WidgetTester tester) async {
       tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
       addTearDown(tester.platformDispatcher.clearAllTestValues);
-      await tester.pumpWidget(_app(home: Scaffold(body: Center(child: DVAccessibilityButton()))));
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
       await tester.tap(find.byType(DVAccessibilityButton));
       await tester.pumpAndSettle();
       expect(find.text('Already on, because your device asks for less motion.'), findsOneWidget);
-      final SwitchListTile motion = tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Reduce motion'));
+      final DVSwitch motion = tester.widget<DVSwitch>(find.widgetWithText(DVSwitch, 'Reduce motion'));
       expect(motion.value, isTrue);
       expect(motion.onChanged, isNull);
     });
 
     testWidgets('an app whose panel has more in it can say so in the name', (WidgetTester tester) async {
       await tester.pumpWidget(_app(
-        home: Scaffold(body: Center(child: DVAccessibilityButton(tooltip: 'Accessibility: text size, contrast, motion and voice language'))),
+        home: const Scaffold(body: const Center(child: const DVAccessibilityButton(tooltip: 'Accessibility: text size, contrast, motion and voice language'))),
       ));
       expect(find.byTooltip('Accessibility: text size, contrast, motion and voice language'), findsOneWidget);
       expect(find.byTooltip(_tooltip), findsNothing);
@@ -231,8 +235,8 @@ void main() {
     });
 
     testWidgets('is left out when the app places the button itself', (WidgetTester tester) async {
-      DVAccessibilityControls.instance.install(store: store, floatingButton: false);
-      await tester.pumpWidget(_app(home: _page(header: DVAccessibilityButton())));
+      DVAccessibilityControls.instance.install(floatingButton: false);
+      await tester.pumpWidget(_app(home: _page(header: const DVAccessibilityButton())));
       expect(find.byTooltip(_tooltip), findsOneWidget, reason: 'only the header one');
     });
 
@@ -242,4 +246,161 @@ void main() {
       expect(find.byTooltip(_tooltip), findsNothing);
     });
   });
+
+  // What a visitor chose is a model kept on the device: generated from
+  // @DVModel(storage: DVModelStorage.device), so equality, copyWith and the
+  // stored JSON come from the framework's own generator.
+  group('the settings model', () {
+    test('defaults: standard text, normal contrast, motion as the device asks', () {
+      const DVAccessibilitySettings settings = DVAccessibilitySettings();
+      expect(settings.textSize, DVTextSize.standard);
+      expect(settings.textScale, 1.0);
+      expect(settings.highContrast, isFalse);
+      expect(settings.reducedMotion, isFalse);
+      expect(settings.isDefault, isTrue);
+    });
+
+    test('stored as the JSON the SSR-first head reads, and read back equal', () {
+      const DVAccessibilitySettings settings = DVAccessibilitySettings(textScale: 1.35, highContrast: true, reducedMotion: true);
+      final String stored = settings.encode();
+      expect(stored, contains('"textScale":1.35'));
+      expect(stored, contains('"highContrast":true'));
+      expect(stored, contains('"reducedMotion":true'));
+      expect(DVAccessibilitySettings.decode(stored), settings);
+      expect(DVAccessibilitySettings.decode(stored).hashCode, settings.hashCode);
+    });
+
+    test('anything unreadable is the default, so a broken value never stops a page', () {
+      for (final String? stored in <String?>[null, '', '{', '[1]', '{"textScale":"huge"}']) {
+        expect(DVAccessibilitySettings.decode(stored), const DVAccessibilitySettings(), reason: '$stored');
+      }
+      // 3.47.16-3.47.18 wrote a version number beside the fields.
+      expect(DVAccessibilitySettings.decode('{"v":1,"textScale":1.7}').textSize, DVTextSize.larger);
+    });
+  });
+
+  group('voice mode in the panel (defaultControls.voice)', () {
+    const DVAccessibilityVoiceConfig voice = DVAccessibilityVoiceConfig(
+      languages: <DVVoiceLanguage>[DVVoiceLanguage.english, DVVoiceLanguage.yoruba],
+      machineTranslated: <DVVoiceLanguage>{DVVoiceLanguage.yoruba},
+    );
+
+    testWidgets('absent: no voice settings, and the button does not mention voice', (WidgetTester tester) async {
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
+      expect(find.byTooltip(_tooltip), findsOneWidget);
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Where voice mode sits'), findsNothing);
+    });
+
+    testWidgets('on: the button names voice, the panel offers where voice mode sits, kept for the next visit',
+        (WidgetTester tester) async {
+      DVAccessibilityControls.instance.install(voice: voice);
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
+      expect(find.byTooltip(dvAccessibilityVoiceButtonLabel), findsOneWidget);
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Where voice mode sits'), findsWidgets);
+      await tester.ensureVisible(find.text('Centre'));
+      await tester.tap(find.text('Centre'));
+      await tester.pumpAndSettle();
+      expect(DVAccessibilityControls.instance.voiceSettings.position, DVVoicePosition.centre);
+      expect(DVVoiceSettings.decode(store.read(dvVoiceStorageKey)).position, DVVoicePosition.centre);
+      expect(DVVoicePosition.centre.alignment, Alignment.center);
+      expect(find.text('Voice language'), findsOneWidget);
+    });
+
+    testWidgets('the panel says what this device can do in the chosen language', (WidgetTester tester) async {
+      DVSpeech.instance = const _Speech(canSpeak: true, voices: <String>{'en-US'});
+      DVAccessibilityControls.instance.install(voice: voice);
+      await tester.pumpWidget(_app(home: const Scaffold(body: const Center(child: const DVAccessibilityButton()))));
+      await tester.tap(find.byType(DVAccessibilityButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Voice available.'), findsOneWidget);
+      DVAccessibilityControls.instance.updateVoice(const DVVoiceSettings(language: 'yo'));
+      await tester.pumpAndSettle();
+      expect(DVAccessibilityControls.instance.voiceLanguage, DVVoiceLanguage.yoruba);
+      expect(
+        find.text('Prompts translated by AI, not yet checked by a native speaker; '
+            'no Yoruba voice on this device; shown as text, read in English.'),
+        findsOneWidget,
+      );
+    });
+
+    test('a kept language the app no longer offers falls back to its first one', () {
+      store.write(dvVoiceStorageKey, const DVVoiceSettings(language: 'ha').encode());
+      DVAccessibilityControls.instance.install(voice: voice);
+      expect(DVAccessibilityControls.instance.voiceLanguage, DVVoiceLanguage.english);
+    });
+  });
+
+  group('availability notes', () {
+    test('a device that cannot speak shows prompts as text', () {
+      expect(dvVoiceAvailability(DVVoiceLanguage.english, speech: const DVSilentSpeech()),
+          'This browser cannot speak; prompts are shown as text.');
+    });
+
+    test('no voice for the language', () {
+      expect(dvVoiceAvailability(DVVoiceLanguage.igbo, speech: const _Speech(canSpeak: true, voices: <String>{'en-GB'})),
+          'No Igbo voice on this device; shown as text, read in English.');
+    });
+
+    test('a voice for the language', () {
+      expect(dvVoiceAvailability(DVVoiceLanguage.yoruba, speech: const _Speech(canSpeak: true, voices: <String>{'yo-NG'})),
+          'Voice available.');
+    });
+  });
+
+  group('formerKey: settings the app kept itself before', () {
+    test('are carried over once: large text, contrast, voice position and language', () {
+      store.write('shop.display', '{"v":1,"largeText":true,"highContrast":true,"zone":"centre","language":"yo"}');
+      DVAccessibilityControls.instance.install(formerKey: 'shop.display', voice: const DVAccessibilityVoiceConfig(
+        languages: <DVVoiceLanguage>[DVVoiceLanguage.english, DVVoiceLanguage.yoruba],
+      ));
+      final DVAccessibilityControls controls = DVAccessibilityControls.instance;
+      expect(controls.settings.textSize, DVTextSize.large);
+      expect(controls.settings.highContrast, isTrue);
+      expect(controls.voiceSettings.position, DVVoicePosition.centre);
+      expect(controls.voiceLanguage, DVVoiceLanguage.yoruba);
+      expect(store.read('shop.display'), isNotNull, reason: 'the old value is left where it was');
+    });
+
+    test('never overwrite what the visitor chose in the framework panel', () {
+      store.write(dvAccessibilityStorageKey, const DVAccessibilitySettings(reducedMotion: true).encode());
+      store.write('shop.display', '{"largeText":true}');
+      DVAccessibilityControls.instance.install(formerKey: 'shop.display');
+      expect(DVAccessibilityControls.instance.settings, const DVAccessibilitySettings(reducedMotion: true));
+    });
+
+    test('an unreadable former value changes nothing', () {
+      store.write('shop.display', 'not json');
+      DVAccessibilityControls.instance.install(formerKey: 'shop.display');
+      expect(DVAccessibilityControls.instance.settings.isDefault, isTrue);
+      expect(store.read(dvAccessibilityStorageKey), isNull);
+    });
+  });
+}
+
+final class _Speech implements DVSpeech {
+  const _Speech({required this.canSpeak, required this.voices});
+
+  @override
+  final bool canSpeak;
+
+  final Set<String> voices;
+
+  @override
+  bool get canListen => canSpeak;
+
+  @override
+  Set<String> get voiceLanguages => voices;
+
+  @override
+  Future<void> speak(String text, {required DVVoiceLanguage language}) async {}
+
+  @override
+  Future<String?> listen({required DVVoiceLanguage language}) async => null;
+
+  @override
+  void stop() {}
 }

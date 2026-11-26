@@ -33,6 +33,7 @@ String? dvCallSite() {
       if (match == null) continue;
       final String path = match.group(1)!;
       if (path.endsWith('/dartvel_flutter.dart') ||
+          path.endsWith('/modifier_chain.dart') ||
           path.endsWith('/tooltips.dart') ||
           path.startsWith('package:flutter/') ||
           path.startsWith('package:flutter_test/') ||

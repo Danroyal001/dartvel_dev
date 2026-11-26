@@ -1104,12 +1104,21 @@ DVBox.list(...)
 DVText(...)
 ```
 
-Everything else is built from them, with a `DVModifier` (Styling):
+Everything else is built from them, styled by chaining modifiers on the widget
+itself (the `DVModifier` steps, written on `DVBox`, `DVText`, `DVChoice` and
+`DVSwitch`):
 
-- Images: `DVModifier().backgroundImage(...)` on a `DVBox`
-- Cards: `DVModifier().card()`
-- Text inputs: `DVModifier().input(label: ...)` on a `DVText`
-- Buttons: `DVModifier().onTap(...)`, or its alias `.onPressed(...)`
+```dart
+DVText('Where voice mode sits').fontSize(17).fontWeight(.w700).color(ink)
+DVBox(DVText('Open')).padding(12).rounded(8).tooltip('Open the report').onTap(open)
+```
+
+- Images: `DVBox(...).backgroundImage(...)`
+- Cards: `DVBox(...).card()`
+- Text inputs: `DVText(value).input(label: ...)`
+- Buttons: `DVBox(...).onTap(...)`, or its alias `.onPressed(...)`
+- One of a few values: `DVChoice<T>(options: ..., selected: ..., name: ..., onChanged: ...)`, chips that wrap, or `style: .menu` for a longer list
+- On or off: `DVSwitch(label: ..., explanation: ..., value: ..., onChanged: ...)`, one row that is one control
 - Gestures: `.onLongPress(...)`, `.onDoubleTap(...)`, `.onSwipeLeft/Right/Up/Down(...)`, and `.onGesture(DVGesture(onStart:, onUpdate:, onEnd:))` for a custom drag, pinch or rotate. A long press is the action's (the tooltip then shows on hover and focus); each swipe is a fling faster than `dvSwipeVelocity` and is offered to a screen reader as the matching scroll action, so no gesture is touch-only.
 - Rows: `DVBox.row(children)`
 - Columns and lists: `DVBox.list(children)`
@@ -1336,20 +1345,32 @@ config, and the shadcn-shaped ones theme through `ThemeExtension` with no import
 path at all. Import and export together make the design system one artifact, and
 they connect to Studio's Figma import, which is already built.
 
-Shared styles:
+The chain goes on the widget. Every `DVModifier` step is also a method of
+`DVBox`, `DVText`, `DVChoice` and `DVSwitch`, with the same parameters, and
+each step applies to the modifier the widget already has -- so a chain on the
+widget and the same chain on a `DVModifier` draw the same thing:
+
+```dart
+DVText('Save').fontSize(17).fontWeight(.w700).color(ink)
+DVBox(DVText('Save')).padding(12).rounded(12).onTap(save)
+```
+
+A style used in more than one place is a `DVModifier` value, layered onto a
+widget with `.modifier(...)` (or handed to the constructor), and the chain
+carries on after it:
 
 ```dart
 final primary = const DVModifier()
     .padding(12)
     .rounded(12);
-```
 
-Usage
-
-```dart
-DVText('Save').modifier(primary);
+DVText('Save').modifier(primary).onTap(save);
 DVBox(DVText('Save'), primary);   // or as the constructor's second argument
 ```
+
+Writing a one-off chain inside `DVText('...', DVModifier()...)` or
+`.modifier(DVModifier()...)` is the old shape; the chain on the widget
+replaces it.
 
 `DVStyleModifier` is an alias of `DVModifier`, and `.styleModifier()` an alias
 of `.modifier()`. Both are kept for code written before the rename, and
@@ -1654,16 +1675,10 @@ which the generated barrel exports.
 Example:
 
 ```dart
-DVBox(
-  DVText('Navigate to users'),
-  DVModifier().onPressed(DV.Navigation.to(DVRoutes.users)),
-);
+DVBox(DVText('Navigate to users')).onPressed(DV.Navigation.to(DVRoutes.users));
 
 // For routes with parameters
-DVBox(
-  DVText('Navigate to user 1'),
-  DVModifier().onPressed(DV.Navigation.to(DVRoutes.usersId(id: '1'))),
-);
+DVBox(DVText('Navigate to user 1')).onPressed(DV.Navigation.to(DVRoutes.usersId(id: '1')));
 ```
 
 ## Routing engine
@@ -1782,10 +1797,7 @@ takes its parameters on the end instead (Tabs, below). `name:` is an
 identifier, not a path, so it repeats nothing.
 
 ```dart
-DVBox(
-  DVText('Settings'),
-  DVModifier().onPressed(DV.Navigation.to(DVRoutes.settings)),
-);
+DVBox(DVText('Settings')).onPressed(DV.Navigation.to(DVRoutes.settings));
 DVNavLink(to: DVRoutes.order(id: '42'), child: DVText('Order 42'));
 ```
 
@@ -2490,7 +2502,7 @@ own save, and whether this reader may create or edit is the policy's answer —
 the same policy the page and the backend function ask. `DVForm<User>()` with
 no record and no callback is display-only: it has nobody to hand the edited
 record to, and shows no submit or reset controls. The automatic form renders
-each field the model serializes as a text input (`DVModifier().input(...)`).
+each field the model serializes as a text input (`DVText(value).input(...)`).
 
 Manual
 
@@ -2575,10 +2587,8 @@ its own inputs inside one gets the same behaviour:
 DVFormScope(
   onSubmit: save,
   child: DVBox.list(<Widget>[
-    DVText(name).modifier(const DVModifier().input(label: 'NAME')),
-    const DVText('Save').modifier(
-      DVModifier().semanticButton().onTap(save),
-    ),
+    DVText(name).input(label: 'NAME'),
+    DVText('Save').semanticButton().onTap(save),
   ]),
 )
 ```
@@ -2620,25 +2630,23 @@ endpoints require the CSRF header its transport sends.
 `DVVisibilityToggle` is the option, on the field and as a form-wide default:
 
 ```dart
-DVModifier().input(
+DVText(password).input(
   label: 'PASSWORD',
   obscureText: true,
   visibilityToggle: .eye,                          // the default
 )
 
-DVModifier().input(
+DVText(key).input(
   label: 'UNLOCK KEY',
   obscureText: true,
   visibilityToggle: .none,                         // turned off
 )
 
-DVModifier().input(
+DVText(password).input(
   label: 'PASSWORD',
   obscureText: true,
   visibilityToggle: .custom((context, obscured, toggle) =>
-      DVText(obscured ? 'Show' : 'Hide').modifier(
-        DVModifier().semanticButton().onPressed(toggle),
-      )),
+      DVText(obscured ? 'Show' : 'Hide').semanticButton().onPressed(toggle)),
 )
 ```
 
@@ -8734,7 +8742,17 @@ Runtime and tooling:
   of every page unless `defaultControls: {floatingButton: false}`, in which case the
   app places `DVAccessibilityButton()` (usually in its header; `compact` is
   the icon alone, `tooltip` renames it, `more` adds the app's own settings to
-  the panel). It has its tooltip as its accessible name and a 48 px target,
+  the panel). `defaultControls.voice` adds voice mode's settings to the panel: where
+  voice mode sits (`DVVoicePosition.top` or `.centre`) and its language, from
+  the `languages` the app names (`DVVoiceLanguage` codes; `machineTranslated`
+  marks the ones whose prompts a machine translated), with a note on what this
+  device can do in it (`dvVoiceAvailability` over `DV.Accessibility.speech`). What
+  a visitor chose is a data model kept on the device, `DVAccessibilitySettings` and
+  `DVVoiceSettings`, generated by the framework's own
+  `@DVModel(storage: DVModelStorage.device)` and kept in `DVPreferenceStore`; an
+  app reads them on `DV.Accessibility.controls` or with `context.global<T>()` and
+  writes no settings code. `defaultControls.formerKey` names where an app kept its
+  own display or voice settings before: they are carried over once per visitor. It has its tooltip as its accessible name and a 48 px target,
   and is a `role=button` in the server-rendered document, so a press before
   the app loads is made once it has. With SSR-first the head reads the stored
   settings before the first paint: reduced motion skips the handover's fade,
@@ -8747,13 +8765,15 @@ Runtime and tooling:
 
 Runtime API:
 ```dart
-DVBox(DVText('Submit')).modifier(
-  const DVModifier()
-      .semanticLabel('Submit order')
-      .semanticHint('Sends the order for processing')
-      .semanticButton()
-      .minimumTapTarget(),
-);
+DVText('Submit')
+    .semanticLabel('Submit order')
+    .semanticHint('Sends the order for processing')
+    .semanticButton()
+    .minimumTapTarget();
+
+// What the reader chose in the accessibility panel, typed:
+final bool largeText = DV.Accessibility.controls.settings.textSize != .standard;
+final Alignment voiceOverlay = DV.Accessibility.controls.voiceSettings.position.alignment;
 
 final contrast = DV.Accessibility.contrast(
   foreground: Colors.black,
@@ -8792,7 +8812,7 @@ Desktop:
 - installed fonts — see [Installed fonts](#installed-fonts) below
 
 Drag and drop uses `DV.Platform.dragDrop` for a whole window, or
-`DVModifier().dropTarget(onDrop: ...)` for one widget; a drop goes to the
+`.dropTarget(onDrop: ...)` on a widget; a drop goes to the
 smallest drop target under it that takes what it carries, else to the
 window. `DVDropEvent` carries `files`, `urls`, `text` and where it landed,
 in logical pixels. `DVIncomingFile.readBytes()` reads a file whether the
@@ -8801,7 +8821,7 @@ platform gave a path (desktop), a content URI (Android) or a browser `File`
 an accepting window, and `onHover` on `.dropTarget(...)` when it is over that
 widget.
 
-`DVModifier().draggable(DVDragPayload(...))` carries text, links or files.
+`.draggable(DVDragPayload(...))` on a widget carries text, links or files.
 In a browser the press starts the browser's own drag, so it can land in
 another tab or application as well as on a drop target in the page; where
 the platform has no drag out (the desktops, today), the drag stays inside
@@ -8889,7 +8909,7 @@ if (families.isEmpty) showNote(families.reason!); // why, never a bare empty lis
 
 final List<DVSystemFontFace> faces = await DV.Platform.fonts.faces(family: 'DejaVu Sans');
 final String family = await DV.Platform.fonts.load('DejaVu Sans'); // FontLoader
-DVText('Amazing grace').modifier(DVModifier().fontFamily(family));
+DVText('Amazing grace').fontFamily(family);
 ```
 
 `families()` never throws: where a platform cannot list its fonts it answers
@@ -13772,7 +13792,7 @@ Widget _stepsWidget(BuildContext context) {
   return DVBox.list(<Widget>[
     DVText('Steps'),
     DVText('${steps.value}').modifier(heading),
-  ]).modifier(DVModifier().onTap(DV.Navigation.to(DVRoutes.activity)));
+  ]).onTap(DV.Navigation.to(DVRoutes.activity));
 }
 ```
 
@@ -14052,6 +14072,41 @@ class _User(
 Dartvel generates the schema, migration, CRUD, validation, serialization,
 queries, forms, list, table, page, REST/RPC/GraphQL/OpenAPI surfaces, model
 sync support, and admin representation for the public `User` type.
+
+## Models kept on the device
+
+A settings object -- a text size, a voice language, where a panel sits -- is a
+data model kept on the visitor's own device instead of the database:
+
+```dart
+@DVModel(storage: DVModelStorage.device)
+class const _ReadingSettings({
+  final double scale = 1.0,
+  final bool serif = false,
+});
+```
+
+It is declared outside `lib/models/` (the database scanners read that folder,
+and a device model there stops the build), every field has a default, and its
+fields are `String`, `bool`, `int`, `double`, `num`, `DateTime` or an enum from
+the same file. The generated `ReadingSettings` is a value (`==`, `hashCode`,
+`copyWith`, `toString`) with a tolerant JSON codec: a stored value that is old,
+broken or missing a field reads back as the defaults for what it cannot read.
+It lives in `DVPreferenceStore` (`localStorage` in a browser, a small file on a
+device) under `storageKey:` or `<package>.<Model>`, and has no table, page,
+admin or sync.
+
+- `ReadingSettings.kept` is the visitor's value, read before the first frame;
+  the generated runtime reads every device model at start.
+- `settings.keep()` saves it and makes it `kept`; a widget reading
+  `context.global<ReadingSettings>()` rebuilds.
+- `ReadingSettings.forget()` goes back to the defaults; `isKept` says whether
+  anything is stored.
+
+The framework keeps its own settings this way: `DVAccessibilitySettings` and
+`DVVoiceSettings` are generated by the same emitter
+(`tool/generate_framework_models.dart`), and a test fails when a checked-in
+output drifts.
 
 ## Create a page
 

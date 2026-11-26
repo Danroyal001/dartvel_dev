@@ -7,7 +7,7 @@ import '../../dartvel_client/dartvel_client.dart';
   title: 'Dartvel UI: DVBox, DVText, modifiers and layouts',
   description:
       'Build screens from two widgets, DVBox for layout and DVText '
-      'for text, and style both with one chain of modifiers.',
+      'for text, and style both with a chain of modifiers on the widget.',
   showAppBar: false,
 )
 @pragma('vm:entry-point')
@@ -23,7 +23,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
       title: 'Show text with DVText',
       children: <Widget>[
         DocsCode('ui-text'),
-        DocsText('Pass a DVModifier to size, weight and colour it.'),
+        DocsText('Chain modifiers on the text to size, weight and colour it.'),
         DocsCode('ui-text-style'),
         Bullets(<String>[
           'semanticHeading(1) marks the text as a heading for screen '
@@ -44,8 +44,8 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
       title: 'Wrap one child with DVBox',
       children: <Widget>[
         DocsText(
-          'DVBox(child, modifier) gives a single child padding, a '
-          'background, a border and corners.',
+          'DVBox(child) and a chain of modifiers give a single child '
+          'padding, a background, a border and corners.',
         ),
         DocsCode('ui-box'),
         DocsNote(
@@ -97,12 +97,18 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
     ),
     DocsSection(
       id: 'modifiers',
-      title: 'Style anything with DVModifier',
+      title: 'Style anything with a chain of modifiers',
       children: <Widget>[
         DocsText(
-          'Start from DVModifier() and chain. Each call returns a '
-          'new modifier, so you can keep one and reuse it.',
+          'Chain modifiers on DVBox, DVText, DVChoice and DVSwitch. Each '
+          'call returns a new widget with one more step, applied on top of '
+          'what it already had.',
         ),
+        DocsText(
+          'A style you use in more than one place is a DVModifier value. '
+          '.modifier(shared) layers it on, and the chain goes on after it.',
+        ),
+        DocsCode('ui-shared-style'),
         DocsTable(
           columns: <String>['Group', 'Methods'],
           rows: <List<String>>[
@@ -135,7 +141,7 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
                   'semanticButton, semanticRole, semanticHeading',
             ],
             <String>['Motion', 'animate, revealOnScroll'],
-            <String>['Combining', 'merge'],
+            <String>['Combining', 'modifier (a shared DVModifier)'],
           ],
         ),
       ],
@@ -155,6 +161,31 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
       ],
     ),
     DocsSection(
+      id: 'choices',
+      title: 'Pick one value or turn one thing on',
+      children: <Widget>[
+        DocsText(
+          'DVChoice picks one of a few values. It draws chips that wrap '
+          'onto more lines, or a menu for a longer list.',
+        ),
+        DocsCode('ui-choice'),
+        DocsText(
+          'DVSwitch turns one thing on or off. The whole row is the '
+          'control.',
+        ),
+        DocsCode('ui-switch'),
+        Bullets(<String>[
+          'Each option is a button a screen reader hears as selected or '
+              'not, and Tab and Space reach and pick every one.',
+          'A switch is one Tab stop. Its label is its tooltip and its '
+              'name, and its explanation is read as the hint.',
+          'Without onChanged a switch shows its value and cannot be '
+              'changed: a setting the device already decides.',
+          'Both take the same chain as DVBox and DVText.',
+        ]),
+      ],
+    ),
+    DocsSection(
       id: 'gestures',
       title: 'Name the gesture',
       children: <Widget>[
@@ -163,9 +194,9 @@ Widget _docsUiPage(BuildContext context) => const DocsArticle(
           'no detector to build.',
         ),
         DocsShell(<String>[
-          'DVBox(page, DVModifier().onSwipeUp(openDrawer));',
-          'DVText(app.label).modifier(DVModifier().onTap(open).onLongPress(showMenu));',
-          'DVBox(photo, DVModifier().onGesture(DVGesture(onUpdate: zoom)));',
+          'DVBox(page).onSwipeUp(openDrawer);',
+          'DVText(app.label).onTap(open).onLongPress(showMenu);',
+          'DVBox(photo).onGesture(DVGesture(onUpdate: zoom));',
         ]),
         Bullets(<String>[
           'onLongPress runs the action; the tooltip still shows on hover and '

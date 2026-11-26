@@ -718,6 +718,7 @@ export 'http.g.dart';
 export 'jobs.g.dart';
 export 'client_jobs.g.dart';
 export 'models.g.dart';
+export 'device_models.g.dart';
 export 'openapi.g.dart';
 export 'platform_api.g.dart';
 export 'policies.g.dart';
@@ -819,6 +820,7 @@ import 'http.g.dart' show configureDartvelHttp;
 import 'analytics.g.dart' show configureDartvelAnalytics;
 import 'client_jobs.g.dart' show registerDartvelClientJobs;
 import 'models.g.dart' show registerDartvelModels;
+import 'device_models.g.dart' show registerDartvelDeviceModels;
 import 'modules.g.dart' show registerDartvelModules;
 import 'client_schedules.g.dart' show dartvelStartClientSchedules;
 import 'policies.g.dart' show dartvelRegisterPolicies;
@@ -863,6 +865,9 @@ ${_studioOn(dv) ? '  // Studio runs on this project\'s server: an installed app 
   // not know is reported rather than silently ignored.
   registerDartvelFlags();
   registerDartvelModels();
+  // Models kept on the visitor's device, read before the first frame so
+  // context.global<Model>() has the kept value from the start.
+  registerDartvelDeviceModels();
   // The modules this application mounts, so DV.Modules.<id> is the module
   // the build mounted rather than an unknown id.
   registerDartvelModules();
@@ -4276,7 +4281,7 @@ void startDartvelKiosk() {
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('  final router = createDartvelRouter(arguments: args);')
       ..writeln(accessibilityDefaultControls.enabled
-          ? "  DVAccessibilityControls.instance.install(floatingButton: ${accessibilityDefaultControls.floatingButton}, app: '${esc(pkgName)}');\n"
+          ? "  ${accessibilityDefaultControls.installSource(app: pkgName)}\n"
               '  return DVAccessibilityFrame(child: $rootWidget);'
           : '  return $rootWidget;')
       ..writeln('}')

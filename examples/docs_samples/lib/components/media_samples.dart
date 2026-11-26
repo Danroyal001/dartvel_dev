@@ -16,9 +16,7 @@ Widget hero() => DVBox.image(
 // docs:end
 
 // docs:start media-background
-Widget banner() => const DVBox(DVText('Now shipping')).modifier(
-      const DVModifier().backgroundImage(DVAsset.hero).padding(48),
-    );
+Widget banner() => const DVBox(DVText('Now shipping')).backgroundImage(DVAsset.hero).padding(48);
 // docs:end
 
 // docs:start media-pick

@@ -1,37 +1,106 @@
 // The accessibility controls an app opts into with
 // `dartvel.accessibility.defaultControls` in pubspec.yaml (or
-// `DartvelConfig.accessibilityDefaultControls`).
+// `DartvelConfig.accessibilityDefaultControls`), with no code of its own.
 //
 // A button -- the framework's floating one on every page, or
 // [DVAccessibilityButton] wherever the app puts it, usually its header --
 // opens a panel with the reader's choices: text size, high contrast and
-// reduced motion. Each applies to the whole app at once, in the app's own
-// theme, light and dark, and is kept for the visitor's next visit
-// (`localStorage` in a browser, a small file on a device). The operating
-// system's own settings always count: its text size is multiplied, and its
-// reduce-motion and more-contrast settings cannot be turned off from here.
+// reduced motion, and, with `defaultControls.voice`, where voice mode sits and
+// the language it speaks. Each applies to the whole app at once, in the app's
+// own theme, light and dark, and is kept for the visitor's next visit
+// (models kept on the device: [DVAccessibilitySettings], [DVVoiceSettings]).
+// The operating system's own settings always count: its text size is
+// multiplied, and its reduce-motion and more-contrast settings cannot be
+// turned off from here.
 //
 // On the web with SSR-first, the head reads the same stored value before the
 // first paint, so the server-rendered page is already in the visitor's
 // settings (see dvSsrFirstHead in dartvel_core).
-import 'package:dartvel_core/dartvel.dart'
-    show DVAccessibilitySettings, DVTextSize;
 import 'dart:ui' show AccessibilityFeatures;
+
+import 'package:dartvel_core/dartvel.dart'
+    show DVAccessibilityVoiceConfig, DVTextSize, DVVoiceLanguage, dvAccessibilityStorageKey;
 
 import 'package:flutter/material.dart';
 
-import '../../dartvel_flutter.dart' show DVAccessibility, DVBox, DVModifier, DVText;
+import '../../dartvel_flutter.dart' show DV, DVAccessibility, DVBox, DVChoice, DVChoiceStyle, DVSwitch, DVText;
+import '../platform/storage/preference_store.dart';
 import 'accessibility_platform_stub.dart'
-    if (dart.library.js_interop) 'accessibility_platform_web.dart'
-    if (dart.library.io) 'accessibility_platform_io.dart' as platform;
-import 'accessibility_store.dart';
+    if (dart.library.js_interop) 'accessibility_platform_web.dart' as platform;
+import 'accessibility_settings.g.dart';
+import 'former_settings.g.dart';
+import 'speech.dart';
+import 'voice_settings.g.dart';
 
-export 'package:dartvel_core/dartvel.dart' show DVAccessibilitySettings, DVTextSize, dvAccessibilityStorageKey;
+export 'package:dartvel_core/dartvel.dart'
+    show DVAccessibilityVoiceConfig, DVTextSize, DVVoiceLanguage, dvAccessibilityStorageKey, dvVoiceStorageKey;
 
-export 'accessibility_store.dart';
+export 'accessibility_settings.g.dart' show DVAccessibilitySettings;
+export 'speech.dart';
+export 'voice_settings.g.dart' show DVVoicePosition, DVVoiceSettings;
 
 /// The words of the button: its tooltip and its accessible name.
 const String dvAccessibilityButtonLabel = 'Accessibility: text size, contrast and motion';
+
+/// The button's words when the panel also has voice mode's settings.
+const String dvAccessibilityVoiceButtonLabel = 'Accessibility: text size, contrast, motion and voice';
+
+/// The text size a visitor chose, by name.
+extension DVAccessibilitySettingsText on DVAccessibilitySettings {
+  /// The size the panel shows as chosen.
+  DVTextSize get textSize => DVTextSize.fromScale(textScale);
+
+  /// Nothing chosen.
+  bool get isDefault => this == const DVAccessibilitySettings();
+}
+
+/// Where voice mode sits, as an alignment for the app's voice overlay.
+extension DVVoicePositionAlignment on DVVoicePosition {
+  /// Top centre, or the middle of the screen for a narrow field of view.
+  Alignment get alignment => this == DVVoicePosition.centre ? Alignment.center : Alignment.topCenter;
+
+  /// The name the panel shows.
+  String get label => this == DVVoicePosition.centre ? 'Centre' : 'Top';
+}
+
+/// The 3.47.16 store interface, before settings were models kept on the
+/// device.
+@Deprecated('Settings are kept in DVPreferenceStore now; tests set DVPreferenceStore.instance = DVMemoryPreferenceStore().')
+abstract interface class DVAccessibilityStore {
+  String? read();
+  void write(String value);
+}
+
+/// The 3.47.16 memory store.
+@Deprecated('Use DVMemoryPreferenceStore.')
+// ignore: deprecated_member_use_from_same_package
+final class DVMemoryAccessibilityStore implements DVAccessibilityStore {
+  String? value;
+
+  @override
+  String? read() => value;
+
+  @override
+  void write(String value) => this.value = value;
+}
+
+/// A 3.47.16 store, seen as a preference store for the accessibility key.
+final class _OldStore implements DVPreferenceStore {
+  _OldStore(this._old, this._rest);
+
+  // ignore: deprecated_member_use_from_same_package
+  final DVAccessibilityStore _old;
+  final DVPreferenceStore _rest;
+
+  @override
+  String? read(String key) => key == dvAccessibilityStorageKey ? _old.read() : _rest.read(key);
+
+  @override
+  void write(String key, String value) => key == dvAccessibilityStorageKey ? _old.write(value) : _rest.write(key, value);
+
+  @override
+  void remove(String key) => key == dvAccessibilityStorageKey ? _old.write('') : _rest.remove(key);
+}
 
 /// The reader's accessibility choices for the whole app, reached as
 /// `DV.Accessibility.controls`. Off until the generated runtime installs it
@@ -46,8 +115,9 @@ class DVAccessibilityControls extends ChangeNotifier {
   bool _enabled = false;
   bool _floatingButton = true;
   bool _watching = false;
+  DVAccessibilityVoiceConfig? _voice;
   DVAccessibilitySettings _settings = const DVAccessibilitySettings();
-  DVAccessibilityStore _store = DVMemoryAccessibilityStore();
+  DVVoiceSettings _voiceSettings = const DVVoiceSettings();
 
   /// Whether the app opted in.
   bool get enabled => _enabled;
@@ -58,6 +128,21 @@ class DVAccessibilityControls extends ChangeNotifier {
   /// What the reader chose (the operating system's settings are on top).
   DVAccessibilitySettings get settings => _settings;
 
+  /// Voice mode's place in the panel (`defaultControls.voice`), or null when
+  /// the app did not ask for it.
+  DVAccessibilityVoiceConfig? get voice => _voice;
+
+  /// Where the reader wants voice mode, and its language.
+  DVVoiceSettings get voiceSettings => _voiceSettings;
+
+  /// The language voice mode speaks: the reader's choice when it is one the
+  /// app offers, else the app's first language.
+  DVVoiceLanguage get voiceLanguage {
+    final DVAccessibilityVoiceConfig config = _voice ?? const DVAccessibilityVoiceConfig();
+    final DVVoiceLanguage? chosen = DVVoiceLanguage.tryCode(_voiceSettings.language);
+    return chosen != null && config.languages.contains(chosen) ? chosen : config.languages.first;
+  }
+
   /// Whether the browser says the reader wants more contrast. A device says
   /// so through MediaQuery, which the frame already reads.
   bool get systemHighContrast => platform.dvSystemPrefersContrast();
@@ -65,14 +150,28 @@ class DVAccessibilityControls extends ChangeNotifier {
   /// Whether the browser says the reader wants less motion.
   bool get systemReducedMotion => platform.dvSystemPrefersReducedMotion();
 
-  /// Turns the controls on, with the settings kept from the last visit.
-  /// The generated runtime calls this before the first frame; [store] and
-  /// [app] choose where the settings are kept.
-  void install({bool floatingButton = true, DVAccessibilityStore? store, String app = 'app'}) {
+  /// Turns the controls on, with the settings kept from the last visit. The
+  /// generated runtime calls this before the first frame, from the pubspec:
+  /// [voice] adds voice mode's settings to the panel, and [formerKey] names
+  /// where the app kept its own settings before, read once.
+  void install({
+    bool floatingButton = true,
+    @Deprecated('Set DVPreferenceStore.instance instead.')
+    // ignore: deprecated_member_use_from_same_package
+    DVAccessibilityStore? store,
+    String app = 'app',
+    DVAccessibilityVoiceConfig? voice,
+    String? formerKey,
+  }) {
+    if (store != null) DVPreferenceStore.instance = _OldStore(store, DVPreferenceStore.instance);
     _enabled = true;
     _floatingButton = floatingButton;
-    _store = store ?? platform.dvPlatformAccessibilityStore(app);
-    _settings = DVAccessibilitySettings.decode(_store.read());
+    _voice = voice;
+    if (formerKey != null) _adoptFormer(formerKey);
+    // Read from the store, not the registry: install is the visit starting.
+    _settings = DV.global<DVAccessibilitySettings>(
+        DVAccessibilitySettings.decode(DVPreferenceStore.instance.read(DVAccessibilitySettings.storageKey)));
+    _voiceSettings = DV.global<DVVoiceSettings>(DVVoiceSettings.decode(DVPreferenceStore.instance.read(DVVoiceSettings.storageKey)));
     _applyMotion();
     if (!_watching) {
       _watching = true;
@@ -81,12 +180,43 @@ class DVAccessibilityControls extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Carries what an app kept under [formerKey] before these controls over,
+  /// once: only for a visitor with nothing kept here yet, and only what
+  /// differs from the defaults. The old value is left where it was.
+  void _adoptFormer(String formerKey) {
+    final String? stored = DVPreferenceStore.instance.read(formerKey);
+    if (stored == null) return;
+    final DVFormerAccessibilitySettings former = DVFormerAccessibilitySettings.decode(stored);
+    if (!DVAccessibilitySettings.isKept) {
+      final DVAccessibilitySettings display = DVAccessibilitySettings(
+        textScale: former.textScale ?? (former.largeText ? DVTextSize.large.scale : DVTextSize.standard.scale),
+        highContrast: former.highContrast,
+        reducedMotion: former.reducedMotion,
+      );
+      if (!display.isDefault) display.keep();
+    }
+    if (!DVVoiceSettings.isKept) {
+      final String? place = former.position ?? former.zone;
+      final DVVoiceSettings voice = DVVoiceSettings(
+        position: place == DVVoicePosition.centre.name ? DVVoicePosition.centre : DVVoicePosition.top,
+        language: former.language ?? const DVVoiceSettings().language,
+      );
+      if (voice != const DVVoiceSettings()) voice.keep();
+    }
+  }
+
   /// Applies [next] to every page and keeps it for the next visit.
   void update(DVAccessibilitySettings next) {
     if (next == _settings) return;
-    _settings = next;
-    _store.write(next.encode());
+    _settings = next.keep();
     _applyMotion();
+    notifyListeners();
+  }
+
+  /// Applies [next] to voice mode and keeps it for the next visit.
+  void updateVoice(DVVoiceSettings next) {
+    if (next == _voiceSettings) return;
+    _voiceSettings = next.keep();
     notifyListeners();
   }
 
@@ -102,8 +232,9 @@ class DVAccessibilityControls extends ChangeNotifier {
   void reset() {
     _enabled = false;
     _floatingButton = true;
+    _voice = null;
     _settings = const DVAccessibilitySettings();
-    _store = DVMemoryAccessibilityStore();
+    _voiceSettings = const DVVoiceSettings();
     const DVAccessibility().clearReducedMotion();
     notifyListeners();
   }
@@ -246,24 +377,24 @@ Widget dvAccessibleTheme(BuildContext context, Widget child) {
 /// ([compact] is the icon alone), opening [DVAccessibilityPanel]. Put it in
 /// the app's header with `floatingButton: false`, or leave the framework's
 /// floating one on every page. Its tooltip is its name, and a 48 px target.
-///
-/// [more] adds the app's own settings to the bottom of the panel (a voice
-/// language, where an overlay sits); the app keeps those itself.
 class DVAccessibilityButton extends StatelessWidget {
   const DVAccessibilityButton({
     super.key,
     this.compact = false,
     this.more,
-    this.tooltip = dvAccessibilityButtonLabel,
+    this.tooltip,
     this.floating = false,
   });
 
   final bool compact;
+
+  /// Settings of the app's own at the bottom of the panel, below the
+  /// framework's. Voice mode's are the framework's (`defaultControls.voice`).
   final WidgetBuilder? more;
 
-  /// The button's name: its tooltip and accessible label. An app that adds
-  /// settings with [more] names them here.
-  final String tooltip;
+  /// The button's name: its tooltip and accessible label. By default it
+  /// names what the panel holds, voice included when the app asked for it.
+  final String? tooltip;
 
   /// The framework's floating button: a raised round surface.
   final bool floating;
@@ -271,30 +402,28 @@ class DVAccessibilityButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ColorScheme colours = Theme.of(context).colorScheme;
-    DVModifier modifier = const DVModifier()
+    final String name =
+        tooltip ?? (DVAccessibilityControls.instance.voice == null ? dvAccessibilityButtonLabel : dvAccessibilityVoiceButtonLabel);
+    // The row inside a box of its own, as before: the box is the control,
+    // sized to the row, and the row stays packed to its icon and words.
+    final DVBox<Object?> button = DVBox(DVBox.row(<Widget>[
+      Icon(Icons.accessibility_new_rounded, size: 22, color: colours.onSurface),
+      if (!compact) const DVText('Accessibility').fontSize(15).fontWeight(.w600).color(colours.onSurface),
+    ], spacing: 8))
         .paddingSymmetric(horizontal: compact ? 12 : 14, vertical: 12)
         .minimumTapTarget(width: 48, height: 48)
-        .tooltip(tooltip)
+        .tooltip(name)
         .semanticButton()
         .onTap(() => showDialog<void>(
               context: context,
               builder: (BuildContext context) => DVAccessibilityPanel(more: more),
             ));
-    if (floating) {
-      modifier = modifier
-          .backgroundColor(colours.surface)
-          .rounded(28)
-          .border(Border.all(color: colours.outlineVariant))
-          .shadow(const <BoxShadow>[BoxShadow(color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 2))]);
-    }
-    return DVBox(
-      DVBox.row(<Widget>[
-        Icon(Icons.accessibility_new_rounded, size: 22, color: colours.onSurface),
-        if (!compact)
-          DVText('Accessibility', const DVModifier().fontSize(15).fontWeight(FontWeight.w600).color(colours.onSurface)),
-      ], spacing: 8),
-      modifier,
-    );
+    if (!floating) return button;
+    return button
+        .backgroundColor(colours.surface)
+        .rounded(28)
+        .border(Border.all(color: colours.outlineVariant))
+        .shadow(const <BoxShadow>[BoxShadow(color: Color(0x33000000), blurRadius: 6, offset: Offset(0, 2))]);
   }
 }
 
@@ -320,78 +449,99 @@ class DVAccessibilityPanel extends StatelessWidget {
     final AccessibilityFeatures device = View.of(context).platformDispatcher.accessibilityFeatures;
     final bool deviceCalm = device.disableAnimations || controls.systemReducedMotion;
     final bool deviceContrast = device.highContrast || controls.systemHighContrast;
-    final DVModifier heading = const DVModifier().fontSize(17).fontWeight(FontWeight.w700).color(colours.onSurface);
-    final DVModifier help = const DVModifier().fontSize(14).color(colours.onSurfaceVariant);
-
-    Widget toggle(String label, String explanation, {required bool value, required bool fromDevice, required void Function(bool) changed}) =>
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: DVText(label, heading),
-          subtitle: DVText(explanation, help),
-          value: value || fromDevice,
-          onChanged: fromDevice ? null : changed,
-        );
+    DVText heading(String words) => DVText(words).fontSize(17).fontWeight(.w700).color(colours.onSurface).paddingOnly(top: 8);
+    DVText help(String words) => DVText(words).fontSize(14).color(colours.onSurfaceVariant);
 
     return AlertDialog(
-      title: DVText('Accessibility', const DVModifier().fontSize(24).fontWeight(FontWeight.w800).color(colours.onSurface).heading(2)),
+      title: const DVText('Accessibility').fontSize(24).fontWeight(.w800).color(colours.onSurface).heading(2),
       // A set width: without one the dialog sizes to its widest child and
       // the switches run past its edge.
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
+      // Built whole, not as a lazy list: a dialog of a dozen rows is read
+      // by a screen reader and found by Ctrl+F all at once.
+      content: SingleChildScrollView(
           child: DVBox.list(<Widget>[
-            DVText('Kept on this device for your next visit.', help),
-            DVText('Text size', heading.paddingOnly(top: 8)),
-            DVText('On top of your device’s own text size.', help),
-            // Chips that wrap rather than one segmented row: at the largest
-            // size on a phone a row cut "Default" in two and ran "Larger"
-            // past the panel's edge.
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                for (final DVTextSize size in DVTextSize.values)
-                  ChoiceChip(
-                    label: Text(size.label),
-                    tooltip: '${size.label} text (${(size.scale * 100).round()}%)',
-                    selected: settings.textSize == size,
-                    showCheckmark: true,
-                    onSelected: (bool _) => controls.update(settings.copyWith(textSize: size)),
-                  ),
-              ],
-            ),
-            toggle(
-              'High contrast',
+        help('Kept on this device for your next visit.'),
+        heading('Text size'),
+        help('On top of your device’s own text size.'),
+        // Chips that wrap rather than one segmented row: at the largest
+        // size on a phone a row cut "Default" in two and ran "Larger"
+        // past the panel's edge.
+        DVChoice<DVTextSize>(
+          label: 'Text size',
+          options: DVTextSize.values,
+          selected: settings.textSize,
+          name: (DVTextSize size) => size.label,
+          optionTooltip: (DVTextSize size) => '${size.label} text (${(size.scale * 100).round()}%)',
+          onChanged: (DVTextSize size) => controls.update(settings.copyWith(textScale: size.scale)),
+        ),
+        DVSwitch(
+          label: 'High contrast',
+          explanation:
               deviceContrast ? 'Already on, because your device asks for more contrast.' : 'Pure black and white with strong outlines.',
-              value: settings.highContrast,
-              fromDevice: deviceContrast,
-              changed: (bool value) => controls.update(settings.copyWith(highContrast: value)),
-            ),
-            toggle(
-              'Reduce motion',
-              deviceCalm ? 'Already on, because your device asks for less motion.' : 'No sliding or fading between screens.',
-              value: settings.reducedMotion,
-              fromDevice: deviceCalm,
-              changed: (bool value) => controls.update(settings.copyWith(reducedMotion: value)),
-            ),
-            if (more != null) more!(context),
-          ], spacing: 12),
+          value: settings.highContrast || deviceContrast,
+          onChanged: deviceContrast ? null : (bool value) => controls.update(settings.copyWith(highContrast: value)),
         ),
-      ),
+        DVSwitch(
+          label: 'Reduce motion',
+          explanation: deviceCalm ? 'Already on, because your device asks for less motion.' : 'No sliding or fading between screens.',
+          value: settings.reducedMotion || deviceCalm,
+          onChanged: deviceCalm ? null : (bool value) => controls.update(settings.copyWith(reducedMotion: value)),
+        ),
+        if (controls.voice != null) ..._voiceSection(controls, heading, help),
+        if (more != null) more!(context),
+      ], spacing: 12)
+              .width(520)),
       actions: <Widget>[
-        DVBox(
-          DVText('Done', const DVModifier().fontSize(15).fontWeight(FontWeight.w700).color(colours.onPrimary)),
-          const DVModifier()
-              .paddingSymmetric(horizontal: 20, vertical: 12)
-              .minimumTapTarget(width: 48, height: 48)
-              .backgroundColor(colours.primary)
-              .rounded(24)
-              .tooltip('Close the accessibility settings')
-              .semanticButton()
-              .onTap(() => Navigator.of(context).pop()),
-        ),
+        const DVText('Done')
+            .fontSize(15)
+            .fontWeight(.w700)
+            .color(colours.onPrimary)
+            .paddingSymmetric(horizontal: 20, vertical: 12)
+            .minimumTapTarget(width: 48, height: 48)
+            .backgroundColor(colours.primary)
+            .rounded(24)
+            .tooltip('Close the accessibility settings')
+            .semanticButton()
+            .onTap(() => Navigator.of(context).pop()),
       ],
     );
+  }
+
+  /// Where voice mode sits and its language, with what this device can do
+  /// in that language.
+  List<Widget> _voiceSection(
+    DVAccessibilityControls controls,
+    DVText Function(String) heading,
+    DVText Function(String) help,
+  ) {
+    final DVAccessibilityVoiceConfig config = controls.voice!;
+    final DVVoiceSettings voice = controls.voiceSettings;
+    final DVVoiceLanguage language = controls.voiceLanguage;
+    return <Widget>[
+      heading('Where voice mode sits'),
+      help('Centre keeps voice mode, its confirmations and receipts in the middle of the screen, for a narrow field of view.'),
+      DVChoice<DVVoicePosition>(
+        label: 'Where voice mode sits',
+        options: DVVoicePosition.values,
+        selected: voice.position,
+        name: (DVVoicePosition position) => position.label,
+        optionTooltip: (DVVoicePosition position) =>
+            position == DVVoicePosition.centre ? 'Voice mode in the centre of the screen' : 'Voice mode at the top of the screen',
+        onChanged: (DVVoicePosition position) => controls.updateVoice(voice.copyWith(position: position)),
+      ),
+      if (config.languages.length > 1) ...<Widget>[
+        heading('Voice language'),
+        DVChoice<DVVoiceLanguage>(
+          label: 'Language voice mode speaks and listens in',
+          style: DVChoiceStyle.menu,
+          options: config.languages,
+          selected: language,
+          name: (DVVoiceLanguage language) => language.displayName,
+          onChanged: (DVVoiceLanguage language) => controls.updateVoice(voice.copyWith(language: language.code)),
+        ),
+      ],
+      help(dvVoiceAvailability(language, speech: DVSpeech.instance, machineTranslated: config.isMachineTranslated(language))),
+    ];
   }
 }
 
