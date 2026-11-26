@@ -3,7 +3,7 @@ library dartvel_flutter.timers.timer_countdown;
 
 import 'package:flutter/widgets.dart';
 
-import '../../dartvel_flutter.dart' show DVModifier, DVText;
+import '../../dartvel_flutter.dart' show DVModifier, DVModifierChain, DVText;
 import 'timer.dart';
 import 'timers.dart';
 
@@ -20,7 +20,14 @@ class const DVTimerCountdown(
   super.key,
   final DateTime? now,
   final DVModifier? modifier,
-}) extends StatelessWidget {
+}) extends StatelessWidget with DVModifierChain<DVTimerCountdown> {
+  @override
+  DVModifier? get chainModifier => modifier;
+
+  /// The same countdown drawn with [modifier]: `DVTimerCountdown(timer).fontSize(40)`.
+  @override
+  DVTimerCountdown withModifier(DVModifier modifier) => DVTimerCountdown(timer, key: key, now: now, modifier: modifier);
+
   @override
   Widget build(BuildContext context) {
     final DateTime at = now ?? DVTimers.instance.now;

@@ -303,5 +303,22 @@ void main() {
       expect(data.label, isNot(contains('14:05')), reason: 'the ticking digits are not read out');
       semantics.dispose();
     });
+
+    testWidgets('takes the modifier chain, as DVText does', (WidgetTester tester) async {
+      final DVTimer timer = DVTimer(
+        id: 'b',
+        label: 'Rice',
+        duration: const Duration(minutes: 20),
+        endsAt: clock.add(const Duration(minutes: 12, seconds: 20)),
+      );
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: DVTimerCountdown(timer, now: clock).fontSize(40).fontWeight(.w700),
+      ));
+      final RichText digits = tester.widget<RichText>(find.descendant(of: find.byType(DVTimerCountdown), matching: find.byType(RichText)).first);
+      expect(digits.text.toPlainText(), '12:20');
+      expect(digits.text.style?.fontSize, 40);
+      expect(digits.text.style?.fontWeight, FontWeight.w700);
+    });
   });
 }
