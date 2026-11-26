@@ -189,6 +189,9 @@ class AnalyticsGenerator {
       if (banner.settingsLabel != defaults.settingsLabel)
         'settingsLabel: ${_literal(banner.settingsLabel)}',
     ];
+    if (settings.consent.domain case final String domain) {
+      sb.writeln('    domain: ${_literal(domain)},');
+    }
     if (words.isNotEmpty) {
       sb
         ..writeln('    banner: DVConsentBannerText(')
