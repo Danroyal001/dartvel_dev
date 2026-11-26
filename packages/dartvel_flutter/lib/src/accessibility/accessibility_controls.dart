@@ -250,10 +250,20 @@ Widget dvAccessibleTheme(BuildContext context, Widget child) {
 /// [more] adds the app's own settings to the bottom of the panel (a voice
 /// language, where an overlay sits); the app keeps those itself.
 class DVAccessibilityButton extends StatelessWidget {
-  const DVAccessibilityButton({super.key, this.compact = false, this.more, this.floating = false});
+  const DVAccessibilityButton({
+    super.key,
+    this.compact = false,
+    this.more,
+    this.tooltip = dvAccessibilityButtonLabel,
+    this.floating = false,
+  });
 
   final bool compact;
   final WidgetBuilder? more;
+
+  /// The button's name: its tooltip and accessible label. An app that adds
+  /// settings with [more] names them here.
+  final String tooltip;
 
   /// The framework's floating button: a raised round surface.
   final bool floating;
@@ -264,7 +274,7 @@ class DVAccessibilityButton extends StatelessWidget {
     DVModifier modifier = const DVModifier()
         .paddingSymmetric(horizontal: compact ? 12 : 14, vertical: 12)
         .minimumTapTarget(width: 48, height: 48)
-        .tooltip(dvAccessibilityButtonLabel)
+        .tooltip(tooltip)
         .semanticButton()
         .onTap(() => showDialog<void>(
               context: context,

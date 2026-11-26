@@ -177,6 +177,14 @@ void main() {
       expect(motion.onChanged, isNull);
     });
 
+    testWidgets('an app whose panel has more in it can say so in the name', (WidgetTester tester) async {
+      await tester.pumpWidget(_app(
+        home: Scaffold(body: Center(child: DVAccessibilityButton(tooltip: 'Accessibility: text size, contrast, motion and voice language'))),
+      ));
+      expect(find.byTooltip('Accessibility: text size, contrast, motion and voice language'), findsOneWidget);
+      expect(find.byTooltip(_tooltip), findsNothing);
+    });
+
     testWidgets("an app's own settings can join the panel", (WidgetTester tester) async {
       await tester.pumpWidget(_app(
         home: Scaffold(
