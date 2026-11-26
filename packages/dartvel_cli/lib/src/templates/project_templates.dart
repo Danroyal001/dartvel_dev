@@ -146,16 +146,10 @@ import '../dartvel_client/dartvel_client.dart';
 @DVPage(title: 'Dartvel', showAppBar: true, centerTitle: true)
 Widget _indexPage(BuildContext context) => DVBox.list([
       const DVText('Welcome to Dartvel'),
-      const DVText('DARTVEL').modifier(
-        const DVModifier().fontSize(28).fontWeight(.w800),
-      ),
-      const DVText('Your Dartvel app is ready!').modifier(
-        const DVModifier().padding(8),
-      ),
+      DVText('DARTVEL').fontSize(28).fontWeight(.w800),
+      DVText('Your Dartvel app is ready!').padding(8),
       DVText('Loaded at: \${DateTime.now().toIso8601String()}'),
-    ]).modifier(
-      const DVModifier().padding(24).align(.center),
-    );
+    ]).padding(24).align(.center);
 ''';
 
   /// The page shown while a page's data loads.
@@ -185,21 +179,15 @@ import '../dartvel_client/dartvel_client.dart';
 
 @DVFunctionalWidget()
 Widget ${_inputName(className)}(BuildContext context) => DVBox.list(<Widget>[
-      const DVText('Something went wrong').modifier(
-        const DVModifier().fontSize(24).fontWeight(.w800),
-      ),
+      DVText('Something went wrong').fontSize(24).fontWeight(.w800),
       const DVText('The page could not load its data.'),
-      const DVText('Go back').modifier(
-        const DVModifier()
-            .padding(12)
-            .rounded(8)
-            .backgroundColor(Colors.black)
-            .color(Colors.white)
-            .onPressed(() => Navigator.of(context).pop()),
-      ),
-    ]).modifier(
-      const DVModifier().align(.center),
-    );
+      DVText('Go back')
+          .padding(12)
+          .rounded(8)
+          .backgroundColor(Colors.black)
+          .color(Colors.white)
+          .onPressed(() => Navigator.of(context).pop()),
+    ]).align(.center);
 ''';
 
   // Backend functions in the form the generator compiles: a private
@@ -396,7 +384,7 @@ Widget _aboutPage(BuildContext context) => buildAboutPage(context);
 Widget buildAboutPage(BuildContext context) => DVBox.list([
     const DVText('About'),
     const DVText('About page'),
-  ]).modifier(const DVModifier().padding(16));
+  ]).padding(16);
 ```
 
 Route is automatically available at `/about`.

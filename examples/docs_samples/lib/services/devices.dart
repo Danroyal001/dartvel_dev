@@ -92,17 +92,15 @@ Widget attachments(BuildContext context) {
   }
 
   return DVBox.list(<Widget>[
-    const DVText('Drop receipts, links or notes here').modifier(
-      DVModifier().padding(24).dropTarget(onDrop: attach),
-    ),
+    const DVText('Drop receipts, links or notes here').padding(24).dropTarget(onDrop: attach),
     DVText(attached.value),
-    DVText('Choose files instead').modifier(DVModifier().onTap(() async {
+    DVText('Choose files instead').onTap(() async {
       final DVDropEvent? chosen = await DV.Platform.dragDrop.chooseInstead();
       if (chosen != null) await attach(chosen);
-    })),
-    DVText('Drag the cart link').modifier(DVModifier().draggable(
+    }),
+    DVText('Drag the cart link').draggable(
       DVDragPayload(urls: <Uri>[Uri.parse('https://oakline.example/cart')]),
-    )),
+    ),
   ]);
 }
 // docs:end

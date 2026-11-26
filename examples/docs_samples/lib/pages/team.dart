@@ -12,9 +12,7 @@ Widget _teamPage(BuildContext context) {
 
   return DVBox.list(<Widget>[
     for (final String name in shown) DVText(name),
-    DVText(showAll.value ? 'Show fewer' : 'Show everyone').modifier(
-      DVModifier().semanticButton().onTap(() => showAll.value = !showAll.value),
-    ),
+    DVText(showAll.value ? 'Show fewer' : 'Show everyone').semanticButton().onTap(() => showAll.value = !showAll.value),
   ]);
 }
 // docs:end

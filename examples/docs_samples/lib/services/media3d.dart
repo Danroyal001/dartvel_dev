@@ -14,7 +14,7 @@ Widget trailer() => DVBox.video(
         const DVMediaSource.url('https://cdn.example.com/trailer.en.vtt'),
       ),
       session: const DVMediaSession(title: 'Launch trailer'),
-    ).modifier(const DVModifier().width(640));
+    ).width(640);
 // docs:end
 
 // docs:start media3d-precache
