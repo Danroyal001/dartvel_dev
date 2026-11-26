@@ -1,3 +1,7 @@
+## 3.47.14 — 2026-11-26
+
+- A web-server build writes the app's look for pages it could not capture (`dvSsrFirstTheme`, worked out from every captured route) into the shell, so a parameterised route's data document is laid out in it under SSR-first.
+
 ## 3.47.13 — 2026-11-26
 
 - Version aligned with dartvel_flutter 3.47.13.

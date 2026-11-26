@@ -1,3 +1,7 @@
+## 3.47.14 — 2026-11-26
+
+- Version aligned with dartvel_core 3.47.14.
+
 ## 3.47.13 — 2026-11-26
 
 - The held SSR-first handover never strands the page. A failure while it waited for the app's field (reading the document's field threw, in a test) left the handover waiting for good: the document stayed over a running app. Now the app takes the page and the failure is reported.
