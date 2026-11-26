@@ -21,7 +21,7 @@ import '../utils/logger.dart';
 import 'chrome_launch.dart';
 import 'capture_completeness.dart';
 import 'route_prefetch.dart';
-import 'ssr_first_capture.dart' show dvCaptureLayout, dvLayoutCapturePathFor;
+import 'ssr_first_capture.dart' show dvCaptureLayout, dvLayoutCapturePathFor, dvSemanticsReadViewport;
 
 /// Walks `flt-semantics-host` and reports the structure, not Flutter's DOM.
 ///
@@ -470,6 +470,9 @@ class _CaptureTab {
     final Target target =
         await browser.waitForTarget((Target candidate) => candidate.targetID == id);
     final _CaptureTab tab = _CaptureTab._(await target.page, base);
+    // Every route is read at one size, named, whatever the browser defaults
+    // to: the document is the page at that size.
+    await tab.page.setViewport(dvSemanticsReadViewport);
     // Before the app starts: every DVBox list builds whole while the page is
     // captured, so the HTML carries the rows a lazy list would not have
     // built (dartvel_flutter DVLazyLists).

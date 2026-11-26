@@ -21,6 +21,13 @@ import 'package:puppeteer/puppeteer.dart';
 
 import 'semantics_capture.dart' show dvSemanticsPathFor;
 
+/// The size every route's semantics tree is read at: the document is the
+/// page as a laptop shows it, with what a narrow screen folds into a menu
+/// (a docs side menu, header links) written out. It is puppeteer's own
+/// default, which is what the first route of every tab was always read at;
+/// it is named so that nothing else decides it.
+const DeviceViewport dvSemanticsReadViewport = DeviceViewport(width: 1280, height: 1024);
+
 /// The widths the document is laid out for unless `ssrFirst.widths` says:
 /// small and common phones, a tablet upright and lying down, a laptop and a
 /// desktop. Between two of them every box moves linearly.
@@ -183,7 +190,16 @@ bool _atWidth(Map<Object?, Object?> snapshot, int width) {
 
 /// Records the route open in [page] at each of [widths], light and dark, and
 /// writes it to [path]. Returns false, writing nothing, when the app has no
-/// capture hook. The page is put back at [restore] and the light scheme.
+/// capture hook. The page is put back at [restore] -- by default the size it
+/// was at when the capture began -- and the light scheme.
+///
+/// Put back where it was found, not at a fixed size: the semantics read of
+/// the next route in the same tab happens at whatever size this leaves. It
+/// used to leave a fixed 800 x 600, so every route a tab moved to after its
+/// first was read at 800 px. dartvel.dev's docs shell is the narrow one there,
+/// and every docs page but the first few shipped a menu button and no menu,
+/// while the menu and header links, painted at 1366 and 1920, were laid out
+/// as pictures of text with no link behind them.
 ///
 /// Every width in the light scheme first, then every width in the dark: one
 /// switch of scheme rather than one per width.
@@ -191,9 +207,10 @@ Future<bool> dvCaptureLayout(
   Page page,
   List<int> widths, {
   required String path,
-  DeviceViewport restore = const DeviceViewport(width: 800, height: 600),
+  DeviceViewport? restore,
   Duration settle = const Duration(seconds: 8),
 }) async {
+  final DeviceViewport back = restore ?? page.viewport ?? dvSemanticsReadViewport;
   final List<Map<String, Object?>> captured = <Map<String, Object?>>[];
   try {
     await _scheme(page, 'light');
@@ -233,7 +250,7 @@ Future<bool> dvCaptureLayout(
     }
   } finally {
     await _scheme(page, 'light');
-    await page.setViewport(restore);
+    await page.setViewport(back);
   }
   File(path)
     ..parent.createSync(recursive: true)

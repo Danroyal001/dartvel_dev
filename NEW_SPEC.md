@@ -558,7 +558,12 @@ The table is the contract. Each row says which entries a target has, what
   box and fit) and whether each sits in the page's scroller or is pinned
   like an app bar -- and reads each link, button and field's box from the
   semantics host. It does that at each width of `dartvel.web.ssrFirst.widths`
-  (default 360, 390, 768, 1024, 1366, 1920), in light and dark.
+  (default 360, 390, 768, 1024, 1366, 1920), in light and dark. The
+  document itself is always read at one size, 1280 x 1024
+  (`dvSemanticsReadViewport`), so what a narrow screen folds into a menu (a
+  docs side menu, header links) is in every page's document and is placed
+  as a real link at the widths that paint it; after the layout capture the
+  tab goes back to that size before the next route is read.
   `dvSsrFirstLayout` (dartvel_core) then keeps the document exactly as it is
   -- the same headings, links, fields and order, so find, selection, Tab and
   screen readers read what they read before -- and adds three things: each
