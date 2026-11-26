@@ -4126,6 +4126,10 @@ class _DVPressableState extends State<_DVPressable> {
         onKeyEvent: _onKey,
         child: Builder(
           builder: (BuildContext context) => Semantics(
+            // A node of its own: without it the control merged up into the
+            // nearest group, which then read as one button holding the page
+            // (sigmadev.digital Pro gate, 26 Nov 2026).
+            container: true,
             button: widget.button,
             enabled: true,
             label: widget.name ?? resolved,
