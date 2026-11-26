@@ -7,6 +7,8 @@ import 'dart:ui' show Offset;
 
 import 'package:web/web.dart' as web;
 
+import '../platform/web/event_position_js.dart';
+
 bool _installed = false;
 double? _downX;
 double? _downY;
@@ -26,8 +28,8 @@ void dvInstallBrowserClicks(void Function(int count, Offset position) report) {
   web.document.addEventListener(
     'pointerdown',
     ((web.PointerEvent event) {
-      _downX = event.clientX.toDouble();
-      _downY = event.clientY.toDouble();
+      _downX = dvEventClientX(event);
+      _downY = dvEventClientY(event);
     }).toJS,
     true.toJS,
   );
@@ -38,8 +40,8 @@ void dvInstallBrowserClicks(void Function(int count, Offset position) report) {
       final double? downY = _downY;
       _downX = _downY = null;
       if (event.button != 0 || event.detail < 2 || downX == null || downY == null) return;
-      final double x = event.clientX.toDouble();
-      final double y = event.clientY.toDouble();
+      final double x = dvEventClientX(event);
+      final double y = dvEventClientY(event);
       if ((x - downX).abs() > _slop || (y - downY).abs() > _slop) return;
       report(event.detail, Offset(x, y));
     }).toJS,

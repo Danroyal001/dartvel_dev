@@ -28,6 +28,7 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import '../drag_drop.dart';
+import 'event_position_js.dart';
 import 'web_drag_drop_shapes.dart';
 
 class DVWebDragDrop {
@@ -71,7 +72,7 @@ class DVWebDragDrop {
 
   static ({double x, double y}) _local(web.DragEvent event) {
     final web.DOMRect rect = _host.getBoundingClientRect();
-    return (x: event.clientX - rect.left, y: event.clientY - rect.top);
+    return (x: dvEventClientX(event) - rect.left, y: dvEventClientY(event) - rect.top);
   }
 
   static void _listen() {
