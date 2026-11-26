@@ -1112,6 +1112,26 @@ Future<ServerHandle> serve(
   final boundPort = api.aw_server_port(serverId);
   if (boundPort != 0) urlPort = boundPort;
 
+  // The site's static pages rendered into the page cache, behind the
+  // requests rather than in front of them: a moment after the server is
+  // listening, one page at a time, until it stops. DARTVEL_OFF=cache-warm
+  // turns it off.
+  bool stopped = false;
+  if (spaRoot != null) {
+    final String root = spaRoot;
+    final Uri origin = Uri.parse('http://$authority:$urlPort');
+    unawaited(Future<void>.delayed(const Duration(seconds: 1), () async {
+      if (stopped) return;
+      try {
+        final DVCacheWarmResult warmed = await dvWarmRenderedPages(root,
+            origin: origin, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, stopped: () => stopped);
+        stderr.writeln(warmed.describe());
+      } on Object catch (error) {
+        stderr.writeln('dartvel: cache warm stopped (${error.runtimeType})');
+      }
+    }));
+  }
+
   return ServerHandle(
     host,
     boundPort == 0 ? port : boundPort,
@@ -1124,6 +1144,7 @@ Future<ServerHandle> serve(
     webSockets,
     dartWsWakeupHandler,
     () {
+      stopped = true;
       scratch.release();
       requestQueue?.close();
     },

@@ -7,6 +7,8 @@ import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
 import 'package:dartvel_core/framework.dart' show DVRenderedPageCache, DVRenderedPage, dvRenderedPagesGeneration, dvMayCacheRenderedPage, dvRenderedPageKey, dvRenderedPageHeaders, dvRenderedPageNotModified, dvPageResolverIsStatic;
 
+import 'package:meta/meta.dart' show visibleForTesting;
+
 import 'site_files.dart';
 
 /// Serve the single-page app's index, with any prerendered metadata for this
@@ -442,7 +444,9 @@ Future<Response> _cachedSsrFallback(
   DVCacheAdapter? pageStore,
   Future<Set<String>> Function()? publishedRoutes,
 }) async {
-  Future<Response> render() => _handleSsrFallback(
+  Future<Response> render() {
+    _ssrRenders++;
+    return _handleSsrFallback(
     req,
     spaRoot,
     pageData: pageData,
@@ -450,6 +454,7 @@ Future<Response> _cachedSsrFallback(
     pageStore: pageStore,
     publishedRoutes: publishedRoutes,
   );
+  }
   Object? manifest;
   try {
     manifest = dvSiteJson(spaRoot, 'dartvel_routes.json');
@@ -655,3 +660,124 @@ List<String> dvOffSwitchesLog(DVOffSwitches off) => <String>[
         'dartvel: $dvOffVariable names "$name", which is not a switch; known: '
             '${(DVOffSwitches.known.toList()..sort()).join(', ')}, ${DVOffSwitches.modulePrefix}<id>',
     ];
+
+int _ssrRenders = 0;
+
+/// How many pages the server-rendering fallback has rendered rather than
+/// answered from its cache, for a test to tell the two apart.
+@visibleForTesting
+int get dvSsrRenderCount => _ssrRenders;
+
+/// What warming the rendered-page cache did.
+final class DVCacheWarmResult {
+  const DVCacheWarmResult({required this.pages, required this.paths, required this.elapsed, this.switchedOff = false});
+
+  /// Documents rendered into the cache: one per path and request shape.
+  final int pages;
+
+  /// The paths warmed, in the order they were.
+  final List<String> paths;
+  final Duration elapsed;
+
+  /// Whether `DARTVEL_OFF=cache-warm` meant nothing was done.
+  final bool switchedOff;
+
+  /// The line the server logs.
+  String describe() => switchedOff
+      ? 'dartvel: cache warm: off ($dvOffVariable)'
+      : 'dartvel: cache warm: $pages pages in ${elapsed.inMilliseconds} ms';
+}
+
+/// Fills the rendered-page cache with the site's static pages, so the first
+/// visitor of each gets a kept page instead of waiting for it to render.
+///
+/// Each route the manifest lists with no parameters, which the cache may
+/// keep at all (not guarded, not `cache: false`, not federated, no data
+/// read for it: [dvMayCacheRenderedPage]), is asked for as a visitor asks
+/// for it: at [origin] (the address the server is bound to, which every
+/// request URL is built on), on the host the manifest's `siteUrl` names,
+/// with no cookie. Once without Accept-Language, as crawlers ask, and once
+/// more with the site's default locale when its pages declare alternates
+/// (`dartvel.i18n`). One at a time, [delay] apart, so it never competes with
+/// real requests for long; [stopped] ends it (the server shutting down).
+/// Nothing when `DARTVEL_OFF` has `cache-warm`.
+Future<DVCacheWarmResult> dvWarmRenderedPages(
+  String spaRoot, {
+  required Uri origin,
+  DVPageDataResolver? pageData,
+  DVCacheAdapter? pageStore,
+  Future<Set<String>> Function()? publishedRoutes,
+  Duration delay = const Duration(milliseconds: 50),
+  bool Function()? stopped,
+}) async {
+  final Stopwatch clock = Stopwatch()..start();
+  if (DVOffSwitches.current.isOff(DVOffSwitches.cacheWarm)) {
+    return DVCacheWarmResult(pages: 0, paths: const <String>[], elapsed: clock.elapsed, switchedOff: true);
+  }
+  Object? manifest;
+  try {
+    manifest = dvSiteJson(spaRoot, 'dartvel_routes.json');
+  } on FormatException {
+    manifest = null;
+  }
+  final Object? routes = manifest is Map ? manifest['routes'] : null;
+  if (routes is! Map) return DVCacheWarmResult(pages: 0, paths: const <String>[], elapsed: clock.elapsed);
+  final String? siteUrl = (manifest as Map)['siteUrl'] as String?;
+  final Uri? site = siteUrl == null ? null : Uri.tryParse(siteUrl);
+  final String? host = site == null || site.host.isEmpty ? null : (site.hasPort ? '${site.host}:${site.port}' : site.host);
+
+  // The default locale: the alternate a page names as x-default.
+  String? locale;
+  for (final Object? entry in routes.values) {
+    final Object? page = entry is Map ? entry['page'] : null;
+    if (page is! Map) continue;
+    final DVRoutePage parsed = DVRoutePage.fromJson(page.cast<String, Object?>());
+    for (final MapEntry<String, String> alternate in parsed.alternates.entries) {
+      if (alternate.value == parsed.defaultAlternate) locale = alternate.key;
+    }
+    if (locale != null) break;
+  }
+  final List<Map<String, String>> shapes = <Map<String, String>>[
+    <String, String>{'host': ?host},
+    if (locale != null) <String, String>{'host': ?host, 'accept-language': locale},
+  ];
+
+  int pages = 0;
+  final List<String> paths = <String>[];
+  for (final MapEntry<Object?, Object?> entry in routes.entries) {
+    final String path = '${entry.key}';
+    final Object? route = entry.value;
+    if (!path.startsWith('/') || path.contains(':') || path.contains('*')) continue;
+    if (!dvMayCacheRenderedPage('GET', const <String, String>{}, route is Map ? route : null,
+        staticContent: dvPageResolverIsStatic(pageData, path))) {
+      continue;
+    }
+    bool warmed = false;
+    for (final Map<String, String> headers in shapes) {
+      if (stopped?.call() ?? false) {
+        return DVCacheWarmResult(pages: pages, paths: paths, elapsed: clock.elapsed);
+      }
+      try {
+        final Response response = await handleSsrFallback(
+          Request(method: 'GET', url: origin.replace(path: path), headers: Headers(headers), bodyStream: const Stream<List<int>>.empty()),
+          spaRoot,
+          pageData: pageData,
+          pageStore: pageStore,
+          publishedRoutes: publishedRoutes,
+        );
+        await response.body?.bytes();
+        if (response.status == 200) {
+          pages++;
+          warmed = true;
+        }
+      } on Object catch (error) {
+        // A page that cannot be rendered now is rendered on request, as it
+        // always was; warming never stops the server.
+        stderr.writeln('dartvel: cache warm: $path not warmed (${error.runtimeType})');
+      }
+      if (delay > Duration.zero) await Future<void>.delayed(delay);
+    }
+    if (warmed) paths.add(path);
+  }
+  return DVCacheWarmResult(pages: pages, paths: paths, elapsed: clock.elapsed);
+}
