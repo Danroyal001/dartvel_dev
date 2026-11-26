@@ -16,9 +16,9 @@ const Map<String, List<String>> kDocsSamples = <String, List<String>>{
     '}',
   ],
   'a11y-controls': <String>[
-    '// With dartvel.accessibility.controls on, the framework draws the button on',
+    '// With dartvel.accessibility.defaultControls on, the framework draws the button on',
     '// every page. An app with a header of its own puts it there instead',
-    '// (controls: {floatingButton: false}); more adds the app\'s own settings to',
+    '// (defaultControls: {floatingButton: false}); more adds the app\'s own settings to',
     '// the bottom of the panel, and the tooltip names them.',
     'Widget siteHeader() => DVBox.row(<Widget>[',
     '      DVText(\'Shop\'),',
