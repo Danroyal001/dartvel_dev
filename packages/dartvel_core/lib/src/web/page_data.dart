@@ -18,6 +18,7 @@ import 'page_text.dart';
 import 'route_page.dart' show DVRoutePage, dvRenderRoutePage;
 import 'seo_head.dart';
 import 'ssr_first.dart' show dvIsSsrFirst;
+import 'ssr_first_layout.dart' show dvHasSsrFirstTheme, dvSsrThemeClass;
 
 /// How page data is waited for on a request.
 enum DVPageDataMode {
@@ -611,7 +612,12 @@ String dvRenderPage({
         favicon: data.favicon ?? route?.favicon,
         schemaType: route?.schemaType,
         robots: route?.robots,
-        html: _dvDocumentHtml(data),
+        // SSR-first with no capture of this page (a parameterised route's
+        // document, written from the data): laid out in the app's look the
+        // build worked out from the pages it captured (dvSsrFirstTheme).
+        html: data.document.isNotEmpty && dvIsSsrFirst(shell) && dvHasSsrFirstTheme(shell)
+            ? '<div class="$dvSsrThemeClass">${_dvDocumentHtml(data)}</div>'
+            : _dvDocumentHtml(data),
         text: data.document.isEmpty ? data.text : const <String>[],
         structuredData: data.structuredData,
       ),

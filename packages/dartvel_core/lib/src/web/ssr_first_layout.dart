@@ -341,6 +341,10 @@ class _TextNode {
   late final String norm;
   late final List<int> normToRaw;
 
+  /// The block it is in: h1 to h6, p, li or a (a link), for the theme the
+  /// build works out (see [dvSsrFirstTheme]).
+  String? block;
+
   /// The runs: ranges of [norm] and the node id of each.
   final List<_Segment> segments = <_Segment>[];
 }
@@ -475,6 +479,7 @@ class _Layout {
     }
 
     final List<_TextNode> all = _readDocument(tokens);
+    _texts = all;
     _assignControlBoxes();
     _fillFields();
     // A sentence placed as one block takes its own words out of the
@@ -523,6 +528,14 @@ class _Layout {
     final List<_TextNode> texts = <_TextNode>[];
     final List<(String name, _Element? control)> stack =
         <(String, _Element?)>[];
+    String? blockOf() {
+      for (int at = stack.length - 1; at >= 0; at--) {
+        final String name = stack[at].$1;
+        if (name == 'a' || _themeRoles.contains(name)) return name;
+      }
+      return null;
+    }
+
     String? raw;
     for (int index = 0; index < tokens.length; index++) {
       final _Token token = tokens[index];
@@ -537,7 +550,7 @@ class _Layout {
             token,
             _unescape(token.source),
             stack.isEmpty ? null : stack.last.$2,
-          ),
+          )..block = blockOf(),
         );
         continue;
       }
@@ -583,7 +596,7 @@ class _Layout {
             stack.isEmpty ? null : stack.last.$2,
             slotOpen: token,
             slotClose: tokens[index + 2],
-          ),
+          )..block = blockOf(),
         );
         index += 2;
         continue;
@@ -996,6 +1009,9 @@ class _Layout {
   /// `aria-hidden`, so a screen reader still hears the name and nothing
   /// twice; find and selection read it like any other text. Icon glyphs
   /// stay with the layer: they are not words.
+  /// Every text node of the document, once [run] has read it.
+  List<_TextNode> _texts = const <_TextNode>[];
+
   final Set<_Node> _paintedOnly = <_Node>{};
 
   void _adoptPaintedWords() {
@@ -2295,3 +2311,179 @@ bool _readable(int rune) =>
 /// glyphs (MaterialIcons, CupertinoIcons).
 bool _privateUse(int rune) =>
     (rune >= 0xE000 && rune <= 0xF8FF) || rune >= 0xF0000 || rune == 0x20;
+
+// ---------------------------------------------------------------------------
+// The theme: a page the build could not capture, in the app's own look.
+
+/// The blocks the theme styles, besides links.
+const Set<String> _themeRoles = <String>{'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'li'};
+
+/// The id of the style element that carries [dvSsrFirstTheme] in a shell.
+const String dvSsrThemeId = 'dv-ssr-theme';
+
+/// [css] as the shell's theme style element.
+String dvSsrFirstThemeStyle(String css) => '<style id="$dvSsrThemeId">${css.replaceAll('</', r'<\/')}</style>';
+
+/// Whether [shell] carries a theme for pages the build could not capture.
+bool dvHasSsrFirstTheme(String shell) => shell.contains('<style id="$dvSsrThemeId">');
+
+/// The class a document laid out in the theme is wrapped in.
+const String dvSsrThemeClass = 'dvt';
+
+/// The app's look for a page the build could not capture, from the pages it
+/// did: each `(semantic html, layout capture)` in [pages] is matched as
+/// [dvSsrFirstLayout] matches it, and what the app painted for each kind of
+/// block is read off the result.
+///
+/// A parameterised route's document is written on request from the
+/// application's data (ChopDesk's menu at `/r/<slug>`), so there is no paint
+/// snapshot of it to place box by box. Shown as the reading column in the
+/// system font, it changed look entirely at the handover. With the theme it
+/// is in the app's fonts, sizes, weights and colours for a heading of each
+/// level, a paragraph, a list item and a link (light and dark), set in the
+/// column the app sets its text in at each captured width, starting where the
+/// app starts its first block and spaced as the app spaces blocks.
+///
+/// The stylesheet applies to a `.dvt` document, only on a screen with
+/// scripting before the handover, like the layout. Null when nothing was
+/// captured.
+String? dvSsrFirstTheme(
+  List<(String, Map<String, Object?>)> pages, {
+  Map<String, List<DVLayoutFont>> fonts = const <String, List<DVLayoutFont>>{},
+}) {
+  // By width: each role's painted paragraphs, and each page's column.
+  final Map<int, Map<String, List<_Item>>> styles = <int, Map<String, List<_Item>>>{};
+  final Map<int, List<double>> lefts = <int, List<double>>{};
+  final Map<int, List<double>> gutters = <int, List<double>>{};
+  final Map<int, List<double>> tops = <int, List<double>>{};
+  final Map<int, Map<String, List<double>>> after = <int, Map<String, List<double>>>{};
+  _Layout? styler;
+  for (final (String html, Map<String, Object?> capture) in pages) {
+    final List<_Width> widths = <_Width>[
+      for (final Object? entry in (capture['widths'] as List<Object?>? ?? const <Object?>[]))
+        if (entry is Map) _Width.fromJson(entry.cast<String, Object?>()),
+    ]..sort((_Width a, _Width b) => a.width.compareTo(b.width));
+    if (widths.isEmpty) continue;
+    final _Layout layout = _Layout(widths, fonts)..run(html);
+    styler ??= layout;
+    for (int w = 0; w < widths.length; w++) {
+      final int width = widths[w].width.round();
+      final List<(String, _Item)> blocks = <(String, _Item)>[];
+      for (final _TextNode text in layout._texts) {
+        final String? role = text.block;
+        if (role == null || (text.control != null && role != 'a')) continue;
+        for (final _Segment segment in text.segments) {
+          final _Item? item = segment.node.items[w];
+          if (item == null || !item.scrolls) continue;
+          blocks.add((role, item));
+          styles.putIfAbsent(width, () => <String, List<_Item>>{}).putIfAbsent(role, () => <_Item>[]).add(item);
+        }
+      }
+      final List<(String, _Item)> column = <(String, _Item)>[
+        for (final (String role, _Item item) in blocks)
+          if (role != 'a') (role, item),
+      ]..sort(((String, _Item) a, (String, _Item) b) => a.$2.rect[1].compareTo(b.$2.rect[1]));
+      if (column.isEmpty) continue;
+      double left = double.infinity, right = 0;
+      for (final (String _, _Item item) in column) {
+        left = math.min(left, item.rect[0]);
+        right = math.max(right, item.rect[0] + item.rect[2]);
+      }
+      lefts.putIfAbsent(width, () => <double>[]).add(left);
+      gutters.putIfAbsent(width, () => <double>[]).add(math.max(0, widths[w].width - right));
+      tops.putIfAbsent(width, () => <double>[]).add(column.first.$2.rect[1]);
+      for (int index = 0; index + 1 < column.length; index++) {
+        final _Item one = column[index].$2, next = column[index + 1].$2;
+        final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
+        if (gap < -1) continue;
+        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(column[index].$1, () => <double>[]).add(math.max(0, gap));
+      }
+    }
+  }
+  if (styler == null || lefts.isEmpty) return null;
+  final _Layout layout = styler;
+
+  double median(List<double> values) {
+    final List<double> sorted = <double>[...values]..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  /// The paragraph that says most of [items]' text: the role's usual look.
+  _Item usual(List<_Item> items) {
+    final Map<String, int> weight = <String, int>{};
+    final Map<String, _Item> sample = <String, _Item>{};
+    for (final _Item item in items) {
+      if (item.runs.isEmpty) continue;
+      final String key = '${layout._font(item.runs.first, item.json['lh'])}|${item.runs.first['c']}';
+      weight[key] = (weight[key] ?? 0) + item.text.length;
+      sample.putIfAbsent(key, () => item);
+    }
+    String best = sample.keys.first;
+    for (final String key in sample.keys) {
+      if (weight[key]! > weight[best]!) best = key;
+    }
+    return sample[best]!;
+  }
+
+  final List<int> widths = lefts.keys.toList()..sort();
+  final StringBuffer gated = StringBuffer()
+    ..write('.dv-fallback:has(>.$dvSsrThemeClass){padding:0}')
+    ..write('.$dvSsrThemeClass{box-sizing:border-box;padding-bottom:48px}')
+    // `*:is`, not ` :is`: the page minifier takes the space before a colon.
+    ..write('.$dvSsrThemeClass *:is(h1,h2,h3,h4,h5,h6,p,li){margin:0 0 16px}');
+  final Map<String, String> lastMargin = <String, String>{};
+  final Map<String, String> lastLight = <String, String>{};
+  final Map<String, String> lastDark = <String, String>{};
+  for (int index = 0; index < widths.length; index++) {
+    final int width = widths[index];
+    final StringBuffer block = StringBuffer();
+    final StringBuffer dark = StringBuffer();
+    // The column: its left edge and right gutter move linearly to the next
+    // captured width, as the layout's boxes do.
+    String between(Map<int, List<double>> values) {
+      final double here = median(values[width]!);
+      if (widths.length < 2) return '${_num(here)}px';
+      final int from = index + 1 < widths.length ? index : index - 1;
+      final int a = widths[from], b = widths[from + 1];
+      return _linear(a.toDouble(), median(values[a]!), b.toDouble(), median(values[b]!));
+    }
+
+    block.write('.$dvSsrThemeClass{padding-left:${between(lefts)};padding-right:${between(gutters)};'
+        'padding-top:${_num(median(tops[width]!))}px}');
+    final Map<String, List<_Item>> roles = styles[width] ?? const <String, List<_Item>>{};
+    for (final String role in <String>[..._themeRoles, 'a']) {
+      final List<_Item>? items = roles[role];
+      if (items == null || items.isEmpty) continue;
+      final _Item item = usual(items);
+      final Map<String, Object?> run = item.runs.first;
+      final String light = <String>[
+        'font:${layout._font(run, item.json['lh'])}',
+        ...layout._inlineExtras(run),
+        if (role == 'a') 'text-decoration:none',
+      ].join(';');
+      // The space the app leaves after this kind of block at this width.
+      final List<double>? gaps = after[width]?[role];
+      if (gaps != null && role != 'a') {
+        final String margin = 'margin:0 0 ${_num(median(gaps).clamp(0, 96).toDouble())}px';
+        if (lastMargin[role] != margin) {
+          block.write('.$dvSsrThemeClass $role{$margin}');
+          lastMargin[role] = margin;
+        }
+      }
+      if (lastLight[role] != light) {
+        block.write('.$dvSsrThemeClass $role{$light}');
+        lastLight[role] = light;
+      }
+      final Map<String, Object?>? darkRun = item.dark == null || item.dark!.runs.isEmpty ? null : item.dark!.runs.first;
+      final String? darkColour = darkRun == null ? null : _colour(darkRun['c']);
+      if (darkColour != null && lastDark[role] != darkColour) {
+        dark.write('.$dvSsrThemeClass $role{color:$darkColour}');
+        lastDark[role] = darkColour;
+      }
+    }
+    if (dark.isNotEmpty) block.write('@media (prefers-color-scheme:dark){$dark}');
+    gated.write(index == 0 ? '$block' : '@media (min-width:${width}px){$block}');
+  }
+  return '${layout._fontFaces()}'
+      '@media screen and (scripting:enabled){html:not([data-dv-app]){$gated}}';
+}
