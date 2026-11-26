@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:dartvel_core/dartvel.dart'
-    show dvBodyEndInsertionPoint, DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvHostedSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor, DVSpan, dvCurrentSpan, dvRecordHttpRoute;
+    show DVOffSwitches, dvOffVariable, dvBodyEndInsertionPoint, DVHostRedirect, dvHostRedirectTarget, dvRedirectLocation, DVCacheAdapter, DVRoutePage, dvMinifyHtml, dvRenderRoutePage, DVPageData, DVPageDataCache, DVPageDataResolver, DVPageRequest, DVPageStreaming, DVPageVisibility, DVRoutePreloads, DVSiteSeo, DVWebServerSettings, dvFederatedTarget, dvMatchRoute, dvPageChunks, dvRenderPage, dvRenderRoute, dvRoutePreloadsFile, dvShellFirstChunks, dvWithPreloads, dvWithRequestTenant, dvHostedSignInLocation, dvStudioSessionUserId, DVConfiguredRedirect, dvConfiguredRedirect, DVClientAddress, DVHostedRequest, DVHostSiteFile, DVHosts, dvEffectiveHost, dvHostedRequest, dvHostSiteFileFor, DVSpan, dvCurrentSpan, dvRecordHttpRoute;
 import 'package:dartvel_core/dv.dart' show DV;
 import 'package:dartvel_core/http.dart';
 import 'package:dartvel_core/framework.dart' show dvAssetPath;
@@ -58,7 +58,7 @@ Future<Response> _handleSsrFallback(
 }) async {
   // Read through the source registered for the root: the pack inside a
   // web-server binary, the directory everywhere else.
-  final String? shell = dvSiteText(spaRoot, 'index.html');
+  final String? shell = _servedShell(spaRoot);
   if (shell == null) {
     return Response.text('SPA index.html not found', status: 404);
   }
@@ -492,6 +492,7 @@ Future<Response> _cachedSsrFallback(
     dvSiteHash(spaRoot, 'index.html'),
     dvSiteHash(spaRoot, 'dartvel_routes.json'),
     dvSiteHash(spaRoot, dvRoutePreloadsFile),
+    if (!DVOffSwitches.current.isEmpty) 'off=${DVOffSwitches.current.describe()}',
     if (hosts.isNotEmpty) 'host=${hosts.matchOrPrimary(effectiveHost).origin}',
   ].join('|');
   final key = dvRenderedPageKey(stamp, req.url, headers);
@@ -603,3 +604,54 @@ Future<Response?> dvHostSiteFile(Request req, String spaRoot) async {
       ..set('cache-control', file.status == 200 ? 'public, no-cache' : 'no-store'),
   );
 }
+
+/// The site's shell as this process serves it: with the runtime off switches
+/// (`DARTVEL_OFF`) applied, so every page rendered from it -- streamed,
+/// refused, not found or whole -- is a document with those switches off.
+/// Nothing off is the shell itself.
+String? _servedShell(String spaRoot) => _served(spaRoot, 'index.html');
+
+/// What [_served] last made for each file, by the text and switches it was
+/// made from: the switches are fixed for the process and the text is kept
+/// per content hash, so this is worked out once per build and not per
+/// request.
+final Map<String, (String, DVOffSwitches, String)> _servedFiles = <String, (String, DVOffSwitches, String)>{};
+
+String? _served(String spaRoot, String path) {
+  final String? text = dvSiteText(spaRoot, path);
+  final DVOffSwitches off = DVOffSwitches.current;
+  if (text == null || off.isEmpty) return text;
+  final String key = '$spaRoot|$path';
+  final (String, DVOffSwitches, String)? kept = _servedFiles[key];
+  if (kept != null && identical(kept.$1, text) && identical(kept.$2, off)) return kept.$3;
+  final String made = off.document(text);
+  _servedFiles[key] = (text, off, made);
+  return made;
+}
+
+/// An HTML file of the site asked for by its own name (`/index.html`), with
+/// the off switches applied as every rendered page has them; null when
+/// nothing is off or the request is for anything else, and the file is
+/// served as it was built.
+Future<Response?> dvOffSwitchedSiteHtml(Request req, String spaRoot) async {
+  if (DVOffSwitches.current.isEmpty) return null;
+  if (req.method != 'GET' && req.method != 'HEAD') return null;
+  final String? path = dvAssetPath(req.url.path);
+  if (path == null || !path.toLowerCase().endsWith('.html')) return null;
+  final String? page = _served(spaRoot, path);
+  if (page == null) return null;
+  final Response response = _html(page);
+  return req.method == 'GET'
+      ? response
+      : Response(response.status, headers: response.headers, body: const Stream<List<int>>.empty());
+}
+
+/// What the server logs about its off switches when it starts: which are
+/// off, and each name `DARTVEL_OFF` gave that is not a switch. Nothing for
+/// nothing set.
+List<String> dvOffSwitchesLog(DVOffSwitches off) => <String>[
+      if (!off.isEmpty) 'dartvel: off switches ($dvOffVariable): ${off.describe()}',
+      for (final String name in off.unknown)
+        'dartvel: $dvOffVariable names "$name", which is not a switch; known: '
+            '${(DVOffSwitches.known.toList()..sort()).join(', ')}, ${DVOffSwitches.modulePrefix}<id>',
+    ];

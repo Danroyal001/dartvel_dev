@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
         DVLogLevel,
+        DVOffSwitches,
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
@@ -390,6 +391,13 @@ Future<ServerHandle> serve(
   // it runs before the first request can arrive rather than lazily.
   dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
 
+  // DARTVEL_OFF: framework features this process serves switched off, read
+  // once now. Said at start, with any name that is not a switch, so a typo
+  // is not a switch silently left on.
+  for (final String line in dvOffSwitchesLog(DVOffSwitches.current)) {
+    stderr.writeln(line);
+  }
+
   // Branch deployments. A generated backend starts the preview before
   // anything else runs; a hand-written entrypoint that calls serve() directly
   // gets it here. Either way a process deployed as a preview does not serve
@@ -495,6 +503,11 @@ Future<ServerHandle> serve(
                   body: const Stream<List<int>>.empty());
         }
       }
+
+      // 0c. An HTML file asked for by name, with the off switches applied as
+      // every rendered page has them. Null with nothing off.
+      final Response? switched = await dvOffSwitchedSiteHtml(req, spaRoot);
+      if (switched != null) return switched;
 
       // 1. A file of the site: from the pack a web-server binary carries, in
       // the encoding it is kept in when the client takes it, or from the
