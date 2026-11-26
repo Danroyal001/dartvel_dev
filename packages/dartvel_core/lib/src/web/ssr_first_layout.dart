@@ -817,7 +817,10 @@ class _Layout {
     for (final _Width width in widths) {
       final Map<String, List<_Item>> queues = <String, List<_Item>>{};
       for (final _Item item in width.items) {
-        if (item.used || item.kind != 't' || item.norm.isEmpty) continue;
+        // A paragraph, or selectable text (an editable no field took: a code
+        // sample drawn with SelectableText), which is the document's own
+        // text as much as a paragraph is.
+        if (item.used || (item.kind != 't' && item.kind != 'e') || item.norm.isEmpty) continue;
         queues.putIfAbsent(item.norm, () => <_Item>[]).add(item);
       }
       final List<String> keys = queues.keys.toList()
@@ -830,9 +833,25 @@ class _Layout {
       // same words painted at this width are more likely something else's,
       // a footer heading's, and taking them first would leave that without
       // its text and the link a Tab stop of no size.
+      //
+      // The same goes for a control laid out at this width with no text
+      // painted in its box: a link below the fold of a panel that scrolls on
+      // its own (dartvel.dev's docs menu at 1024 and 1366), which took the
+      // footer's "Privacy" for its "Privacy and erasure".
       bool late(_TextNode text) {
         final _Node? control = text.control?.node;
-        return control != null && control.boxes.isNotEmpty && control.boxes[w] == null;
+        if (control == null || control.boxes.isEmpty) return false;
+        final List<double>? box = control.boxes[w];
+        if (box == null) return true;
+        for (final _Item item in width.items) {
+          if (item.kind != 't') continue;
+          final List<double> r = item.rect;
+          if (r[0] >= box[0] - 1 && r[1] >= box[1] - 1 &&
+              r[0] + r[2] <= box[0] + box[2] + 1 && r[1] + r[3] <= box[1] + box[3] + 1) {
+            return false;
+          }
+        }
+        return true;
       }
 
       final List<int> order = <int>[
@@ -1043,10 +1062,36 @@ class _Layout {
       // to type (Dartvel 3.47.8 to 3.47.9 left every field out of the
       // layout, under the box the app paints for it).
       if (node.kind == 'field') continue;
+      bool covered = false;
       for (final int w in node.boxes.keys.toList()) {
-        if (!_paintedIn(node, w)) node.boxes.remove(w);
+        if (_coversScreen(node, w)) {
+          covered = true;
+          node.boxes.remove(w);
+        } else if (!_paintedIn(node, w)) {
+          node.boxes.remove(w);
+        }
       }
+      // Never placed but for its screen-sized box: a reader control, which
+      // shows itself when focused.
+      if (covered && node.boxes.isEmpty) node.captured = false;
     }
+  }
+
+  /// Whether [control], painting no words of its own at width [w], has a box
+  /// of half the screen or more: the page shell's scroll button or a modal
+  /// barrier, not something a visitor sees and presses. Everything painted
+  /// lies inside such a box, so [_paintedIn] counts it as painted; placed,
+  /// it sat above the page and took every click (sigmadev.digital at 1366,
+  /// "To the bottom", 3.47.10). It stays for readers and shows itself when
+  /// the keyboard reaches it.
+  bool _coversScreen(_Node control, int w) {
+    for (final _Node run in runs) {
+      if (run.container == control && run.items[w] != null) return false;
+    }
+    final List<double> box = control.boxes[w]!;
+    final _Width width = widths[w];
+    final double screen = width.width * (width.height > 0 ? width.height : width.width);
+    return screen > 0 && box[2] * box[3] >= screen / 2;
   }
 
   /// Whether anything is painted inside [control]'s box at width [w]: one of

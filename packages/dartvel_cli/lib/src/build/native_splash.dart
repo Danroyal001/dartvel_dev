@@ -87,7 +87,8 @@ class DVSplash {
 
   /// `dartvel.web.ssrFirst`: each page shows its server-rendered document
   /// from the first paint instead of the splash, and Flutter takes over at
-  /// its first frame (see `dvSsrFirstHead`). Off unless set to `true`.
+  /// its first frame (see `dvSsrFirstHead`). On by default since 3.47.11;
+  /// `ssrFirst: false` (or `ssrFirst: {enabled: false}`) opts out.
   final bool ssrFirst;
 
   /// The widths the SSR-first document is laid out for, as the app's first
@@ -127,8 +128,10 @@ class DVSplash {
     final List<String> problems = <String>[];
     final Object? rawWeb = dartvel['web'];
     final Object? rawSsrFirst = rawWeb is Map ? rawWeb['ssrFirst'] : null;
-    // `true`, or a map (`widths`, `enabled`) that is on unless it says not.
-    final bool ssrFirst = rawSsrFirst == true ||
+    // On by default (3.47.11): unset, `true`, or a map (`widths`, `enabled`)
+    // that is on unless it says not. `false` opts out.
+    final bool ssrFirst = rawSsrFirst == null ||
+        rawSsrFirst == true ||
         (rawSsrFirst is Map && rawSsrFirst['enabled'] != false);
     final Object? rawWidths = rawSsrFirst is Map ? rawSsrFirst['widths'] : null;
     final List<int> ssrFirstWidths = !ssrFirst

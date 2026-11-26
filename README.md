@@ -575,7 +575,8 @@ its data and deferred code are ready, so the splash gives way to the finished
 page, never to a loading shell. A browser with no script gets the page's
 document instead.
 
-`dartvel.web.ssrFirst: true` shows each page's server-rendered document from
+SSR-first is on by default (since 3.47.11; `dartvel.web.ssrFirst: false`
+turns it off): each page shows its server-rendered document from
 the first paint instead of the splash, laid out the way the app's first frame
 draws the page: the build's capture records what the app painted at each
 width (`ssrFirst: {widths: [...]}`, default 360, 390, 768, 1024, 1366, 1920),

@@ -203,6 +203,34 @@ void main() {
       expect(out, contains('#$link{display:none}'));
     });
 
+    test('a button whose box is the whole screen is not placed over the page: the page shell\'s scroll button', () {
+      // sigmadev.digital at 1366 (3.47.10): the page shell's "To the bottom"
+      // node covers the screen on the semantics host and has no words of its
+      // own painted. Everything painted lies inside its box, so it counted as
+      // painted, was placed above the page, and took every click on the
+      // header links and the hero's buttons.
+      const String doc = '<p><strong role="button" aria-label="To the bottom"><span>To the bottom</span></strong></p>\n'
+          '<a href="/pricing" title="See pricing" aria-label="See pricing">See pricing</a>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _box(<num>[0, 0, 1366, 800], '#ffffff'),
+            _text('See pricing', <num>[600, 20, 90, 24], z: 2, scrolls: false),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'b', 'name': 'To the bottom', 'r': <num>[0, 0, 1366, 800]},
+            <String, Object?>{'k': 'a', 'href': '/pricing', 'name': 'See pricing', 'r': <num>[590, 10, 110, 44]},
+          ]),
+        ]),
+      );
+      final String button = RegExp(r'<strong [^>]*id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      final String link = RegExp(r'<a id="(dva\d+)"').firstMatch(out)!.group(1)!;
+      expect(out, isNot(contains('#$button{left:0px;top:0px')), reason: 'not laid over the page');
+      expect(out, matches(RegExp('<strong id="$button"[^>]*class="dvf"|<strong[^>]*class="dvf"[^>]*id="$button"')),
+          reason: 'kept for readers, a Tab stop that shows itself when focused');
+      expect(out, contains('#$link{left:590px;top:10px'));
+    });
+
     test('a menu link off screen at a width does not take the same words painted elsewhere', () {
       // "Tools" is a header link (in a closed menu at 390) and a footer
       // heading. At 390 only the heading is painted; the link must not claim
@@ -230,6 +258,59 @@ void main() {
       // is where the app paints it: 2000 px down at 390, 1500 at 1366.
       expect(out, contains('#$link{display:none}'));
       expect(out, contains('#$heading{left:20px;top:calc(2199.8px + -51.23vw)'));
+    });
+
+    test('a menu link laid out below its panel\'s fold does not take a shorter link\'s words painted elsewhere', () {
+      // dartvel.dev docs at 1024 and 1366: the side menu scrolls on its own,
+      // so "Privacy and erasure" has a box (below the panel's fold) and
+      // nothing painted. It took the footer's "Privacy" (its words are in
+      // its own), the footer link lost its text, and "Privacy" was painted
+      // as a picture of text under an empty link.
+      const String doc = '<nav><a href="/docs/privacy" aria-label="Privacy and erasure">Privacy and erasure</a></nav>\n'
+          '<footer><a href="/privacy" aria-label="Privacy">Privacy</a></footer>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _text('Privacy', <num>[712, 3320, 50, 20], z: 3),
+          ], controls: <Map<String, Object?>>[
+            <String, Object?>{'k': 'a', 'href': '/docs/privacy', 'name': 'Privacy and erasure', 'r': <num>[32, 991, 142, 31]},
+            <String, Object?>{'k': 'a', 'href': '/privacy', 'name': 'Privacy', 'r': <num>[708, 3314, 58, 32]},
+          ]),
+        ]),
+      );
+      final String footer = RegExp(r'<a id="(dva\d+)" href="/privacy"[^>]*><span id="(dvr\d+)">Privacy</span>').firstMatch(out)!.group(2)!;
+      expect(out, contains('#$footer{left:4px;top:6px'), reason: 'the footer link keeps its own painted words');
+      expect(out, isNot(contains('content:"Privacy"')), reason: 'no picture of the words');
+    });
+
+    test('selectable text (a code sample) is the document\'s own text at its box, not a picture of it', () {
+      // dartvel.dev's docs draw code with SelectableText, which the snapshot
+      // reports as an editable ('e'). Only 't' paragraphs were matched, so
+      // every code sample was drawn as CSS content: not selectable, and
+      // Ctrl+F found it only in the hidden copy.
+      const String doc = '<h2>Write a policy class</h2>\n<pre><code>// lib/policies/order_policy.dart\n'
+          'class OrderPolicy {}</code></pre>\n';
+      final String out = dvSsrFirstLayout(
+        doc,
+        _capture(<Map<String, Object?>>[
+          _width(1366, <Map<String, Object?>>[
+            _text('Write a policy class', <num>[344, 560, 400, 32]),
+            <String, Object?>{
+              ..._text('// lib/policies/order_policy.dart\nclass OrderPolicy {}', <num>[344, 635, 552, 48]),
+              'k': 'e', 'nw': null, 'lines': 2,
+              'runs': <Object?>[
+                <String, Object?>{'t': '// lib/policies/order_policy.dart\n', 'f': 'JetBrains Mono', 'fs': 13, 'fw': 400, 'c': '#888888'},
+                <String, Object?>{'t': 'class OrderPolicy {}', 'f': 'JetBrains Mono', 'fs': 13, 'fw': 400, 'c': '#2f6bff'},
+              ],
+            },
+          ]),
+        ]),
+      );
+      expect(out, isNot(contains('content:"// lib')), reason: 'not a picture of the code');
+      expect(out, isNot(contains('<span class="dvu">// lib')), reason: 'not hidden from the eye');
+      final String run = RegExp(r'<code><span id="(dvr\d+)"').firstMatch(out)!.group(1)!;
+      expect(out, contains('#$run{left:344px;top:635px'));
     });
 
     test('a link whose box was not found keeps its painted text on screen', () {
