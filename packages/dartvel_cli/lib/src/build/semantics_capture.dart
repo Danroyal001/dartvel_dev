@@ -269,17 +269,22 @@ int? dvAvailableMemoryMb() {
     meminfo: meminfo,
     cgroupMax: group == null ? null : read('$group/memory.max'),
     cgroupCurrent: group == null ? null : read('$group/memory.current'),
+    cgroupStat: group == null ? null : read('$group/memory.stat'),
   );
 }
 
 /// [dvAvailableMemoryMb] from the text of `/proc/meminfo` and the cgroup's
-/// `memory.max` and `memory.current`.
-int? dvAvailableMemoryMbFrom({required String meminfo, String? cgroupMax, String? cgroupCurrent}) {
+/// `memory.max`, `memory.current` and `memory.stat`. The cgroup's page
+/// cache (`file` in `memory.stat`: the build's own output, just written) is
+/// counted as free, since the kernel gives it back before it refuses memory.
+int? dvAvailableMemoryMbFrom({required String meminfo, String? cgroupMax, String? cgroupCurrent, String? cgroupStat}) {
   final RegExpMatch? available = RegExp(r'^MemAvailable:\s+(\d+)\s*kB', multiLine: true).firstMatch(meminfo);
   if (available == null) return null;
   int megabytes = int.parse(available.group(1)!) ~/ 1024;
   final int? limit = int.tryParse(cgroupMax?.trim() ?? '');
-  final int? used = int.tryParse(cgroupCurrent?.trim() ?? '');
+  final int? current = int.tryParse(cgroupCurrent?.trim() ?? '');
+  final int cached = int.tryParse(RegExp(r'^file (\d+)$', multiLine: true).firstMatch(cgroupStat ?? '')?.group(1) ?? '') ?? 0;
+  final int? used = current == null ? null : current - cached;
   if (limit != null && used != null) {
     final int left = (limit - used) ~/ (1024 * 1024);
     if (left < megabytes) megabytes = left < 0 ? 0 : left;
@@ -372,6 +377,8 @@ Future<DVCaptureRun> dvCaptureSemantics({
   var captured = 0;
   final Map<String, Duration> routeTimes = <String, Duration>{};
   Duration layoutTime = Duration.zero;
+  Duration bootTime = Duration.zero;
+  int boots = 0;
   int slotsUsed = 0;
   try {
     Directory(p.join(projectRoot, '.dart_tool', 'dartvel_semantics'))
@@ -403,7 +410,12 @@ Future<DVCaptureRun> dvCaptureSemantics({
       final Page page = tab.page;
       bool drew = false;
       try {
-        if (fresh) await tab.load(route);
+        if (fresh) {
+          final Stopwatch bootClock = Stopwatch()..start();
+          await tab.load(route);
+          bootTime += bootClock.elapsed;
+          boots++;
+        }
 
         // Polled rather than slept: a page that is ready early should not
         // cost the whole budget, and one that never builds a tree has to be
@@ -506,6 +518,8 @@ Future<DVCaptureRun> dvCaptureSemantics({
     routeTimes: routeTimes,
     layoutTime: layoutTime,
     pages: slotsUsed,
+    bootTime: bootTime,
+    boots: boots,
   );
 }
 
@@ -691,5 +705,6 @@ String dvCaptureTimesSummary(DVCaptureRun run, {int reused = 0}) {
     ..write('; median ${seconds(median)} a route, slowest ')
     ..write(<String>[for (final MapEntry<String, Duration> route in byTime.take(3)) '${route.key} ${seconds(route.value)}'].join(', '))
     ..write('; SSR-first layout ${seconds(run.layoutTime)} of ${seconds(total)} route time');
+  if (run.boots > 0) line.write('; ${run.boots} app boot(s), ${seconds(run.bootTime)}');
   return line.toString();
 }

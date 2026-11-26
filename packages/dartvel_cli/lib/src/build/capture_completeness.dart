@@ -24,7 +24,14 @@ class DVCaptureRun {
     this.routeTimes = const <String, Duration>{},
     this.layoutTime = Duration.zero,
     this.pages = 0,
+    this.bootTime = Duration.zero,
+    this.boots = 0,
   });
+
+  /// How many routes were read by loading the app afresh rather than moving
+  /// an app already running in a tab, and the time those loads took.
+  final int boots;
+  final Duration bootTime;
 
   /// How long each route's read took, from opening it to its files written
   /// (layout widths included), for the build's timings.

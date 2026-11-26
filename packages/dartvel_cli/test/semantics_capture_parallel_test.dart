@@ -79,6 +79,15 @@ void main() {
       expect(dvAvailableMemoryMbFrom(meminfo: meminfo), 8789);
       // Inside a systemd scope capped at 8 GiB with 6 GiB already in use.
       expect(dvAvailableMemoryMbFrom(meminfo: meminfo, cgroupMax: '${8 << 30}\n', cgroupCurrent: '${6 << 30}\n'), 2048);
+      // The scope's page cache (the build's own output, just written) is given
+      // back under pressure: it is not memory a page of the read competes for.
+      expect(
+          dvAvailableMemoryMbFrom(
+              meminfo: meminfo,
+              cgroupMax: '${8 << 30}\n',
+              cgroupCurrent: '${7 << 30}\n',
+              cgroupStat: 'anon 1000\nfile ${3 << 30}\nkernel 5\n'),
+          4096);
       // An unlimited cgroup leaves the machine's figure.
       expect(dvAvailableMemoryMbFrom(meminfo: meminfo, cgroupMax: 'max\n', cgroupCurrent: '123\n'), 8789);
       // Nothing readable: unknown, and the cores decide.
