@@ -5502,6 +5502,7 @@ class BuildCommand extends Command<void> {
     // Every route's document, laid out in isolates while the theme below is
     // worked out in one of its own: two passes over every capture that took
     // 23 and 26 seconds one after the other on a site of 225 routes.
+    final Stopwatch documentsClock = Stopwatch()..start();
     final Future<void> documents = _primeSemanticHtml(root, routes);
 
     // SSR-first: the app's look for a page the build could not capture (a
@@ -5521,6 +5522,15 @@ class BuildCommand extends Command<void> {
           await dvWithSsrFirstThemeInParallel(root, shell, captured, fonts));
     }
     await documents;
+    _timings.add('documents and theme, on every core', documentsClock.elapsed, depth: 1);
+    final Stopwatch pagesClock = Stopwatch()..start();
+    final Map<String, List<String>> routeText = _routeText(root);
+    _timings.add('page text from the sources', pagesClock.elapsed, depth: 1);
+    pagesClock
+      ..reset()
+      ..start();
+    final Map<String, DVRoutePage> routePages = _routePages(root, routes, hosts: hosts);
+    _timings.add('route pages', pagesClock.elapsed, depth: 1);
 
     // A previous static build in this directory left a file per route, and a
     // server that falls through to a file would serve those instead of the
@@ -5550,9 +5560,9 @@ class BuildCommand extends Command<void> {
         images: _imageVariants(root, 'web-server'),
         routes: routes,
         titles: dvRouteTitles(_routerSource(root)),
-        text: _routeText(root),
+        text: routeText,
         siteUrl: siteUrl,
-        pages: _routePages(root, routes, hosts: hosts),
+        pages: routePages,
         // dartvel.seo, carried so the server can put it back. _writeSeoHead
         // wrote these into the shell a moment ago and rendering a route
         // replaces that whole block -- so a server without them served every
