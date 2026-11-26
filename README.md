@@ -1324,6 +1324,28 @@ click in a browser, and push in Firefox or Safari.
 
 ---
 
+## ⏱️ Timers that ring
+
+A cooking timer, a break, a parking meter: `DV.Timers` runs several named
+countdowns at once, keeps them across a reload or a restart, and rings each
+with a chime and a notification. Turn it on with `dartvel.timers: true`.
+
+```dart
+await DV.Timers.start('Boil the eggs', const Duration(minutes: 15), id: 'eggs'); // from the tap
+for (final DVTimer timer in DV.Timers.watch(context)) DVTimerCountdown(timer);  // 14:05
+await DV.Timers.snooze('eggs', const Duration(minutes: 5));
+await DV.Timers.dismiss('eggs');
+```
+
+On the web the service worker gives the notification +1 min and +5 min buttons
+and it rings while a tab or window is open, in the background too; a closed
+browser cannot ring, and `DV.Timers.reach` says so for the app to tell the
+person. On Android the build writes a broadcast receiver that rings from a
+system alarm with the app closed and the screen off. `DVTimerCountdown` tells a
+screen reader "Boil the eggs, 15 minutes left" once a minute, not every second.
+
+---
+
 ## 🪲 Crash symbols
 
 A release build is obfuscated, so its stacks are unreadable until they are read
