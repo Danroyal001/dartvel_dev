@@ -769,6 +769,30 @@ void main() {
       expect(RegExp(r'font:400 16px/24px "Roboto"').hasMatch(out), isTrue);
     });
 
+    test('an icon font is blocked until it loads, not swapped: no missing-glyph boxes in the first paint', () {
+      // dartvel.dev's first paint on a phone drew its menu and scroll icons
+      // as boxes: an icon is a private-use character in MaterialIcons, and
+      // with font-display:swap the browser shows the fallback's missing-glyph
+      // box until the icon font arrives. Text keeps swap (readable at once).
+      final String out = dvSsrFirstLayout(
+        _doc,
+        _capture(<Map<String, Object?>>[
+          _width(390, <Map<String, Object?>>[
+            _text('Ship faster', <num>[20, 100, 350, 40], family: 'Inter'),
+            _text('', <num>[340, 16, 24, 24], family: 'MaterialIcons', z: 3, scrolls: false),
+          ]),
+        ]),
+        fonts: <String, List<DVLayoutFont>>{
+          'Inter': <DVLayoutFont>[const DVLayoutFont('assets/fonts/inter.woff2')],
+          'MaterialIcons': <DVLayoutFont>[const DVLayoutFont('fonts/MaterialIcons-Regular.otf')],
+        },
+      );
+      expect(out, contains('@font-face{font-family:"MaterialIcons";src:url(fonts/MaterialIcons-Regular.otf);'
+          'font-weight:1 1000;font-style:normal;font-display:block}'));
+      expect(out, contains('@font-face{font-family:"Inter";src:url(assets/fonts/inter.woff2);'
+          'font-weight:1 1000;font-style:normal;font-display:swap}'));
+    });
+
     test('a fallback family the app does not bundle is not named: the app cannot draw with it', () {
       // Flutter on the web draws only with the fonts the app bundles (and its
       // own fallbacks), never the visitor's system fonts. The capture's
