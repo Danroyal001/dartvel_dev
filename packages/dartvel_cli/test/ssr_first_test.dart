@@ -8,7 +8,7 @@ import 'dart:io';
 import 'package:dartvel_cli/src/build/native_splash.dart';
 import 'package:dartvel_cli/src/build/ssr_first_capture.dart' show dvSsrFirstDefaultWidths;
 import 'package:dartvel_core/dartvel.dart'
-    show dvApplyPageHtml, dvApplyPageText, dvSsrFirstHead, dvSsrFirstMarker;
+    show dvApplyPageHtml, dvApplyPageText, dvSsrFirstHead, dvSsrFirstMarker, dvSsrFirstThemeStyle, dvWithoutSsrFirst;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -207,6 +207,50 @@ void main() {
       final String head = dvSsrFirstHead(
           background: '#FFFFFF', darkBackground: '#FFFFFF', accent: '#1D4ED8');
       expect(head, contains('color:#1D4ED8'));
+    });
+  });
+
+  // DARTVEL_OFF=ssr-first: the web-server turns SSR-first off at start, from
+  // the SSR-first shell the build wrote, without a rebuild. What it serves
+  // must be what a build with ssrFirst: false would have written.
+  group('switched off at runtime', () {
+    DVSplash splash({required bool ssrFirst, bool enabled = true, bool progress = true, String? loadingText = 'Loading'}) =>
+        DVSplash(color: '#FFFFFF', darkColor: '#0A0A0A', ssrFirst: ssrFirst, enabled: enabled, progress: progress, loadingText: loadingText);
+
+    final Map<String, ({String? image, String? dark})> logos = <String, ({String? image, String? dark})>{
+      'no logo': (image: null, dark: null),
+      'a logo': (image: 'splash/logo.png', dark: null),
+      'a logo and a dark one': (image: 'splash/logo.png', dark: 'splash/logo-dark.png'),
+      'a logo carried in the page': (image: 'data:image/png;base64,AAAA', dark: null),
+      'a fetched logo and a dark one in the page': (image: 'splash/logo.png', dark: 'data:image/png;base64,AAAA'),
+    };
+    for (final MapEntry<String, ({String? image, String? dark})> logo in logos.entries) {
+      for (final (bool enabled, bool progress, String? text) in <(bool, bool, String?)>[
+        (true, true, 'Loading'),
+        (true, false, null),
+        (false, true, null),
+      ]) {
+        // With the splash off the logo is not in the shell, so its preload (which
+        // a non-SSR-first build still writes) cannot be put back: that one
+        // link is the difference, and only with a logo and no splash.
+        if (!enabled && logo.value.image != null) continue;
+        test('${logo.key}, splash $enabled, progress $progress: the shell a non-SSR-first build writes', () {
+          String shellFor(bool ssrFirst) => dvWebSplashApply(_shell,
+              splash(ssrFirst: ssrFirst, enabled: enabled, progress: progress, loadingText: text),
+              imageUrl: logo.value.image, darkImageUrl: logo.value.dark);
+          // The build also writes the theme for pages it could not capture.
+          final String on = shellFor(true).replaceFirst('</head>', '${dvSsrFirstThemeStyle('.dvt h1{font:700 2rem serif}')}</head>');
+          expect(on, contains(dvSsrFirstMarker));
+          expect(dvWithoutSsrFirst(on), shellFor(false));
+          expect(dvApplyPageHtml(dvWithoutSsrFirst(on), '<h1>Pricing</h1>', path: '/pricing'),
+              dvApplyPageHtml(shellFor(false), '<h1>Pricing</h1>', path: '/pricing'));
+        });
+      }
+    }
+
+    test('a shell that is not SSR-first is left as it is', () {
+      final String off = dvWebSplashApply(_shell, splash(ssrFirst: false), imageUrl: 'splash/logo.png');
+      expect(dvWithoutSsrFirst(off), same(off));
     });
   });
 }

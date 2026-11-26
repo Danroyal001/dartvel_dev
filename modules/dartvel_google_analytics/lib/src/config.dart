@@ -36,6 +36,7 @@ final class GoogleAnalyticsConfig {
     this.collectInEu = false,
     this.origin,
     this.excludedPaths = defaultExcludedPaths,
+    this.switchedOff = false,
   });
 
   /// The consent category the module waits for, unless the application
@@ -74,6 +75,10 @@ final class GoogleAnalyticsConfig {
   /// Paths, and everything beneath them, that are not page views.
   final List<String> excludedPaths;
 
+  /// Switched off at runtime (`DARTVEL_OFF`): never configured, whatever
+  /// else it says.
+  final bool switchedOff;
+
   /// This configuration with some settings replaced.
   GoogleAnalyticsConfig copyWith({
     String? measurementId,
@@ -89,6 +94,7 @@ final class GoogleAnalyticsConfig {
         collectInEu: collectInEu ?? this.collectInEu,
         origin: origin ?? this.origin,
         excludedPaths: excludedPaths,
+        switchedOff: switchedOff,
       );
 
   /// The measurement id this process uses: the configured one, or the
@@ -102,6 +108,7 @@ final class GoogleAnalyticsConfig {
   /// Whether there is a usable measurement id. Without one every call does
   /// nothing.
   bool get isConfigured {
+    if (switchedOff) return false;
     final String? id = resolvedMeasurementId;
     return id != null && RegExp(r'^G-[A-Z0-9]{4,20}$').hasMatch(id);
   }

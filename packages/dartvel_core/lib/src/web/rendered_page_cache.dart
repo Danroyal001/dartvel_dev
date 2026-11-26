@@ -7,6 +7,8 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import '../tenancy/tenants.dart' show DVTenantSource, DVTenants;
+
 int _generation = 0;
 
 /// Shared by OTA and Studio. Lazy generation invalidation avoids retaining
@@ -99,15 +101,40 @@ bool dvMayCacheRenderedPage(
       }.contains(k.toLowerCase()),
     );
 
-/// Every request input is included conservatively. Conditional validators
-/// don't change the document and must not create a separate entry.
+/// The request headers a kept document can depend on: the host it was asked
+/// on (and the one a proxy forwards), and what its Vary names besides the
+/// credentials (which are never cached) and Accept-Encoding (the kept bytes
+/// are the identity; the transport encodes). Every other header -- the
+/// User-Agent, Accept, the forwarded client address -- differs per visitor
+/// and changes nothing a cached page says, and keying on it meant a page
+/// rendered for one visitor was never served to the next.
+const Set<String> dvRenderedPageVaryingHeaders = <String>{
+  'host',
+  'x-forwarded-host',
+  'accept-language',
+  'x-dartvel-theme',
+  'x-dartvel-locale',
+  'sec-gpc',
+};
+
+/// Whether [header] can change a kept document: one of
+/// [dvRenderedPageVaryingHeaders], the header a tenant is read from, or any
+/// header at all when an application resolver picks the tenant -- not
+/// validators, which never do.
+bool _varies(String header) {
+  if (header == 'if-none-match' || header == 'if-modified-since') return false;
+  if (dvRenderedPageVaryingHeaders.contains(header)) return true;
+  const DVTenants tenants = DVTenants();
+  if (tenants.hasResolver) return true;
+  return tenants.source == DVTenantSource.header && header == tenants.headerName;
+}
+
+/// The URL and every header in [dvRenderedPageVaryingHeaders]. Conditional
+/// validators don't change the document and must not create a separate entry.
 String dvRenderedPageKey(String site, Uri uri, Map<String, String> headers) {
   final variants = <String, String>{
     for (final e in headers.entries)
-      if (!const {
-        'if-none-match',
-        'if-modified-since',
-      }.contains(e.key.toLowerCase()))
+      if (_varies(e.key.toLowerCase()))
         e.key.toLowerCase(): e.value,
   };
   final keys = variants.keys.toList()..sort();

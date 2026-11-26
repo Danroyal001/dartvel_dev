@@ -27,7 +27,7 @@ import 'dart:math' as math;
 
 import '../config/accessibility_controls.dart' show dvAccessibilityStorageKey;
 import 'page_text.dart' show dvApplyPageHtml, dvApplyPageText;
-import 'ssr_first_layout.dart' show dvFirstScreenId;
+import 'ssr_first_layout.dart' show dvFirstScreenId, dvSsrThemeId;
 
 /// What marks a shell as SSR-first: the id of the style element
 /// [dvSsrFirstHead] writes into its head.
@@ -284,4 +284,44 @@ String dvSsrFirstHead({
       '${accessibilityControls ? '<script>$_accessibilityScript</script>\n' : ''}'
       '<style $dvSsrFirstMarker>$css${accessibilityControls ? _accessibilityStyle : ''}</style>\n'
       '<script>$_handoverScript</script>\n';
+}
+
+/// [html] as a build with `dartvel.web.ssrFirst: false` writes it: what the
+/// `ssr-first` off switch (`DARTVEL_OFF`) serves, from an SSR-first shell.
+///
+/// Takes out what SSR-first added to the shell -- the [dvSsrFirstHead] style
+/// and scripts and the theme style for pages the build could not capture --
+/// and puts back what it left out of the splash: the logo's preload, and the
+/// logo loading at once rather than lazily. Every page rendered from the
+/// result then puts its `.dv-fallback` document where a non-SSR-first page
+/// does, at the end of the body in its clipped box. The pages the build
+/// captured keep their captured markup, which inside that box is not seen.
+/// A shell that is not SSR-first is returned as it is.
+String dvWithoutSsrFirst(String html) {
+  if (!dvIsSsrFirst(html)) return html;
+  String out = html
+      .replaceAll(RegExp('<script>${RegExp.escape(_firstScreenScript)}</script>\\n?'), '')
+      .replaceAll(RegExp('<style $dvSsrFirstMarker>[\\s\\S]*?</style>\\n?'), '')
+      .replaceAll(RegExp('<script>${RegExp.escape(_handoverScript)}</script>\\n?'), '')
+      .replaceAll(RegExp('<style id="$dvSsrThemeId">[\\s\\S]*?</style>'), '');
+  // The splash's logo: <picture>[<source srcset="dark" ...>]<img src="light"
+  // alt="" loading="lazy"></picture>, as dvWebSplashApply writes it.
+  final RegExpMatch? logo = RegExp(
+    r'(<div id="dartvel-splash"[^>]*><picture>(?:<source srcset="([^"]*)"[^>]*>)?<img src="([^"]*)" alt="")'
+    r' loading="lazy">',
+  ).firstMatch(out);
+  if (logo == null) return out;
+  out = out.replaceRange(logo.start, logo.end, '${logo.group(1)}>');
+  bool fetched(String? url) => url != null && !url.startsWith('data:');
+  final String? dark = logo.group(2);
+  final String light = logo.group(3)!;
+  if (!fetched(light)) return out;
+  final String preload = dark == null
+      ? '<link rel="preload" href="$light" as="image">\n'
+      : '<link rel="preload" href="$light" as="image" media="(prefers-color-scheme: light)">\n'
+          '${fetched(dark) ? '<link rel="preload" href="$dark" as="image" media="(prefers-color-scheme: dark)">\n' : ''}';
+  const String splashHead = '<!-- dartvel:splash -->\n';
+  final int at = out.indexOf(splashHead);
+  if (at < 0) return out;
+  return out.replaceRange(at + splashHead.length, at + splashHead.length, preload);
 }

@@ -26,7 +26,7 @@ typedef GoogleAnalyticsRelay = Future<void> Function(
 /// because a measuring script or endpoint did.
 final class GoogleAnalyticsRuntime {
   GoogleAnalyticsRuntime({
-    this.config = const GoogleAnalyticsConfig(),
+    GoogleAnalyticsConfig config = const GoogleAnalyticsConfig(),
     GoogleAnalyticsBrowser? browser,
     GoogleAnalyticsRelay? relay,
     bool Function(String category)? consentGranted,
@@ -37,7 +37,8 @@ final class GoogleAnalyticsRuntime {
     String Function()? newClientId,
     this.scriptUrl = defaultScriptUrl,
     this.moduleId = 'googleAnalytics',
-  })  : browser = browser ?? createGoogleAnalyticsBrowser(),
+  })  : _config = config, // ignore: prefer_initializing_formals
+        browser = browser ?? createGoogleAnalyticsBrowser(),
         // ignore: prefer_initializing_formals
         _relay = relay,
         _consentGranted = consentGranted ?? dvGoogleAnalyticsConsentGranted,
@@ -64,7 +65,17 @@ final class GoogleAnalyticsRuntime {
   /// knows about the visitor.
   static const String contextTopic = 'analytics.context';
 
-  GoogleAnalyticsConfig config;
+  GoogleAnalyticsConfig _config;
+
+  /// The settings in force: the ones given, or, while [switchedOff], none --
+  /// so nothing is loaded, sent or forwarded whatever the mount, the
+  /// environment or a call to `configure` says.
+  GoogleAnalyticsConfig get config => switchedOff ? const GoogleAnalyticsConfig(switchedOff: true) : _config;
+  set config(GoogleAnalyticsConfig value) => _config = value;
+
+  /// Whether `DARTVEL_OFF` switched the module off (`analytics` or
+  /// `module:<id>`), decided when it starts.
+  bool switchedOff = false;
   final GoogleAnalyticsBrowser browser;
   final DVModuleEnvironment environment;
   String scriptUrl;
@@ -386,6 +397,7 @@ final class GoogleAnalyticsRuntime {
     Map<String, Object?> refused(String reason) =>
         <String, Object?>{'sent': false, 'reason': reason};
 
+    if (switchedOff) return refused('Google Analytics is switched off');
     if (!config.isConfigured) return refused('no measurement id is configured');
     if (dvPrivacyOptOut) return refused('the visitor opted out');
 

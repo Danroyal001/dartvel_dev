@@ -8,6 +8,7 @@ import 'package:dartvel_core/dartvel.dart'
     show
         DVCacheAdapter,
         DVLogLevel,
+        DVOffSwitches,
         DVPageDataResolver,
         DVPreviewMembership,
         DVPreviewServer,
@@ -390,6 +391,13 @@ Future<ServerHandle> serve(
   // it runs before the first request can arrive rather than lazily.
   dvConfigureRuntimeLogging(Platform.environment, write: stdout.writeln);
 
+  // DARTVEL_OFF: framework features this process serves switched off, read
+  // once now. Said at start, with any name that is not a switch, so a typo
+  // is not a switch silently left on.
+  for (final String line in dvOffSwitchesLog(DVOffSwitches.current)) {
+    stderr.writeln(line);
+  }
+
   // Branch deployments. A generated backend starts the preview before
   // anything else runs; a hand-written entrypoint that calls serve() directly
   // gets it here. Either way a process deployed as a preview does not serve
@@ -495,6 +503,11 @@ Future<ServerHandle> serve(
                   body: const Stream<List<int>>.empty());
         }
       }
+
+      // 0c. An HTML file asked for by name, with the off switches applied as
+      // every rendered page has them. Null with nothing off.
+      final Response? switched = await dvOffSwitchedSiteHtml(req, spaRoot);
+      if (switched != null) return switched;
 
       // 1. A file of the site: from the pack a web-server binary carries, in
       // the encoding it is kept in when the client takes it, or from the
@@ -1099,6 +1112,26 @@ Future<ServerHandle> serve(
   final boundPort = api.aw_server_port(serverId);
   if (boundPort != 0) urlPort = boundPort;
 
+  // The site's static pages rendered into the page cache, behind the
+  // requests rather than in front of them: a moment after the server is
+  // listening, one page at a time, until it stops. DARTVEL_OFF=cache-warm
+  // turns it off.
+  bool stopped = false;
+  if (spaRoot != null) {
+    final String root = spaRoot;
+    final Uri origin = Uri.parse('http://$authority:$urlPort');
+    unawaited(Future<void>.delayed(const Duration(seconds: 1), () async {
+      if (stopped) return;
+      try {
+        final DVCacheWarmResult warmed = await dvWarmRenderedPages(root,
+            origin: origin, pageData: pageData, pageStore: pageStore, publishedRoutes: publishedRoutes, stopped: () => stopped);
+        stderr.writeln(warmed.describe());
+      } on Object catch (error) {
+        stderr.writeln('dartvel: cache warm stopped (${error.runtimeType})');
+      }
+    }));
+  }
+
   return ServerHandle(
     host,
     boundPort == 0 ? port : boundPort,
@@ -1111,6 +1144,7 @@ Future<ServerHandle> serve(
     webSockets,
     dartWsWakeupHandler,
     () {
+      stopped = true;
       scratch.release();
       requestQueue?.close();
     },
