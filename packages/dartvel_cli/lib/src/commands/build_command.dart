@@ -105,6 +105,7 @@ import '../build/cross_origin_isolation.dart'
     show dvCrossOriginIsolationBlockers;
 import '../build/wasm_deferred.dart';
 import '../build/build_timings.dart';
+import '../build/route_documents.dart';
 import '../generators/backend_generator.dart' show dvServerOptions;
 import '../build/web_renderer.dart';
 import '../build/route_prefetch.dart';
@@ -116,7 +117,7 @@ import '../build/page_text.dart';
 import '../build/semantic_html.dart';
 import '../build/removed_web_options.dart';
 import '../build/semantics_capture.dart';
-import '../build/ssr_first_capture.dart' show dvApplySsrFirstLayout, dvLayoutCapturePathFor, dvLayoutFonts, dvWithSsrFirstTheme;
+import '../build/ssr_first_capture.dart' show dvLayoutCapturePathFor, dvLayoutFonts, dvWithSsrFirstThemeInParallel;
 import '../build/server_config.dart';
 import '../build/supervisor_unit.dart';
 import '../build/render_backends.dart';
@@ -507,7 +508,8 @@ class BuildCommand extends Command<void> {
               'test, a local run.')
       ..addOption('capture-jobs',
           help: 'How many pages the semantics read keeps open at once. '
-              'Defaults to three quarters of the cores, at most eight.')
+              'Defaults to three quarters of the cores, at most eight, and '
+              'no more than fit in the memory the build may use.')
       ..addFlag('capture-in-app',
           defaultsTo: true,
           help: 'Boot the app once in each page of the semantics read and '
@@ -1775,7 +1777,7 @@ class BuildCommand extends Command<void> {
         }
         _timings.add('PWA, SEO, splash, hints, versioning, document slots', documentClock.elapsed);
         if (platform == 'web-server') {
-          _timings.timeSync('routes manifest (SSR documents)', () => _writeWebServerManifest(root));
+          await _timings.time('routes manifest (SSR documents)', () => _writeWebServerManifest(root));
           final ({bool ok, DVAdminMount? admin}) dashboard =
               await _timings.time('Studio pages', () => _writeAdminDashboard(root));
           if (!dashboard.ok) {
@@ -4867,16 +4869,25 @@ class BuildCommand extends Command<void> {
   /// returns null and the caller falls back to the source-literal extractor,
   /// so a build with no browser still produces something rather than failing.
   String? _semanticHtmlFor(String root, String route) {
-    final file = File(dvSemanticsPathFor(root, route));
-    if (!file.existsSync()) return null;
-    final String html =
-        dvSemanticHtml(DVSemanticNode.listFromJson(file.readAsStringSync()));
-    if (html.trim().isEmpty) return null;
+    // Worked out for every route at once, on several cores, by
+    // [_primeSemanticHtml] once the capture is done.
+    if (_semanticHtml.containsKey(route)) return _semanticHtml[route];
     // SSR-first: laid out as the app's first frame draws the page, from what
     // the capture recorded at each width, in the app's own fonts.
-    if (!DVSplash.of(root).ssrFirst) return html;
-    return dvApplySsrFirstLayout(root, route, html,
-        dvLayoutFonts(p.join(root, 'build', 'web')));
+    return dvRouteSemanticHtml(root, route,
+        ssrFirst: DVSplash.of(root).ssrFirst,
+        fonts: dvLayoutFonts(p.join(root, 'build', 'web')));
+  }
+
+  /// Each route's document, once [_primeSemanticHtml] has worked them out.
+  final Map<String, String?> _semanticHtml = <String, String?>{};
+
+  /// [_semanticHtmlFor] for every one of [routes], in isolates: the same
+  /// documents, laid out on every core instead of one after another.
+  Future<void> _primeSemanticHtml(String root, List<String> routes) async {
+    _semanticHtml.addAll(await dvRouteSemanticHtmlInParallel(root, routes,
+        ssrFirst: DVSplash.of(root).ssrFirst,
+        fonts: dvLayoutFonts(p.join(root, 'build', 'web'))));
   }
 
   /// Each route's page, as both targets render it: `dartvel build web` at
@@ -5054,6 +5065,7 @@ class BuildCommand extends Command<void> {
     );
     // The same pages the web server renders on request, rendered by the same
     // function: the only difference between the two targets is when.
+    await _primeSemanticHtml(root, routes);
     final Map<String, DVRoutePage> pages = _routePages(root, routes);
     var written = 0;
 
@@ -5428,7 +5440,7 @@ class BuildCommand extends Command<void> {
   /// target. The sitemap and robots stay files, because each is one document
   /// that does not vary by request and generating them per fetch would be
   /// work for nothing.
-  void _writeWebServerManifest(String root) {
+  Future<void> _writeWebServerManifest(String root) async {
     final web = Directory(p.join(root, 'build', 'web'));
     if (!web.existsSync()) return;
 
@@ -5455,6 +5467,11 @@ class BuildCommand extends Command<void> {
     final routes = _generatedRoutes(root);
     if (routes.isEmpty) return;
 
+    // Every route's document, laid out in isolates while the theme below is
+    // worked out in one of its own: two passes over every capture that took
+    // 23 and 26 seconds one after the other on a site of 225 routes.
+    final Future<void> documents = _primeSemanticHtml(root, routes);
+
     // SSR-first: the app's look for a page the build could not capture (a
     // parameterised route's data document), from the pages it did, so the
     // server lays such a page out in it rather than as a reading column.
@@ -5466,9 +5483,12 @@ class BuildCommand extends Command<void> {
         final String html = dvSemanticHtml(DVSemanticNode.listFromJson(tree.readAsStringSync()));
         if (html.trim().isNotEmpty) captured[route] = html;
       }
-      shellFile.writeAsStringSync(dvWithSsrFirstTheme(
-          root, shellFile.readAsStringSync(), captured, dvLayoutFonts(web.path)));
+      final String shell = shellFile.readAsStringSync();
+      final fonts = dvLayoutFonts(web.path);
+      shellFile.writeAsStringSync(
+          await dvWithSsrFirstThemeInParallel(root, shell, captured, fonts));
     }
+    await documents;
 
     // A previous static build in this directory left a file per route, and a
     // server that falls through to a file would serve those instead of the
