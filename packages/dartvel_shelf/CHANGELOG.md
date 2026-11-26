@@ -1,3 +1,7 @@
+## 3.47.18 — 2026-11-26
+
+- Serves every document with the `DARTVEL_OFF` switches applied and logs them at start; warms the rendered-page cache with the static routes after start (`cache-warm` turns it off).
+
 ## 3.47.17 — 2026-11-26
 
 - Version aligned with dartvel_flutter 3.47.17.

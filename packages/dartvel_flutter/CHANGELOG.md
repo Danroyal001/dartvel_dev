@@ -1,3 +1,7 @@
+## 3.47.18 — 2026-11-26
+
+- No page scroll button when the server sets `DARTVEL_OFF=page-scroll-button`. Links preload nothing while the build's capture reads the page (`DVRoutePrefetch.offForCapture`).
+
 ## 3.47.17 — 2026-11-26
 
 - Version aligned with dartvel_flutter 3.47.17.
