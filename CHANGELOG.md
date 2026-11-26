@@ -9,6 +9,7 @@
 - With SSR-first, code samples drawn with SelectableText are the document's own text where they are drawn: selectable, and found by Ctrl+F there. They were drawn as pictures of text (CSS content), the document's copy hidden, on every dartvel.dev docs page.
 - With SSR-first, a style one width sets and the next does not is undone at the next width. A clip at 1024 px (dartvel.dev's docs menu item at its panel's bottom edge) stayed in force at every wider width and cut the item in half.
 - A painter can say the outline it fills: `DVDescribedShape.describeShape` returns a `DVShape` (SVG path data in the box's pixels, even-odd or non-zero) beside `DVDescribedPainter`'s gradients, and the SSR-first document clips the box to it (`clip-path: path(...)`). A logo drawn as a path (dartvel.dev's mark) is there from the first paint instead of appearing at the handover.
+- With SSR-first, icons are never drawn as missing-glyph boxes in the first paint. An icon is a private-use character in an icon font (MaterialIcons), and with `font-display: swap` the browser drew the fallback's box until the font arrived (dartvel.dev's menu and scroll icons on a phone). A family only ever painted with icons now loads with `font-display: block`; text keeps `swap`.
 
 ## 3.47.10 — 2026-11-25
 
