@@ -195,8 +195,10 @@ Widget _notesPage(BuildContext context) {
         '\ndartvel:\n',
         '\ndartvel:\n  admin:\n    enabled: true\n'
         // The first-frame picture was removed: the key still builds, with a
-        // warning.
-        '  web:\n    firstFrame:\n      widths: [1366]\n'));
+        // warning. SSR-first is on by default (3.47.11); this project opts
+        // out, so the splash test below checks that `ssrFirst: false` keeps
+        // the splash in a real binary.
+        '  web:\n    ssrFirst: false\n    firstFrame:\n      widths: [1366]\n'));
 
     final ProcessResult resolved = await Process.run(
       'flutter',

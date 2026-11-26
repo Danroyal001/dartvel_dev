@@ -256,9 +256,10 @@ the renderer 2 s at 4x slowdown; headless Chrome draws without a GPU, which
 overstates the renderer's share). The next step is a symbolised profile of
 what the app does before its first frame.
 
-## SSR-first: the page's own document instead of the splash (opt-in, November 2026)
+## SSR-first: the page's own document instead of the splash (on by default since 3.47.11)
 
-`dartvel.web.ssrFirst: true` (off by default, see NEW_SPEC.md, *SSR-first*)
+`dartvel.web.ssrFirst` (on by default since 3.47.11, `false` opts out; see
+NEW_SPEC.md, *SSR-first*)
 shows each page's server-rendered document, the block crawlers, find and
 print already read, as the page from the first paint. Flutter takes over at
 its first frame. Nothing about loading the app changes, so the first frame

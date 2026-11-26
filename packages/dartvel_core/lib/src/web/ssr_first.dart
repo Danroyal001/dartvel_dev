@@ -1,5 +1,5 @@
 /// SSR-first: the server-rendered document is the page until Flutter's first
-/// frame (`dartvel.web.ssrFirst: true`, off by default).
+/// frame (`dartvel.web.ssrFirst`, on by default since 3.47.11; `false` opts out).
 ///
 /// Every page already carries its document: the `.dv-fallback` block that
 /// [dvApplyPageHtml] and [dvApplyPageText] write, from the one render path

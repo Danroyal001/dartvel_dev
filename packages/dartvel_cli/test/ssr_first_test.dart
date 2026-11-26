@@ -6,6 +6,7 @@
 import 'dart:io';
 
 import 'package:dartvel_cli/src/build/native_splash.dart';
+import 'package:dartvel_cli/src/build/ssr_first_capture.dart' show dvSsrFirstDefaultWidths;
 import 'package:dartvel_core/dartvel.dart'
     show dvApplyPageHtml, dvApplyPageText, dvSsrFirstHead, dvSsrFirstMarker;
 import 'package:path/path.dart' as p;
@@ -37,9 +38,36 @@ void main() {
     setUp(() => root = Directory.systemTemp.createTempSync('dv_ssr_first_'));
     tearDown(() => root.deleteSync(recursive: true));
 
-    test('is off unless the project turns it on', () {
-      expect(DVSplash.fromConfig(const <String, Object?>{}, root: root.path).ssrFirst,
+    test('is on by default (3.47.11): a project that says nothing gets it', () {
+      final DVSplash nothing = DVSplash.fromConfig(const <String, Object?>{}, root: root.path);
+      expect(nothing.ssrFirst, isTrue);
+      expect(nothing.ssrFirstWidths, dvSsrFirstDefaultWidths);
+      expect(
+          DVSplash.fromConfig(const <String, Object?>{'web': <String, Object?>{}}, root: root.path).ssrFirst,
+          isTrue);
+      expect(
+          DVSplash.fromConfig(const <String, Object?>{
+            'web': <String, Object?>{'ssrFirst': null},
+          }, root: root.path)
+              .ssrFirst,
+          isTrue);
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: app\ndartvel:\n  pwa: true\n');
+      expect(DVSplash.of(root.path).ssrFirst, isTrue);
+      File(p.join(root.path, 'pubspec.yaml')).writeAsStringSync('name: app\n');
+      expect(DVSplash.of(root.path).ssrFirst, isTrue);
+    });
+
+    test('false opts out, and so does a map with enabled: false', () {
+      expect(
+          DVSplash.fromConfig(const <String, Object?>{
+            'web': <String, Object?>{'ssrFirst': <String, Object?>{'enabled': false}},
+          }, root: root.path)
+              .ssrFirst,
           isFalse);
+      File(p.join(root.path, 'pubspec.yaml'))
+          .writeAsStringSync('name: app\ndartvel:\n  web:\n    ssrFirst: false\n');
+      expect(DVSplash.of(root.path).ssrFirst, isFalse);
+      expect(DVSplash.of(root.path).ssrFirstWidths, isEmpty);
       expect(
           DVSplash.fromConfig(const <String, Object?>{
             'web': <String, Object?>{'ssrFirst': false},

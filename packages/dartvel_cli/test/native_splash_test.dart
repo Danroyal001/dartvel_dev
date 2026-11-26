@@ -17,6 +17,7 @@ import 'dart:math' as math;
 
 import 'package:dartvel_cli/src/build/native_splash.dart';
 import 'package:dartvel_cli/src/build/pwa_icons.dart';
+import 'package:dartvel_core/dartvel.dart' show dvSsrFirstMarker;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -551,6 +552,9 @@ dartvel:
         Directory(p.join(root.path, 'build', 'web')),
         _splash(const <String, Object?>{
           'splash': <String, Object?>{'image': 'assets/photo.png'},
+          // The splash page, not the SSR-first one, which shows the page
+          // itself first and so does not ask for the logo early.
+          'web': <String, Object?>{'ssrFirst': false},
         }),
       );
       final String html = _read('build/web/index.html');
@@ -598,13 +602,24 @@ dartvel:
       expect(_read('build/web/index.html'), isNot(contains('main.dart.wasm')));
     });
 
-    test('disabled, with the loading bar off too, leaves the page alone', () {
+    test('disabled, with the loading bar and SSR-first off too, leaves the page alone', () {
+      _write('build/web/index.html', _webIndex);
+      dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')),
+          _splash(const <String, Object?>{
+            'splash': <String, Object?>{'enabled': false, 'progress': false},
+            'web': <String, Object?>{'ssrFirst': false},
+          }));
+      expect(_read('build/web/index.html'), _webIndex);
+    });
+
+    test('disabled, with the loading bar off, still gets the SSR-first head (on by default)', () {
       _write('build/web/index.html', _webIndex);
       dvWriteWebSplash(Directory(p.join(root.path, 'build', 'web')),
           _splash(const <String, Object?>{
             'splash': <String, Object?>{'enabled': false, 'progress': false},
           }));
-      expect(_read('build/web/index.html'), _webIndex);
+      expect(_read('build/web/index.html'), isNot(_webIndex));
+      expect(_read('build/web/index.html'), contains(dvSsrFirstMarker));
     });
 
     test('disabled, the loading bar is still there', () {
