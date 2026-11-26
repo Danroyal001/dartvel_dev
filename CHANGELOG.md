@@ -1,3 +1,7 @@
+## 3.47.11 — 2026-11-26
+
+- With SSR-first, links a narrow screen folds into a menu are real links on every page. dartvel.dev's docs side menu and its header GitHub and pub.dev links went out as pictures of text on every docs page but the first few: no `<a>` behind them, not found by Ctrl+F, not reached by Tab. The build reads each route's document in a tab that moved there from the route before it, and the layout capture of that route left the tab at a fixed 800 x 600 instead of the size it found it at, so every later route was read at 800 px, where the docs shell shows a menu button and no menu, while the menu painted at 1366 and 1920 was laid out as decoration. Every route is now read at one named size (`dvSemanticsReadViewport`, 1280 x 1024) and the layout capture puts the tab back where it found it. The 13 feature pages that had lost their GitHub and pub.dev links get them back too.
+
 ## 3.47.10 — 2026-11-25
 
 - Meta Pixel turns on from the server's secrets alone. With `pixelId` left empty the backend read `META_PIXEL_ID`, but a browser has no environment, so the client never saw an id and the pixel never loaded. The client now asks its backend which pixel to load (a new internal `settings` operation that answers the server's id and nothing else), once per page load and only after consent; setting `META_PIXEL_ID` and `META_CONVERSIONS_API_TOKEN` turns the pixel on with no rebuild.
