@@ -101,6 +101,30 @@ Widget _root(BuildContext context, DVAppParts parts) => MaterialApp.router(route
     expect(app, contains('DVAccessibilityFrame(child: Builder('));
   });
 
+  test('voice mode and a former key reach the install call, with zero app code', () async {
+    final Directory root = _project();
+    addTearDown(() => root.deleteSync(recursive: true));
+    final String app = _createApp(await _applicationFor(root, <String, Object?>{
+      'accessibility': <String, Object?>{
+        'defaultControls': <String, Object?>{
+          'floatingButton': false,
+          'voice': <String, Object?>{
+            'languages': <Object?>['en', 'yo'],
+            'machineTranslated': <Object?>['yo'],
+          },
+          'formerKey': 'shop.display',
+        },
+      },
+    }));
+    expect(
+      app,
+      contains("DVAccessibilityControls.instance.install(floatingButton: false, app: 'a11y_app', "
+          'voice: const DVAccessibilityVoiceConfig(languages: <DVVoiceLanguage>[DVVoiceLanguage.english, DVVoiceLanguage.yoruba], '
+          'machineTranslated: <DVVoiceLanguage>{DVVoiceLanguage.yoruba}), '
+          "formerKey: 'shop.display');"),
+    );
+  });
+
   test('a misspelt setting stops the build, naming it', () async {
     final Directory root = _project();
     addTearDown(() => root.deleteSync(recursive: true));

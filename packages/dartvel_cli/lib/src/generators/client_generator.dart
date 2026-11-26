@@ -4276,7 +4276,7 @@ void startDartvelKiosk() {
       ..writeln('Widget createDartvelApp({List<String> args = const []}) {')
       ..writeln('  final router = createDartvelRouter(arguments: args);')
       ..writeln(accessibilityDefaultControls.enabled
-          ? "  DVAccessibilityControls.instance.install(floatingButton: ${accessibilityDefaultControls.floatingButton}, app: '${esc(pkgName)}');\n"
+          ? "  ${accessibilityDefaultControls.installSource(app: pkgName)}\n"
               '  return DVAccessibilityFrame(child: $rootWidget);'
           : '  return $rootWidget;')
       ..writeln('}')

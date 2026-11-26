@@ -156,39 +156,19 @@ void main() {
     });
   });
 
-  group('what a visitor chose', () {
-    test('defaults: standard text, normal contrast, motion as the device asks', () {
-      const DVAccessibilitySettings settings = DVAccessibilitySettings();
-      expect(settings.textSize, DVTextSize.standard);
-      expect(settings.textScale, 1.0);
-      expect(settings.highContrast, isFalse);
-      expect(settings.reducedMotion, isFalse);
-      expect(settings.isDefault, isTrue);
-    });
-
-    test('text sizes are 100, 135 and 170 percent', () {
+  // What a visitor chooses is DVAccessibilitySettings, a model kept on the
+  // device (dartvel_flutter, test/accessibility_settings_model_test.dart).
+  // The pieces the SSR-first head and the CLI need stay here.
+  group('text sizes and keys', () {
+    test('text sizes are 100, 135 and 170 percent, found back by scale', () {
       expect(DVTextSize.values.map((DVTextSize size) => size.scale), <double>[1.0, 1.35, 1.7]);
+      expect(DVTextSize.fromScale(1.7), DVTextSize.larger);
+      expect(DVTextSize.fromScale(9), DVTextSize.standard);
     });
 
-    test('encodes to the JSON the SSR-first head reads, and back', () {
-      const DVAccessibilitySettings settings =
-          DVAccessibilitySettings(textSize: DVTextSize.large, highContrast: true, reducedMotion: true);
-      final String stored = settings.encode();
-      expect(stored, contains('"textScale":1.35'));
-      expect(stored, contains('"highContrast":true'));
-      expect(stored, contains('"reducedMotion":true'));
-      expect(DVAccessibilitySettings.decode(stored), settings);
-    });
-
-    test('anything unreadable is the default, so a broken value never stops a page', () {
-      for (final String? stored in <String?>[null, '', '{', '[1]', '{"textScale":"huge"}']) {
-        expect(DVAccessibilitySettings.decode(stored), const DVAccessibilitySettings(), reason: '$stored');
-      }
-      expect(DVAccessibilitySettings.decode('{"textScale":1.7}').textSize, DVTextSize.larger);
-    });
-
-    test('the storage key is the one the head script reads', () {
+    test('the storage keys are the ones the head script and the panel read', () {
       expect(dvAccessibilityStorageKey, 'dartvel.accessibility');
+      expect(dvVoiceStorageKey, 'dartvel.voice');
     });
   });
 
