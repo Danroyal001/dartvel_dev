@@ -1552,6 +1552,20 @@ class BuildCommand extends Command<void> {
       // only Flutter's own progress lines reach the console.
       final bool splitWasm = webWasm &&
           (platform == 'web' || platform == 'web-server');
+      // Flutter's own dart2wasm module is replaced by the deferred compile,
+      // so it is compiled unoptimised (no binaryen); the deferred compile
+      // gets the optimisation instead. Only where the split runs.
+      final List<String> throwaway =
+          splitWasm ? dvThrowawayWasmArguments(buildMode) : const <String>[];
+      final String? wasmOptimization =
+          throwaway.isEmpty ? null : dvWasmReleaseOptimization;
+      // A JavaScript-only build: Flutter otherwise runs a dart2wasm dry run
+      // beside dart2js to warn about wasm incompatibilities, a compiler front
+      // end's worth of work whose only output is those warnings.
+      final List<String> noDryRun = !webWasm &&
+              (platform == 'web' || platform == 'web-server')
+          ? const <String>['--no-wasm-dry-run']
+          : const <String>[];
       final StringBuffer verboseLog = StringBuffer();
       final String wasmWork =
           p.join(_projectRoot, '.dart_tool', 'dartvel_wasm');
@@ -1568,8 +1582,8 @@ class BuildCommand extends Command<void> {
         'flutter',
         // -v straight after `build web`, leaving every argument as it was.
         splitWasm
-            ? <String>[...args.take(2), '-v', ...args.skip(2)]
-            : args,
+            ? <String>[...args.take(2), '-v', ...args.skip(2), ...throwaway]
+            : <String>[...args, ...noDryRun],
         workingDirectory: _projectRoot,
         runInShell: true,
         // The release key reaches Gradle through the environment only: never
@@ -1595,6 +1609,7 @@ class BuildCommand extends Command<void> {
                 command: command,
                 workRoot: wasmWork,
                 run: runCompiler,
+                optimization: wasmOptimization,
               ).whenComplete(() => deferredWasmTime = deferredClock.elapsed);
             }
           }
@@ -1673,6 +1688,7 @@ class BuildCommand extends Command<void> {
             verboseLog: verboseLog.toString(),
             run: runCompiler,
             compiling: earlyWasm,
+            optimization: wasmOptimization,
           );
           Logger.log(split.problem == null
               ? '   WebAssembly: split into main.dart.wasm and '
