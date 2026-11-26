@@ -1,3 +1,7 @@
+## 3.47.20 — 2026-11-26
+
+- `dartvel.timers: true`: the generated runtime installs `DV.Timers`, the service worker relays a timer notification's snooze and dismiss to every open window (or opens the app with the action when none is left), and an Android build writes `DartvelTimerReceiver` (system alarm-clock alarm, alarm-sound notification with snooze and dismiss, re-armed after a reboot) with its manifest entries, taken back out when the setting goes.
+
 ## 3.47.19 — 2026-11-26
 
 - Generates `@DVModel(storage: DVModelStorage.device)` models declared outside `lib/models/` into `lib/dartvel_client/device_models.g.dart` (exported by the barrel; the runtime reads each before the first frame). A device model in `lib/models/`, a non-nullable field without a default, or a field type a device cannot keep stops generation with the file, field and type named.
