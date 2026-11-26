@@ -2396,7 +2396,20 @@ String? dvSsrFirstTheme(
         final _Item one = column[index].$2, next = column[index + 1].$2;
         final double gap = next.rect[1] - (one.rect[1] + one.rect[3]);
         if (gap < -1) continue;
-        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(column[index].$1, () => <double>[]).add(math.max(0, gap));
+        // A heading's space above it is the gap before it, and below it
+        // the gap after it; a paragraph's or list item's is the gap to the
+        // next of its kind. Margins collapse, so a paragraph followed by a
+        // heading is as far from it as the app puts a heading.
+        final String a = column[index].$1, b = column[index + 1].$1;
+        final String key = b.startsWith('h') && b != 'li'
+            ? 'before:$b'
+            : a.startsWith('h') && a != 'li'
+                ? 'after:$a'
+                : a == b
+                    ? 'same:$a'
+                    : '';
+        if (key.isEmpty) continue;
+        after.putIfAbsent(width, () => <String, List<double>>{}).putIfAbsent(key, () => <double>[]).add(math.max(0, gap));
       }
     }
   }
@@ -2462,9 +2475,17 @@ String? dvSsrFirstTheme(
         if (role == 'a') 'text-decoration:none',
       ].join(';');
       // The space the app leaves after this kind of block at this width.
-      final List<double>? gaps = after[width]?[role];
-      if (gaps != null && role != 'a') {
-        final String margin = 'margin:0 0 ${_num(median(gaps).clamp(0, 96).toDouble())}px';
+      final Map<String, List<double>> gapsHere = after[width] ?? const <String, List<double>>{};
+      final bool heading = role.startsWith('h') && role != 'li';
+      String? space(String key) {
+        final List<double>? gaps = gapsHere[key];
+        return gaps == null ? null : '${_num(median(gaps).clamp(0, 96).toDouble())}px';
+      }
+
+      final String? top = heading ? space('before:$role') : null;
+      final String? bottom = heading ? space('after:$role') : space('same:$role');
+      if (role != 'a' && (top != null || bottom != null)) {
+        final String margin = 'margin:${top ?? '0'} 0 ${bottom ?? '16px'}';
         if (lastMargin[role] != margin) {
           block.write('.$dvSsrThemeClass $role{$margin}');
           lastMargin[role] = margin;

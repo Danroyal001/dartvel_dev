@@ -123,11 +123,22 @@ void main() {
       expect(at(last(rulesAt(1366), 'padding-top'), 1366), 110);
     });
 
-    test('the space the app leaves after a block, at each width', () {
-      // At 390: paragraph 186 + 48 = 234, heading at 274: 40 after a
-      // paragraph. At 1366: 190 + 24 = 214, heading at 260: 46.
-      expect(rulesAt(390), contains('.dvt p{margin:0 0 40px'));
-      expect(rulesAt(1366), contains('.dvt p{margin:0 0 46px'));
+    // A heading takes the space the app leaves before and after it; the
+    // space after a paragraph is the gap to the next paragraph, not to the
+    // next section (measured on ChopDesk's menu, the first version used every
+    // gap after a paragraph and left 60 px between the dishes of a list).
+    test('the space the app leaves around a heading, at each width', () {
+      // 390: h1 90 + 80 = 170, paragraph at 186: 16 after it; paragraph
+      // 186 + 48 = 234, h2 at 274: 40 before it; h2 274 + 30 = 304,
+      // paragraph at 316: 12 after it.
+      expect(rulesAt(390), contains('.dvt h1{margin:0 0 16px'));
+      expect(rulesAt(390), contains('.dvt h2{margin:40px 0 12px'));
+      // 1366: h1 110 + 56 = 166, paragraph at 190: 24; 190 + 24 = 214, h2 at
+      // 260: 46.
+      expect(rulesAt(1366), contains('.dvt h1{margin:0 0 24px'));
+      expect(rulesAt(1366), contains('.dvt h2{margin:46px 0 12px'));
+      // No two paragraphs in a row were captured: the default.
+      expect(rulesAt(390), isNot(contains('.dvt p{margin:0 0 40px')));
     });
 
     test("the app's own fonts, and only on a screen with scripting before the handover", () {
