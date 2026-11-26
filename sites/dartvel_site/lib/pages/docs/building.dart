@@ -57,6 +57,17 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
             'several browser windows and moves it from route to route. '
             '--capture-jobs sets how many windows; --no-capture-in-app loads '
             'every route afresh instead.'),
+        DocsText('The number of windows also follows the memory the build may '
+            'use, so a busy server reads with fewer instead of swapping. After '
+            'the read, each route\'s SSR-first document and the theme for data '
+            'pages are laid out on every core. A WebAssembly build has Flutter '
+            'compile its own throwaway wasm module unoptimised and gives the '
+            'optimisation to the deferred-loading compile that replaces it; '
+            'the shipped files are the same. Subset fonts are kept in '
+            '~/.dartvel/cache for every project on the machine.'),
+        DocsText('Every build ends with a table of where its time went, also '
+            'written to build/dartvel_build_timings.json, so a slow build says '
+            'which step was slow.'),
         DocsShell(<String>['dartvel build web-server --capture-jobs 4']),
         DocsShell(<String>['dartvel build web --no-cache']),
         DocsText('Use --no-cache to bypass cache reads and writes, especially '
@@ -64,8 +75,13 @@ Widget _docsBuildingPage(BuildContext context) => const DocsArticle(
             'Corrupt and incomplete entries are rebuilt automatically.'),
         DocsText('An edit that leaves the compiled app the same, such as a '
             'backend function, still recompiles Flutter but keeps every '
-            'route\'s capture. Set SOURCE_DATE_EPOCH to make two builds of the '
-            'same sources byte-identical.'),
+            'route\'s capture. An edit to one page re-reads only the routes '
+            'that ran its code: each route\'s capture keeps the code files it '
+            'fetched, and is reused while they and the rest of the output are '
+            'unchanged. To turn a framework feature off in production without '
+            'a rebuild, set DARTVEL_OFF on the server and restart it. Set '
+            'SOURCE_DATE_EPOCH to make two builds of the same sources '
+            'byte-identical.'),
       ],
     ),
     DocsSection(
