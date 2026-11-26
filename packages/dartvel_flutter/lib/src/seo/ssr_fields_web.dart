@@ -44,20 +44,33 @@ Future<void> dvHandOverSsrFields({Duration hold = dvSsrFieldHold}) {
   final String address = web.window.location.href;
   bool expired = false;
   final Timer deadline = Timer(hold, () => expired = true);
-  void retry() {
-    final _Document? document = _readDocument();
-    if (document == null || !document.wanted) {
-      deadline.cancel();
-      handed.complete();
-      return;
-    }
-    if (!expired && web.window.location.href == address && !dvSsrFieldsHaveTargets(document.fields)) {
-      Timer(_retryEvery, retry);
-      return;
-    }
+  void done() {
     deadline.cancel();
-    _carry(document);
-    handed.complete();
+    if (!handed.isCompleted) handed.complete();
+  }
+
+  void retry() {
+    // Whatever goes wrong while waiting, the app still takes the page: a
+    // handover that never came would leave the document over a running app
+    // for good. The failure is reported, as one before the wait is.
+    try {
+      final _Document? document = _readDocument();
+      if (document == null || !document.wanted) return done();
+      if (!expired && web.window.location.href == address && !dvSsrFieldsHaveTargets(document.fields)) {
+        Timer(_retryEvery, retry);
+        return;
+      }
+      _carry(document);
+      done();
+    } catch (error, stack) {
+      done();
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'dartvel',
+        context: ErrorDescription('carrying the server-rendered fields into the app'),
+      ));
+    }
   }
 
   Timer(_retryEvery, retry);

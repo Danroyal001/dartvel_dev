@@ -20,6 +20,7 @@ library;
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:dartvel_core/src/web/ssr_first.dart' show dvSsrFirstHead;
 import 'package:dartvel_flutter/src/seo/ssr_fields_web.dart';
@@ -212,5 +213,30 @@ void main() {
     web.document.documentElement!.setAttribute('data-dv-carried', '');
     (host.firstElementChild! as web.HTMLElement).focus();
     expect(web.document.activeElement, host.firstElementChild);
+  });
+
+  // The held handover never strands the page: whatever goes wrong while it
+  // waits (here, reading the document's field throws), the app still takes
+  // the page instead of the document staying for good with the app behind it.
+  testWidgets('a failure while the handover waits still hands the page over', (WidgetTester tester) async {
+    final web.Element fallback = _document();
+    addTearDown(() => fallback.remove());
+    final web.HTMLTextAreaElement field = web.document.querySelector('#dv-field-1')! as web.HTMLTextAreaElement;
+    field.focus();
+    _type(field, 'hello');
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('Checking your session'))));
+    bool handed = false;
+    unawaited(dvHandOverSsrFields().then((_) => handed = true));
+    // From now on the field cannot be read.
+    (web.window as JSObject).callMethod<JSAny?>(
+      'eval'.toJS,
+      '(function(f){var d=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value");'
+              'Object.defineProperty(f,"value",{get:function(){throw new Error("unreadable")},set:d.set,configurable:true})})'
+              '(document.querySelector("#dv-field-1"))'
+          .toJS,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(handed, isTrue, reason: 'the app takes the page, and the failure is reported');
+    expect(tester.takeException(), isNotNull);
   });
 }
