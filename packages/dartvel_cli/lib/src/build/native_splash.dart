@@ -25,7 +25,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dartvel_core/dartvel.dart' show DVAccessibilityControlsConfig, dvSsrFirstHead;
+import 'package:dartvel_core/dartvel.dart' show DVAccessibilityDefaultControlsConfig, dvSsrFirstHead;
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
@@ -83,7 +83,7 @@ class DVSplash {
     this.loadingText = dvSplashDefaultLoadingText,
     this.ssrFirst = false,
     this.ssrFirstWidths = const <int>[],
-    this.accessibilityControls = false,
+    this.accessibilityDefaultControls = false,
   });
 
   /// `dartvel.web.ssrFirst`: each page shows its server-rendered document
@@ -97,9 +97,9 @@ class DVSplash {
   /// [dvSsrFirstDefaultWidths]); empty when SSR-first is off.
   final List<int> ssrFirstWidths;
 
-  /// `dartvel.accessibility.controls`: the SSR-first head reads the
+  /// `dartvel.accessibility.defaultControls`: the SSR-first head reads the
   /// visitor's accessibility settings before the first paint.
-  final bool accessibilityControls;
+  final bool accessibilityDefaultControls;
 
   /// The line under the logo on the web splash, pulsing, so a slow load does
   /// not look hung: `splash.loadingText`, [dvSplashDefaultLoadingText] when
@@ -211,9 +211,9 @@ class DVSplash {
       ssrFirstWidths: ssrFirstWidths,
       // A misspelt setting is the generator's to refuse; the splash reads
       // what it can.
-      accessibilityControls: (() {
+      accessibilityDefaultControls: (() {
         try {
-          return DVAccessibilityControlsConfig.fromSection(dartvel).enabled;
+          return DVAccessibilityDefaultControlsConfig.fromSection(dartvel).enabled;
         } on ArgumentError {
           return false;
         }
@@ -490,7 +490,7 @@ String dvWebSplashApply(
         if (splash.enabled) '#dartvel-splash',
         if (splash.progress) '#dartvel-progress',
       ].join(',')}{display:none}</style></noscript>\n'
-      '${splash.ssrFirst ? dvSsrFirstHead(background: splash.color, darkBackground: splash.darkColor, accent: splash.progressColor, accessibilityControls: splash.accessibilityControls) : ''}'
+      '${splash.ssrFirst ? dvSsrFirstHead(background: splash.color, darkBackground: splash.darkColor, accent: splash.progressColor, accessibilityControls: splash.accessibilityDefaultControls) : ''}'
       '$_headClose\n';
 
   final StringBuffer picture = StringBuffer();

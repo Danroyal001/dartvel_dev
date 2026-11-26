@@ -43,9 +43,15 @@ abstract class DartvelConfig {
   /// `dartvel.fileAssociations`: the file types the application opens.
   List<DVFileAssociation> get fileAssociations => const <DVFileAssociation>[];
 
-  /// `dartvel.accessibility.controls`: the accessibility button and panel
-  /// (text size, high contrast, reduced motion). Off unless the app asks.
-  DVAccessibilityControlsConfig get accessibilityControls => DVAccessibilityControlsConfig.off;
+  /// `dartvel.accessibility.defaultControls`: the accessibility button and
+  /// panel (text size, high contrast, reduced motion). Off unless the app asks.
+  DVAccessibilityDefaultControlsConfig get accessibilityDefaultControls => DVAccessibilityDefaultControlsConfig.off;
+
+  /// The 3.47.16 name of [accessibilityDefaultControls]. A class that still
+  /// overrides it keeps the panel for one release, and the build warns.
+  @Deprecated('Renamed accessibilityDefaultControls (dartvel.accessibility.defaultControls); '
+      'removed in the next release.')
+  DVAccessibilityDefaultControlsConfig get accessibilityControls => DVAccessibilityDefaultControlsConfig.off;
 
   /// `dartvel.openTelemetry`: where traces, metrics and logs are exported.
   /// Null leaves the section out, which is export off unless the deployment
@@ -63,8 +69,18 @@ abstract class DartvelConfig {
           'fileAssociations': <Object?>[
             for (final DVFileAssociation association in fileAssociations) association.toPubspec(),
           ],
-        if (accessibilityControls.enabled)
-          'accessibility': <String, Object?>{'controls': accessibilityControls.toPubspec()},
+        if (accessibilityDefaultControls.enabled)
+          'accessibility': <String, Object?>{
+            DVAccessibilityDefaultControlsConfig.key: accessibilityDefaultControls.toPubspec(),
+          }
+        // A class on the 3.47.16 name: written under the old key, so the
+        // build reads it and prints the rename warning.
+        // ignore: deprecated_member_use_from_same_package
+        else if (accessibilityControls.enabled)
+          'accessibility': <String, Object?>{
+            // ignore: deprecated_member_use_from_same_package
+            DVAccessibilityDefaultControlsConfig.deprecatedKey: accessibilityControls.toPubspec(),
+          },
         if (openTelemetry != null) 'openTelemetry': openTelemetry!.toDeclaration(),
         if (!platforms.isEmpty) 'platforms': platforms.toPubspec(),
       };
@@ -76,7 +92,7 @@ abstract class DartvelConfig {
 /// the other half of the round trip the parity tests hold.
 class DartvelPubspecConfig extends DartvelConfig {
   DartvelPubspecConfig._(this.fileAssociations, this.platforms, this.problems,
-      {this.openTelemetry, this.accessibilityControls = DVAccessibilityControlsConfig.off});
+      {this.openTelemetry, this.accessibilityDefaultControls = DVAccessibilityDefaultControlsConfig.off});
 
   /// Reads [section], the `dartvel:` object. Problems are collected, not
   /// thrown, in the same words the build prints.
@@ -93,9 +109,9 @@ class DartvelPubspecConfig extends DartvelConfig {
         problems.add('${error.name}: ${error.message}');
       }
     }
-    DVAccessibilityControlsConfig accessibilityControls = DVAccessibilityControlsConfig.off;
+    DVAccessibilityDefaultControlsConfig accessibilityDefaultControls = DVAccessibilityDefaultControlsConfig.off;
     try {
-      accessibilityControls = DVAccessibilityControlsConfig.fromSection(section);
+      accessibilityDefaultControls = DVAccessibilityDefaultControlsConfig.fromSection(section);
     } on ArgumentError catch (error) {
       problems.add('${error.name}: ${error.message}');
     }
@@ -104,7 +120,7 @@ class DartvelPubspecConfig extends DartvelConfig {
       platforms.settings,
       problems,
       openTelemetry: openTelemetry,
-      accessibilityControls: accessibilityControls,
+      accessibilityDefaultControls: accessibilityDefaultControls,
     );
   }
 
@@ -118,7 +134,7 @@ class DartvelPubspecConfig extends DartvelConfig {
   final DVOpenTelemetryConfig? openTelemetry;
 
   @override
-  final DVAccessibilityControlsConfig accessibilityControls;
+  final DVAccessibilityDefaultControlsConfig accessibilityDefaultControls;
 
 
   final List<String> problems;

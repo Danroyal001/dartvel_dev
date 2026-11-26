@@ -1,6 +1,6 @@
 // The accessibility controls an app opts into with
-// `dartvel.accessibility.controls` in pubspec.yaml (or
-// `DartvelConfig.accessibilityControls`).
+// `dartvel.accessibility.defaultControls` in pubspec.yaml (or
+// `DartvelConfig.accessibilityDefaultControls`).
 //
 // A button -- the framework's floating one on every page, or
 // [DVAccessibilityButton] wherever the app puts it, usually its header --
@@ -35,7 +35,7 @@ const String dvAccessibilityButtonLabel = 'Accessibility: text size, contrast an
 
 /// The reader's accessibility choices for the whole app, reached as
 /// `DV.Accessibility.controls`. Off until the generated runtime installs it
-/// (`dartvel.accessibility.controls`), and then the one place the panel, the
+/// (`dartvel.accessibility.defaultControls`), and then the one place the panel, the
 /// frame and the page shell read.
 class DVAccessibilityControls extends ChangeNotifier {
   DVAccessibilityControls._();

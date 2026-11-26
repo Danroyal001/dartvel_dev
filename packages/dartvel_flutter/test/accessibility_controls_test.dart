@@ -1,5 +1,5 @@
 // The accessibility controls an app opts into with
-// `dartvel.accessibility.controls`: a button (the framework's floating one,
+// `dartvel.accessibility.defaultControls`: a button (the framework's floating one,
 // or DVAccessibilityButton where the app puts it) opening a panel whose
 // text size, high contrast and reduced motion apply to the whole app, are
 // kept for the visitor's next visit, and never undo what the operating

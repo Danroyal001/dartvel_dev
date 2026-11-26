@@ -8687,8 +8687,8 @@ Runtime and tooling:
   because a release build compiles the run-time assert away
 - accessibility regressions fail the release gate unless explicitly waived with
   a documented reason
-- **reader controls, opt-in** (`dartvel.accessibility.controls: true`, or
-  `accessibilityControls` on a `DartvelConfig` class): an accessibility button
+- **reader controls, opt-in** (`dartvel.accessibility.defaultControls: true`, or
+  `accessibilityDefaultControls` on a `DartvelConfig` class): an accessibility button
   on every page opens a panel with text size (Default 100%, Large 135%, Larger
   170%, multiplied with the device's own size), high contrast and reduced
   motion. Each choice applies to the whole app at once through the
@@ -8701,7 +8701,7 @@ Runtime and tooling:
   and more-contrast settings (`prefers-reduced-motion`, `prefers-contrast:
   more` on the web) cannot be turned off from the panel: the switch shows as
   on and says why. The button floats in the bottom corner on the reading side
-  of every page unless `controls: {floatingButton: false}`, in which case the
+  of every page unless `defaultControls: {floatingButton: false}`, in which case the
   app places `DVAccessibilityButton()` (usually in its header; `compact` is
   the icon alone, `tooltip` renames it, `more` adds the app's own settings to
   the panel). It has its tooltip as its accessible name and a 48 px target,
@@ -8711,7 +8711,9 @@ Runtime and tooling:
   and large text or high contrast (including the system's) shows the
   document as the reading column in the visitor's text size and in pure black
   and white, because the captured layout is the app at the default settings
-  (`data-dv-plain` turns the layout off)
+  (`data-dv-plain` turns the layout off). 3.47.16 named the key `controls`
+  (and the config field `accessibilityControls`); 3.47.17 still reads it, with
+  a build and `dartvel doctor` warning to rename it, and removes it after that
 
 Runtime API:
 ```dart

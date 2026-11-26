@@ -1,17 +1,19 @@
-/// `dartvel.accessibility.controls`: the accessibility button and panel every
+/// `dartvel.accessibility.defaultControls`: the accessibility button and panel every
 /// Dartvel app can opt into, and the visitor's choices it keeps.
 ///
 /// ```yaml
 /// dartvel:
 ///   accessibility:
-///     controls: true            # the framework's floating button on every page
+///     defaultControls: true     # the framework's floating button on every page
 ///     # or, for an app that puts DVAccessibilityButton() in its own header:
-///     # controls:
+///     # defaultControls:
 ///     #   floatingButton: false
 /// ```
 ///
-/// The same object in a Dart config class is [DVAccessibilityControlsConfig],
-/// returned from `DartvelConfig.accessibilityControls`.
+/// The same object in a Dart config class is [DVAccessibilityDefaultControlsConfig],
+/// returned from `DartvelConfig.accessibilityDefaultControls`. 3.47.16 called the
+/// key `controls`; that spelling is still read for one release, with a build
+/// warning.
 ///
 /// What a visitor picks in the panel is a [DVAccessibilitySettings], kept as
 /// one small JSON value under [dvAccessibilityStorageKey]: `localStorage` in
@@ -121,13 +123,21 @@ final class DVAccessibilitySettings {
   String toString() => 'DVAccessibilitySettings(${encode()})';
 }
 
-/// `dartvel.accessibility.controls`: whether the app has the accessibility
-/// button and panel, and whether the framework places the button.
-final class DVAccessibilityControlsConfig {
-  const DVAccessibilityControlsConfig({this.enabled = false, this.floatingButton = true});
+/// `dartvel.accessibility.defaultControls`: whether the app has the
+/// accessibility button and panel, and whether the framework places the
+/// button.
+final class DVAccessibilityDefaultControlsConfig {
+  const DVAccessibilityDefaultControlsConfig({this.enabled = false, this.floatingButton = true});
 
   /// Off: the default. An app gets the controls only when it asks.
-  static const DVAccessibilityControlsConfig off = DVAccessibilityControlsConfig();
+  static const DVAccessibilityDefaultControlsConfig off = DVAccessibilityDefaultControlsConfig();
+
+  /// The pubspec key, under `dartvel.accessibility`.
+  static const String key = 'defaultControls';
+
+  /// The key 3.47.16 shipped. Read for one more release, with a build
+  /// warning naming [key]; removed after that.
+  static const String deprecatedKey = 'controls';
 
   /// The controls are on: every page is drawn in the visitor's settings and
   /// the panel can be opened.
@@ -140,40 +150,52 @@ final class DVAccessibilityControlsConfig {
 
   static const Set<String> _keys = <String>{'enabled', 'floatingButton'};
 
-  /// Reads the value of `controls`: absent or false is off, true is on with
-  /// the floating button, a map is on unless it says `enabled: false`.
-  /// A key it does not know is refused, naming it.
-  static DVAccessibilityControlsConfig parse(Object? raw) {
+  /// Reads the value of `defaultControls`: absent or false is off, true is on
+  /// with the floating button, a map is on unless it says `enabled: false`.
+  /// A key it does not know is refused, naming it. [key] is the key the
+  /// value was written under, for the error.
+  static DVAccessibilityDefaultControlsConfig parse(Object? raw, {String key = key}) {
+    final String path = 'dartvel.accessibility.$key';
     if (raw == null || raw == false) return off;
-    if (raw == true) return const DVAccessibilityControlsConfig(enabled: true);
+    if (raw == true) return const DVAccessibilityDefaultControlsConfig(enabled: true);
     if (raw is! Map) {
-      throw ArgumentError.value(raw, 'dartvel.accessibility.controls', 'must be true, false or a map');
+      throw ArgumentError.value(raw, path, 'must be true, false or a map');
     }
-    for (final Object? key in raw.keys) {
-      if (!_keys.contains(key)) {
-        throw ArgumentError.value(
-            raw, 'dartvel.accessibility.controls', '$key is not a setting; the settings are ${_keys.join(', ')}');
+    for (final Object? setting in raw.keys) {
+      if (!_keys.contains(setting)) {
+        throw ArgumentError.value(raw, path, '$setting is not a setting; the settings are ${_keys.join(', ')}');
       }
     }
-    bool flag(String key, bool fallback) {
-      final Object? value = raw[key];
+    bool flag(String setting, bool fallback) {
+      final Object? value = raw[setting];
       if (value == null) return fallback;
       if (value is! bool) {
-        throw ArgumentError.value(value, 'dartvel.accessibility.controls.$key', 'must be true or false');
+        throw ArgumentError.value(value, '$path.$setting', 'must be true or false');
       }
       return value;
     }
 
-    return DVAccessibilityControlsConfig(enabled: flag('enabled', true), floatingButton: flag('floatingButton', true));
+    return DVAccessibilityDefaultControlsConfig(
+        enabled: flag('enabled', true), floatingButton: flag('floatingButton', true));
   }
 
-  /// Reads `accessibility.controls` from the `dartvel:` object.
-  static DVAccessibilityControlsConfig fromSection(Map<Object?, Object?> section) {
+  /// Reads `accessibility.defaultControls` from the `dartvel:` object, or the
+  /// deprecated `accessibility.controls` when that is the one written. Both
+  /// at once is refused rather than one silently winning.
+  static DVAccessibilityDefaultControlsConfig fromSection(Map<Object?, Object?> section) {
     final Object? accessibility = section['accessibility'];
-    return parse(accessibility is Map ? accessibility['controls'] : null);
+    if (accessibility is! Map) return off;
+    final bool hasNew = accessibility.containsKey(key);
+    final bool hasOld = accessibility.containsKey(deprecatedKey);
+    if (hasNew && hasOld) {
+      throw ArgumentError.value(accessibility, 'dartvel.accessibility',
+          'has both $key and $deprecatedKey; $deprecatedKey was renamed $key, so keep only $key');
+    }
+    if (hasOld) return parse(accessibility[deprecatedKey], key: deprecatedKey);
+    return parse(accessibility[key]);
   }
 
-  /// The value of `controls` as the YAML writes it; null when off.
+  /// The value of `defaultControls` as the YAML writes it; null when off.
   Object? toPubspec() {
     if (!enabled) return null;
     if (floatingButton) return true;
@@ -182,8 +204,15 @@ final class DVAccessibilityControlsConfig {
 
   @override
   bool operator ==(Object other) =>
-      other is DVAccessibilityControlsConfig && other.enabled == enabled && other.floatingButton == floatingButton;
+      other is DVAccessibilityDefaultControlsConfig &&
+      other.enabled == enabled &&
+      other.floatingButton == floatingButton;
 
   @override
   int get hashCode => Object.hash(enabled, floatingButton);
 }
+
+/// The 3.47.16 name of [DVAccessibilityDefaultControlsConfig].
+@Deprecated('Renamed DVAccessibilityDefaultControlsConfig (dartvel.accessibility.defaultControls); '
+    'this name is removed in the next release.')
+typedef DVAccessibilityControlsConfig = DVAccessibilityDefaultControlsConfig;

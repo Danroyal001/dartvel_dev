@@ -13346,7 +13346,7 @@ class DVAccessibility {
   DVSwitchControlState get switchControl => DVAccessibilitySwitchControl.state;
 
   /// The reader's text size, high contrast and reduced motion, chosen in the
-  /// accessibility panel (`dartvel.accessibility.controls`). See
+  /// accessibility panel (`dartvel.accessibility.defaultControls`). See
   /// [DVAccessibilityControls] and [DVAccessibilityButton].
   DVAccessibilityControls get controls => DVAccessibilityControls.instance;
 

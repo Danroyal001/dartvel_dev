@@ -34,7 +34,7 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
               '# pubspec.yaml',
               'dartvel:',
               '  accessibility:',
-              '    controls: true',
+              '    defaultControls: true',
             ]),
             DocsTable(columns: <String>[
               'Control',
@@ -63,9 +63,11 @@ Widget _docsAccessibilityPage(BuildContext context) => const DocsArticle(
                   'announces.',
               'By default the button floats in the bottom corner of every page, '
                   'on the reading side. To put it in your header instead, set '
-                  'controls: {floatingButton: false} and place '
+                  'defaultControls: {floatingButton: false} and place '
                   'DVAccessibilityButton() where you want it.',
-              'A Dart config class says the same with accessibilityControls.',
+              'A Dart config class says the same with accessibilityDefaultControls.',
+              'Projects from 3.47.16 that wrote controls: still work for one '
+                  'release; the build warns until it is renamed defaultControls.',
             ]),
             DocsCode('a11y-controls'),
           ],

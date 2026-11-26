@@ -1,3 +1,7 @@
+## Unreleased
+
+- `dartvel.accessibility.defaultControls` replaces `dartvel.accessibility.controls` (`DartvelConfig.accessibilityDefaultControls`, `DVAccessibilityDefaultControlsConfig`). The old key, getter and class name are read for one more release (deprecated); both keys at once is refused.
+
 ## 3.47.16 — 2026-11-26
 
 - `dartvel.accessibility.controls` (and `DartvelConfig.accessibilityControls`): the opt-in switch for the accessibility button and panel, `DVAccessibilitySettings` (text size, high contrast, reduced motion, stored under `dartvel.accessibility`), and the SSR-first head that reads the stored settings before the first paint (no fade with reduced motion; large text or high contrast shows the reading column in the visitor's size and black and white).
