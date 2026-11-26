@@ -1,3 +1,7 @@
+## 3.47.12 — 2026-11-26
+
+- Version aligned with dartvel_core 3.47.12.
+
 ## 3.47.10 — 2026-11-25
 
 - Meta Pixel turns on from the server's secrets alone. With `pixelId` left empty the backend read `META_PIXEL_ID`, but a browser has no environment, so the client never saw an id and the pixel never loaded. The client now asks its backend which pixel to load (a new internal `settings` operation that answers the server's id and nothing else), once per page load and only after consent; setting `META_PIXEL_ID` and `META_CONVERSIONS_API_TOKEN` turns the pixel on with no rebuild.
