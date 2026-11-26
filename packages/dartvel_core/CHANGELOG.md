@@ -1,3 +1,7 @@
+## 3.47.20 — 2026-11-26
+
+- Version aligned with dartvel_flutter 3.47.20.
+
 ## 3.47.19 — 2026-11-26
 
 - `DVModelStorage` and `DVModel(storage:, storageKey:)` for models kept on the device; typed `defaultControls.voice` (`DVAccessibilityVoiceConfig`, the `DVVoiceLanguage` catalog) and `defaultControls.formerKey`. The hand-written `DVAccessibilitySettings` moved to dartvel_flutter as a generated device model.

@@ -1,3 +1,7 @@
+## 3.47.20 — 2026-11-26
+
+- `DV.Timers` and `DVTimerCountdown`: named countdowns that ring with a chime and a notification, several at once, kept across a reload; the browser notification has +1 min and +5 min buttons, Android rings from a system alarm with the app closed (`dartvel.timers: true`), and `DV.Timers.reach` says where a timer cannot ring.
+
 ## 3.47.19 — 2026-11-26
 
 - **The modifier chain goes on the widget, as the spec writes it:** `DVText('Where voice mode sits').fontSize(17).fontWeight(.w700).color(ink)`, `DVBox(child).padding(12).rounded(8).tooltip('Open').onTap(open)`, on `DVBox.list(...)` and `DVBox.row(...)` too. Every `DVModifier` step is a method of `DVText`, `DVBox`, `DVChoice` and `DVSwitch` (`DVModifierChain`), with the same parameters, applied to the modifier the widget already has, so it draws exactly what the same chain on a `DVModifier` draws; a tap or drop target is still reported at the application's own line. The mixin is written from `DVModifier` by `packages/dartvel_flutter/tool/modifier_chain_source.dart`, and a test fails when the two disagree. `.modifier(shared)` still layers a shared `DVModifier` value. The README, the spec, the docs, the docs samples and the `dartvel create` / `dartvel generate page` scaffolds use the chain; `DVText('...', DVModifier()...)` and `.modifier(DVModifier()...)` are the old shape.
