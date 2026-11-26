@@ -621,7 +621,9 @@ The table is the contract. Each row says which entries a target has, what
   to the box, CSS's `radial-gradient(60% 80% at 85% 0%, ...)`, usable
   wherever a `Gradient` is), `DVGradientPainter` (gradients stacked over a
   box, as a `CustomPaint` painter; any painter can implement
-  `DVDescribedPainter` to say which gradients it draws) and
+  `DVDescribedPainter` to say which gradients it draws, and
+  `DVDescribedShape` to say the outline they fill, as SVG path data the
+  document clips the box to) and
   `DVGradientSpan` in a `DVGradientText` (text filled with a gradient that
   runs along its line pieces laid end to end, which the document draws as
   its own text with `background-clip: text`, still selectable and findable).

@@ -959,7 +959,7 @@ export 'src/updates/shorebird_updates.dart'
 export 'src/widgets/browser_menu.dart' show DVBrowserMenu;
 export 'src/widgets/context_menu.dart';
 export 'src/widgets/described_paint.dart'
-    show DVDescribedPainter, DVGradientPainter, DVGradientSpan, DVGradientText, DVRadialGradient;
+    show DVDescribedPainter, DVDescribedShape, DVGradientPainter, DVShape, DVGradientSpan, DVGradientText, DVRadialGradient;
 export 'src/widgets/home_widgets.dart';
 export 'src/widgets/shortcuts.dart';
 export 'src/widgets/page_scroll.dart' show DVPageScrollFrame;
