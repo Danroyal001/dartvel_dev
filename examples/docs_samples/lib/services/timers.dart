@@ -23,7 +23,7 @@ Future<void> boilEggs() async {
 Widget timerList(BuildContext context) => DVBox.list(<Widget>[
       for (final DVTimer timer in DV.Timers.watch(context))
         DVBox.row(<Widget>[
-          DVTimerCountdown(timer),
+          DVTimerCountdown(timer).fontSize(24).fontWeight(.w700),
           if (timer.stateAt(DV.Timers.now) == DVTimerState.ringing)
             DVText('Snooze 5 min')
                 .tooltip('Ring again in 5 minutes')

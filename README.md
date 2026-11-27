@@ -1332,7 +1332,7 @@ with a chime and a notification. Turn it on with `dartvel.timers: true`.
 
 ```dart
 await DV.Timers.start('Boil the eggs', const Duration(minutes: 15), id: 'eggs'); // from the tap
-for (final DVTimer timer in DV.Timers.watch(context)) DVTimerCountdown(timer);  // 14:05
+for (final DVTimer timer in DV.Timers.watch(context)) DVTimerCountdown(timer).fontSize(40);  // 14:05
 await DV.Timers.snooze('eggs', const Duration(minutes: 5));
 await DV.Timers.dismiss('eggs');
 ```
