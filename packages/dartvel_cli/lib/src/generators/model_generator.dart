@@ -699,9 +699,19 @@ class ModelGenerator {
           'class $constructorPrefix$className(${fields.isEmpty ? '' : '{'}',
         );
         for (final field in fields) {
-          final type = field['type']!;
+          // Inside the class a bare List is its static List widget.
+          final type = _coreList(field['type']!);
           final name = field['name']!;
-          sb.writeln('  required final $type $name,');
+          final declaredDefault = field['default']?.trim();
+          // A field the input lets a caller leave out stays optional here:
+          // one with a declared default keeps it, a nullable one is null.
+          if (declaredDefault != null && declaredDefault.isNotEmpty) {
+            sb.writeln('  final $type $name = $declaredDefault,');
+          } else if (type.endsWith('?')) {
+            sb.writeln('  final $type $name,');
+          } else {
+            sb.writeln('  required final $type $name,');
+          }
         }
         sb.writeln('${fields.isEmpty ? '' : '}'}) {');
         sb.writeln(
@@ -1283,7 +1293,7 @@ class ModelGenerator {
             } else if (studioEnums.containsKey(base)) {
               final value = "row['$name'] is $base ? row['$name'] as $base : $base.values.byName(row['$name'].toString())";
               read = nullable ? "row['$name'] == null ? null : ($value)" : value;
-            } else if (_structuredRead("row['$name']", base, studioModelNames) case final String structured) {
+            } else if (_structuredRead("row['$name']", base, studioModelNames, studioEnums) case final String structured) {
               read = nullable ? "row['$name'] == null ? null : ($structured)" : structured;
             } else {
               read = "row['$name'] as $type";
@@ -2006,7 +2016,7 @@ class ModelGenerator {
         sb.writeln('  Map<String, Object?> toJson() => {');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln("    '$name': ${_jsonValue(field)},");
+          sb.writeln("    '$name': ${_jsonValue(field, studioEnums, studioModelNames)},");
         }
         sb.writeln('  };');
 
@@ -2020,7 +2030,7 @@ class ModelGenerator {
         for (final field in fields) {
           final name = field['name']!;
           if (sensitiveFieldNames.contains(name)) continue;
-          sb.writeln("    '$name': ${_jsonValue(field)},");
+          sb.writeln("    '$name': ${_jsonValue(field, studioEnums, studioModelNames)},");
         }
         sb.writeln('  };');
 
@@ -2286,7 +2296,7 @@ class ModelGenerator {
         sb.writeln('    return $className(');
         for (final field in fields) {
           final name = field['name']!;
-          sb.writeln('      $name: ${_fromJsonValue(field, studioModelNames)},');
+          sb.writeln('      $name: ${_fromJsonValue(field, studioModelNames, studioEnums)},');
         }
         sb.writeln('    );');
         sb.writeln('  }');
@@ -3452,6 +3462,12 @@ class ModelGenerator {
     if (baseType == 'Map<String,bool>' || baseType == 'Map<String, bool>') {
       return "const <String, bool>{'test': true}";
     }
+    // A list or map of anything else -- an enum, a model -- starts empty:
+    // an empty collection is a valid value of every element type.
+    final listOf = RegExp(r'^List<(.+)>$').firstMatch(baseType.trim());
+    if (listOf != null) return 'const <${listOf.group(1)!.trim()}>[]';
+    final mapOf = RegExp(r'^Map<String,\s*(.+)>$').firstMatch(baseType.trim());
+    if (mapOf != null) return 'const <String, ${mapOf.group(1)!.trim()}>{}';
     throw StateError(
       'Cannot generate ${className}Factory default for required field '
       '$className.$name of type $type. Make the field nullable or add an '
@@ -3464,10 +3480,23 @@ class ModelGenerator {
   /// A `DateTime` is not JSON: leaving one in the map makes `jsonEncode` throw
   /// on the whole model, so it goes out as the ISO string [_fromJsonValue]
   /// reads back.
-  static String _jsonValue(Map<String, String> field) {
+  static String _jsonValue(
+    Map<String, String> field, [
+    Map<String, List<String>> enums = const <String, List<String>>{},
+    Set<String> models = const <String>{},
+  ]) {
     final name = field['name']!;
     final type = field['type']!;
     final nullable = type.endsWith('?');
+    final base = nullable ? type.substring(0, type.length - 1) : type;
+    // An enum, a model, or a list or map holding either, is not JSON as it
+    // stands: jsonEncode throws on the whole model (an enum object, or a
+    // model whose toJson is an extension it cannot see).
+    final structured = _structuredWrite(name, base, enums, models);
+    if (structured != null) {
+      // Every write starts `name.`; `?.` short-circuits the rest of the chain.
+      return nullable ? structured.replaceFirst('$name.', '$name?.') : structured;
+    }
     if (type.replaceAll('?', '') == 'DVSceneAsset') {
       // A value, not JSON: left in the map, jsonEncode throws on the model.
       return nullable ? '$name?.toJson()' : '$name.toJson()';
@@ -3476,17 +3505,47 @@ class ModelGenerator {
     return nullable ? '$name?.toIso8601String()' : '$name.toIso8601String()';
   }
 
+  /// [source] written as JSON when [type] is an enum, a model, or a list or
+  /// map holding one; null for any other type, which goes out as it is.
+  static String? _structuredWrite(String source, String type, Map<String, List<String>> enums, Set<String> models) {
+    if (enums.containsKey(type)) return '$source.name';
+    if (models.contains(type)) return '$source.toJson()';
+    final list = RegExp(r'^List<(.+)>$').firstMatch(type);
+    if (list != null) {
+      final element = _elementWrite('item', list.group(1)!.trim(), enums, models);
+      return element == null ? null : '$source.map((item) => $element).toList()';
+    }
+    final map = RegExp(r'^Map<String,\s*(.+)>$').firstMatch(type);
+    if (map != null) {
+      final element = _elementWrite('value', map.group(1)!.trim(), enums, models);
+      return element == null ? null : '$source.map((key, value) => MapEntry(key, $element))';
+    }
+    return null;
+  }
+
+  static String? _elementWrite(String source, String type, Map<String, List<String>> enums, Set<String> models) {
+    if (type.endsWith('?')) {
+      final inner = _structuredWrite('$source!', type.substring(0, type.length - 1), enums, models);
+      return inner == null ? null : '$source == null ? null : $inner';
+    }
+    return _structuredWrite(source, type, enums, models);
+  }
+
   /// How a field is read back out of a JSON map.
   ///
   /// Casting is not enough: a decoded map holds strings and numbers, so a
   /// straight `as DateTime` or `as int` throws on exactly the values
   /// `toJson` produced.
-  static String _fromJsonValue(Map<String, String> field, Set<String> models) {
+  static String _fromJsonValue(
+    Map<String, String> field,
+    Set<String> models, [
+    Map<String, List<String>> enums = const <String, List<String>>{},
+  ]) {
     final name = field['name']!;
     final type = field['type']!;
     final nullable = type.endsWith('?');
     final base = nullable ? type.substring(0, type.length - 1) : type;
-    final structured = _structuredRead("json['$name']", base, models);
+    final structured = _structuredRead("json['$name']", base, models, enums);
     if (structured != null) {
       return nullable ? "json['$name'] == null ? null : ($structured)" : structured;
     }
@@ -3511,14 +3570,22 @@ class ModelGenerator {
   /// plain cast. Lists and maps are rebuilt element by element and a nested
   /// model goes through its own parser, because the decoded JSON they arrive
   /// as is List<dynamic> / Map<String, dynamic> and a cast of that throws.
-  static String? _structuredRead(String source, String type, Set<String> models) {
+  /// [type] with every `List<` written `core.List<`, for code inside a
+  /// generated model class, where a bare List is the class's List widget.
+  static String _coreList(String type) =>
+      type.replaceAllMapped(RegExp(r'(^|[^\w.])List<'), (m) => '${m[1]}core.List<');
+
+  static String? _structuredRead(String source, String type, Set<String> models, [Map<String, List<String>> enums = const <String, List<String>>{}]) {
+    // An enum travels as its name (see _structuredWrite); a cast of that
+    // string to the enum throws.
+    if (enums.containsKey(type)) return '$type.values.byName($source as String)';
     final list = RegExp(r'^List<(.+)>$').firstMatch(type);
     if (list != null) {
-      return "(_dvAsJson($source) as List).map((item) => ${_elementRead('item', list.group(1)!.trim(), models)}).toList()";
+      return "(_dvAsJson($source) as core.List).map((item) => ${_elementRead('item', list.group(1)!.trim(), models, enums)}).toList()";
     }
     final map = RegExp(r'^Map<String,\s*(.+)>$').firstMatch(type);
     if (map != null) {
-      return "(_dvAsJson($source) as Map).map((key, value) => MapEntry(key as String, ${_elementRead('value', map.group(1)!.trim(), models)}))";
+      return "(_dvAsJson($source) as Map).map((key, value) => MapEntry(key as String, ${_elementRead('value', map.group(1)!.trim(), models, enums)}))";
     }
     if (models.contains(type)) {
       return "${type}Parser.fromJson(Map<String, Object?>.from(_dvAsJson($source) as Map))";
@@ -3528,11 +3595,11 @@ class ModelGenerator {
 
   /// One element of a list or map: [type] may itself be nullable, a
   /// collection, a model or a primitive.
-  static String _elementRead(String source, String type, Set<String> models) {
+  static String _elementRead(String source, String type, Set<String> models, [Map<String, List<String>> enums = const <String, List<String>>{}]) {
     if (type.endsWith('?')) {
-      return "$source == null ? null : (${_elementRead(source, type.substring(0, type.length - 1), models)})";
+      return "$source == null ? null : (${_elementRead(source, type.substring(0, type.length - 1), models, enums)})";
     }
-    final structured = _structuredRead(source, type, models);
+    final structured = _structuredRead(source, type, models, enums);
     if (structured != null) return structured;
     return switch (type) {
       'int' => '_dvAsNum($source).toInt()',
