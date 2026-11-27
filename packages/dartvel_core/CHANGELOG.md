@@ -1,3 +1,7 @@
+## 3.47.21 — 2026-11-28
+
+- `DVPageRequest.query` and `dvMatchRoute(query:)`: page data reads the query string; the page-data cache key includes it.
+
 ## 3.47.20 — 2026-11-26
 
 - Version aligned with dartvel_flutter 3.47.20.

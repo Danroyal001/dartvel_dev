@@ -1,3 +1,7 @@
+## 3.47.21 — 2026-11-28
+
+- SSR passes the request's query string to page data (`DVPageRequest.query`).
+
 ## 3.47.20 — 2026-11-26
 
 - Version aligned with dartvel_flutter 3.47.20.
