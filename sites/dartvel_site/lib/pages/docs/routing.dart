@@ -224,6 +224,9 @@ Widget _docsRoutingPage(BuildContext context) => const DocsArticle(
               'A route you name belongs to your function, a null answer '
                   'included. Other routes keep model pages and the text '
                   'captured at build time.',
+              'request.params holds the route\'s parameters and request.query '
+                  'the query string, so /search?q=vpn reaches the function as '
+                  "request.query['q']. Each query is kept separately.",
               'The file runs in the server, so it cannot import Flutter.',
               'It is not authentication. Keep a guard, a policy or a '
                   'boundary in front of a private page.',
