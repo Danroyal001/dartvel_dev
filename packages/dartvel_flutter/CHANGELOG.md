@@ -1,3 +1,7 @@
+## 3.47.21 — 2026-11-28
+
+- Version aligned with dartvel_core 3.47.21.
+
 ## Unreleased
 
 - `DVTimerCountdown` takes the modifier chain: `DVTimerCountdown(timer).fontSize(40).fontWeight(.w700)`, as `DVText` does; `modifier:` still works.

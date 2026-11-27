@@ -1,4 +1,9 @@
-## Unreleased
+## 3.47.21 — 2026-11-28
+
+- **Data models take enum, list and nested-model fields over the wire.** An enum field leaves `toJson` as its name and comes back through `values.byName` (it used to go out as the enum object, so `jsonEncode` threw and a backend function answering with the model was a 500), inside lists and maps too and in rows read from storage; a list of models leaves as maps. A `List` field compiles in the generated class (a bare `List` there was the class's static `List` widget; the class now writes `core.List`).
+- **A defaulted or nullable field is optional when creating a record.** The generated constructor made every field `required`; `Article(id: ..., title: ...)` now keeps the declared defaults. The test factory defaults a list or map of enums or models to empty instead of stopping generation.
+- **Page data reads the query string.** `DVPageRequest.query` holds the URL's query parameters on both servers (`dartvel build`'s web-server and dartvel_shelf), so `/search?q=vpn` renders its results on the server; the page-data cache keeps each query apart.
+- This release supersedes 3.47.20's GitHub release, which was published to pub.dev and npm but never got its binaries, so the CLI binaries, `latest.json` and the Homebrew tap go from 3.47.19 to 3.47.21.
 
 - Accessibility panel wording: with no English voice on the device, the note for English now reads "No English voice on this device; prompts are shown as text" (it said "read in English", which is the fallback for other languages). The voice language menu is labelled "Language" under its "Voice language" heading, so the label is no longer cut off on a phone ("Language voice mode speaks and li…" at 390 px).
 - `DVTimerCountdown` takes the modifier chain (`DVTimerCountdown(timer).fontSize(40)`), so an app styles the countdown as it styles a `DVText`.

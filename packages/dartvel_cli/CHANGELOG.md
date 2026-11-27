@@ -1,3 +1,7 @@
+## 3.47.21 — 2026-11-28
+
+- Generated data models: enum fields encode as their name and decode with `values.byName` (also in lists, maps and stored rows); lists of models encode as maps; `List` fields use `core.List` inside the class; defaulted and nullable fields are optional in the constructor; the test factory defaults lists and maps of enums or models to empty. The web-server passes the query string to page data.
+
 ## 3.47.20 — 2026-11-26
 
 - `dartvel.timers: true`: the generated runtime installs `DV.Timers`, the service worker relays a timer notification's snooze and dismiss to every open window (or opens the app with the action when none is left), and an Android build writes `DartvelTimerReceiver` (system alarm-clock alarm, alarm-sound notification with snooze and dismiss, re-armed after a reboot) with its manifest entries, taken back out when the setting goes.
