@@ -41,10 +41,10 @@ class _Status {
       expect(content, contains('Object? _dvAsJson(Object? value) =>'));
       // From JSON.
       expect(content, contains("statuses: json['statuses'] == null ? null : ((_dvAsJson(json['statuses']) as Map).map((key, value) => MapEntry(key as String, StatusParser.fromJson(Map<String, Object?>.from(_dvAsJson(value) as Map)))))"));
-      expect(content, contains("tags: (_dvAsJson(json['tags']) as List).map((item) => item as String).toList()"));
-      expect(content, contains("history: json['history'] == null ? null : ((_dvAsJson(json['history']) as List).map((item) => StatusParser.fromJson(Map<String, Object?>.from(_dvAsJson(item) as Map))).toList())"));
+      expect(content, contains("tags: (_dvAsJson(json['tags']) as core.List).map((item) => item as String).toList()"));
+      expect(content, contains("history: json['history'] == null ? null : ((_dvAsJson(json['history']) as core.List).map((item) => StatusParser.fromJson(Map<String, Object?>.from(_dvAsJson(item) as Map))).toList())"));
       expect(content, contains("latest: json['latest'] == null ? null : (StatusParser.fromJson(Map<String, Object?>.from(_dvAsJson(json['latest']) as Map)))"));
-      expect(content, contains("scores: json['scores'] == null ? null : ((_dvAsJson(json['scores']) as List).map((item) => item == null ? null : (_dvAsNum(item).toInt())).toList())"));
+      expect(content, contains("scores: json['scores'] == null ? null : ((_dvAsJson(json['scores']) as core.List).map((item) => item == null ? null : (_dvAsNum(item).toInt())).toList())"));
       expect(content, isNot(contains("json['statuses'] as Map<String, Status>?")));
       expect(content, isNot(contains("json['tags'] as List<String>")));
       // From a stored record, which may hold the value as JSON text.

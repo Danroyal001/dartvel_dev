@@ -36,6 +36,11 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
                   'default when the stored field is missing or null. A '
                   'required field without a default fails with the data '
                   'model, field and record key named.',
+              'A field with a default, or a nullable one, can be left out '
+                  'when you create a record: Article(id: ..., title: ...) keeps '
+                  'the rest as declared.',
+              'Fields can be enums, lists and maps of them, and other data '
+                  'models. Over the network an enum travels as its name.',
               'Where records are stored is the framework\'s job. You read and '
                   'write them through the model, on whichever database '
                   'DATABASE_URL names.',

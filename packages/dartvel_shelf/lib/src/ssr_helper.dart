@@ -234,7 +234,7 @@ Future<Response> _fromManifest(
           image: site.image,
         );
 
-  final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap);
+  final DVPageRequest? matched = dvMatchRoute(path, routeMap.keys, headers: req.headers.singleValueMap, query: req.url.queryParameters);
   if (matched != null) {
     // The template, for the request's span name and metrics, and this
     // render's.

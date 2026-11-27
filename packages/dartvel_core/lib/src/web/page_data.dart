@@ -263,11 +263,15 @@ class DVSiteSeo {
 /// What a request resolved to: the route pattern it matched and the
 /// parameters the path filled in.
 class DVPageRequest {
-  const DVPageRequest({required this.path, required this.pattern, required this.params, this.headers = const <String, String>{}});
+  const DVPageRequest({required this.path, required this.pattern, required this.params, this.headers = const <String, String>{}, this.query = const <String, String>{}});
 
   final String path;
   final String pattern;
   final Map<String, String> params;
+
+  /// The query string's parameters (`/search?q=vpn` is `{'q': 'vpn'}`), so a
+  /// page's data can render a search on the server.
+  final Map<String, String> query;
 
   /// The request's headers, for a resolver that checks who is asking.
   final Map<String, String> headers;
@@ -485,10 +489,10 @@ Map<String, String>? dvRouteParams(String pattern, String path) {
 }
 
 /// The first of [patterns] that [path] matches, with its parameters.
-DVPageRequest? dvMatchRoute(String path, Iterable<String> patterns, {Map<String, String> headers = const <String, String>{}}) {
+DVPageRequest? dvMatchRoute(String path, Iterable<String> patterns, {Map<String, String> headers = const <String, String>{}, Map<String, String> query = const <String, String>{}}) {
   for (final String pattern in patterns) {
     final Map<String, String>? params = dvRouteParams(pattern, path);
-    if (params != null) return DVPageRequest(path: path, pattern: pattern, params: params, headers: headers);
+    if (params != null) return DVPageRequest(path: path, pattern: pattern, params: params, headers: headers, query: query);
   }
   return null;
 }
@@ -1140,8 +1144,15 @@ class DVPageDataCache {
   /// The tenant goes first so a shared store's keys sort by tenant, and the
   /// separator cannot be mistaken for part of a path, which always begins
   /// with a slash.
-  String _keyFor(DVPageRequest request) =>
-      '${const DVTenants().currentTenant}|${request.path}';
+  ///
+  /// The query is part of the key: /search?q=a and /search?q=b are different
+  /// pages, and keyed on the path alone the first one asked answered both.
+  String _keyFor(DVPageRequest request) {
+    final String key = '${const DVTenants().currentTenant}|${request.path}';
+    if (request.query.isEmpty) return key;
+    final List<String> names = request.query.keys.toList()..sort();
+    return '$key?${Uri(queryParameters: <String, String>{for (final String name in names) name: request.query[name]!}).query}';
+  }
 
   /// The data for [request] by [mode]: resolved, kept, served stale, or not
   /// asked for at all.

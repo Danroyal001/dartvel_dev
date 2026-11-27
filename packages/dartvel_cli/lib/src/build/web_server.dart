@@ -540,7 +540,7 @@ Handler dvWebServerHandler({
         siteName ?? hosted?.siteName ?? site.name ?? shellTitle;
 
     final DVPageRequest? matched =
-        dvMatchRoute(cleanPath, routeMap.keys, headers: request.headers);
+        dvMatchRoute(cleanPath, routeMap.keys, headers: request.headers, query: request.url.queryParameters);
     // The route's own parts and images: they depend on the route, never on
     // the data, so they go in whatever part of the head goes first.
     final String routePreloads = matched == null
