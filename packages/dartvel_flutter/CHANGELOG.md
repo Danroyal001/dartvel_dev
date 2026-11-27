@@ -1,3 +1,7 @@
+## Unreleased
+
+- `DVTimerCountdown` takes the modifier chain: `DVTimerCountdown(timer).fontSize(40).fontWeight(.w700)`, as `DVText` does; `modifier:` still works.
+
 ## 3.47.20 — 2026-11-26
 
 - `DV.Timers` and `DVTimerCountdown`: named countdowns that ring with a chime and a notification, several at once, kept across a reload; the browser notification has +1 min and +5 min buttons, Android rings from a system alarm with the app closed (`dartvel.timers: true`), and `DV.Timers.reach` says where a timer cannot ring.

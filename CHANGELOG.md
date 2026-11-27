@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Accessibility panel wording: with no English voice on the device, the note for English now reads "No English voice on this device; prompts are shown as text" (it said "read in English", which is the fallback for other languages). The voice language menu is labelled "Language" under its "Voice language" heading, so the label is no longer cut off on a phone ("Language voice mode speaks and li…" at 390 px).
+- `DVTimerCountdown` takes the modifier chain (`DVTimerCountdown(timer).fontSize(40)`), so an app styles the countdown as it styles a `DVText`.
 
 ## 3.47.20 — 2026-11-26
 
