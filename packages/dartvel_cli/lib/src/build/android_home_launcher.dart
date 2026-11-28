@@ -247,10 +247,16 @@ const String _activity3478 = 'class MainActivity : FlutterActivity() {\n'
     '                        reply.reply(if (on.split(\':\').any { it.startsWith("\$packageName/") && it.endsWith("DartvelRecentsService") }) "true" else "false")\n'
     '                    }\n'
     '                    "recentsService.settings" -> {\n'
+    '                        val service = android.content.ComponentName(packageName, "\$packageName.DartvelRecentsService")\n'
     '                        val declared = try {\n'
-    '                            packageManager.getServiceInfo(android.content.ComponentName(packageName, "\$packageName.DartvelRecentsService"), 0); true\n'
+    '                            packageManager.getServiceInfo(service, 0); true\n'
     '                        } catch (notBuilt: android.content.pm.PackageManager.NameNotFoundException) { false }\n'
-    '                        if (declared) startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))\n'
+    // Android lets only system apps open one service's own switch; the list
+    // opens scrolled to this service and highlighted where Settings reads the
+    // extras, and as before where it does not.
+    '                        if (declared) startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)\n'
+    '                            .putExtra(":settings:fragment_args_key", service.flattenToString())\n'
+    '                            .putExtra(":settings:show_fragment_args", android.os.Bundle().apply { putString(":settings:fragment_args_key", service.flattenToString()) }))\n'
     '                        reply.reply(if (declared) "true" else "false")\n'
     '                    }\n'
     '                    else -> reply.reply(null)\n'
