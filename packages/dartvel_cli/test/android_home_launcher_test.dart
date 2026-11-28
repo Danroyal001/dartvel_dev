@@ -366,6 +366,11 @@ class MainActivity : FlutterActivity() {
       expect(out, isNot(contains(RegExp(r'^\s+"[\w.]+" ->', multiLine: true))), reason: 'a bare string in a condition switch does not compile');
       expect(out, contains('question == "recentsService.isOn" ->'));
       expect(out, contains('question == "recentsService.settings" ->'));
+      // Android lets only system apps open one service's own switch, so the list
+      // opens scrolled to the Recents service and highlighted where Settings
+      // supports it (ignored where it does not).
+      expect(out, contains('putExtra(":settings:fragment_args_key", service.flattenToString())'));
+      expect(out, contains('putExtra(":settings:show_fragment_args", android.os.Bundle().apply { putString(":settings:fragment_args_key", service.flattenToString()) })'));
       expect(out, contains('registerReceiver(dartvelPackages, packages'));
       expect(out, contains('private val dartvelPackages'));
       expect(out, contains('@JvmStatic var dartvelHomeFromServiceUntil = 0L'));
