@@ -1184,6 +1184,18 @@ class ModelGenerator {
                 try {
                   return _publicPathField(fields);
                 } on StateError {
+                  // No String field: the first field is the key, which works
+                  // for a number but not for a nested model, a list or a map
+                  // (find and destroy cannot compare one, and the generated
+                  // destroy did not compile).
+                  final String firstType = fields.first['type']!.replaceAll('?', '').trim();
+                  if (!const <String>{'int', 'double', 'num', 'bool', 'DateTime'}.contains(firstType)) {
+                    throw StateError(
+                      '$sourceClassName has no String field to be its key, and its first '
+                      'field, ${fields.first['name']} ($firstType), cannot be one. Add '
+                      "'required final String id' as its first field.",
+                    );
+                  }
                   return fields.first['name']!;
                 }
               })();
@@ -2373,6 +2385,7 @@ class ModelGenerator {
             className: className,
             sequenced: true,
             enums: studioEnums,
+            models: studioModelNames,
           );
           sb.writeln('      $name: $name ?? $defaultValue,');
         }
@@ -2516,6 +2529,7 @@ class ModelGenerator {
             name: name,
             className: className,
             enums: studioEnums,
+            models: studioModelNames,
           );
           sb.writeln('    $name: $defaultValue,');
         }
@@ -2656,6 +2670,7 @@ class ModelGenerator {
                 name: name,
                 className: className,
                 enums: studioEnums,
+                models: studioModelNames,
               );
               final base = type.replaceAll('?', '').trim();
               final sent = base == 'String'
@@ -3394,6 +3409,7 @@ class ModelGenerator {
     required String className,
     bool sequenced = false,
     Map<String, List<String>> enums = const <String, List<String>>{},
+    Set<String> models = const <String>{},
   }) {
     final String seq = sequenced ? r'$n' : '1';
     final baseType = type.replaceAll('?', '');
@@ -3462,6 +3478,8 @@ class ModelGenerator {
     if (baseType == 'Map<String,bool>' || baseType == 'Map<String, bool>') {
       return "const <String, bool>{'test': true}";
     }
+    // Another data model: its own factory makes one.
+    if (models.contains(baseType.trim())) return '${baseType.trim()}Factory().create()';
     // A list or map of anything else -- an enum, a model -- starts empty:
     // an empty collection is a valid value of every element type.
     final listOf = RegExp(r'^List<(.+)>$').firstMatch(baseType.trim());
