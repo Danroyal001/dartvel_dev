@@ -30,7 +30,8 @@ Widget _docsModelsPage(BuildContext context) => const DocsArticle(
               'Put it under lib/models, one model per file, as a private class '
                   'with final fields.',
               'The key is the slug field, else id, else the first String '
-                  'field.',
+                  'field. A data model with no String field keys on its first '
+                  'field, which has to be a number, a bool or a date.',
               'When adding a field, declare a default such as '
                   "final String storyJson = ''. Older records read the "
                   'default when the stored field is missing or null. A '
